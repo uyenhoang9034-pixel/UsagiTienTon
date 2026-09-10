@@ -36,6 +36,12 @@ import {
   getCultivationPet,
 } from './cultivationPet.js';
 
+import {
+  getSpiritRootQuality,
+  getSpiritRootQualityUpgradeAfterBreakthrough,
+  SPIRIT_ROOT_QUALITY_EMOJI,
+} from './cultivationSpiritRootQuality.js';
+
 const SEPARATOR =
   '꒷꒦︶꒷꒦︶ ๋ ࣭ ⭑꒷꒦';
 
@@ -440,6 +446,11 @@ export function buildDashboardEmbed(
       profile,
     );
 
+  const quality =
+    getSpiritRootQuality(
+      profile,
+    );
+
   const intro =
     isNew
       ? [
@@ -448,7 +459,7 @@ export function buildDashboardEmbed(
           `<@${user.id}> đã chính thức bước vào Tiên Lộ.`,
           '',
           `${E.spiritRoot} Linh Căn thức tỉnh: **${profile.spiritRoot.name}**`,
-          `Phẩm Chất: **${profile.spiritRoot.rarity}**`,
+          `${SPIRIT_ROOT_QUALITY_EMOJI} Phẩm Chất: **${quality.name}**`,
           '',
           SEPARATOR,
           '',
@@ -471,6 +482,8 @@ export function buildDashboardEmbed(
           `${E.realm} [**境界**] **${realm}**`,
 
           `${E.spiritRoot} [**灵根**] **${profile.spiritRoot.name}**`,
+
+          `${SPIRIT_ROOT_QUALITY_EMOJI} **Phẩm Chất**: **${quality.name}**`,
 
           '',
 
@@ -1564,6 +1577,20 @@ export function buildBreakthroughEmbed(
   if (
     result.success
   ) {
+    const qualityUpgrade =
+      getSpiritRootQualityUpgradeAfterBreakthrough(
+        result.profile,
+      );
+
+    const qualityLines =
+      qualityUpgrade
+        ? [
+            '',
+            `${E.spiritRoot} **LINH CĂN THĂNG PHẨM**`,
+            `${SPIRIT_ROOT_QUALITY_EMOJI} **Phẩm Chất:** ${qualityUpgrade.previous.name} → **${qualityUpgrade.current.name}**`,
+          ]
+        : [];
+
     return applyStyle(
       new EmbedBuilder()
         .setTitle(
@@ -1578,6 +1605,7 @@ export function buildBreakthroughEmbed(
             `**${result.oldRealm}**`,
             '↓',
             `**${result.newRealm}**`,
+            ...qualityLines,
             '',
             `${E.realm} Tỷ Lệ Đột Phá: **${chance}%**`,
             techniqueLine,
@@ -1699,6 +1727,11 @@ export function buildProfileEmbed(
       profile,
     );
 
+  const quality =
+    getSpiritRootQuality(
+      profile,
+    );
+
   const equipmentLine =
     equippedEquipment
       ? `${equippedEquipment.emoji} Pháp Khí: **${equippedEquipment.name}**`
@@ -1759,7 +1792,7 @@ export function buildProfileEmbed(
             profile,
           )}**`,
           `${E.spiritRoot} Linh Căn: **${profile.spiritRoot.name}**`,
-          `Phẩm Chất: **${profile.spiritRoot.rarity}**`,
+          `${SPIRIT_ROOT_QUALITY_EMOJI} Phẩm Chất: **${quality.name}**`,
           equipmentLine,
           techniqueLine,
           talismanLine,
