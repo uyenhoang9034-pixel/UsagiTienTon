@@ -16,7 +16,50 @@ import {
   buildDashboardRows,
 } from '../../services/cultivationUI.js';
 
+async function replyEphemeral(
+  interaction,
+  content,
+) {
+  return interaction.reply({
+    content,
+    flags:
+      MessageFlags.Ephemeral,
+  });
+}
+
+async function replyCommandError(
+  interaction,
+  error,
+) {
+  console.error(
+    '[TU TIEN COMMAND ERROR]',
+    error,
+  );
+
+  const content =
+    'Tiên Lộ đang gặp lỗi khi mở hồ sơ. Thử lại sau một chút nhé.';
+
+  if (
+    interaction.deferred ||
+    interaction.replied
+  ) {
+    return interaction.editReply({
+      content,
+      embeds: [],
+      components: [],
+    });
+  }
+
+  return replyEphemeral(
+    interaction,
+    content,
+  );
+}
+
 export default {
+  category:
+    'Games',
+
   data:
     new SlashCommandBuilder()
       .setName(
@@ -26,133 +69,134 @@ export default {
         'Mở Tiên Lộ và bắt đầu hành trình tu tiên cùng Usagi.',
       ),
 
-  category: 'Games',
-
   async execute(
     interaction,
+    _guildConfig,
+    client,
   ) {
-    /**
-     * =====================================================
-     * SERVER ONLY
-     * =====================================================
-     */
+    try {
+      /**
+       * =====================================================
+       * SERVER ONLY
+       * =====================================================
+       */
 
-    if (
-      !interaction.guildId
-    ) {
-      return interaction.reply({
-        content:
+      if (
+        !interaction.guildId ||
+        !interaction.guild
+      ) {
+        return replyEphemeral(
+          interaction,
           'Tiên Lộ chỉ có thể được sử dụng trong server.',
+        );
+      }
 
-        flags:
-          MessageFlags.Ephemeral,
-      });
-    }
+      /**
+       * =====================================================
+       * GAME ENABLED
+       * =====================================================
+       */
 
-    /**
-     * =====================================================
-     * GAME ENABLED
-     * =====================================================
-     */
-
-    if (
-      !CULTIVATION_CONFIG
-        .enabled
-    ) {
-      return interaction.reply({
-        content:
+      if (
+        !CULTIVATION_CONFIG
+          .enabled
+      ) {
+        return replyEphemeral(
+          interaction,
           'Tiên Lộ hiện đang tạm đóng.',
+        );
+      }
 
-        flags:
-          MessageFlags.Ephemeral,
-      });
-    }
+      /**
+       * =====================================================
+       * CHANNEL LOCK
+       * =====================================================
+       */
 
-    /**
-     * =====================================================
-     * CHANNEL LOCK
-     * =====================================================
-     */
-
-    if (
-      CULTIVATION_CONFIG
-        .channelId &&
-      interaction.channelId !==
+      if (
         CULTIVATION_CONFIG
-          .channelId
-    ) {
-      return interaction.reply({
-        content:
+          .channelId &&
+        interaction.channelId !==
+          CULTIVATION_CONFIG
+            .channelId
+      ) {
+        return replyEphemeral(
+          interaction,
           `Tiên Lộ chỉ mở tại <#${CULTIVATION_CONFIG.channelId}>.`,
+        );
+      }
 
-        flags:
-          MessageFlags.Ephemeral,
-      });
-    }
+      const runtimeClient =
+        client ||
+        interaction.client;
 
-    /**
-     * =====================================================
-     * CHECK EXISTING PROFILE
-     * =====================================================
-     */
+      if (
+        !runtimeClient?.db
+      ) {
+        throw new Error(
+          'Cultivation database is not available.',
+        );
+      }
 
-    const existing =
-      await getCultivationProfile(
-        interaction.client,
+      await interaction.deferReply();
 
-        interaction.guildId,
+      /**
+       * =====================================================
+       * PROFILE
+       * =====================================================
+       */
 
-        interaction.user.id,
-
-        {
-          create: false,
-        },
-      );
-
-    /**
-     * =====================================================
-     * CREATE PROFILE IF NEEDED
-     * =====================================================
-     */
-
-    const profile =
-      existing ||
-      (await getCultivationProfile(
-        interaction.client,
-
-        interaction.guildId,
-
-        interaction.user.id,
-
-        {
-          create: true,
-        },
-      ));
-
-    /**
-     * =====================================================
-     * DASHBOARD
-     * =====================================================
-     */
-
-    return interaction.reply({
-      embeds: [
-        buildDashboardEmbed(
-          interaction.user,
-
-          profile,
-
-          {
-            isNew:
-              !existing,
-          },
-        ),
-      ],
-
-      components:
-        buildDashboardRows(
+      const existingProfile =
+        await getCultivationProfile(
+          runtimeClient,
+          interaction.guildId,
           interaction.user.id,
-        ),
-    });
+          {
+            create:
+              false,
+          },
+        );
+
+      const profile =
+        existingProfile ||
+        await getCultivationProfile(
+          runtimeClient,
+          interaction.guildId,
+          interaction.user.id,
+          {
+            create:
+              true,
+          },
+        );
+
+      /**
+       * =====================================================
+       * DASHBOARD
+       * =====================================================
+       */
+
+      return interaction.editReply({
+        embeds: [
+          buildDashboardEmbed(
+            interaction.user,
+            profile,
+            {
+              isNew:
+                !existingProfile,
+            },
+          ),
+        ],
+
+        components:
+          buildDashboardRows(
+            interaction.user.id,
+          ),
+      });
+    } catch (error) {
+      return replyCommandError(
+        interaction,
+        error,
+      );
+    }
   },
 };
