@@ -62,18 +62,39 @@ function isInsideCultivationThread(interaction) {
   );
 }
 
+function hasCultivationAdminRole(interaction) {
+  const adminRoleId = CULTIVATION_CONFIG.adminRoleId;
+
+  if (!adminRoleId) {
+    return false;
+  }
+
+  return Boolean(
+    interaction.member?.roles?.cache?.has?.(adminRoleId),
+  );
+}
+
 /**
  * Compatibility adapter cho code Tu Tiên cũ.
  *
  * Nhiều button/select/GM command cũ vẫn kiểm tra:
  * interaction.channelId === CULTIVATION_CONFIG.channelId
  *
- * Trong mô hình mới, interaction.channelId là ID của thread cá nhân.
+ * Quy tắc mới:
+ * - Người chơi: chỉ tương thích khi đang ở thread cá nhân thuộc #tu-tiên.
+ * - Admin Tiên Lộ: các lệnh/interaction quản trị như /tutienitem,
+ *   /tutientest và UI sinh ra từ các lệnh test được phép dùng ở MỌI kênh.
+ *
  * Adapter chỉ thay giá trị khi code cũ ĐỌC channelId. interaction.channel vẫn
- * là thread thật, nên reply/update vẫn nằm đúng trong chủ đề của người chơi.
+ * là channel/thread thật, nên reply/update luôn xuất hiện đúng nơi admin hoặc
+ * người chơi đang thao tác.
  */
-function createCultivationThreadInteraction(interaction) {
-  if (!isInsideCultivationThread(interaction)) {
+function createCultivationCompatInteraction(interaction) {
+  const shouldAdapt =
+    isInsideCultivationThread(interaction) ||
+    hasCultivationAdminRole(interaction);
+
+  if (!shouldAdapt) {
     return interaction;
   }
 
@@ -108,16 +129,17 @@ export default {
         }
 
         /**
-         * /tutien đã được viết lại theo hệ thread mới nên phải nhận interaction
-         * thật để kiểm tra đúng threadId của người chơi.
+         * /tutien là lệnh mở dashboard cá nhân nên PHẢI nhận interaction thật
+         * để kiểm tra đúng threadId của người chơi.
          *
-         * Các lệnh phụ cũ như /tutienitem, /tutientest vẫn dùng channel check
-         * kiểu cũ nên được đi qua compatibility adapter.
+         * Các lệnh Tu Tiên phụ/GM như /tutienitem và /tutientest đi qua
+         * compatibility adapter. Nhờ đó admin Tiên Lộ có thể chạy chúng ở
+         * bất kỳ kênh nào, còn người chơi thường vẫn bị giới hạn đúng nơi.
          */
         const routedCommandInteraction =
           interaction.commandName !== 'tutien' &&
           interaction.commandName.startsWith('tutien')
-            ? createCultivationThreadInteraction(interaction)
+            ? createCultivationCompatInteraction(interaction)
             : interaction;
 
         await command.execute(routedCommandInteraction, null, client);
@@ -150,7 +172,7 @@ export default {
       }
 
       const routedInteraction = isCultivationComponent(handlerId)
-        ? createCultivationThreadInteraction(interaction)
+        ? createCultivationCompatInteraction(interaction)
         : interaction;
 
       await handler.execute(routedInteraction, client, args);
