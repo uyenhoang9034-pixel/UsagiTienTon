@@ -23,19 +23,12 @@ import {
 
 /**
  * =========================================================
- * V2.9.5
- * LINH THÚ ENCOUNTER + CỘNG MINH
+ * V2.9.5 · LINH THÚ ENCOUNTER + CỘNG MINH
  * =========================================================
  */
 
 const SESSION_PREFIX =
   'games:cultivation:adventureV2:';
-
-/**
- * =========================================================
- * HELPERS
- * =========================================================
- */
 
 function getSessionKey(
   guildId,
@@ -59,8 +52,7 @@ async function getSession(
 
   if (
     !session ||
-    typeof session !==
-      'object'
+    typeof session !== 'object'
   ) {
     return null;
   }
@@ -104,13 +96,8 @@ function randomInt(
   return (
     Math.floor(
       Math.random() *
-        (
-          max -
-          min +
-          1
-        ),
-    ) +
-    min
+        (max - min + 1),
+    ) + min
   );
 }
 
@@ -125,16 +112,13 @@ async function finishAdventure(
     Math.max(
       0,
       Number(
-        profile.stats
-          .adventureCount,
+        profile.stats.adventureCount,
       ) || 0,
     ) + 1;
 
   profile.cooldowns.adventureAt =
     Date.now() +
-    CULTIVATION_CONFIG
-      .gameplay
-      .adventureCooldownMs;
+    CULTIVATION_CONFIG.gameplay.adventureCooldownMs;
 
   return saveCultivationProfile(
     client,
@@ -143,10 +127,19 @@ async function finishAdventure(
 }
 
 /**
- * =========================================================
- * PET
- * =========================================================
+ * Giữ nguyên trọng số thập phân.
+ * Hậu Thổ Kim Long dùng weight 0.1 nên tuyệt đối không ép tối thiểu về 1.
  */
+function getPetWeight(
+  pet,
+) {
+  return Math.max(
+    0,
+    Number(
+      pet?.weight,
+    ) || 0,
+  );
+}
 
 function rollAvailablePet(
   profile,
@@ -156,8 +149,7 @@ function rollAvailablePet(
       getOwnedPets(
         profile,
       ).map(
-        pet =>
-          pet.id,
+        pet => pet.id,
       ),
     );
 
@@ -167,12 +159,12 @@ function rollAvailablePet(
         pet =>
           !owned.has(
             pet.id,
-          ),
+          ) &&
+          getPetWeight(pet) > 0,
       );
 
   if (
-    available.length ===
-    0
+    available.length === 0
   ) {
     return null;
   }
@@ -184,30 +176,25 @@ function rollAvailablePet(
         pet,
       ) =>
         total +
-        Math.max(
-          1,
-          Number(
-            pet.weight,
-          ) || 1,
-        ),
+        getPetWeight(pet),
       0,
     );
+
+  if (
+    totalWeight <= 0
+  ) {
+    return null;
+  }
 
   let roll =
     Math.random() *
     totalWeight;
 
   for (
-    const pet of
-      available
+    const pet of available
   ) {
     roll -=
-      Math.max(
-        1,
-        Number(
-          pet.weight,
-        ) || 1,
-      );
+      getPetWeight(pet);
 
     if (
       roll <= 0
@@ -218,37 +205,16 @@ function rollAvailablePet(
 
   return (
     available[
-      available.length -
-        1
+      available.length - 1
     ] || null
   );
 }
-
-/**
- * =========================================================
- * LINH THÚ · KHỞI TẠO ENCOUNTER
- * =========================================================
- *
- * KHÔNG clear session.
- *
- * Session sẽ giữ lại cho tới khi:
- * - Reveal
- * - Thu phục / bỏ qua
- */
 
 export async function startAdventurePetEncounter(
   client,
   guildId,
   userId,
 ) {
-  /**
-   * KHÔNG Mutex.
-   *
-   * Hàm này được gọi từ
-   * resolveAdventureV2Choice()
-   * đang giữ cultivation lock.
-   */
-
   const session =
     await getSession(
       client,
@@ -258,13 +224,11 @@ export async function startAdventurePetEncounter(
 
   if (
     !session ||
-    session.state !==
-      'location'
+    session.state !== 'location'
   ) {
     return {
       ok: false,
-      reason:
-        'session_expired',
+      reason: 'session_expired',
     };
   }
 
@@ -280,14 +244,10 @@ export async function startAdventurePetEncounter(
       profile,
     );
 
-  /**
-   * Có đủ Linh Thú rồi.
-   */
   if (!pet) {
     return {
       ok: false,
-      reason:
-        'all_pets_owned',
+      reason: 'all_pets_owned',
       profile,
     };
   }
@@ -296,14 +256,9 @@ export async function startAdventurePetEncounter(
     'pet_encounter';
 
   session.petEncounter = {
-    petId:
-      pet.id,
-
-    revealed:
-      false,
-
-    createdAt:
-      Date.now(),
+    petId: pet.id,
+    revealed: false,
+    createdAt: Date.now(),
   };
 
   session.updatedAt =
@@ -316,22 +271,11 @@ export async function startAdventurePetEncounter(
 
   return {
     ok: true,
-
-    type:
-      'pet_encounter_unknown',
-
-    petId:
-      pet.id,
-
+    type: 'pet_encounter_unknown',
+    petId: pet.id,
     profile,
   };
 }
-
-/**
- * =========================================================
- * LINH THÚ · REVEAL
- * =========================================================
- */
 
 export async function revealAdventurePet(
   client,
@@ -347,14 +291,12 @@ export async function revealAdventurePet(
 
   if (
     !session ||
-    session.state !==
-      'pet_encounter' ||
+    session.state !== 'pet_encounter' ||
     !session.petEncounter
   ) {
     return {
       ok: false,
-      reason:
-        'session_expired',
+      reason: 'session_expired',
     };
   }
 
@@ -363,21 +305,18 @@ export async function revealAdventurePet(
       .find(
         item =>
           item.id ===
-          session.petEncounter
-            .petId,
+          session.petEncounter.petId,
       );
 
   if (!pet) {
     return {
       ok: false,
-      reason:
-        'invalid_pet',
+      reason: 'invalid_pet',
     };
   }
 
   session.petEncounter.revealed =
     true;
-
   session.updatedAt =
     Date.now();
 
@@ -388,21 +327,10 @@ export async function revealAdventurePet(
 
   return {
     ok: true,
-
-    type:
-      'pet_encounter_revealed',
-
+    type: 'pet_encounter_revealed',
     pet,
   };
 }
-
-/**
- * =========================================================
- * LINH THÚ · KẾT THÚC ENCOUNTER
- * =========================================================
- *
- * Gọi sau khi Thu Phục thành công/thất bại.
- */
 
 export async function finishAdventurePetEncounter(
   client,
@@ -418,12 +346,8 @@ export async function finishAdventurePetEncounter(
 
   if (
     !session ||
-    session.state !==
-      'pet_encounter'
+    session.state !== 'pet_encounter'
   ) {
-    /**
-     * Cho phép cleanup idempotent.
-     */
     await clearSession(
       client,
       guildId,
@@ -456,22 +380,13 @@ export async function finishAdventurePetEncounter(
 
   return {
     ok: true,
-
-    profile:
-      saved,
-
+    profile: saved,
     required:
       getCultivationRequired(
         saved,
       ),
   };
 }
-
-/**
- * =========================================================
- * LINH THÚ · BỎ QUA
- * =========================================================
- */
 
 export async function leaveAdventurePetEncounter(
   client,
@@ -487,13 +402,11 @@ export async function leaveAdventurePetEncounter(
 
   if (
     !session ||
-    session.state !==
-      'pet_encounter'
+    session.state !== 'pet_encounter'
   ) {
     return {
       ok: false,
-      reason:
-        'session_expired',
+      reason: 'session_expired',
     };
   }
 
@@ -518,23 +431,10 @@ export async function leaveAdventurePetEncounter(
 
   return {
     ok: true,
-
-    type:
-      'pet_encounter_leave',
-
-    profile:
-      saved,
+    type: 'pet_encounter_leave',
+    profile: saved,
   };
 }
-
-/**
- * =========================================================
- * CỘNG MINH
- * =========================================================
- *
- * Cộng Minh chỉ có thể xảy ra nếu người chơi
- * đang trang bị Pháp Khí hoặc kích hoạt Công Pháp.
- */
 
 export function rollAdventureResonance(
   profile,
@@ -556,37 +456,24 @@ export function rollAdventureResonance(
     return null;
   }
 
-  /**
-   * Tổng xác suất cộng minh: 18%.
-   */
   if (
-    Math.random() >
-    0.18
+    Math.random() > 0.18
   ) {
     return null;
   }
 
-  /**
-   * Có cả hai:
-   * chọn ngẫu nhiên.
-   */
   if (
     equipment &&
     technique
   ) {
     return (
-      Math.random() <
-      0.5
+      Math.random() < 0.5
         ? {
-            type:
-              'equipment_resonance',
-
+            type: 'equipment_resonance',
             equipment,
           }
         : {
-            type:
-              'technique_resonance',
-
+            type: 'technique_resonance',
             technique,
           }
     );
@@ -594,39 +481,22 @@ export function rollAdventureResonance(
 
   if (equipment) {
     return {
-      type:
-        'equipment_resonance',
-
+      type: 'equipment_resonance',
       equipment,
     };
   }
 
   return {
-    type:
-      'technique_resonance',
-
+    type: 'technique_resonance',
     technique,
   };
 }
-
-/**
- * =========================================================
- * PHÁP KHÍ CỘNG MINH
- * =========================================================
- */
 
 export async function resolveEquipmentResonance(
   client,
   guildId,
   userId,
 ) {
-  /**
-   * Không Mutex.
-   *
-   * Dùng từ resolveAdventureV2Choice()
-   * đang giữ lock.
-   */
-
   const session =
     await getSession(
       client,
@@ -636,13 +506,11 @@ export async function resolveEquipmentResonance(
 
   if (
     !session ||
-    session.state !==
-      'location'
+    session.state !== 'location'
   ) {
     return {
       ok: false,
-      reason:
-        'session_expired',
+      reason: 'session_expired',
     };
   }
 
@@ -661,8 +529,7 @@ export async function resolveEquipmentResonance(
   if (!equipment) {
     return {
       ok: false,
-      reason:
-        'no_equipment',
+      reason: 'no_equipment',
     };
   }
 
@@ -671,7 +538,6 @@ export async function resolveEquipmentResonance(
       130,
       240,
     );
-
   const stones =
     randomInt(
       45,
@@ -681,31 +547,20 @@ export async function resolveEquipmentResonance(
   profile.cultivation =
     Math.max(
       0,
-      Number(
-        profile.cultivation,
-      ) || 0,
-    ) +
-    cultivation;
+      Number(profile.cultivation) || 0,
+    ) + cultivation;
 
   profile.totalCultivation =
     Math.max(
       0,
-      Number(
-        profile
-          .totalCultivation,
-      ) || 0,
-    ) +
-    cultivation;
+      Number(profile.totalCultivation) || 0,
+    ) + cultivation;
 
   profile.spiritStones =
     Math.max(
       0,
-      Number(
-        profile
-          .spiritStones,
-      ) || 0,
-    ) +
-    stones;
+      Number(profile.spiritStones) || 0,
+    ) + stones;
 
   const saved =
     await finishAdventure(
@@ -721,21 +576,11 @@ export async function resolveEquipmentResonance(
 
   return {
     ok: true,
-
-    type:
-      'equipment_resonance',
-
+    type: 'equipment_resonance',
     equipment,
-
-    cultivationDelta:
-      cultivation,
-
-    stoneDelta:
-      stones,
-
-    profile:
-      saved,
-
+    cultivationDelta: cultivation,
+    stoneDelta: stones,
+    profile: saved,
     required:
       getCultivationRequired(
         saved,
@@ -743,24 +588,11 @@ export async function resolveEquipmentResonance(
   };
 }
 
-/**
- * =========================================================
- * CÔNG PHÁP CỘNG MINH
- * =========================================================
- */
-
 export async function resolveTechniqueResonance(
   client,
   guildId,
   userId,
 ) {
-  /**
-   * Không Mutex.
-   *
-   * Dùng từ resolveAdventureV2Choice()
-   * đang giữ lock.
-   */
-
   const session =
     await getSession(
       client,
@@ -770,13 +602,11 @@ export async function resolveTechniqueResonance(
 
   if (
     !session ||
-    session.state !==
-      'location'
+    session.state !== 'location'
   ) {
     return {
       ok: false,
-      reason:
-        'session_expired',
+      reason: 'session_expired',
     };
   }
 
@@ -795,8 +625,7 @@ export async function resolveTechniqueResonance(
   if (!technique) {
     return {
       ok: false,
-      reason:
-        'no_technique',
+      reason: 'no_technique',
     };
   }
 
@@ -805,7 +634,6 @@ export async function resolveTechniqueResonance(
       170,
       300,
     );
-
   const stones =
     randomInt(
       25,
@@ -815,31 +643,20 @@ export async function resolveTechniqueResonance(
   profile.cultivation =
     Math.max(
       0,
-      Number(
-        profile.cultivation,
-      ) || 0,
-    ) +
-    cultivation;
+      Number(profile.cultivation) || 0,
+    ) + cultivation;
 
   profile.totalCultivation =
     Math.max(
       0,
-      Number(
-        profile
-          .totalCultivation,
-      ) || 0,
-    ) +
-    cultivation;
+      Number(profile.totalCultivation) || 0,
+    ) + cultivation;
 
   profile.spiritStones =
     Math.max(
       0,
-      Number(
-        profile
-          .spiritStones,
-      ) || 0,
-    ) +
-    stones;
+      Number(profile.spiritStones) || 0,
+    ) + stones;
 
   const saved =
     await finishAdventure(
@@ -855,21 +672,11 @@ export async function resolveTechniqueResonance(
 
   return {
     ok: true,
-
-    type:
-      'technique_resonance',
-
+    type: 'technique_resonance',
     technique,
-
-    cultivationDelta:
-      cultivation,
-
-    stoneDelta:
-      stones,
-
-    profile:
-      saved,
-
+    cultivationDelta: cultivation,
+    stoneDelta: stones,
+    profile: saved,
     required:
       getCultivationRequired(
         saved,
