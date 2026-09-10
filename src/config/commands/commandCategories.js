@@ -1,31 +1,21 @@
 /**
- * Command category metadata for the command access manager.
+ * Command category metadata for Usagi Tiên Tôn.
+ *
+ * Repo này chỉ giữ Music + Tiên Lộ, nên các category cũ
+ * như Economy / Ticket / Moderation / Giveaway... đã được bỏ.
  */
 
 export const CATEGORY_ICONS = {
-  Birthday: '🎂',
-  Community: '👥',
-  Core: 'ℹ️',
-  Economy: '💰',
-  Fun: '🎮',
-  Giveaway: '🎉',
-  JoinToCreate: '🔌',
-  Leveling: '📊',
-  Logging: '📝',
-  Moderation: '🛡️',
+  Games: '⚔️',
   Music: '🎵',
-  Reaction_roles: '🎭',
-  Search: '🔍',
-  ServerStats: '📈',
-  Ticket: '🎫',
-  Tools: '🛠️',
-  Utility: '🔧',
-  Verification: '✅',
-  Welcome: '👋',
 };
 
-/** Commands that always stay available so admins can recover access. */
-export const PROTECTED_COMMANDS = new Set(['commands', 'configwizard']);
+/**
+ * Lệnh luôn cho phép trong command access manager.
+ * Hiện bot mới không giữ command quản trị core kiểu /commands hay /configwizard,
+ * nên để trống để tránh tham chiếu nhầm command đã xóa.
+ */
+export const PROTECTED_COMMANDS = new Set([]);
 
 export function normalizeCategoryKey(category) {
   return String(category || '')
@@ -42,5 +32,7 @@ export function formatCategoryName(rawCategory) {
 }
 
 export function getCategoryIcon(category) {
-  return CATEGORY_ICONS[category] || CATEGORY_ICONS[formatCategoryName(category)] || '📁';
+  return CATEGORY_ICONS[category]
+    || CATEGORY_ICONS[formatCategoryName(category)]
+    || '📁';
 }
