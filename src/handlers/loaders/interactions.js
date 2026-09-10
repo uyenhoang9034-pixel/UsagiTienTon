@@ -14,7 +14,7 @@ const __dirname = dirname(__filename);
  * - Tu Tiên buttons
  * - Tu Tiên select menus
  *
- * Audio modal/button cũ đã xóa nên loader không quét modals nữa.
+ * Loader không được để 1 file interaction lỗi kéo sập toàn bộ hệ thống.
  */
 const interactionTypes = ['buttons', 'selectMenus'];
 
@@ -47,6 +47,23 @@ async function getAllInteractionFiles(directory, fileList = []) {
   return fileList;
 }
 
+function normalizeModuleExport(moduleExport) {
+  if (Array.isArray(moduleExport)) {
+    return moduleExport;
+  }
+
+  return [moduleExport];
+}
+
+function isValidInteraction(interaction) {
+  return Boolean(
+    interaction &&
+      typeof interaction.name === 'string' &&
+      interaction.name.length > 0 &&
+      typeof interaction.execute === 'function',
+  );
+}
+
 export default async (client) => {
   try {
     const interactionsPath = join(__dirname, '../../interactions');
@@ -58,6 +75,7 @@ export default async (client) => {
         const interactionFiles = await getAllInteractionFiles(typePath);
         let loadedCount = 0;
         let skippedCount = 0;
+        let failedCount = 0;
 
         for (const filePath of interactionFiles) {
           const relativePath = filePath
@@ -70,23 +88,31 @@ export default async (client) => {
           }
 
           const fileName = relativePath.split('/').pop();
-          const module = await import(pathToFileURL(filePath).href);
-          const moduleExport = module.default;
-          const interactions = Array.isArray(moduleExport) ? moduleExport : [moduleExport];
 
-          for (const interaction of interactions) {
-            if (!interaction?.name || !interaction?.execute) {
-              logger.warn(`Interaction ${relativePath} in ${type} is missing required properties.`);
-              continue;
+          try {
+            const module = await import(pathToFileURL(filePath).href);
+            const interactions = normalizeModuleExport(module.default);
+
+            for (const interaction of interactions) {
+              if (!isValidInteraction(interaction)) {
+                skippedCount += 1;
+                logger.warn(`Interaction ${relativePath} in ${type} is missing required properties.`);
+                continue;
+              }
+
+              client[type].set(interaction.name, interaction);
+              loadedCount += 1;
+              logger.info(`Loaded ${type.slice(0, -1)}: ${interaction.name} (${fileName})`);
             }
-
-            client[type].set(interaction.name, interaction);
-            loadedCount += 1;
-            logger.info(`Loaded ${type.slice(0, -1)}: ${interaction.name} (${fileName})`);
+          } catch (error) {
+            failedCount += 1;
+            logger.error(`Failed to load ${type} interaction ${relativePath}:`, error);
           }
         }
 
-        logger.info(`Loaded ${loadedCount} ${type}; skipped ${skippedCount} non-scope ${type}`);
+        logger.info(
+          `Loaded ${loadedCount} ${type}; skipped ${skippedCount}; failed ${failedCount}`,
+        );
       } catch (error) {
         if (error.code !== 'ENOENT') {
           logger.error(`Error loading ${type}:`, error);
