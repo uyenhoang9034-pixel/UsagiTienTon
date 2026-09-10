@@ -8,10 +8,20 @@ export default {
   once: true,
 
   async execute(client) {
-    client.user.setPresence(client.config.bot.presence);
+    try {
+      if (client.config?.bot?.presence) {
+        await client.user.setPresence(client.config.bot.presence);
+      }
+    } catch (error) {
+      logger.warn('Could not set bot presence:', error);
+    }
 
-    initRiffyAfterReady(client);
+    try {
+      await initRiffyAfterReady(client);
+    } catch (error) {
+      logger.error('Could not initialize Riffy/Lavalink after ready:', error);
+    }
 
-    logger.info('UsagiTienTon ready: music and cultivation.');
+    logger.info('UsagiTienTon ready: Music + Tiên Lộ.');
   },
 };
