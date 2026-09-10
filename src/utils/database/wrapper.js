@@ -49,6 +49,7 @@ class DatabaseWrapper {
         if (process.env.ALLOW_MEMORY_DATABASE !== 'true') {
             throw new Error('PostgreSQL unavailable. Refusing to start with temporary storage because Tiên Lộ progress must persist.');
         }
+
         this.db = new MemoryStorage();
         this.useFallback = true;
         this.connectionType = 'memory';
@@ -59,7 +60,15 @@ class DatabaseWrapper {
         this.degradedModeWarningShown = true;
     }
 
+    ensureReady(operation = 'database operation') {
+        if (!this.initialized || !this.db) {
+            throw new Error(`Database is not initialized; cannot run ${operation}.`);
+        }
+    }
+
     async set(key, value, ttl = null) {
+        this.ensureReady('set');
+
         if (this.useFallback) {
             logger.debug(`[DEGRADED] Writing to memory: ${key}`);
         }
@@ -76,10 +85,13 @@ class DatabaseWrapper {
     }
 
     async get(key, defaultValue = null) {
+        this.ensureReady('get');
         return this.db.get(key, defaultValue);
     }
 
     async delete(key) {
+        this.ensureReady('delete');
+
         if (this.useFallback) {
             logger.debug(`[DEGRADED] Deleting from memory: ${key}`);
         }
@@ -87,10 +99,13 @@ class DatabaseWrapper {
     }
 
     async list(prefix) {
+        this.ensureReady('list');
         return this.db.list(prefix);
     }
 
     async exists(key) {
+        this.ensureReady('exists');
+
         if (this.db.exists) {
             return this.db.exists(key);
         }
@@ -99,6 +114,8 @@ class DatabaseWrapper {
     }
 
     async increment(key, amount = 1) {
+        this.ensureReady('increment');
+
         if (this.useFallback) {
             logger.debug(`[DEGRADED] Incrementing in memory: ${key}`);
         }
@@ -112,6 +129,8 @@ class DatabaseWrapper {
     }
 
     async decrement(key, amount = 1) {
+        this.ensureReady('decrement');
+
         if (this.useFallback) {
             logger.debug(`[DEGRADED] Decrementing in memory: ${key}`);
         }
@@ -150,19 +169,20 @@ class DatabaseWrapper {
 export const db = new DatabaseWrapper();
 
 export async function initializeDatabase() {
+    logger.info('Initializing Database (PostgreSQL > Memory fallback)...');
+
     try {
-        logger.info('Initializing Database (PostgreSQL > Memory fallback)...');
         await db.initialize();
+
+        if (!db.initialized || !db.db) {
+            throw new Error('Database wrapper finished without an active database connection.');
+        }
+
         logger.info('✅ Database initialized');
         return { db };
     } catch (error) {
         logger.error('❌ Database Initialization Error:', error);
-
-        if (error.code === 'SCHEMA_VERSION_MISMATCH') {
-            throw error;
-        }
-
-        return { db };
+        throw error;
     }
 }
 
