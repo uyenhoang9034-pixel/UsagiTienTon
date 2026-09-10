@@ -19,22 +19,22 @@ export const CULTIVATION_PETS = {
       '<:ttlinhthuthanhphonglinhho:1547460151189962823>',
 
     rarity:
-      'Hiếm',
+      'Phàm',
 
     description:
       'Linh hồ sinh giữa thanh phong, thân ảnh nhẹ như mây khói.',
 
     effect:
-      '+6% Tu Vi khi Tu Luyện',
+      '+3% Tu Vi khi Tu Luyện',
 
     effectType:
       'cultivation_bonus',
 
     effectValue:
-      0.06,
+      0.03,
 
     captureChance:
-      0.65,
+      0.40,
 
     weight:
       40,
@@ -57,16 +57,16 @@ export const CULTIVATION_PETS = {
       'Hỏa điểu mang Xích Viêm trong huyết mạch, thích tụ linh tài nơi thiên địa.',
 
     effect:
-      '+8% Linh Thạch khi Thám Hiểm',
+      '+30% Linh Thạch khi Thám Hiểm',
 
     effectType:
       'adventure_stone_bonus',
 
     effectValue:
-      0.08,
+      0.30,
 
     captureChance:
-      0.60,
+      0.08,
 
     weight:
       35,
@@ -83,22 +83,22 @@ export const CULTIVATION_PETS = {
       '<:tthuyengiaplinhquy:1547460356371259452>',
 
     rarity:
-      'Cực Hiếm',
+      'Phàm',
 
     description:
       'Linh quy cổ xưa, huyền giáp ẩn chứa khí tức hộ đạo.',
 
     effect:
-      'Giảm 15% Tu Vi mất khi Đột Phá thất bại',
+      'Giảm 10% Tu Vi mất khi Đột Phá thất bại',
 
     effectType:
       'breakthrough_loss_reduction',
 
     effectValue:
-      0.15,
+      0.10,
 
     captureChance:
-      0.45,
+      0.08,
 
     weight:
       16,
@@ -121,16 +121,16 @@ export const CULTIVATION_PETS = {
       'Bạch hổ mang thiên lôi chi lực, uy áp khiến vạn thú phải tránh đường.',
 
     effect:
-      '+4% tỷ lệ Đột Phá',
+      '+20% tỷ lệ Đột Phá',
 
     effectType:
       'breakthrough_bonus',
 
     effectValue:
-      0.04,
+      0.20,
 
     captureChance:
-      0.35,
+      0.10,
 
     weight:
       9,
