@@ -67,6 +67,67 @@ function getClientDb(client) {
   return client?.db ?? db;
 }
 
+function isDatabaseLike(database) {
+  return Boolean(
+    database &&
+    typeof database.get === 'function' &&
+    typeof database.set === 'function' &&
+    typeof database.delete === 'function'
+  );
+}
+
+function normalizeKey(key) {
+  return typeof key === 'string' && key.length > 0
+    ? canonicalizeKey(key)
+    : key;
+}
+
+export function isDatabaseReady(client = null) {
+  const database = getClientDb(client);
+
+  if (!isDatabaseLike(database)) {
+    return false;
+  }
+
+  if (typeof database.getStatus === 'function') {
+    const status = database.getStatus();
+    return Boolean(status?.initialized && !status?.isDegraded);
+  }
+
+  if (typeof database.isAvailable === 'function') {
+    return Boolean(database.isAvailable());
+  }
+
+  return true;
+}
+
+export function getDatabaseStatus(client = null) {
+  const database = getClientDb(client);
+
+  if (!database) {
+    return {
+      initialized: false,
+      connectionType: 'none',
+      isDegraded: false,
+      isAvailable: false,
+    };
+  }
+
+  if (typeof database.getStatus === 'function') {
+    return database.getStatus();
+  }
+
+  return {
+    initialized: true,
+    connectionType: database === pgDb ? 'postgresql' : 'custom',
+    isDegraded: false,
+    isAvailable:
+      typeof database.isAvailable === 'function'
+        ? Boolean(database.isAvailable())
+        : true,
+  };
+}
+
 export async function getDatabaseValue(client, key, defaultValue = null) {
   const database = getClientDb(client);
 
@@ -74,10 +135,14 @@ export async function getDatabaseValue(client, key, defaultValue = null) {
     return defaultValue;
   }
 
-  const value = await database.get(key, defaultValue);
-  const unwrapped = unwrapReplitData(value);
+  try {
+    const value = await database.get(normalizeKey(key), defaultValue);
+    const unwrapped = unwrapReplitData(value);
 
-  return unwrapped ?? defaultValue;
+    return unwrapped ?? defaultValue;
+  } catch {
+    return defaultValue;
+  }
 }
 
 export async function setDatabaseValue(client, key, value, ttl = null) {
@@ -87,7 +152,11 @@ export async function setDatabaseValue(client, key, value, ttl = null) {
     return false;
   }
 
-  return Boolean(await database.set(key, value, ttl));
+  try {
+    return Boolean(await database.set(normalizeKey(key), value, ttl));
+  } catch {
+    return false;
+  }
 }
 
 export async function deleteDatabaseValue(client, key) {
@@ -97,7 +166,11 @@ export async function deleteDatabaseValue(client, key) {
     return false;
   }
 
-  return Boolean(await database.delete(key));
+  try {
+    return Boolean(await database.delete(normalizeKey(key)));
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -178,7 +251,7 @@ const DEFAULT_MESSAGES = {
 export function getMessage(key, replacements = {}) {
   let message = DEFAULT_MESSAGES[key] || key;
 
-  for (const [placeholder, value] of Object.entries(replacements)) {
+  for (const [placeholder, value] of Object.entries(replacements || {})) {
     message = message.replace(
       new RegExp(`\\{${placeholder}\\}`, 'g'),
       String(value),
@@ -206,15 +279,45 @@ export function getColor(nameOrHex = 'primary', fallback = '#F3AFC8') {
     return nameOrHex;
   }
 
-  if (typeof nameOrHex === 'string' && nameOrHex.startsWith('#')) {
+  if (typeof nameOrHex === 'string' && /^#[0-9a-f]{6}$/i.test(nameOrHex)) {
     return parseInt(nameOrHex.slice(1), 16);
   }
 
   const color = DEFAULT_COLORS[nameOrHex] || fallback;
 
-  if (typeof color === 'string' && color.startsWith('#')) {
+  if (typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color)) {
     return parseInt(color.slice(1), 16);
   }
 
-  return color;
+  if (typeof color === 'number') {
+    return color;
+  }
+
+  return parseInt('F3AFC8', 16);
 }
+
+const databaseFacade = {
+  pgDb,
+  db,
+  initializeDatabase,
+  getFromDb,
+  setInDb,
+  deleteFromDb,
+  unwrapReplitData,
+  isDatabaseReady,
+  getDatabaseStatus,
+  getDatabaseValue,
+  setDatabaseValue,
+  deleteDatabaseValue,
+  getMusicKeys,
+  getMusicData,
+  saveMusicData,
+  getCultivationKeys,
+  getCultivationProfileData,
+  saveCultivationProfileData,
+  deleteCultivationProfileData,
+  getMessage,
+  getColor,
+};
+
+export default databaseFacade;
