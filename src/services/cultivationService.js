@@ -67,7 +67,7 @@ const PET_ENCOUNTER_POOL = [
       'thanh_phong_linh_ho',
 
     weight:
-      40,
+      30,
   },
 
   {
@@ -75,7 +75,7 @@ const PET_ENCOUNTER_POOL = [
       'xich_viem_hoa_dieu',
 
     weight:
-      35,
+      10,
   },
 
   {
@@ -83,7 +83,7 @@ const PET_ENCOUNTER_POOL = [
       'huyen_giap_linh_quy',
 
     weight:
-      16,
+      30,
   },
 
   {
@@ -91,7 +91,7 @@ const PET_ENCOUNTER_POOL = [
       'thien_loi_bach_ho',
 
     weight:
-      9,
+      5,
   },
 ];
 
