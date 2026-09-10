@@ -22,6 +22,16 @@ import {
 } from '../../services/cultivationUI.js';
 
 import {
+  getDailyQuestState,
+} from '../../services/cultivationDailyQuest.js';
+
+import {
+  buildDailyQuestEmbed,
+  buildDailyQuestIntroEmbed,
+  buildDailyQuestRows,
+} from '../../services/cultivationDailyQuestUI.js';
+
+import {
   CULTIVATION_MAINTENANCE_MESSAGE,
   isCultivationMaintenance,
 } from '../../services/cultivationMaintenance.js';
@@ -76,18 +86,18 @@ async function replyCommandError(
   );
 }
 
-async function hasExistingDashboard(
+async function hasExistingMessage(
   interaction,
-  dashboardMessageId,
+  messageId,
 ) {
-  if (!dashboardMessageId) {
+  if (!messageId) {
     return false;
   }
 
   try {
     const message =
       await interaction.channel.messages.fetch(
-        dashboardMessageId,
+        messageId,
       );
 
     return Boolean(message);
@@ -211,7 +221,7 @@ export default {
       }
 
       if (
-        await hasExistingDashboard(
+        await hasExistingMessage(
           interaction,
           threadData.dashboardMessageId,
         )
@@ -266,6 +276,50 @@ export default {
             ),
         });
 
+      let dailyQuestMessageId =
+        threadData.dailyQuestMessageId ||
+        null;
+
+      const hasQuestPanel =
+        await hasExistingMessage(
+          interaction,
+          dailyQuestMessageId,
+        );
+
+      if (!hasQuestPanel) {
+        const questState =
+          await getDailyQuestState(
+            runtimeClient,
+            interaction.guildId,
+            interaction.user.id,
+            {
+              sync: true,
+            },
+          );
+
+        const dailyQuestMessage =
+          await interaction.followUp({
+            embeds: [
+              questState.rolled
+                ? buildDailyQuestEmbed(
+                    interaction.user,
+                    questState,
+                  )
+                : buildDailyQuestIntroEmbed(
+                    interaction.user,
+                  ),
+            ],
+            components:
+              buildDailyQuestRows(
+                interaction.user.id,
+                questState,
+              ),
+          });
+
+        dailyQuestMessageId =
+          dailyQuestMessage.id;
+      }
+
       await setDatabaseValue(
         runtimeClient,
         threadKey,
@@ -275,6 +329,7 @@ export default {
             interaction.channelId,
           dashboardMessageId:
             dashboardMessage.id,
+          dailyQuestMessageId,
           userId:
             interaction.user.id,
           updatedAt:
