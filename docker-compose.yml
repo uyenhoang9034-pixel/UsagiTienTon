@@ -5,19 +5,32 @@ services:
     env_file: .env
     environment:
       NODE_ENV: production
+
+      # Local Docker Compose dùng service db bên dưới.
+      # Để trống URL để app tự dùng POSTGRES_HOST/PORT/DB/USER/PASSWORD.
       POSTGRES_URL: ""
       DATABASE_URL: ""
       POSTGRES_HOST: db
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: usagitienton
-      POSTGRES_USER: usagitienton
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: usagi_tien_ton
+      POSTGRES_USER: usagi_tien_ton
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_SSL: "false"
+      POSTGRES_AUTO_CREATE_TABLES: "true"
+      POSTGRES_MIGRATION_ENABLED: "true"
+      AUTO_MIGRATE: "true"
+      ALLOW_MEMORY_DATABASE: "false"
+
+      # Local Lavalink service.
       LAVALINK_HOST: lavalink
-      LAVALINK_PORT: 2333
+      LAVALINK_PORT: "2333"
       LAVALINK_PASSWORD: ${LAVALINK_PASSWORD:?Set LAVALINK_PASSWORD in .env}
       LAVALINK_SECURE: "false"
-      PORT: 3000
+      LAVALINK_SEARCH_PLATFORM: ytmsearch
+      LAVALINK_REST_VERSION: v4
+
+      # Bot web health server chạy trong container ở port 3000.
+      PORT: "3000"
     ports:
       - "${PORT:-3001}:3000"
     depends_on:
@@ -25,26 +38,33 @@ services:
         condition: service_healthy
       lavalink:
         condition: service_started
+
   db:
     image: postgres:15-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: usagitienton
-      POSTGRES_USER: usagitienton
+      POSTGRES_DB: usagi_tien_ton
+      POSTGRES_USER: usagi_tien_ton
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - usagi_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U usagitienton -d usagitienton"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
+
   lavalink:
     image: ghcr.io/lavalink-devs/lavalink:4
     restart: unless-stopped
     environment:
       LAVALINK_PASSWORD: ${LAVALINK_PASSWORD:?Set LAVALINK_PASSWORD in .env}
+      LAVALINK_PORT: "2333"
+      LAVALINK_ADDRESS: 0.0.0.0
     volumes:
       - ./lavalink/application.yml:/opt/Lavalink/application.yml:ro
+    expose:
+      - "2333"
+
 volumes:
   usagi_postgres_data:
