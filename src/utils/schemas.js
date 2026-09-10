@@ -60,6 +60,33 @@ const VerificationConfigSchema = z
 export const GuildConfigSchema = z
   .object({
     prefix: z.string().optional(),
+        // Ticket system
+    ticketPanelChannelId: z.string().nullable().optional(),
+    ticketPanelMessageId: z.string().nullable().optional(),
+    ticketPanelMessage: z.string().nullable().optional(),
+    ticketPanelTitle: z.string().max(256).optional(),
+    ticketPanelColor: z.string().nullable().optional(),
+    ticketImage: z.string().nullable().optional(),
+
+    ticketButtonLabel: z.string().max(80).optional(),
+
+    ticketButtonEmoji: z
+      .object({
+        id: z.string(),
+        name: z.string().nullable().optional(),
+        animated: z.boolean().optional(),
+      })
+      .nullable()
+      .optional(),
+
+    ticketCategoryId: z.string().nullable().optional(),
+    ticketClosedCategoryId: z.string().nullable().optional(),
+    ticketStaffRoleId: z.string().nullable().optional(),
+
+    maxTicketsPerUser: z.number().int().min(1).max(10).optional(),
+
+    ticketLogsChannelId: z.string().nullable().optional(),
+    ticketTranscriptChannelId: z.string().nullable().optional(),
     modRole: z.string().nullable().optional(),
     adminRole: z.string().nullable().optional(),
     logChannelId: z.string().nullable().optional(),

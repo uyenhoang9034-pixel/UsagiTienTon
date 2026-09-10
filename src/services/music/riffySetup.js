@@ -3,6 +3,7 @@ import { GatewayDispatchEvents } from 'discord.js';
 import { logger } from '../../utils/logger.js';
 import lavalinkConfig from '../../config/music/lavalink.js';
 import { setupPlayerHandler } from './playerHandler.js';
+import { setupAudioPlayerEvents } from '../audio/audioPlayerEvents.js';
 
 const require = createRequire(import.meta.url);
 const { Riffy } = require('riffy');
@@ -38,6 +39,7 @@ export function initializeMusic(client) {
     });
 
     setupPlayerHandler(client);
+    setupAudioPlayerEvents(client);
 
     client.on('raw', (packet) => {
         if (

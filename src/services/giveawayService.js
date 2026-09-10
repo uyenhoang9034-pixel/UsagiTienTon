@@ -3,7 +3,7 @@
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from 'discord.js';
 import { logger } from '../utils/logger.js';
 import { TitanBotError, ErrorTypes } from '../utils/errorHandler.js';
-import { getColor, botConfig } from '../config/bot.js';
+import { botConfig } from '../config/bot.js';
 import { getEndedGiveaways, markGiveawayEnded } from '../utils/database.js';
 import { checkRateLimit, getRateLimitStatus } from '../utils/rateLimiter.js';
 import { logEvent, EVENT_TYPES } from './loggingService.js';
@@ -134,44 +134,137 @@ export function validateWinnerCount(winnerCount) {
 
 export function createGiveawayEmbed(giveaway, status, winners = []) {
     try {
-        const statusEmoji = status === 'ended' ? '🎉' : status === 'reroll' ? '🔄' : '🎉';
-        const isEnded = status === 'ended' || status === 'reroll';
-        const color = isEnded ? getColor('giveaway.ended') : getColor('giveaway.active');
-        
+        const statusEmoji =
+            status === 'ended'
+                ? '🎉'
+                : status === 'reroll'
+                    ? '🔄'
+                    : '🎉';
+
+        const isEnded =
+            status === 'ended' ||
+            status === 'reroll';
+
+        const defaultColor = isEnded
+    ? (
+        botConfig.embeds?.colors?.giveaway?.ended
+        || '#ED4245'
+    )
+    : (
+        botConfig.embeds?.colors?.giveaway?.active
+        || '#57F287'
+    );
+        const customColor =
+            typeof giveaway.color === 'string' &&
+            /^#?[0-9A-Fa-f]{6}$/.test(
+                giveaway.color,
+            )
+                ? (
+                    giveaway.color.startsWith('#')
+                        ? giveaway.color
+                        : `#${giveaway.color}`
+                )
+                : defaultColor;
+
+        const title =
+             status === 'ended'
+        ? '<a:chiikawag7:1541427343216738414> 𝓔𝓷𝓭 <a:chiikawag7:1541427343216738414>'
+        : status === 'reroll'
+            ? '<a:chiikawag7:1541427343216738414> 𝓡𝓮𝓻𝓸𝓵𝓵𝓮𝓭 <a:chiikawag7:1541427343216738414>'
+            : (
+            giveaway.title ||
+            `${statusEmoji} ${giveaway.prize}`);
+
+        const description =
+            status === 'ended'
+        ? '🎊 Giveaway đã kết thúc! Cảm ơn mọi người đã tham gia.'
+        : status === 'reroll'
+            ? '✨ Đã chọn lại người thắng cuộc! Giveaway đã kết thúc! Cảm ơn mọi người đã tham gia'
+            : (
+            giveaway.description ||
+            'React with the button below to enter!');
+
         const embed = new EmbedBuilder()
-            .setTitle(`${statusEmoji} ${giveaway.prize}`)
-            .setDescription('React with the button below to enter!')
-            .setColor(color)
+            .setTitle(title)
+            .setDescription(description)
+            .setColor(customColor)
             .addFields(
-                { name: '👤 Hosted by', value: `<@${giveaway.hostId}>`, inline: true },
-                { name: '🏆 Winners', value: giveaway.winnerCount.toString(), inline: true },
-                { name: '👥 Entries', value: giveaway.participants?.length?.toString() || '0', inline: true }
+                {
+                    name: '<a:cinnamorollg2:1541437285390884954> Người tổ chức',
+                    value: `<@${giveaway.hostId}>`,
+                    inline: true,
+                },
+                {
+                    name: '<a:cinnamorollg2:1541437285390884954> Số người thắng',
+                    value: String(
+                        giveaway.winnerCount || 1,
+                    ),
+                    inline: true,
+                },
+                {
+                    name: '<a:cinnamorollg2:1541437285390884954> Lượt tham gia',
+                    value: String(
+                        giveaway.participants?.length || 0,
+                    ),
+                    inline: true,
+                },
             );
 
+        if (
+            giveaway.imageUrl &&
+            typeof giveaway.imageUrl === 'string'
+        ) {
+            embed.setImage(giveaway.imageUrl);
+        }
+
         if (isEnded) {
-            const winnerDisplay = winners.length > 0 
-                ? winners.map(id => `<@${id}>`).join(', ')
-                : 'No valid entries';
-            embed.addFields({ name: '🎯 Winners', value: winnerDisplay, inline: false });
+            const winnerDisplay =
+                winners.length > 0
+                    ? winners
+                        .map((id) => `<@${id}>`)
+                        .join(', ')
+                    : 'No valid entries';
+
+            embed.addFields({
+                name: '<a:cinnamorollg2:1541437285390884954> Người thắng',
+                value: winnerDisplay,
+                inline: false,
+            });
         } else {
-            const endTime = giveaway.endsAt || giveaway.endTime;
-            embed.addFields({ name: '⏰ Ends', value: `<t:${Math.floor(endTime / 1000)}:R>`, inline: false });
+            const endTime =
+                giveaway.endsAt ||
+                giveaway.endTime;
+
+            if (endTime) {
+                embed.addFields({
+                    name: '<a:cinnamorollg2:1541437285390884954> Thời gian kết thúc',
+                    value: `<t:${Math.floor(
+                        Number(endTime) / 1000,
+                    )}:R>`,
+                    inline: false,
+                });
+            }
         }
 
         embed.setTimestamp();
-        
+
         return embed;
     } catch (error) {
-        logger.error('Error creating giveaway embed:', error);
+        logger.error(
+            'Error creating giveaway embed:',
+            error,
+        );
+
         throw new TitanBotError(
             'Failed to create giveaway embed',
             ErrorTypes.UNKNOWN,
             'An internal error occurred while formatting the giveaway.',
-            { error: error.message }
+            {
+                error: error.message,
+            },
         );
     }
 }
-
 export function createGiveawayButtons(ended = false) {
     try {
         const row = new ActionRowBuilder();
@@ -180,12 +273,14 @@ export function createGiveawayButtons(ended = false) {
             row.addComponents(
                 new ButtonBuilder()
                     .setCustomId('giveaway_reroll')
-                    .setLabel('🎲 Reroll')
+                    .setLabel('Reroll')
+                    .setEmoji('<a:cinnamorollg4:1541437801973817414>')
                     .setStyle(ButtonStyle.Secondary)
                     .setDisabled(false),
                 new ButtonBuilder()
                     .setCustomId('giveaway_view')
-                    .setLabel('👁️ View Winners')
+                    .setLabel('View Winners')
+                    .setEmoji('<a:cinnamorollg4:1541437801973817414>')
                     .setStyle(ButtonStyle.Primary)
                     .setDisabled(false)
             );
@@ -193,12 +288,14 @@ export function createGiveawayButtons(ended = false) {
             row.addComponents(
                 new ButtonBuilder()
                     .setCustomId('giveaway_join')
-                    .setLabel('🎉 Join')
+                    .setLabel('𝓙𝓸𝓲𝓷')
+                    .setEmoji('<a:cinnamorollg4:1541437801973817414>')
                     .setStyle(ButtonStyle.Primary)
                     .setDisabled(false),
                 new ButtonBuilder()
                     .setCustomId('giveaway_end')
-                    .setLabel('🛑 End')
+                    .setLabel('𝓔𝓷𝓭')
+                    .setEmoji('<a:momongag3:1541427248132006009>')
                     .setStyle(ButtonStyle.Danger)
                     .setDisabled(false)
             );
@@ -372,9 +469,18 @@ export async function checkGiveaways(client) {
         const endedEmbed = createGiveawayEmbed(giveaway, 'ended', winners);
 
         await message.edit({
+            content: '<a:chiikawag7:1541427343216738414> 𝓔𝓷𝓭 <a:chiikawag7:1541427343216738414>',
           embeds: [endedEmbed],
           components: [createGiveawayButtons(true)]
         });
+          if (winners.length > 0) {
+    await channel.send({
+        content:
+            `<a:chiikawag7:1541427343216738414> **Chúc mừng ${winnerMentions}!**\n` +
+            `Bạn đã trúng **${giveaway.prize || 'phần thưởng'}**! <a:giftg1:1543150714732412948>\n` +
+            `Vui lòng mở ticket để nhận phần thưởng.`
+    });
+          }
 
         giveaway.ended = true;
         giveaway.isEnded = true;
@@ -386,12 +492,6 @@ export async function checkGiveaways(client) {
           logger.warn(`Failed to mark giveaway ${messageId} as ended in database`);
         }
 
-        if (winners.length > 0) {
-          const winnerAnnouncement = `🎉 Congratulations ${winnerMentions}! You won the **${giveaway.prize || 'giveaway'}**! Please contact <@${giveaway.hostId}> to claim your prize.`;
-          const winnerPingMsg = await channel.send({ content: winnerAnnouncement });
-          giveaway.winnerPingMessageId = winnerPingMsg.id;
-          await markGiveawayEnded(client, giveawayId, giveaway);
-
           try {
             await logEvent({
               client,
@@ -402,17 +502,17 @@ export async function checkGiveaways(client) {
                 channelId: channel.id,
                 fields: [
                   {
-                    name: '🎁 Prize',
+                    name: '<a:bunnyg8:1541440159990550580> Prize',
                     value: giveaway.prize || 'Mystery Prize!',
                     inline: true
                   },
                   {
-                    name: '🏆 Winners',
+                    name: '<a:bunnyg8:1541440159990550580> Winners',
                     value: winners.map(id => `<@${id}>`).join(', '),
                     inline: false
                   },
                   {
-                    name: '👥 Entries',
+                    name: '<a:bunnyg8:1541440159990550580> Entries',
                     value: participants.length.toString(),
                     inline: true
                   }
@@ -422,9 +522,6 @@ export async function checkGiveaways(client) {
           } catch (error) {
             logger.debug('Error logging giveaway winner:', error);
           }
-        } else {
-          await channel.send({ content: `The giveaway for **${giveaway.prize}** has ended with no valid entries.` });
-        }
 
         logger.info(`Ended giveaway ${messageId} in guild ${guildId}`);
       } catch (error) {
