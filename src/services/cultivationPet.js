@@ -37,7 +37,7 @@ export const CULTIVATION_PETS = {
       0.40,
 
     weight:
-      40,
+      30,
   },
 
   xich_viem_hoa_dieu: {
@@ -69,7 +69,7 @@ export const CULTIVATION_PETS = {
       0.08,
 
     weight:
-      35,
+      10,
   },
 
   huyen_giap_linh_quy: {
@@ -101,7 +101,7 @@ export const CULTIVATION_PETS = {
       0.08,
 
     weight:
-      16,
+      30,
   },
 
   thien_loi_bach_ho: {
@@ -133,7 +133,7 @@ export const CULTIVATION_PETS = {
       0.10,
 
     weight:
-      9,
+      5,
   },
 };
 
