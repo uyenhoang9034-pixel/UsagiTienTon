@@ -45,6 +45,11 @@ const TEST_PETS = {
     id: 'thien_loi_bach_ho',
     label: 'Thiên Lôi Bạch Hổ',
   },
+
+  pet_hau_tho_kim_long: {
+    id: 'hau_tho_kim_long',
+    label: 'Hậu Thổ Kim Long',
+  },
 };
 
 function getAdventureSessionKey(
@@ -274,6 +279,11 @@ export default {
               {
                 name: 'Thiên Lôi Bạch Hổ',
                 value: 'pet_thien_loi_bach_ho',
+              },
+
+              {
+                name: 'Hậu Thổ Kim Long',
+                value: 'pet_hau_tho_kim_long',
               },
             ),
       ),
