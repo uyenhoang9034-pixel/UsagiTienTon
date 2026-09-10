@@ -16,6 +16,9 @@ const CULTIVATION_CHANNEL_ID =
 const CULTIVATION_ROLE_ID =
   '1547581204759318579';
 
+const CULTIVATION_RULES_KEYWORD =
+  '&gttutien';
+
 function getThreadKey(
   guildId,
   userId,
@@ -96,6 +99,25 @@ async function restoreThread(
   return thread;
 }
 
+async function sendCultivationOnboarding(
+  thread,
+  member,
+) {
+  await thread.send({
+    content: [
+      '⚠️ **TIÊN QUY TRƯỚC MẮT · CHỚ VỘI NHẬP ĐẠO**',
+      '',
+      `<@${member.id}>, trước khi khai mở Tiên Lộ, hãy **đọc kỹ toàn bộ tiên quy ở tin nhắn bên dưới**.`,
+      'Chưa tường quy củ, chớ vội động niệm tu hành.',
+    ].join('\n'),
+  });
+
+  await thread.send({
+    content:
+      CULTIVATION_RULES_KEYWORD,
+  });
+}
+
 async function createPersonalThread(
   parentChannel,
   member,
@@ -144,11 +166,10 @@ async function createPersonalThread(
     member.id,
   );
 
-  await thread.send({
-    content:
-      `🌸 <@${member.id}> — Tiên Lộ của đạo hữu đã được khai mở.\n` +
-      'Hãy dùng `/tutien` **một lần duy nhất** tại đây để mở giao diện tu hành. Sau đó tiếp tục chơi trên chính giao diện ấy, không mở thêm giao diện mới.',
-  });
+  await sendCultivationOnboarding(
+    thread,
+    member,
+  );
 
   return thread;
 }
