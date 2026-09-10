@@ -1067,6 +1067,7 @@ export async function seekTrack(
         'Seeked',
         `Seeked to **${seconds}s**.`,
     );
+    }
     export async function removeFromQueue(
     client,
     interaction,
