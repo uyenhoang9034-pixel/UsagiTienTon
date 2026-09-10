@@ -24,7 +24,7 @@ export const botConfig = {
     activities: [
       {
         name: "Custom Status", // required by Discord API, not shown in the client
-        state: "stalking",     // this is what people actually see
+        state: "Nhạc · Nhận role · Tiên Lộ",     // this is what people actually see
         type: 4,               // Custom
       },
     ],
@@ -527,6 +527,8 @@ if (configErrors.length > 0) {
   }
 }
 
+for (const key of Object.keys(botConfig.features || {})) botConfig.features[key] = false;
+Object.assign(botConfig.features, { music: true, games: true, reactionRoles: true });
 export const BotConfig = botConfig;
 
 const COMMAND_CATEGORY_FEATURE_MAP = {

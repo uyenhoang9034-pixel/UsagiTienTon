@@ -46,6 +46,9 @@ class DatabaseWrapper {
             }
         }
 
+        if (process.env.ALLOW_MEMORY_DATABASE !== 'true') {
+            throw new Error('PostgreSQL unavailable. Refusing to start with temporary storage because Tiên Lộ progress must persist.');
+        }
         this.db = new MemoryStorage();
         this.useFallback = true;
         this.connectionType = 'memory';

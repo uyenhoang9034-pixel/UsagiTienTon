@@ -1,24 +1,19 @@
-﻿import 'dotenv/config';
-import { Client, Collection, GatewayIntentBits } from 'discord.js';
+import 'dotenv/config';
+import { Client, Collection, GatewayIntentBits, Partials } from 'discord.js';
 import { REST } from '@discordjs/rest';
 import express from 'express';
-import cron from 'node-cron';
 
 import config from './config/application.js';
 import { initializeDatabase } from './utils/database.js';
-import { getGuildConfig } from './services/config/guildConfig.js';
-import { getServerCounters, saveServerCounters, updateCounter } from './services/serverstatsService.js';
 import { logger, startupLog, shutdownLog } from './utils/logger.js';
-import { checkBirthdays } from './services/birthdayService.js';
-import { checkGiveaways } from './services/giveawayService.js';
 import { loadCommands, registerCommands as registerSlashCommands } from './handlers/loaders/commandLoader.js';
-import { runSafeTask, handleTaskError, ErrorCodes } from './utils/errorHandler.js';
+import { handleTaskError, ErrorCodes } from './utils/errorHandler.js';
 import { initializeMusic } from './services/music/riffySetup.js';
 import { shutdownMusic } from './services/music/playerHandler.js';
 import pkg from '../package.json' with { type: 'json' };
 import { EXPECTED_SCHEMA_VERSION, EXPECTED_SCHEMA_LABEL } from './config/database/schemaVersion.js';
 
-class TitanBot extends Client {
+class UsagiTienTon extends Client {
   constructor() {
     super({
       intents: [
@@ -33,7 +28,14 @@ class TitanBot extends Client {
 
         GatewayIntentBits.GuildVoiceStates,             
 
-        GatewayIntentBits.GuildBans,                    
+        // Only the three feature groups subscribe to events.                    
+      ],
+      partials: [
+        Partials.GuildMember,
+        Partials.User,
+        Partials.Message,
+        Partials.Channel,
+        Partials.Reaction,
       ],
     });
 
@@ -50,7 +52,7 @@ class TitanBot extends Client {
 
   async start() {
     try {
-      startupLog('Starting TitanBot...');
+      startupLog('Starting UsagiTienTon...');
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       startupLog('Initializing database...');
@@ -91,6 +93,9 @@ class TitanBot extends Client {
       startupLog('Discord login successful');
       
       startupLog('Registering slash commands globally...');
+      if (this.user.id !== this.config.bot.clientId) {
+        throw new Error('CLIENT_ID does not match the logged-in bot. Use the NEW bot token and application ID.');
+      }
       await this.registerCommands();
       startupLog('Slash commands registration complete');
       
@@ -102,7 +107,7 @@ class TitanBot extends Client {
         `ONLINE ✅ | ${this.commands.size} commands loaded | ${handlerSummary} | Database: ${databaseMode}`
       );
       
-      this.setupCronJobs();
+
     } catch (error) {
       logger.error('Failed to start bot:', error);
       process.exit(1);
@@ -204,7 +209,7 @@ class TitanBot extends Client {
 
     app.get('/', (req, res) => {
       res.status(200).json({ 
-        message: 'TitanBot System Online',
+        message: 'UsagiTienTon System Online',
         version: pkg.version,
         timestamp: new Date().toISOString()
       });
@@ -247,49 +252,6 @@ class TitanBot extends Client {
     startServer(configuredPort, 0);
   }
 
-  setupCronJobs() {
-    cron.schedule('0 6 * * *', runSafeTask('birthday_check', () => checkBirthdays(this)));
-    cron.schedule('* * * * *', runSafeTask('giveaway_check', () => checkGiveaways(this)));
-    cron.schedule('*/15 * * * *', runSafeTask('counter_update', () => this.updateAllCounters()));
-  }
-
-  async updateAllCounters() {
-    if (!this.db) {
-      logger.warn('Database not available for counter updates');
-      return;
-    }
-    
-    for (const [guildId, guild] of this.guilds.cache) {
-      try {
-        const counters = await getServerCounters(this, guildId);
-        const validCounters = [];
-        const orphanedCounters = [];
-        
-        for (const counter of counters) {
-          if (counter && counter.type && counter.channelId && counter.enabled !== false) {
-            const channel = guild.channels.cache.get(counter.channelId);
-            if (channel) {
-              validCounters.push(counter);
-              await updateCounter(this, guild, counter);
-            } else {
-              orphanedCounters.push(counter);
-              logger.info(`Removing orphaned counter ${counter.id} (type: ${counter.type}, deleted channel: ${counter.channelId}) from guild ${guildId}`);
-            }
-          }
-        }
-        
-        // Save cleaned counters if any were orphaned
-        // Save cleaned counters if any were orphaned
-        if (orphanedCounters.length > 0) {
-          await saveServerCounters(this, guildId, validCounters);
-          logger.info(`Cleaned up ${orphanedCounters.length} orphaned counter(s) from guild ${guildId} during scheduled update`);
-        }
-      } catch (error) {
-        logger.error(`Error updating counters for guild ${guildId}:`, error);
-      }
-    }
-  }
-
   async loadHandlers() {
     startupLog('Loading handlers...');
     const handlers = [
@@ -327,6 +289,7 @@ class TitanBot extends Client {
       await registerSlashCommands(this, { clientId: this.config.bot.clientId });
     } catch (error) {
       logger.error('Error registering commands:', error);
+      throw error;
     }
   }
 
@@ -338,9 +301,7 @@ class TitanBot extends Client {
 
     try {
       
-      logger.info('Stopping cron jobs...');
-      cron.getTasks().forEach(task => task.stop());
-      logger.info('✅ Cron jobs stopped');
+
 
       logger.info('Stopping music players...');
       await shutdownMusic(this);
@@ -387,8 +348,9 @@ class TitanBot extends Client {
   }
 }
 
+if (process.env.USAGI_IMPORT_ONLY !== 'true') {
 try {
-  const bot = new TitanBot();
+  const bot = new UsagiTienTon();
   
   const setupShutdown = () => {
     process.on('SIGTERM', () => bot.shutdown('SIGTERM'));
@@ -428,4 +390,6 @@ try {
   process.exit(1);
 }
 
-export default TitanBot;
+}
+
+export default UsagiTienTon;
