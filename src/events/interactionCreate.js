@@ -63,15 +63,14 @@ function isInsideCultivationThread(interaction) {
 }
 
 /**
- * Compatibility adapter cho các interaction Tu Tiên cũ.
+ * Compatibility adapter cho code Tu Tiên cũ.
  *
- * Một số handler cũ vẫn kiểm tra:
+ * Nhiều button/select/GM command cũ vẫn kiểm tra:
  * interaction.channelId === CULTIVATION_CONFIG.channelId
  *
- * Sau khi chuyển sang mô hình mỗi người một thread, channelId thật là ID thread.
- * Adapter này chỉ làm cho các handler cũ "nhìn thấy" parent channel ID khi đọc
- * channelId, còn interaction.channel vẫn là thread thật nên update/reply vẫn diễn
- * ra đúng trong chủ đề cá nhân.
+ * Trong mô hình mới, interaction.channelId là ID của thread cá nhân.
+ * Adapter chỉ thay giá trị khi code cũ ĐỌC channelId. interaction.channel vẫn
+ * là thread thật, nên reply/update vẫn nằm đúng trong chủ đề của người chơi.
  */
 function createCultivationThreadInteraction(interaction) {
   if (!isInsideCultivationThread(interaction)) {
@@ -108,7 +107,20 @@ export default {
           return;
         }
 
-        await command.execute(interaction, null, client);
+        /**
+         * /tutien đã được viết lại theo hệ thread mới nên phải nhận interaction
+         * thật để kiểm tra đúng threadId của người chơi.
+         *
+         * Các lệnh phụ cũ như /tutienitem, /tutientest vẫn dùng channel check
+         * kiểu cũ nên được đi qua compatibility adapter.
+         */
+        const routedCommandInteraction =
+          interaction.commandName !== 'tutien' &&
+          interaction.commandName.startsWith('tutien')
+            ? createCultivationThreadInteraction(interaction)
+            : interaction;
+
+        await command.execute(routedCommandInteraction, null, client);
         return;
       }
 
