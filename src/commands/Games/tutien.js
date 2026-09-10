@@ -21,6 +21,11 @@ import {
   buildDashboardRows,
 } from '../../services/cultivationUI.js';
 
+import {
+  CULTIVATION_MAINTENANCE_MESSAGE,
+  isCultivationMaintenance,
+} from '../../services/cultivationMaintenance.js';
+
 const CULTIVATION_ROLE_ID =
   '1547581204759318579';
 
@@ -110,12 +115,6 @@ export default {
     client,
   ) {
     try {
-      /**
-       * =====================================================
-       * SERVER ONLY
-       * =====================================================
-       */
-
       if (
         !interaction.guildId ||
         !interaction.guild
@@ -125,12 +124,6 @@ export default {
           'Tiên Lộ chỉ có thể được sử dụng trong server.',
         );
       }
-
-      /**
-       * =====================================================
-       * GAME ENABLED
-       * =====================================================
-       */
 
       if (
         !CULTIVATION_CONFIG
@@ -154,11 +147,17 @@ export default {
         );
       }
 
-      /**
-       * =====================================================
-       * ROLE LOCK
-       * =====================================================
-       */
+      if (
+        await isCultivationMaintenance(
+          runtimeClient,
+          interaction.guildId,
+        )
+      ) {
+        return replyEphemeral(
+          interaction,
+          CULTIVATION_MAINTENANCE_MESSAGE,
+        );
+      }
 
       const member =
         await interaction.guild.members.fetch(
@@ -175,16 +174,6 @@ export default {
           '🌸 Đạo hữu chưa có Role Tu Tiên nên chưa thể khai mở Tiên Lộ.',
         );
       }
-
-      /**
-       * =====================================================
-       * PERSONAL THREAD LOCK
-       * =====================================================
-       *
-       * /tutien không còn chạy trực tiếp trong #tu-tiên.
-       * Người chơi chỉ được mở game trong chủ đề Tiên Lộ
-       * đã được bot tạo riêng cho chính mình.
-       */
 
       if (
         !interaction.channel?.isThread?.() ||
@@ -221,12 +210,6 @@ export default {
         );
       }
 
-      /**
-       * =====================================================
-       * ONE DASHBOARD ONLY
-       * =====================================================
-       */
-
       if (
         await hasExistingDashboard(
           interaction,
@@ -240,12 +223,6 @@ export default {
       }
 
       await interaction.deferReply();
-
-      /**
-       * =====================================================
-       * PROFILE
-       * =====================================================
-       */
 
       const existingProfile =
         await getCultivationProfile(
@@ -269,12 +246,6 @@ export default {
               true,
           },
         );
-
-      /**
-       * =====================================================
-       * DASHBOARD
-       * =====================================================
-       */
 
       const dashboardMessage =
         await interaction.editReply({
