@@ -6,6 +6,9 @@ import {
   CULTIVATION_MAINTENANCE_MESSAGE,
   isCultivationMaintenance,
 } from '../services/cultivationMaintenance.js';
+import {
+  syncDailyQuests,
+} from '../services/cultivationDailyQuest.js';
 
 async function sendInteractionError(interaction, error) {
   const message =
@@ -117,6 +120,34 @@ function createCultivationCompatInteraction(interaction) {
   });
 }
 
+async function autoSyncDailyQuests(
+  interaction,
+  client,
+  handlerId,
+) {
+  if (
+    handlerId === 'tutien_daily_quest' ||
+    !interaction.guildId ||
+    !interaction.user?.id ||
+    !isInsideCultivationThread(interaction)
+  ) {
+    return;
+  }
+
+  try {
+    await syncDailyQuests(
+      client,
+      interaction.guildId,
+      interaction.user.id,
+    );
+  } catch (error) {
+    logger.warn(
+      'Daily quest auto-sync failed:',
+      error,
+    );
+  }
+}
+
 export default {
   name: Events.InteractionCreate,
 
@@ -182,6 +213,16 @@ export default {
         : interaction;
 
       await handler.execute(routedInteraction, client, args);
+
+      if (
+        isCultivationComponent(handlerId)
+      ) {
+        await autoSyncDailyQuests(
+          interaction,
+          client,
+          handlerId,
+        );
+      }
     } catch (error) {
       logger.error('InteractionCreate error:', error);
       await sendInteractionError(interaction, error);
