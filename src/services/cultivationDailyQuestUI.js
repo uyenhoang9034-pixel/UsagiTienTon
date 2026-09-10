@@ -389,7 +389,7 @@ export function buildDailyQuestRows(
         .addComponents(
           new ButtonBuilder()
             .setCustomId(
-              `tutien_action:${ownerId}:daily_quest_roll`,
+              `tutien_daily_quest:${ownerId}:roll`,
             )
             .setLabel(
               'Nhận Nhiệm Vụ',
@@ -406,7 +406,7 @@ export function buildDailyQuestRows(
         .addComponents(
           new ButtonBuilder()
             .setCustomId(
-              `tutien_action:${ownerId}:daily_quest`,
+              `tutien_daily_quest:${ownerId}:open`,
             )
             .setLabel(
               'Cập Nhật Tiến Độ',
@@ -421,26 +421,6 @@ export function buildDailyQuestRows(
         ),
     );
   }
-
-  rows.push(
-    new ActionRowBuilder()
-      .addComponents(
-        new ButtonBuilder()
-          .setCustomId(
-            `tutien_action:${ownerId}:dashboard`,
-          )
-          .setLabel(
-            'Quay lại Tiên Lộ',
-          )
-          .setEmoji({
-            id:
-              '1547682200961556510',
-          })
-          .setStyle(
-            ButtonStyle.Secondary,
-          ),
-      ),
-  );
 
   return rows;
 }
