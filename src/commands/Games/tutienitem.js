@@ -72,6 +72,7 @@ export default {
               { name: 'Linh Thú · Xích Viêm Hỏa Điểu', value: 'pet:xich_viem_hoa_dieu' },
               { name: 'Linh Thú · Huyền Giáp Linh Quy', value: 'pet:huyen_giap_linh_quy' },
               { name: 'Linh Thú · Thiên Lôi Bạch Hổ', value: 'pet:thien_loi_bach_ho' },
+              { name: 'Linh Thú · Hậu Thổ Kim Long', value: 'pet:hau_tho_kim_long' },
             ),
       )
       .addIntegerOption(
