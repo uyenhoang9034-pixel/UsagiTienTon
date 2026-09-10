@@ -61,6 +61,25 @@ function formatError(
   return `${ERROR_EMOJI} ${message}`;
 }
 
+function getItemEmoji(
+  item,
+) {
+  const type =
+    item?.type;
+
+  return (
+    CULTIVATION_CONFIG
+      .ui
+      ?.itemEmojis
+      ?.[type] ||
+    CULTIVATION_CONFIG
+      .ui
+      ?.emojis
+      ?.spiritStone ||
+    '✨'
+  );
+}
+
 export default {
   data:
     new SlashCommandBuilder()
@@ -225,6 +244,9 @@ export default {
        * =====================================================
        * CHANNEL CHECK
        * =====================================================
+       *
+       * interactionCreate hiện đã cho phép các lệnh GM Tiên Lộ
+       * dùng ở mọi kênh trong server bằng compatibility routing.
        */
 
       if (
@@ -323,10 +345,11 @@ export default {
         });
       }
 
-      await interaction.deferReply({
-        flags:
-          MessageFlags.Ephemeral,
-      });
+      /**
+       * Thành công của /tutienitem là tin nhắn công khai.
+       * Không dùng Ephemeral để người nhận và mọi người đều thấy.
+       */
+      await interaction.deferReply();
 
       /**
        * =====================================================
@@ -383,14 +406,26 @@ export default {
           ) || 0,
         );
 
+      const userEmoji =
+        CULTIVATION_CONFIG
+          .ui
+          ?.emojis
+          ?.user ||
+        '🐰';
+
+      const itemEmoji =
+        getItemEmoji(
+          item,
+        );
+
       return interaction.editReply({
         content: [
           HEADER,
           '',
-          `<a:catg11:1546058047393239151> Đạo Hữu: <@${targetUser.id}>`,
-          `<a:trangtrig9:1546047064952148089> Vật Phẩm: **${item.name}**`,
-          `<a:trangtrig9:1546047064952148089> Đã Cấp: **×${quantity}**`,
-          `<a:trangtrig9:1546047064952148089> Hiện Có: **×${currentQuantity}**`,
+          `${userEmoji} Đạo Hữu: <@${targetUser.id}>`,
+          `${itemEmoji} Vật Phẩm: **${item.name}**`,
+          `${itemEmoji} Đã Cấp: **×${quantity}**`,
+          `${itemEmoji} Hiện Có: **×${currentQuantity}**`,
         ].join(
           '\n',
         ),
