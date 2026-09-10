@@ -1,217 +1,244 @@
 import { pgDb } from '../postgresDatabase.js';
 import { MemoryStorage } from '../memoryStorage.js';
 import { logger } from '../logger.js';
-import { validateGuildConfigOrThrow } from '../schemas.js';
 
+/**
+ * Database wrapper hiện tại của Usagi Tiên Tôn.
+ *
+ * Scope giữ lại:
+ * - Music
+ * - Tiên Lộ / Tu Tiên
+ *
+ * Không import guild config schema cũ nữa để tránh kéo lại các hệ đã xóa
+ * như Ticket / Economy / Welcome / Verification.
+ */
 class DatabaseWrapper {
-    constructor() {
-        this.initialized = false;
-        this.db = null;
+  constructor() {
+    this.initialized = false;
+    this.db = null;
+    this.useFallback = false;
+    this.connectionType = 'none';
+    this.degradedModeWarningShown = false;
+    this.degradedReason = null;
+  }
+
+  async initialize() {
+    if (this.initialized) {
+      return;
+    }
+
+    try {
+      logger.info('Attempting to connect to PostgreSQL...');
+
+      const pgConnected = await pgDb.connect();
+
+      if (pgConnected) {
+        this.db = pgDb;
         this.useFallback = false;
-        this.connectionType = 'none';
-        this.degradedModeWarningShown = false;
+        this.connectionType = 'postgresql';
         this.degradedReason = null;
-    }
-
-    async initialize() {
-        if (this.initialized) {
-            return;
-        }
-
-        try {
-            logger.info('Attempting to connect to PostgreSQL...');
-            const pgConnected = await pgDb.connect();
-            if (pgConnected) {
-                this.db = pgDb;
-                this.connectionType = 'postgresql';
-                this.degradedReason = null;
-                logger.info('✅ PostgreSQL Database initialized - using persistent database');
-                this.initialized = true;
-                return;
-            }
-
-            const pgFailure = pgDb.getLastFailure?.();
-            if (pgFailure?.reason === 'SCHEMA_VERSION_MISMATCH') {
-                const schemaError = new Error(
-                    `Schema version mismatch detected (${pgFailure.message}). Run migrations before startup.`,
-                );
-                schemaError.code = 'SCHEMA_VERSION_MISMATCH';
-                throw schemaError;
-            }
-        } catch (error) {
-            logger.warn('PostgreSQL connection failed:', error.message);
-
-            if (error.code === 'SCHEMA_VERSION_MISMATCH') {
-                throw error;
-            }
-        }
-
-        if (process.env.ALLOW_MEMORY_DATABASE !== 'true') {
-            throw new Error('PostgreSQL unavailable. Refusing to start with temporary storage because Tiên Lộ progress must persist.');
-        }
-
-        this.db = new MemoryStorage();
-        this.useFallback = true;
-        this.connectionType = 'memory';
-        this.degradedReason = 'POSTGRES_UNAVAILABLE';
-        logger.warn('⚠️ DATABASE DEGRADED MODE ENABLED - Using in-memory storage (data will be lost on restart)');
-        logger.warn('⚠️ Please check PostgreSQL connection and restart the bot when fixed');
+        this.degradedModeWarningShown = false;
         this.initialized = true;
-        this.degradedModeWarningShown = true;
+
+        logger.info('✅ PostgreSQL Database initialized - using persistent database');
+        return;
+      }
+
+      const pgFailure = pgDb.getLastFailure?.();
+
+      if (pgFailure?.reason === 'SCHEMA_VERSION_MISMATCH') {
+        const schemaError = new Error(
+          `Schema version mismatch detected (${pgFailure.message}). Run migrations before startup.`,
+        );
+        schemaError.code = 'SCHEMA_VERSION_MISMATCH';
+        throw schemaError;
+      }
+
+      logger.warn('PostgreSQL connect returned false.');
+    } catch (error) {
+      logger.warn('PostgreSQL connection failed:', error.message);
+
+      if (error.code === 'SCHEMA_VERSION_MISMATCH') {
+        throw error;
+      }
     }
 
-    ensureReady(operation = 'database operation') {
-        if (!this.initialized || !this.db) {
-            throw new Error(`Database is not initialized; cannot run ${operation}.`);
-        }
+    /**
+     * Tiên Lộ có tiến độ người chơi nên mặc định KHÔNG cho chạy bằng memory.
+     * Chỉ bật tạm bằng ALLOW_MEMORY_DATABASE=true khi test local.
+     */
+    if (process.env.ALLOW_MEMORY_DATABASE !== 'true') {
+      throw new Error(
+        'PostgreSQL unavailable. Refusing to start with temporary storage because Tiên Lộ progress must persist.',
+      );
     }
 
-    async set(key, value, ttl = null) {
-        this.ensureReady('set');
+    this.db = new MemoryStorage();
+    this.useFallback = true;
+    this.connectionType = 'memory';
+    this.degradedReason = 'POSTGRES_UNAVAILABLE';
+    this.initialized = true;
+    this.degradedModeWarningShown = true;
 
-        if (this.useFallback) {
-            logger.debug(`[DEGRADED] Writing to memory: ${key}`);
-        }
+    logger.warn('⚠️ DATABASE DEGRADED MODE ENABLED - Using in-memory storage. Data will be lost on restart.');
+    logger.warn('⚠️ Please check PostgreSQL connection and restart the bot when fixed.');
+  }
 
-        if (typeof key === 'string' && /^guild:[^:]+:config$/.test(key)) {
-            const guildId = key.split(':')[1];
-            validateGuildConfigOrThrow(value, {
-                guildId,
-                errorCode: 'VALIDATION_FAILED',
-            });
-        }
+  ensureReady(operation = 'database operation') {
+    if (!this.initialized || !this.db) {
+      throw new Error(`Database is not initialized; cannot run ${operation}.`);
+    }
+  }
 
-        return this.db.set(key, value, ttl);
+  async get(key, defaultValue = null) {
+    this.ensureReady('get');
+    return this.db.get(key, defaultValue);
+  }
+
+  async set(key, value, ttl = null) {
+    this.ensureReady('set');
+
+    if (this.useFallback) {
+      logger.debug(`[DEGRADED] Writing to memory: ${key}`);
     }
 
-    async get(key, defaultValue = null) {
-        this.ensureReady('get');
-        return this.db.get(key, defaultValue);
+    return this.db.set(key, value, ttl);
+  }
+
+  async delete(key) {
+    this.ensureReady('delete');
+
+    if (this.useFallback) {
+      logger.debug(`[DEGRADED] Deleting from memory: ${key}`);
     }
 
-    async delete(key) {
-        this.ensureReady('delete');
+    return this.db.delete(key);
+  }
 
-        if (this.useFallback) {
-            logger.debug(`[DEGRADED] Deleting from memory: ${key}`);
-        }
-        return this.db.delete(key);
+  async list(prefix) {
+    this.ensureReady('list');
+
+    if (typeof this.db.list !== 'function') {
+      return [];
     }
 
-    async list(prefix) {
-        this.ensureReady('list');
-        return this.db.list(prefix);
+    return this.db.list(prefix);
+  }
+
+  async exists(key) {
+    this.ensureReady('exists');
+
+    if (typeof this.db.exists === 'function') {
+      return this.db.exists(key);
     }
 
-    async exists(key) {
-        this.ensureReady('exists');
+    const value = await this.db.get(key, null);
+    return value !== null && value !== undefined;
+  }
 
-        if (this.db.exists) {
-            return this.db.exists(key);
-        }
-        const value = await this.db.get(key);
-        return value !== null;
+  async increment(key, amount = 1) {
+    this.ensureReady('increment');
+
+    if (this.useFallback) {
+      logger.debug(`[DEGRADED] Incrementing in memory: ${key}`);
     }
 
-    async increment(key, amount = 1) {
-        this.ensureReady('increment');
-
-        if (this.useFallback) {
-            logger.debug(`[DEGRADED] Incrementing in memory: ${key}`);
-        }
-        if (this.db.increment) {
-            return this.db.increment(key, amount);
-        }
-        const current = await this.db.get(key, 0);
-        const newValue = current + amount;
-        await this.db.set(key, newValue);
-        return newValue;
+    if (typeof this.db.increment === 'function') {
+      return this.db.increment(key, amount);
     }
 
-    async decrement(key, amount = 1) {
-        this.ensureReady('decrement');
+    const current = Number(await this.db.get(key, 0)) || 0;
+    const nextValue = current + amount;
+    await this.db.set(key, nextValue);
+    return nextValue;
+  }
 
-        if (this.useFallback) {
-            logger.debug(`[DEGRADED] Decrementing in memory: ${key}`);
-        }
-        if (this.db.decrement) {
-            return this.db.decrement(key, amount);
-        }
-        const current = await this.db.get(key, 0);
-        const newValue = current - amount;
-        await this.db.set(key, newValue);
-        return newValue;
+  async decrement(key, amount = 1) {
+    this.ensureReady('decrement');
+
+    if (this.useFallback) {
+      logger.debug(`[DEGRADED] Decrementing in memory: ${key}`);
     }
 
-    isDegraded() {
-        return this.useFallback;
+    if (typeof this.db.decrement === 'function') {
+      return this.db.decrement(key, amount);
     }
 
-    isAvailable() {
-        return this.db && !this.useFallback;
-    }
+    const current = Number(await this.db.get(key, 0)) || 0;
+    const nextValue = current - amount;
+    await this.db.set(key, nextValue);
+    return nextValue;
+  }
 
-    getStatus() {
-        return {
-            initialized: this.initialized,
-            connectionType: this.connectionType,
-            isDegraded: this.useFallback,
-            isAvailable: this.isAvailable(),
-            degradedReason: this.degradedReason,
-        };
-    }
+  isDegraded() {
+    return this.useFallback;
+  }
 
-    getConnectionType() {
-        return this.connectionType;
-    }
+  isAvailable() {
+    return Boolean(this.initialized && this.db && !this.useFallback);
+  }
+
+  getStatus() {
+    return {
+      initialized: this.initialized,
+      connectionType: this.connectionType,
+      isDegraded: this.useFallback,
+      isAvailable: this.isAvailable(),
+      degradedReason: this.degradedReason,
+    };
+  }
+
+  getConnectionType() {
+    return this.connectionType;
+  }
 }
 
 export const db = new DatabaseWrapper();
 
 export async function initializeDatabase() {
-    logger.info('Initializing Database (PostgreSQL > Memory fallback)...');
+  logger.info('Initializing Database (PostgreSQL required for Tiên Lộ persistence)...');
 
-    try {
-        await db.initialize();
+  try {
+    await db.initialize();
 
-        if (!db.initialized || !db.db) {
-            throw new Error('Database wrapper finished without an active database connection.');
-        }
-
-        logger.info('✅ Database initialized');
-        return { db };
-    } catch (error) {
-        logger.error('❌ Database Initialization Error:', error);
-        throw error;
+    if (!db.initialized || !db.db) {
+      throw new Error('Database wrapper finished without an active database connection.');
     }
+
+    logger.info(`✅ Database initialized (${db.getConnectionType()})`);
+    return { db };
+  } catch (error) {
+    logger.error('❌ Database Initialization Error:', error);
+    throw error;
+  }
 }
 
 export async function getFromDb(key, defaultValue = null) {
-    try {
-        const value = await db.get(key);
-        return value === null ? defaultValue : value;
-    } catch (error) {
-        logger.error(`Error getting value for key ${key}:`, error);
-        return defaultValue;
-    }
+  try {
+    const value = await db.get(key, defaultValue);
+    return value ?? defaultValue;
+  } catch (error) {
+    logger.error(`Error getting value for key ${key}:`, error);
+    return defaultValue;
+  }
 }
 
 export async function setInDb(key, value, ttl = null) {
-    try {
-        await db.set(key, value, ttl);
-        return true;
-    } catch (error) {
-        logger.error(`Error setting value for key ${key}:`, error);
-        return false;
-    }
+  try {
+    return Boolean(await db.set(key, value, ttl));
+  } catch (error) {
+    logger.error(`Error setting value for key ${key}:`, error);
+    return false;
+  }
 }
 
 export async function deleteFromDb(key) {
-    try {
-        await db.delete(key);
-        return true;
-    } catch (error) {
-        logger.error(`Error deleting key ${key}:`, error);
-        return false;
-    }
+  try {
+    return Boolean(await db.delete(key));
+  } catch (error) {
+    logger.error(`Error deleting key ${key}:`, error);
+    return false;
+  }
 }
+
+export default db;
