@@ -7,41 +7,16 @@ import {
   CULTIVATION_CONFIG,
 } from '../../config/cultivationGame.js';
 
-import {
-  clearAdventureV2Session,
-} from '../../services/cultivationAdventureV2.js';
-
-import {
-  startAdventureMerchant,
-  resolveHeavenlyFortune,
-} from '../../services/cultivationAdventureV294.js';
-
-import {
-  buildAdventureMerchantEmbed,
-  buildAdventureMerchantRows,
-  buildHeavenlyFortuneEmbed,
-  buildAdventureV294BackRows,
-} from '../../services/cultivationAdventureV294UI.js';
-
-import {
-  buildAdventurePetUnknownEmbed,
-  buildAdventurePetUnknownRows,
-} from '../../services/cultivationAdventureV295UI.js';
-
 /**
  * =========================================================
  * TU TIÊN TEST · GM COMMAND
  * =========================================================
  *
- * Dùng để ép event Thám Hiểm phục vụ test.
+ * Lệnh test nội bộ cho Tiên Lộ.
  *
- * Không cần:
- * - random map
- * - random event
- * - chờ cooldown
- * - xóa Linh Thú đang sở hữu
- *
- * Gameplay bình thường không bị ảnh hưởng.
+ * File này cố tình lazy-import các module Thám Hiểm.
+ * Như vậy nếu một module adventure bị lỗi nhỏ,
+ * bot vẫn không chết ngay lúc load toàn bộ command.
  */
 
 const TUTIEN_ADMIN_ROLE_ID =
@@ -50,59 +25,57 @@ const TUTIEN_ADMIN_ROLE_ID =
 const ADVENTURE_SESSION_PREFIX =
   'games:cultivation:adventureV2:';
 
-/**
- * =========================================================
- * PET IDS
- * =========================================================
- *
- * Phải trùng ID trong cultivationPet.js.
- */
-
 const TEST_PETS = {
   pet_thanh_phong_linh_ho: {
-    id:
-      'thanh_phong_linh_ho',
-
-    label:
-      'Thanh Phong Linh Hồ',
+    id: 'thanh_phong_linh_ho',
+    label: 'Thanh Phong Linh Hồ',
   },
 
   pet_xich_viem_hoa_dieu: {
-    id:
-      'xich_viem_hoa_dieu',
-
-    label:
-      'Xích Viêm Hỏa Điểu',
+    id: 'xich_viem_hoa_dieu',
+    label: 'Xích Viêm Hỏa Điểu',
   },
 
   pet_huyen_giap_linh_quy: {
-    id:
-      'huyen_giap_linh_quy',
-
-    label:
-      'Huyền Giáp Linh Quy',
+    id: 'huyen_giap_linh_quy',
+    label: 'Huyền Giáp Linh Quy',
   },
 
   pet_thien_loi_bach_ho: {
-    id:
-      'thien_loi_bach_ho',
-
-    label:
-      'Thiên Lôi Bạch Hổ',
+    id: 'thien_loi_bach_ho',
+    label: 'Thiên Lôi Bạch Hổ',
   },
 };
-
-/**
- * =========================================================
- * SESSION HELPERS
- * =========================================================
- */
 
 function getAdventureSessionKey(
   guildId,
   userId,
 ) {
   return `${ADVENTURE_SESSION_PREFIX}${guildId}:${userId}`;
+}
+
+async function loadAdventureBase() {
+  return import(
+    '../../services/cultivationAdventureV2.js'
+  );
+}
+
+async function loadAdventure294() {
+  return import(
+    '../../services/cultivationAdventureV294.js'
+  );
+}
+
+async function loadAdventure294UI() {
+  return import(
+    '../../services/cultivationAdventureV294UI.js'
+  );
+}
+
+async function loadAdventure295UI() {
+  return import(
+    '../../services/cultivationAdventureV295UI.js'
+  );
 }
 
 async function setAdventureSession(
@@ -115,21 +88,12 @@ async function setAdventureSession(
     Date.now();
 
   const session = {
-    version:
-      1,
-
+    version: 1,
     guildId,
     userId,
-
-    monster:
-      null,
-
-    createdAt:
-      now,
-
-    updatedAt:
-      now,
-
+    monster: null,
+    createdAt: now,
+    updatedAt: now,
     ...data,
   };
 
@@ -144,18 +108,28 @@ async function setAdventureSession(
   return session;
 }
 
-/**
- * =========================================================
- * FORCED PAVILION
- * =========================================================
- */
+async function clearAdventureSession(
+  client,
+  guildId,
+  userId,
+) {
+  const {
+    clearAdventureV2Session,
+  } = await loadAdventureBase();
+
+  return clearAdventureV2Session(
+    client,
+    guildId,
+    userId,
+  );
+}
 
 async function createForcedPavilionSession(
   client,
   guildId,
   userId,
 ) {
-  await clearAdventureV2Session(
+  await clearAdventureSession(
     client,
     guildId,
     userId,
@@ -166,28 +140,11 @@ async function createForcedPavilionSession(
     guildId,
     userId,
     {
-      locationId:
-        'dao_hoa_coc',
-
-      state:
-        'location',
+      locationId: 'dao_hoa_coc',
+      state: 'location',
     },
   );
 }
-
-/**
- * =========================================================
- * FORCED PET
- * =========================================================
- *
- * Không gọi startAdventurePetEncounter().
- *
- * Lý do:
- * startAdventurePetEncounter() cố tình loại những pet
- * người chơi đã sở hữu.
- *
- * GM test cần bỏ qua điều đó.
- */
 
 async function createForcedPetSession(
   client,
@@ -195,7 +152,7 @@ async function createForcedPetSession(
   userId,
   petId,
 ) {
-  await clearAdventureV2Session(
+  await clearAdventureSession(
     client,
     guildId,
     userId,
@@ -206,33 +163,66 @@ async function createForcedPetSession(
     guildId,
     userId,
     {
-      locationId:
-        'loi_vuc',
-
-      state:
-        'pet_encounter',
-
+      locationId: 'loi_vuc',
+      state: 'pet_encounter',
       petEncounter: {
         petId,
-
-        revealed:
-          false,
-
-        testMode:
-          true,
-
-        createdAt:
-          Date.now(),
+        revealed: false,
+        testMode: true,
+        createdAt: Date.now(),
       },
     },
   );
 }
 
-/**
- * =========================================================
- * COMMAND
- * =========================================================
- */
+function formatError(error) {
+  return String(
+    error?.stack ||
+      error?.message ||
+      error ||
+      'Unknown error',
+  ).slice(
+    0,
+    1800,
+  );
+}
+
+async function replyEphemeral(
+  interaction,
+  content,
+) {
+  return interaction.reply({
+    content,
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
+async function editError(
+  interaction,
+  error,
+) {
+  const message =
+    formatError(
+      error,
+    );
+
+  if (
+    interaction.deferred ||
+    interaction.replied
+  ) {
+    return interaction.editReply({
+      content:
+        `❌ **Lỗi khi test Tiên Lộ:**\n\`\`\`js\n${message}\n\`\`\``,
+      embeds: [],
+      components: [],
+    });
+  }
+
+  return replyEphemeral(
+    interaction,
+    `❌ **Lỗi khi test Tiên Lộ:**\n\`\`\`js\n${message}\n\`\`\``,
+  );
+}
 
 export default {
   data:
@@ -240,339 +230,282 @@ export default {
       .setName(
         'tutientest',
       )
-
       .setDescription(
         'GM: Ép event để test hệ thống Thám Hiểm Tiên Lộ.',
       )
-
       .addStringOption(
-        option =>
+        (option) =>
           option
             .setName(
               'event',
             )
-
             .setDescription(
               'Chọn event muốn test.',
             )
-
             .setRequired(
               true,
             )
-
             .addChoices(
               {
-                name:
-                  'Thương Nhân Thần Bí',
-
-                value:
-                  'merchant',
+                name: 'Thương Nhân Thần Bí',
+                value: 'merchant',
               },
 
               {
-                name:
-                  'Thiên Đạo Cơ Duyên',
-
-                value:
-                  'heavenly_fortune',
+                name: 'Thiên Đạo Cơ Duyên',
+                value: 'heavenly_fortune',
               },
 
               {
-                name:
-                  'Thanh Phong Linh Hồ',
-
-                value:
-                  'pet_thanh_phong_linh_ho',
+                name: 'Thanh Phong Linh Hồ',
+                value: 'pet_thanh_phong_linh_ho',
               },
 
               {
-                name:
-                  'Xích Viêm Hỏa Điểu',
-
-                value:
-                  'pet_xich_viem_hoa_dieu',
+                name: 'Xích Viêm Hỏa Điểu',
+                value: 'pet_xich_viem_hoa_dieu',
               },
 
               {
-                name:
-                  'Huyền Giáp Linh Quy',
-
-                value:
-                  'pet_huyen_giap_linh_quy',
+                name: 'Huyền Giáp Linh Quy',
+                value: 'pet_huyen_giap_linh_quy',
               },
 
               {
-                name:
-                  'Thiên Lôi Bạch Hổ',
-
-                value:
-                  'pet_thien_loi_bach_ho',
+                name: 'Thiên Lôi Bạch Hổ',
+                value: 'pet_thien_loi_bach_ho',
               },
             ),
       ),
 
-  category:
-    'Games',
+  category: 'Games',
 
   async execute(
     interaction,
   ) {
-    /**
-     * =====================================================
-     * SERVER ONLY
-     * =====================================================
-     */
-
-    if (
-      !interaction.guildId ||
-      !interaction.guild
-    ) {
-      return interaction.reply({
-        content:
+    try {
+      if (
+        !interaction.guildId ||
+        !interaction.guild
+      ) {
+        return replyEphemeral(
+          interaction,
           'Lệnh này chỉ có thể sử dụng trong server.',
-
-        flags:
-          MessageFlags.Ephemeral,
-      });
-    }
-
-    /**
-     * =====================================================
-     * ADMIN ROLE
-     * =====================================================
-     */
-
-    const member =
-      interaction.member;
-
-    const hasAdminRole =
-      member
-        ?.roles
-        ?.cache
-        ?.has(
-          TUTIEN_ADMIN_ROLE_ID,
         );
+      }
 
-    if (!hasAdminRole) {
-      return interaction.reply({
-        content:
+      const hasAdminRole =
+        interaction.member
+          ?.roles
+          ?.cache
+          ?.has(
+            TUTIEN_ADMIN_ROLE_ID,
+          );
+
+      if (!hasAdminRole) {
+        return replyEphemeral(
+          interaction,
           'Bạn không có quyền sử dụng lệnh test Tiên Lộ.',
+        );
+      }
 
-        flags:
-          MessageFlags.Ephemeral,
-      });
-    }
-
-    /**
-     * =====================================================
-     * GAME ENABLED
-     * =====================================================
-     */
-
-    if (
-      !CULTIVATION_CONFIG
-        .enabled
-    ) {
-      return interaction.reply({
-        content:
+      if (
+        !CULTIVATION_CONFIG.enabled
+      ) {
+        return replyEphemeral(
+          interaction,
           'Tiên Lộ hiện đang tạm đóng.',
+        );
+      }
 
-        flags:
-          MessageFlags.Ephemeral,
-      });
-    }
-
-    /**
-     * =====================================================
-     * CHANNEL CHECK
-     * =====================================================
-     */
-
-    if (
-      CULTIVATION_CONFIG
-        .channelId &&
-      interaction.channelId !==
-        CULTIVATION_CONFIG
-          .channelId
-    ) {
-      return interaction.reply({
-        content:
+      if (
+        CULTIVATION_CONFIG.channelId &&
+        interaction.channelId !==
+          CULTIVATION_CONFIG.channelId
+      ) {
+        return replyEphemeral(
+          interaction,
           `Tiên Lộ chỉ mở tại <#${CULTIVATION_CONFIG.channelId}>.`,
+        );
+      }
 
-        flags:
-          MessageFlags.Ephemeral,
-      });
-    }
+      const client =
+        interaction.client;
 
-    const event =
-      interaction.options
-        .getString(
+      if (!client?.db) {
+        return replyEphemeral(
+          interaction,
+          'Database chưa sẵn sàng, thử lại sau vài giây nhé.',
+        );
+      }
+
+      const event =
+        interaction.options.getString(
           'event',
           true,
         );
 
-    const client =
-      interaction.client;
+      const guildId =
+        interaction.guildId;
 
-    const guildId =
-      interaction.guildId;
+      const userId =
+        interaction.user.id;
 
-    const userId =
-      interaction.user.id;
+      await interaction.deferReply();
 
-    /**
-     * =====================================================
-     * MERCHANT
-     * =====================================================
-     */
+      if (
+        event === 'merchant'
+      ) {
+        const {
+          startAdventureMerchant,
+        } = await loadAdventure294();
 
-    if (
-      event ===
-      'merchant'
-    ) {
-      await createForcedPavilionSession(
-        client,
-        guildId,
-        userId,
-      );
+        const {
+          buildAdventureMerchantEmbed,
+          buildAdventureMerchantRows,
+        } = await loadAdventure294UI();
 
-      const result =
-        await startAdventureMerchant(
+        await createForcedPavilionSession(
           client,
           guildId,
           userId,
         );
 
-      if (!result.ok) {
-        await clearAdventureV2Session(
-          client,
-          guildId,
-          userId,
-        );
+        const result =
+          await startAdventureMerchant(
+            client,
+            guildId,
+            userId,
+          );
 
-        return interaction.reply({
-          content:
-            `❌ Không thể tạo Merchant test: \`${result.reason || 'unknown'}\``,
+        if (!result.ok) {
+          await clearAdventureSession(
+            client,
+            guildId,
+            userId,
+          );
 
-          flags:
-            MessageFlags.Ephemeral,
+          return interaction.editReply({
+            content:
+              `❌ Không thể tạo Merchant test: \`${result.reason || 'unknown'}\``,
+            embeds: [],
+            components: [],
+          });
+        }
+
+        return interaction.editReply({
+          embeds: [
+            buildAdventureMerchantEmbed(
+              result,
+            ),
+          ],
+
+          components:
+            buildAdventureMerchantRows(
+              userId,
+              result.stock,
+            ),
         });
       }
 
-      return interaction.reply({
-        embeds: [
-          buildAdventureMerchantEmbed(
-            result,
-          ),
-        ],
+      if (
+        event === 'heavenly_fortune'
+      ) {
+        const {
+          resolveHeavenlyFortune,
+        } = await loadAdventure294();
 
-        components:
-          buildAdventureMerchantRows(
+        const {
+          buildHeavenlyFortuneEmbed,
+          buildAdventureV294BackRows,
+        } = await loadAdventure294UI();
+
+        await createForcedPavilionSession(
+          client,
+          guildId,
+          userId,
+        );
+
+        const result =
+          await resolveHeavenlyFortune(
+            client,
+            guildId,
             userId,
-            result.stock,
-          ),
-      });
-    }
+          );
 
-    /**
-     * =====================================================
-     * HEAVENLY FORTUNE
-     * =====================================================
-     */
+        if (!result.ok) {
+          await clearAdventureSession(
+            client,
+            guildId,
+            userId,
+          );
 
-    if (
-      event ===
-      'heavenly_fortune'
-    ) {
-      await createForcedPavilionSession(
-        client,
-        guildId,
-        userId,
-      );
+          return interaction.editReply({
+            content:
+              `❌ Không thể tạo Thiên Đạo Cơ Duyên test: \`${result.reason || 'unknown'}\``,
+            embeds: [],
+            components: [],
+          });
+        }
 
-      const result =
-        await resolveHeavenlyFortune(
-          client,
-          guildId,
-          userId,
-        );
+        return interaction.editReply({
+          embeds: [
+            buildHeavenlyFortuneEmbed(
+              result,
+            ),
+          ],
 
-      if (!result.ok) {
-        await clearAdventureV2Session(
-          client,
-          guildId,
-          userId,
-        );
-
-        return interaction.reply({
-          content:
-            `❌ Không thể tạo Thiên Đạo Cơ Duyên test: \`${result.reason || 'unknown'}\``,
-
-          flags:
-            MessageFlags.Ephemeral,
+          components:
+            buildAdventureV294BackRows(
+              userId,
+            ),
         });
       }
 
-      return interaction.reply({
-        embeds: [
-          buildHeavenlyFortuneEmbed(
-            result,
-          ),
-        ],
+      const testPet =
+        TEST_PETS[event];
 
-        components:
-          buildAdventureV294BackRows(
-            userId,
-          ),
+      if (testPet) {
+        const {
+          buildAdventurePetUnknownEmbed,
+          buildAdventurePetUnknownRows,
+        } = await loadAdventure295UI();
+
+        await createForcedPetSession(
+          client,
+          guildId,
+          userId,
+          testPet.id,
+        );
+
+        return interaction.editReply({
+          embeds: [
+            buildAdventurePetUnknownEmbed(),
+          ],
+
+          components:
+            buildAdventurePetUnknownRows(
+              userId,
+            ),
+        });
+      }
+
+      return interaction.editReply({
+        content:
+          'Không tìm thấy event test tương ứng.',
+        embeds: [],
+        components: [],
       });
-    }
-
-    /**
-     * =====================================================
-     * V2.9.5 · FORCED PET ENCOUNTER
-     * =====================================================
-     */
-
-    const testPet =
-      TEST_PETS[event];
-
-    if (testPet) {
-      /**
-       * Tạo thẳng encounter.
-       *
-       * Không kiểm tra ownedPets.
-       */
-      await createForcedPetSession(
-        client,
-        guildId,
-        userId,
-        testPet.id,
+    } catch (error) {
+      console.error(
+        '[TU TIEN TEST ERROR]',
+        error,
       );
 
-      return interaction.reply({
-        embeds: [
-          buildAdventurePetUnknownEmbed(),
-        ],
-
-        components:
-          buildAdventurePetUnknownRows(
-            userId,
-          ),
-      });
+      return editError(
+        interaction,
+        error,
+      );
     }
-
-    /**
-     * =====================================================
-     * UNKNOWN
-     * =====================================================
-     */
-
-    return interaction.reply({
-      content:
-        'Không tìm thấy event test tương ứng.',
-
-      flags:
-        MessageFlags.Ephemeral,
-    });
   },
 };
