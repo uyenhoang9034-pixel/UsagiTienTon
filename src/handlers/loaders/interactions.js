@@ -2,12 +2,23 @@ import { readdir } from 'fs/promises';
 import { join } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname } from 'path';
+
 import { logger } from '../../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const interactionTypes = ['buttons', 'selectMenus', 'modals'];
+
+const ALLOWED_INTERACTION_PATTERNS = [
+  /^buttons\/tutien\.js$/,
+  /^buttons\/music\/.*\.js$/,
+  /^selectMenus\/tutien.*\.js$/,
+];
+
+function isAllowedInteraction(relativePath) {
+  return ALLOWED_INTERACTION_PATTERNS.some((pattern) => pattern.test(relativePath));
+}
 
 async function getAllInteractionFiles(directory, fileList = []) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -35,9 +46,18 @@ export default async (client) => {
       try {
         const interactionFiles = await getAllInteractionFiles(typePath);
         let loadedCount = 0;
+        let skippedCount = 0;
 
         for (const filePath of interactionFiles) {
-          const relativePath = filePath.slice(interactionsPath.length + 1).replace(/\\/g, '/');
+          const relativePath = filePath
+            .slice(interactionsPath.length + 1)
+            .replace(/\\/g, '/');
+
+          if (!isAllowedInteraction(relativePath)) {
+            skippedCount += 1;
+            continue;
+          }
+
           const fileName = relativePath.split('/').pop();
 
           try {
@@ -57,19 +77,22 @@ export default async (client) => {
             }
           } catch (error) {
             logger.error(`Error loading interaction ${relativePath} in ${type}:`, error);
+            throw error;
           }
         }
 
-        logger.info(`Loaded ${loadedCount} ${type}`);
+        logger.info(`Loaded ${loadedCount} ${type}; skipped ${skippedCount} non-scope ${type}`);
       } catch (error) {
         if (error.code !== 'ENOENT') {
           logger.error(`Error loading ${type}:`, error);
-        } else {
-          logger.debug(`No ${type} directory found, skipping...`);
+          throw error;
         }
+
+        logger.debug(`No ${type} directory found, skipping...`);
       }
     }
   } catch (error) {
     logger.error('Error loading interactions:', error);
+    throw error;
   }
 };
