@@ -30,12 +30,42 @@ export const DEFAULT_GUILD_CONFIG = {
     adminRole: null,
     welcomeChannel: null,
     autoRole: null,
+
+    // Ticket system defaults
+    ticketPanelChannelId: null,
+    ticketPanelMessageId: null,
+    ticketPanelMessage: null,
+    ticketPanelTitle: 'Support Tickets',
+    ticketPanelColor: null,
+    ticketImage: null,
+
+    ticketButtonLabel: 'Create Ticket',
+    ticketButtonEmoji: null,
+
+    ticketCategoryId: null,
+    ticketClosedCategoryId: null,
+    ticketStaffRoleId: null,
+
+    maxTicketsPerUser: 3,
+    dmOnClose: true,
+
+    ticketLogsChannelId: null,
+    ticketTranscriptChannelId: null,
+
     logging: {
         enabled: false,
-        channels: { audit: null, applications: null, reports: null },
-        ignore: { users: [], channels: [] },
+        channels: {
+            audit: null,
+            applications: null,
+            reports: null
+        },
+        ignore: {
+            users: [],
+            channels: []
+        },
         enabledEvents: {},
     },
+
     verification: {
         enabled: false
     }
