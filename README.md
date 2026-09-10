@@ -12,6 +12,8 @@ Các sự kiện leveling, moderation, welcome, giveaway, birthday, ticket, nố
 
 ## Cài đặt
 
+**Dùng Railway:** xem [hướng dẫn Railway](RAILWAY.md), gồm cấu hình bot, Lavalink và chuyển dữ liệu PostgreSQL.
+
 1. Tạo ứng dụng/bot Discord mới. Copy `.env.example` thành `.env`, đặt **token và CLIENT_ID của bot mới** cùng ID server/owner. Không commit `.env`.
 2. Bật **Server Members Intent** và **Message Content Intent** trong Developer Portal. Mời bot với scope `bot` và `applications.commands`.
 3. Cấp View Channel, Send Messages, Embed Links, Attach Files, Add Reactions, Read Message History, Use External Emojis, Manage Roles, Connect và Speak. Đặt role của bot cao hơn các role cần cấp.
