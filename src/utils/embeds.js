@@ -1,22 +1,108 @@
 // embeds.js
 
 import { EmbedBuilder } from 'discord.js';
-import { getColor, botConfig } from '../config/bot.js';
+import { getColor } from '../config/bot.js';
 
-function normalizeFooterText(footer) {
-  if (!footer) {
+const DEFAULT_COLOR = '#F3AFC8';
+const DEFAULT_FOOTER = 'Usagi Tiên Tôn';
+
+function trimText(value, maxLength) {
+  if (value === undefined || value === null) {
     return '';
   }
 
+  return String(value).trim().slice(0, maxLength);
+}
+
+function resolveColor(color) {
+  try {
+    return getColor(color, DEFAULT_COLOR) || DEFAULT_COLOR;
+  } catch {
+    return DEFAULT_COLOR;
+  }
+}
+
+function normalizeEmbedUrl(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === 'string') {
+    return value.trim() || null;
+  }
+
+  if (typeof value.url === 'string') {
+    return value.url.trim() || null;
+  }
+
+  return null;
+}
+
+function normalizeAuthor(author) {
+  if (!author) {
+    return null;
+  }
+
+  if (typeof author === 'string') {
+    const name = trimText(author, 256);
+    return name ? { name } : null;
+  }
+
+  if (typeof author.name === 'string') {
+    const name = trimText(author.name, 256);
+    if (!name) return null;
+
+    return {
+      name,
+      ...(author.iconURL ? { iconURL: author.iconURL } : {}),
+      ...(author.url ? { url: author.url } : {}),
+    };
+  }
+
+  return null;
+}
+
+function normalizeFooter(footer) {
+  if (footer === false) {
+    return null;
+  }
+
+  if (!footer) {
+    return { text: DEFAULT_FOOTER };
+  }
+
   if (typeof footer === 'string') {
-    return footer.trim();
+    const text = trimText(footer, 2048);
+    return text ? { text } : null;
   }
 
-  if (footer && typeof footer.text === 'string') {
-    return footer.text.trim();
+  if (typeof footer.text === 'string') {
+    const text = trimText(footer.text, 2048);
+    if (!text) return null;
+
+    return {
+      text,
+      ...(footer.iconURL ? { iconURL: footer.iconURL } : {}),
+    };
   }
 
-  return '';
+  return null;
+}
+
+function normalizeFields(fields) {
+  if (!Array.isArray(fields)) {
+    return [];
+  }
+
+  return fields
+    .filter((field) => field?.name && field?.value)
+    .slice(0, 25)
+    .map((field) => ({
+      name: trimText(field.name, 256),
+      value: trimText(field.value, 1024),
+      inline: Boolean(field.inline),
+    }))
+    .filter((field) => field.name && field.value);
 }
 
 export function createEmbed({
@@ -29,106 +115,54 @@ export function createEmbed({
   thumbnail = null,
   image = null,
   timestamp = false,
-  url = null
+  url = null,
 } = {}) {
-  const embed = new EmbedBuilder();
+  const embed = new EmbedBuilder().setColor(resolveColor(color));
 
-  if (title && typeof title === 'string' && title.length > 0) {
-    embed.setTitle(title.substring(0, 256));
+  const safeTitle = trimText(title, 256);
+  if (safeTitle) {
+    embed.setTitle(safeTitle);
   }
 
-  if (description && typeof description === 'string' && description.length > 0) {
-    embed.setDescription(description.substring(0, 4096));
+  const safeDescription = trimText(description, 4096);
+  if (safeDescription) {
+    embed.setDescription(safeDescription);
   }
 
-  try {
-    const embedColor = getColor(color) || '#000000';
-    embed.setColor(embedColor);
-  } catch (error) {
-    embed.setColor('#000000');
+  const safeFields = normalizeFields(fields);
+  if (safeFields.length > 0) {
+    embed.addFields(safeFields);
   }
 
-  if (Array.isArray(fields) && fields.length > 0) {
-    const validFields = fields.filter(f => f && f.name && f.value);
-    if (validFields.length > 0) {
-      embed.addFields(validFields.slice(0, 25)); 
-    }
+  const safeAuthor = normalizeAuthor(author);
+  if (safeAuthor) {
+    embed.setAuthor(safeAuthor);
   }
 
-  if (author) {
-    try {
-      if (typeof author === 'string' && author.length > 0) {
-        embed.setAuthor({ name: author.substring(0, 256) });
-      } else if (author && typeof author.name === 'string') {
-        embed.setAuthor(author);
-      }
-    } catch (error) {
-      
-    }
-  } else if (botConfig.embeds?.author?.name) {
-    embed.setAuthor({
-      name: botConfig.embeds.author.name,
-      ...(botConfig.embeds.author.icon ? { iconURL: botConfig.embeds.author.icon } : {}),
-      ...(botConfig.embeds.author.url ? { url: botConfig.embeds.author.url } : {}),
-    });
+  const safeFooter = normalizeFooter(footer);
+  if (safeFooter) {
+    embed.setFooter(safeFooter);
   }
 
-  if (footer) {
-    try {
-      if (typeof footer === 'string' && footer.length > 0) {
-        embed.setFooter({ text: footer.substring(0, 2048) });
-      } else if (footer && typeof footer.text === 'string') {
-        embed.setFooter(footer);
-      }
-    } catch (error) {
-      
-    }
-  } else if (botConfig.embeds?.footer?.text) {
-    const defaultFooter = {
-      text: botConfig.embeds.footer.text,
-      ...(botConfig.embeds.footer.icon ? { iconURL: botConfig.embeds.footer.icon } : {}),
-    };
-    embed.setFooter(defaultFooter);
+  const safeThumbnail = normalizeEmbedUrl(thumbnail);
+  if (safeThumbnail) {
+    embed.setThumbnail(safeThumbnail);
   }
 
-  if (thumbnail) {
-    try {
-      if (typeof thumbnail === 'string' && thumbnail.length > 0) {
-        embed.setThumbnail(thumbnail);
-      } else if (thumbnail && typeof thumbnail.url === 'string') {
-        embed.setThumbnail(thumbnail.url);
-      }
-    } catch (error) {
-      
-    }
-  } else if (botConfig.embeds?.thumbnail) {
-    embed.setThumbnail(botConfig.embeds.thumbnail);
+  const safeImage = normalizeEmbedUrl(image);
+  if (safeImage) {
+    embed.setImage(safeImage);
   }
 
-  if (image) {
-    try {
-      if (typeof image === 'string' && image.length > 0) {
-        embed.setImage(image);
-      } else if (image && typeof image.url === 'string') {
-        embed.setImage(image.url);
-      }
-    } catch (error) {
-      
-    }
+  const safeUrl = normalizeEmbedUrl(url);
+  if (safeUrl) {
+    embed.setURL(safeUrl);
   }
 
   if (timestamp === true) {
     embed.setTimestamp();
   } else if (timestamp instanceof Date) {
     embed.setTimestamp(timestamp);
-  }
-
-  if (url && typeof url === 'string' && url.length > 0) {
-    try {
-      embed.setURL(url);
-    } catch (error) {
-      
-    }
   }
 
   return embed;
@@ -158,33 +192,14 @@ const USER_ERROR_COLORS = {
   rate_limit: 'warning',
 };
 
-/**
- * Build a consistent user-facing error embed.
- * @param {string} errorType - Error category key (e.g. validation, permission)
- * @param {string} [description] - Specific, actionable message for the user
- * @param {{ titleOverride?: string }} [options]
- */
-export function buildUserErrorEmbed(errorType, description = '', options = {}) {
-  const type = errorType || 'unknown';
-  const title = options.titleOverride || USER_ERROR_TITLES[type] || USER_ERROR_TITLES.unknown;
-  const color = USER_ERROR_COLORS[type] || 'error';
-  const body = description ? String(description).trim() : undefined;
-
-  return createEmbed({
-    title,
-    description: body,
-    color,
-  });
-}
-
 function containsDiscordRenderable(content = '') {
   return /<@!?&?\d+>|<#\d+>|\b\d{17,19}\b/.test(String(content));
 }
 
 function buildNotificationEmbed(title, body = '', color = 'primary') {
   const defaultTitle = NOTIFICATION_DEFAULT_TITLES[color] || NOTIFICATION_DEFAULT_TITLES.primary;
-  let titleText = String(title || '').trim();
-  let bodyText = body ? String(body).trim() : '';
+  let titleText = trimText(title, 256);
+  let bodyText = trimText(body, 4096);
 
   if (titleText && containsDiscordRenderable(titleText)) {
     bodyText = bodyText ? `${titleText}\n\n${bodyText}` : titleText;
@@ -193,58 +208,60 @@ function buildNotificationEmbed(title, body = '', color = 'primary') {
 
   return createEmbed({
     title: titleText || defaultTitle,
-    description: bodyText || undefined,
+    description: bodyText,
     color,
   });
 }
 
-/**
- * @deprecated Prefer buildUserErrorEmbed or replyUserError from errorHandler.js.
- */
+export function buildUserErrorEmbed(errorType, description = '', options = {}) {
+  const type = errorType || 'unknown';
+  const title = options.titleOverride || USER_ERROR_TITLES[type] || USER_ERROR_TITLES.unknown;
+  const color = USER_ERROR_COLORS[type] || 'error';
+
+  return createEmbed({
+    title,
+    description,
+    color,
+  });
+}
+
+/** @deprecated Prefer buildUserErrorEmbed or replyUserError from errorHandler.js. */
 export function errorEmbed(title, detail = null, options = {}) {
   const { showDetails = process.env.NODE_ENV !== 'production' } = options;
-  let body = detail;
+  const description =
+    detail && showDetails && typeof detail !== 'string'
+      ? formatCodeBlock(detail.message || String(detail))
+      : detail || '';
 
-  if (detail && showDetails && typeof detail !== 'string') {
-    const detailText = detail.message || String(detail);
-    body = formatCodeBlock(detailText);
-  }
-
-  const description = body ? String(body).trim() : '';
-  const titleOverride = title && title !== 'Error' ? title : undefined;
-
-  return buildUserErrorEmbed('unknown', description, { titleOverride });
+  return buildUserErrorEmbed('unknown', description, {
+    titleOverride: title && title !== 'Error' ? title : undefined,
+  });
 }
 
-/** @param {string} titleOrBody - With one arg: body text. With two args: title and body. */
 export function successEmbed(title, body = '') {
-  if (arguments.length === 1) {
-    return buildNotificationEmbed('Success', title, 'success');
-  }
-
-  return buildNotificationEmbed(title || 'Success', body, 'success');
+  return arguments.length === 1
+    ? buildNotificationEmbed('Success', title, 'success')
+    : buildNotificationEmbed(title || 'Success', body, 'success');
 }
 
-/** @param {string} titleOrBody - With one arg: body text. With two args: title and body. */
 export function infoEmbed(title, body = '') {
-  if (arguments.length === 1) {
-    return buildNotificationEmbed('Information', title, 'info');
-  }
-
-  return buildNotificationEmbed(title || 'Information', body, 'info');
+  return arguments.length === 1
+    ? buildNotificationEmbed('Information', title, 'info')
+    : buildNotificationEmbed(title || 'Information', body, 'info');
 }
 
-/** @param {string} titleOrBody - With one arg: body text. With two args: title and body. */
 export function warningEmbed(title, body = '') {
-  if (arguments.length === 1) {
-    return buildNotificationEmbed('Warning', title, 'warning');
-  }
-
-  return buildNotificationEmbed(title || 'Warning', body, 'warning');
+  return arguments.length === 1
+    ? buildNotificationEmbed('Warning', title, 'warning')
+    : buildNotificationEmbed(title || 'Warning', body, 'warning');
 }
 
 export function formatUser(user) {
-  return `${user} (${user.tag} | ${user.id})`;
+  if (!user) {
+    return 'Unknown User';
+  }
+
+  return `${user} (${user.tag || user.username || 'unknown'} | ${user.id || 'no-id'})`;
 }
 
 export function formatDate(date) {
@@ -256,45 +273,51 @@ export function formatRelativeTime(date) {
 }
 
 export function formatCodeBlock(content, language = '') {
-  return `\`\`\`${language}\n${content}\n\`\`\``;
+  return `\`\`\`${language}\n${String(content)}\n\`\`\``;
 }
 
 export function formatInlineCode(content) {
-  return `\`${content}\``;
+  return `\`${String(content)}\``;
 }
 
 export function formatBold(content) {
-  return `**${content}**`;
+  return `**${String(content)}**`;
 }
 
 export function formatItalic(content) {
-  return `*${content}*`;
+  return `*${String(content)}*`;
 }
 
 export function formatUnderline(content) {
-  return `__${content}__`;
+  return `__${String(content)}__`;
 }
 
 export function formatStrikethrough(content) {
-  return `~~${content}~~`;
+  return `~~${String(content)}~~`;
 }
 
 export function formatSpoiler(content) {
-  return `||${content}||`;
+  return `||${String(content)}||`;
 }
 
 export function formatQuote(content) {
-  return `> ${content}`;
+  return `> ${String(content)}`;
 }
 
 export function formatList(items, ordered = false) {
+  if (!Array.isArray(items)) {
+    return '';
+  }
+
   return items
-    .map((item, index) => (ordered ? `${index + 1}.` : '•') + `${item}`)
+    .map((item, index) => `${ordered ? `${index + 1}.` : '•'} ${item}`)
     .join('\n');
 }
 
 export function formatDuration(ms) {
-  if (ms < 0) return '0s';
+  if (!Number.isFinite(ms) || ms <= 0) {
+    return '0s';
+  }
 
   const seconds = Math.floor(ms / 1000) % 60;
   const minutes = Math.floor(ms / (1000 * 60)) % 60;
@@ -307,12 +330,15 @@ export function formatDuration(ms) {
   if (minutes > 0) parts.push(`${minutes}m`);
   if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`);
 
-  return parts.join('');
+  return parts.join(' ');
 }
 
 export function formatProgressBar(current, max, size = 10) {
-  const progress = Math.min(Math.max(0, current / max), 1);
-  const filled = Math.round(size * progress);
-  const empty = size - filled;
+  const safeSize = Math.max(1, Math.min(30, Number(size) || 10));
+  const safeMax = Number(max) || 0;
+  const progress = safeMax > 0 ? Math.min(Math.max(0, Number(current) / safeMax), 1) : 0;
+  const filled = Math.round(safeSize * progress);
+  const empty = safeSize - filled;
+
   return `[${'█'.repeat(filled)}${'░'.repeat(empty)}] ${Math.round(progress * 100)}%`;
 }
