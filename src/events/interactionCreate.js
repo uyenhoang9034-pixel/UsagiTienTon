@@ -2,6 +2,10 @@ import { Events, MessageFlags } from 'discord.js';
 
 import { logger } from '../utils/logger.js';
 import { CULTIVATION_CONFIG } from '../config/cultivationGame.js';
+import {
+  CULTIVATION_MAINTENANCE_MESSAGE,
+  isCultivationMaintenance,
+} from '../services/cultivationMaintenance.js';
 
 async function sendInteractionError(interaction, error) {
   const message =
@@ -28,6 +32,19 @@ async function sendInteractionError(interaction, error) {
   } catch (replyError) {
     logger.error('Failed to send interaction error response:', replyError);
   }
+}
+
+async function replyMaintenance(interaction) {
+  const payload = {
+    content: CULTIVATION_MAINTENANCE_MESSAGE,
+    flags: MessageFlags.Ephemeral,
+  };
+
+  if (interaction.replied || interaction.deferred) {
+    return interaction.followUp(payload);
+  }
+
+  return interaction.reply(payload);
 }
 
 function getComponentCollection(interaction, client) {
@@ -74,21 +91,6 @@ function hasCultivationAdminRole(interaction) {
   );
 }
 
-/**
- * Compatibility adapter cho code Tu Tiên cũ.
- *
- * Nhiều button/select/GM command cũ vẫn kiểm tra:
- * interaction.channelId === CULTIVATION_CONFIG.channelId
- *
- * Quy tắc mới:
- * - Người chơi: chỉ tương thích khi đang ở thread cá nhân thuộc #tu-tiên.
- * - Admin Tiên Lộ: các lệnh/interaction quản trị như /tutienitem,
- *   /tutientest và UI sinh ra từ các lệnh test được phép dùng ở MỌI kênh.
- *
- * Adapter chỉ thay giá trị khi code cũ ĐỌC channelId. interaction.channel vẫn
- * là channel/thread thật, nên reply/update luôn xuất hiện đúng nơi admin hoặc
- * người chơi đang thao tác.
- */
 function createCultivationCompatInteraction(interaction) {
   const shouldAdapt =
     isInsideCultivationThread(interaction) ||
@@ -128,14 +130,6 @@ export default {
           return;
         }
 
-        /**
-         * /tutien là lệnh mở dashboard cá nhân nên PHẢI nhận interaction thật
-         * để kiểm tra đúng threadId của người chơi.
-         *
-         * Các lệnh Tu Tiên phụ/GM như /tutienitem và /tutientest đi qua
-         * compatibility adapter. Nhờ đó admin Tiên Lộ có thể chạy chúng ở
-         * bất kỳ kênh nào, còn người chơi thường vẫn bị giới hạn đúng nơi.
-         */
         const routedCommandInteraction =
           interaction.commandName !== 'tutien' &&
           interaction.commandName.startsWith('tutien')
@@ -168,6 +162,18 @@ export default {
       const handler = collection.get(handlerId);
 
       if (!handler) {
+        return;
+      }
+
+      if (
+        isCultivationComponent(handlerId) &&
+        interaction.guildId &&
+        await isCultivationMaintenance(
+          client,
+          interaction.guildId,
+        )
+      ) {
+        await replyMaintenance(interaction);
         return;
       }
 
