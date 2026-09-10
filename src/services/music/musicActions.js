@@ -1528,4 +1528,3 @@ export async function replyMusicSuccess(
         options,
     );
 }
-}
