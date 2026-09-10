@@ -12,6 +12,7 @@ const ALLOWED_EVENT_FILES = new Set([
   'interactionCreate.js',
   'messageCreate.js',
   'voiceStateUpdate.js',
+  'guildMemberUpdate.js',
 ]);
 
 export default async function loadEvents(client) {
@@ -26,7 +27,7 @@ export default async function loadEvents(client) {
   );
 
   for (const file of eventFiles) {
-    const filePath = join(eventsPath, file);
+    const filePath = join(__dirname, '../../events', file);
 
     try {
       const { default: event } = await import(pathToFileURL(filePath).href);
