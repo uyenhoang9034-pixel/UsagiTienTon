@@ -53,6 +53,7 @@ export {
 export {
     getTicketData,
     getOpenTicketCountForUser,
+    getOpenTicketCountForStaff,
     saveTicketData,
     deleteTicketData,
     getTicketCounter,
@@ -371,11 +372,14 @@ function normalizeWelcomeConfig(raw = {}) {
         welcomeMessage,
         welcomeEmbed,
         welcomePing: Boolean(base.welcomePing),
+        welcomePingMessage: base.welcomePingMessage ?? null,
         welcomeImage: base.welcomeImage ?? null,
         goodbyeEnabled: Boolean(base.goodbyeEnabled),
         goodbyeChannelId,
         leaveMessage,
         leaveEmbed,
+        goodbyePingMessage: base.goodbyePingMessage ?? null,
+        goodbyeImage: base.goodbyeImage ?? base.leaveImage ?? null,
         dmMessage: base.dmMessage ?? "",
         goodbyePing: Boolean(base.goodbyePing),
         roleIds,
@@ -1182,15 +1186,85 @@ export function formatChannelName(template, variables) {
     };
     
     for (const [placeholder, value] of Object.entries(replacements)) {
-        formatted = formatted.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), value);
+        formatted = formatted.replace(
+            new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'),
+            value
+        );
     }
     
     formatted = formatted.replace(/[^\w\s-]/g, '').trim();
-formatted = formatted.substring(0, 100);
+    formatted = formatted.substring(0, 100);
     
     return formatted || 'Voice Channel';
 }
 
 function generateCaseId() {
     return `${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 4)}`;
+}
+
+export async function getGiveawayByMessageId(client, messageId) {
+    if (!client?.db) {
+        return null;
+    }
+
+    try {
+        // Knex / Query Builder
+        if (typeof client.db === 'function' || client.db.select) {
+            const row = await client.db('giveaways')
+                .where({ message_id: messageId })
+                .first();
+
+            return row || null;
+        }
+
+        // PostgreSQL pool
+        if (client.db.query) {
+            const result = await client.db.query(
+                'SELECT * FROM giveaways WHERE message_id = $1 LIMIT 1',
+                [messageId]
+            );
+
+            return result.rows[0] || null;
+        }
+    } catch (error) {
+        logger.error('Error in getGiveawayByMessageId:', error);
+    }
+
+    return null;
+}
+
+export async function updateGiveawayData(client, messageId, giveawayData) {
+    if (!client?.db) {
+        return false;
+    }
+
+    try {
+        const payload =
+            typeof giveawayData === 'object'
+                ? JSON.stringify(giveawayData)
+                : giveawayData;
+
+        // Knex / Query Builder
+        if (typeof client.db === 'function' || client.db.select) {
+            await client.db('giveaways')
+                .where({ message_id: messageId })
+                .update({ data: payload });
+
+            return true;
+        }
+
+        // PostgreSQL pool
+        if (client.db.query) {
+            await client.db.query(
+                'UPDATE giveaways SET data = $1 WHERE message_id = $2',
+                [payload, messageId]
+            );
+
+            return true;
+        }
+    } catch (error) {
+        logger.error('Error in updateGiveawayData:', error);
+    }
+
+    return false;
 }
