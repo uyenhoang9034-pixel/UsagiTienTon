@@ -11,45 +11,9 @@ import {
     buildNowPlayingEmbed,
     buildPlayerButtonRows,
 } from './musicEmbeds.js';
-import audioManager from '../audio/audioManager.js';
 
 const UPDATE_INTERVAL_MS = 15 * 1000;
 const IDLE_DISCONNECT_MS = 30 * 1000;
-
-/**
- * =========================================================
- * AUDIO / MUSIC SEPARATION
- * =========================================================
- *
- * Audio tracks are marked by audioResults.js:
- *
- * track.info.__usagiAudio = true
- *
- * Music must completely ignore those tracks.
- */
-
-function isAudioTrack(track) {
-    return Boolean(
-        track?.info?.__usagiAudio === true,
-    );
-}
-
-function isAudioPlayer(player) {
-    const audioSession =
-        player?.guildId
-            ? audioManager.getSession(
-                player.guildId,
-            )
-            : null;
-
-    return Boolean(
-        player?.__usagiAudio === true ||
-        isAudioTrack(
-            player?.current,
-        ) ||
-        audioSession?.audioActive === true,
-    );
-}
 
 /**
  * =========================================================
@@ -136,11 +100,6 @@ async function editOrSendPlayerMessage(
  * =========================================================
  * REFRESH MUSIC PLAYER MESSAGE
  * =========================================================
- *
- * IMPORTANT:
- *
- * This function only refreshes Music.
- * Audio is handled by audioPlayerEvents.js.
  */
 
 export async function refreshPlayerMessage(
@@ -153,17 +112,10 @@ export async function refreshPlayerMessage(
                 guildId,
             );
 
-        /**
-         * Never touch Audio players.
-         */
         if (
             !player ||
-            isAudioPlayer(player)
+            !player.current
         ) {
-            return;
-        }
-
-        if (!player.current) {
             return;
         }
 
@@ -405,19 +357,6 @@ export function setupPlayerHandler(
             player,
             track,
         ) => {
-            /**
-             * CRITICAL:
-             *
-             * Audio has its own event handler.
-             * Music must completely ignore Audio.
-             */
-            if (
-                isAudioTrack(track) ||
-                isAudioPlayer(player)
-            ) {
-                return;
-            }
-
             try {
                 const guildData =
                     getGuildMusicData(
@@ -521,18 +460,6 @@ export function setupPlayerHandler(
     client.riffy.on(
         'queueEnd',
         async (player) => {
-            /**
-             * Audio has its own queueEnd handler.
-             *
-             * DO NOT delete Audio dashboard.
-             * DO NOT destroy Audio player.
-             */
-            if (
-                isAudioPlayer(player)
-            ) {
-                return;
-            }
-
             try {
                 const guildData =
                     getGuildMusicData(
@@ -621,19 +548,6 @@ export function setupPlayerHandler(
                                             player.guildId,
                                         );
 
-                                    /**
-                                     * Never destroy
-                                     * an Audio player.
-                                     */
-                                    if (
-                                        currentPlayer &&
-                                        isAudioPlayer(
-                                            currentPlayer,
-                                        )
-                                    ) {
-                                        return;
-                                    }
-
                                     if (
                                         currentPlayer &&
                                         !currentPlayer.playing &&
@@ -672,15 +586,6 @@ export function setupPlayerHandler(
     client.riffy.on(
         'playerDisconnect',
         async (player) => {
-            /**
-             * Audio handles its own disconnect.
-             */
-            if (
-                isAudioPlayer(player)
-            ) {
-                return;
-            }
-
             try {
                 const guildData =
                     getGuildMusicData(
@@ -760,19 +665,6 @@ export function setupPlayerHandler(
             track,
             payload,
         ) => {
-            /**
-             * CRITICAL:
-             *
-             * Audio playback errors must NEVER
-             * reach the Music dashboard.
-             */
-            if (
-                isAudioTrack(track) ||
-                isAudioPlayer(player)
-            ) {
-                return;
-            }
-
             try {
                 logger.error(
                     `Track error in ${player.guildId} for "${
@@ -831,16 +723,6 @@ export function setupPlayerHandler(
             track,
             payload,
         ) => {
-            /**
-             * Audio has its own error handling.
-             */
-            if (
-                isAudioTrack(track) ||
-                isAudioPlayer(player)
-            ) {
-                return;
-            }
-
             logger.warn(
                 `Track stuck in ${player.guildId} for "${
                     track?.info?.title ||
@@ -878,15 +760,6 @@ export async function shutdownMusic(
             client.riffy.players.values()
     ) {
         try {
-            /**
-             * Don't let the Music shutdown
-             * handler accidentally treat Audio
-             * as a Music player.
-             *
-             * During complete bot shutdown,
-             * however, all Riffy players still
-             * need to be destroyed.
-             */
             player.destroy();
         } catch (error) {
             logger.debug(
