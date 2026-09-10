@@ -106,6 +106,56 @@ async function hasExistingMessage(
   }
 }
 
+async function ensureDailyQuestPanel(
+  interaction,
+  runtimeClient,
+  threadData,
+) {
+  const existingId =
+    threadData?.dailyQuestMessageId ||
+    null;
+
+  if (
+    await hasExistingMessage(
+      interaction,
+      existingId,
+    )
+  ) {
+    return existingId;
+  }
+
+  const questState =
+    await getDailyQuestState(
+      runtimeClient,
+      interaction.guildId,
+      interaction.user.id,
+      {
+        sync: true,
+      },
+    );
+
+  const message =
+    await interaction.channel.send({
+      embeds: [
+        questState.rolled
+          ? buildDailyQuestEmbed(
+              interaction.user,
+              questState,
+            )
+          : buildDailyQuestIntroEmbed(
+              interaction.user,
+            ),
+      ],
+      components:
+        buildDailyQuestRows(
+          interaction.user.id,
+          questState,
+        ),
+    });
+
+  return message.id;
+}
+
 export default {
   category:
     'Games',
@@ -220,12 +270,36 @@ export default {
         );
       }
 
-      if (
+      const hasDashboard =
         await hasExistingMessage(
           interaction,
           threadData.dashboardMessageId,
-        )
-      ) {
+        );
+
+      if (hasDashboard) {
+        const dailyQuestMessageId =
+          await ensureDailyQuestPanel(
+            interaction,
+            runtimeClient,
+            threadData,
+          );
+
+        if (
+          dailyQuestMessageId !==
+          threadData.dailyQuestMessageId
+        ) {
+          await setDatabaseValue(
+            runtimeClient,
+            threadKey,
+            {
+              ...threadData,
+              dailyQuestMessageId,
+              updatedAt:
+                Date.now(),
+            },
+          );
+        }
+
         return replyEphemeral(
           interaction,
           `🌸 Đạo hữu đã có một giao diện Tiên Lộ đang mở trong chủ đề này. Hãy tiếp tục tu luyện trên giao diện đó, không cần dùng \`/tutien\` thêm lần nữa.`,
@@ -276,49 +350,12 @@ export default {
             ),
         });
 
-      let dailyQuestMessageId =
-        threadData.dailyQuestMessageId ||
-        null;
-
-      const hasQuestPanel =
-        await hasExistingMessage(
+      const dailyQuestMessageId =
+        await ensureDailyQuestPanel(
           interaction,
-          dailyQuestMessageId,
+          runtimeClient,
+          threadData,
         );
-
-      if (!hasQuestPanel) {
-        const questState =
-          await getDailyQuestState(
-            runtimeClient,
-            interaction.guildId,
-            interaction.user.id,
-            {
-              sync: true,
-            },
-          );
-
-        const dailyQuestMessage =
-          await interaction.followUp({
-            embeds: [
-              questState.rolled
-                ? buildDailyQuestEmbed(
-                    interaction.user,
-                    questState,
-                  )
-                : buildDailyQuestIntroEmbed(
-                    interaction.user,
-                  ),
-            ],
-            components:
-              buildDailyQuestRows(
-                interaction.user.id,
-                questState,
-              ),
-          });
-
-        dailyQuestMessageId =
-          dailyQuestMessage.id;
-      }
 
       await setDatabaseValue(
         runtimeClient,
