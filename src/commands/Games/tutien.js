@@ -8,6 +8,11 @@ import {
 } from '../../config/cultivationGame.js';
 
 import {
+  getDatabaseValue,
+  setDatabaseValue,
+} from '../../utils/database.js';
+
+import {
   getCultivationProfile,
 } from '../../services/cultivationService.js';
 
@@ -15,6 +20,16 @@ import {
   buildDashboardEmbed,
   buildDashboardRows,
 } from '../../services/cultivationUI.js';
+
+const CULTIVATION_ROLE_ID =
+  '1547581204759318579';
+
+function getThreadKey(
+  guildId,
+  userId,
+) {
+  return `games:cultivation:thread:${guildId}:${userId}`;
+}
 
 async function replyEphemeral(
   interaction,
@@ -54,6 +69,26 @@ async function replyCommandError(
     interaction,
     content,
   );
+}
+
+async function hasExistingDashboard(
+  interaction,
+  dashboardMessageId,
+) {
+  if (!dashboardMessageId) {
+    return false;
+  }
+
+  try {
+    const message =
+      await interaction.channel.messages.fetch(
+        dashboardMessageId,
+      );
+
+    return Boolean(message);
+  } catch {
+    return false;
+  }
 }
 
 export default {
@@ -107,25 +142,6 @@ export default {
         );
       }
 
-      /**
-       * =====================================================
-       * CHANNEL LOCK
-       * =====================================================
-       */
-
-      if (
-        CULTIVATION_CONFIG
-          .channelId &&
-        interaction.channelId !==
-          CULTIVATION_CONFIG
-            .channelId
-      ) {
-        return replyEphemeral(
-          interaction,
-          `Tiên Lộ chỉ mở tại <#${CULTIVATION_CONFIG.channelId}>.`,
-        );
-      }
-
       const runtimeClient =
         client ||
         interaction.client;
@@ -135,6 +151,91 @@ export default {
       ) {
         throw new Error(
           'Cultivation database is not available.',
+        );
+      }
+
+      /**
+       * =====================================================
+       * ROLE LOCK
+       * =====================================================
+       */
+
+      const member =
+        await interaction.guild.members.fetch(
+          interaction.user.id,
+        );
+
+      if (
+        !member.roles.cache.has(
+          CULTIVATION_ROLE_ID,
+        )
+      ) {
+        return replyEphemeral(
+          interaction,
+          '🌸 Đạo hữu chưa có Role Tu Tiên nên chưa thể khai mở Tiên Lộ.',
+        );
+      }
+
+      /**
+       * =====================================================
+       * PERSONAL THREAD LOCK
+       * =====================================================
+       *
+       * /tutien không còn chạy trực tiếp trong #tu-tiên.
+       * Người chơi chỉ được mở game trong chủ đề Tiên Lộ
+       * đã được bot tạo riêng cho chính mình.
+       */
+
+      if (
+        !interaction.channel?.isThread?.() ||
+        interaction.channel.parentId !==
+          CULTIVATION_CONFIG.channelId
+      ) {
+        return replyEphemeral(
+          interaction,
+          `🌸 Đạo hữu hãy tiến vào **chủ đề Tiên Lộ của riêng mình** bên trong <#${CULTIVATION_CONFIG.channelId}> rồi dùng \`/tutien\` tại đó.`,
+        );
+      }
+
+      const threadKey =
+        getThreadKey(
+          interaction.guildId,
+          interaction.user.id,
+        );
+
+      const threadData =
+        await getDatabaseValue(
+          runtimeClient,
+          threadKey,
+          null,
+        );
+
+      if (
+        !threadData?.threadId ||
+        threadData.threadId !==
+          interaction.channelId
+      ) {
+        return replyEphemeral(
+          interaction,
+          '🌸 Đây không phải Tiên Lộ của đạo hữu. Hãy sử dụng `/tutien` trong đúng chủ đề riêng của mình.',
+        );
+      }
+
+      /**
+       * =====================================================
+       * ONE DASHBOARD ONLY
+       * =====================================================
+       */
+
+      if (
+        await hasExistingDashboard(
+          interaction,
+          threadData.dashboardMessageId,
+        )
+      ) {
+        return replyEphemeral(
+          interaction,
+          `🌸 Đạo hữu đã có một giao diện Tiên Lộ đang mở trong chủ đề này. Hãy tiếp tục tu luyện trên giao diện đó, không cần dùng \`/tutien\` thêm lần nữa.`,
         );
       }
 
@@ -175,23 +276,42 @@ export default {
        * =====================================================
        */
 
-      return interaction.editReply({
-        embeds: [
-          buildDashboardEmbed(
-            interaction.user,
-            profile,
-            {
-              isNew:
-                !existingProfile,
-            },
-          ),
-        ],
+      const dashboardMessage =
+        await interaction.editReply({
+          embeds: [
+            buildDashboardEmbed(
+              interaction.user,
+              profile,
+              {
+                isNew:
+                  !existingProfile,
+              },
+            ),
+          ],
 
-        components:
-          buildDashboardRows(
+          components:
+            buildDashboardRows(
+              interaction.user.id,
+            ),
+        });
+
+      await setDatabaseValue(
+        runtimeClient,
+        threadKey,
+        {
+          ...threadData,
+          threadId:
+            interaction.channelId,
+          dashboardMessageId:
+            dashboardMessage.id,
+          userId:
             interaction.user.id,
-          ),
-      });
+          updatedAt:
+            Date.now(),
+        },
+      );
+
+      return dashboardMessage;
     } catch (error) {
       return replyCommandError(
         interaction,
