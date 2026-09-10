@@ -11,463 +11,166 @@ import {
   SPIRIT_ROOTS,
 } from '../config/cultivationGame.js';
 
-/**
- * =========================================================
- * CONSTANTS
- * =========================================================
- */
-
 const PROFILE_PREFIX =
   'games:cultivation:profile:';
 
 const ITEM_EFFECTS = {
   tu_khi_dan: {
-    cultivationBonus:
-      0.25,
+    cultivationBonus: 0.25,
   },
-
   hoi_nguyen_dan: {
-    staminaRestore:
-      30,
+    staminaRestore: 30,
   },
-
   pha_canh_dan: {
-    breakthroughBonus:
-      0.10,
+    breakthroughBonus: 0.10,
   },
 };
 
-const USABLE_ITEM_IDS =
-  new Set(
-    Object.keys(
-      ITEM_EFFECTS,
-    ),
-  );
+const USABLE_ITEM_IDS = new Set(Object.keys(ITEM_EFFECTS));
 
-/**
- * =========================================================
- * LINH THÚ · V2.8
- * =========================================================
- *
- * Không import cultivationPet.js tại đây
- * để tránh circular import:
- *
- * cultivationPet.js
- * → cultivationService.js
- *
- * Vì vậy Service chỉ cần biết ID + effect.
- */
-
-const PET_ENCOUNTER_CHANCE =
-  0.10;
+const PET_ENCOUNTER_CHANCE = 0.10;
 
 const PET_ENCOUNTER_POOL = [
-  {
-    id:
-      'thanh_phong_linh_ho',
-
-    weight:
-      30,
-  },
-
-  {
-    id:
-      'xich_viem_hoa_dieu',
-
-    weight:
-      10,
-  },
-
-  {
-    id:
-      'huyen_giap_linh_quy',
-
-    weight:
-      30,
-  },
-
-  {
-    id:
-      'thien_loi_bach_ho',
-
-    weight:
-      5,
-  },
+  { id: 'thanh_phong_linh_ho', weight: 30 },
+  { id: 'xich_viem_hoa_dieu', weight: 10 },
+  { id: 'huyen_giap_linh_quy', weight: 30 },
+  { id: 'thien_loi_bach_ho', weight: 5 },
+  { id: 'hau_tho_kim_long', weight: 0.1 },
 ];
 
-/**
- * =========================================================
- * EQUIPMENT
- * =========================================================
- */
-
-function getEquippedEquipmentId(
-  profile,
-) {
-  return (
-    profile.equipment
-      ?.equipped || null
-  );
+function getEquippedEquipmentId(profile) {
+  return profile.equipment?.equipped || null;
 }
 
-function getEquipmentCultivationBonus(
-  profile,
-) {
-  return (
-    getEquippedEquipmentId(
-      profile,
-    ) ===
-    'thanh_phong_kiem'
-      ? 0.05
-      : 0
-  );
+function getEquipmentCultivationBonus(profile) {
+  return getEquippedEquipmentId(profile) === 'thanh_phong_kiem' ? 0.05 : 0;
 }
 
-function getEquipmentSpiritStoneBonus(
-  profile,
-) {
-  return (
-    getEquippedEquipmentId(
-      profile,
-    ) ===
-    'tu_linh_boi'
-      ? 0.10
-      : 0
-  );
+function getEquipmentSpiritStoneBonus(profile) {
+  return getEquippedEquipmentId(profile) === 'tu_linh_boi' ? 0.10 : 0;
 }
 
-function getEquipmentBreakthroughLossReduction(
-  profile,
-) {
-  return (
-    getEquippedEquipmentId(
-      profile,
-    ) ===
-    'huyen_thiet_ho_phu'
-      ? 0.20
-      : 0
-  );
+function getEquipmentBreakthroughLossReduction(profile) {
+  return getEquippedEquipmentId(profile) === 'huyen_thiet_ho_phu' ? 0.20 : 0;
 }
 
-/**
- * =========================================================
- * TECHNIQUE
- * =========================================================
- */
-
-function getActiveTechniqueId(
-  profile,
-) {
-  return (
-    profile.techniques
-      ?.active || null
-  );
+function getActiveTechniqueId(profile) {
+  return profile.techniques?.active || null;
 }
 
-function getTechniqueCultivationBonus(
-  profile,
-) {
-  return (
-    getActiveTechniqueId(
-      profile,
-    ) ===
-    'thanh_van_kiem_quyet'
-      ? 0.08
-      : 0
-  );
+function getTechniqueCultivationBonus(profile) {
+  return getActiveTechniqueId(profile) === 'thanh_van_kiem_quyet' ? 0.08 : 0;
 }
 
-function getTechniqueBreakthroughBonus(
-  profile,
-) {
-  return (
-    getActiveTechniqueId(
-      profile,
-    ) ===
-    'huyen_nguyen_tam_phap'
-      ? 0.05
-      : 0
-  );
+function getTechniqueBreakthroughBonus(profile) {
+  return getActiveTechniqueId(profile) === 'huyen_nguyen_tam_phap' ? 0.05 : 0;
 }
 
-function getTechniqueSpiritStoneBonus(
-  profile,
-) {
-  return (
-    getActiveTechniqueId(
-      profile,
-    ) ===
-    'tu_linh_chan_kinh'
-      ? 0.08
-      : 0
-  );
+function getTechniqueSpiritStoneBonus(profile) {
+  return getActiveTechniqueId(profile) === 'tu_linh_chan_kinh' ? 0.08 : 0;
 }
 
-/**
- * =========================================================
- * TALISMAN
- * =========================================================
- */
-
-function getActiveTalismanId(
-  profile,
-) {
-  return (
-    profile.treasure
-      ?.activeTalisman ||
-    null
-  );
+function getActiveTalismanId(profile) {
+  return profile.treasure?.activeTalisman || null;
 }
 
-function consumeActiveTalisman(
-  profile,
-) {
-  if (
-    profile.treasure
-  ) {
-    profile.treasure
-      .activeTalisman =
-      null;
+function consumeActiveTalisman(profile) {
+  if (profile.treasure) {
+    profile.treasure.activeTalisman = null;
   }
 }
 
-/**
- * =========================================================
- * PET HELPERS
- * =========================================================
- */
-
-function getActivePetId(
-  profile,
-) {
-  return (
-    profile.pets
-      ?.active || null
-  );
+function getActivePetId(profile) {
+  return profile.pets?.active || null;
 }
 
-/**
- * Thanh Phong Linh Hồ
- * +3% Tu Vi khi Tu Luyện.
- */
-
-function getPetCultivationBonus(
-  profile,
-) {
-  return (
-    getActivePetId(
-      profile,
-    ) ===
-    'thanh_phong_linh_ho'
-      ? 0.03
-      : 0
-  );
+function getPetCultivationBonus(profile) {
+  const petId = getActivePetId(profile);
+  if (petId === 'hau_tho_kim_long') return 0.20;
+  if (petId === 'thanh_phong_linh_ho') return 0.03;
+  return 0;
 }
 
-/**
- * Xích Viêm Hỏa Điểu
- * +30% Linh Thạch khi Thám Hiểm.
- */
-
-function getPetAdventureStoneBonus(
-  profile,
-) {
-  return (
-    getActivePetId(
-      profile,
-    ) ===
-    'xich_viem_hoa_dieu'
-      ? 0.30
-      : 0
-  );
+function getPetAdventureStoneBonus(profile) {
+  const petId = getActivePetId(profile);
+  if (petId === 'hau_tho_kim_long') return 0.50;
+  if (petId === 'xich_viem_hoa_dieu') return 0.30;
+  return 0;
 }
 
-/**
- * Huyền Giáp Linh Quy
- * -10% Tu Vi tổn thất khi Đột Phá fail.
- */
-
-function getPetBreakthroughLossReduction(
-  profile,
-) {
-  return (
-    getActivePetId(
-      profile,
-    ) ===
-    'huyen_giap_linh_quy'
-      ? 0.10
-      : 0
-  );
+function getPetBreakthroughLossReduction(profile) {
+  const petId = getActivePetId(profile);
+  if (petId === 'hau_tho_kim_long') return 0.20;
+  if (petId === 'huyen_giap_linh_quy') return 0.10;
+  return 0;
 }
 
-/**
- * Thiên Lôi Bạch Hổ
- * +20% tỷ lệ Đột Phá.
- */
-
-function getPetBreakthroughBonus(
-  profile,
-) {
-  return (
-    getActivePetId(
-      profile,
-    ) ===
-    'thien_loi_bach_ho'
-      ? 0.20
-      : 0
-  );
+function getPetBreakthroughBonus(profile) {
+  const petId = getActivePetId(profile);
+  if (petId === 'hau_tho_kim_long') return 0.50;
+  if (petId === 'thien_loi_bach_ho') return 0.20;
+  return 0;
 }
 
-/**
- * =========================================================
- * BASIC HELPERS
- * =========================================================
- */
-
-function getProfileKey(
-  guildId,
-  userId,
-) {
+function getProfileKey(guildId, userId) {
   return `${PROFILE_PREFIX}${guildId}:${userId}`;
 }
 
-function getGuildProfilePrefix(
-  guildId,
-) {
+function getGuildProfilePrefix(guildId) {
   return `${PROFILE_PREFIX}${guildId}:`;
 }
 
-function randomInt(
-  min,
-  max,
-) {
-  return (
-    Math.floor(
-      Math.random() *
-        (
-          max -
-          min +
-          1
-        ),
-    ) +
-    min
-  );
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function randomItem(
-  array,
-) {
-  return array[
-    Math.floor(
-      Math.random() *
-        array.length,
-    )
-  ];
+function randomItem(array) {
+  return array[Math.floor(Math.random() * array.length)];
 }
 
-function weightedPick(
-  entries,
-) {
-  if (
-    !Array.isArray(
-      entries,
-    ) ||
-    entries.length === 0
-  ) {
+function weightedPick(entries) {
+  if (!Array.isArray(entries) || entries.length === 0) {
     return null;
   }
 
-  const total =
-    entries.reduce(
-      (
-        sum,
-        entry,
-      ) =>
-        sum +
-        Number(
-          entry.weight ||
-            0,
-        ),
-      0,
-    );
+  const total = entries.reduce(
+    (sum, entry) => sum + Number(entry.weight || 0),
+    0,
+  );
 
-  if (
-    total <= 0
-  ) {
+  if (total <= 0) {
     return entries[0];
   }
 
-  let roll =
-    Math.random() *
-    total;
+  let roll = Math.random() * total;
 
-  for (
-    const entry of entries
-  ) {
-    roll -=
-      Number(
-        entry.weight ||
-          0,
-      ) || 0;
-
-    if (
-      roll <= 0
-    ) {
-      return entry;
-    }
+  for (const entry of entries) {
+    roll -= Number(entry.weight || 0) || 0;
+    if (roll <= 0) return entry;
   }
 
-  return entries[
-    entries.length - 1
-  ];
+  return entries[entries.length - 1];
 }
 
-function rollPetEncounter(
-  profile,
-) {
-  if (
-    Math.random() >
-    PET_ENCOUNTER_CHANCE
-  ) {
+function rollPetEncounter(profile) {
+  if (Math.random() > PET_ENCOUNTER_CHANCE) {
     return null;
   }
 
-  const available =
-    PET_ENCOUNTER_POOL.filter(
-      (
-        pet,
-      ) =>
-        profile.pets
-          ?.owned?.[
-            pet.id
-          ] !== true,
-    );
-
-  if (
-    available.length === 0
-  ) {
-    return null;
-  }
-
-  const picked =
-    weightedPick(
-      available,
-    );
-
-  return (
-    picked?.id ||
-    null
+  const available = PET_ENCOUNTER_POOL.filter(
+    pet => profile.pets?.owned?.[pet.id] !== true,
   );
+
+  if (available.length === 0) {
+    return null;
+  }
+
+  const picked = weightedPick(available);
+  return picked?.id || null;
 }
 
-export function createCultivationProfile(
-  guildId,
-  userId,
-) {
-  const spiritRoot =
-    weightedPick(
-      SPIRIT_ROOTS,
-    );
+export function createCultivationProfile(guildId, userId) {
+  const spiritRoot = weightedPick(SPIRIT_ROOTS);
 
   return {
     version: 8,
@@ -478,16 +181,13 @@ export function createCultivationProfile(
     cultivation: 0,
     totalCultivation: 0,
     spiritStones: 100,
-    stamina:
-      CULTIVATION_CONFIG.gameplay.maxStamina,
-    maxStamina:
-      CULTIVATION_CONFIG.gameplay.maxStamina,
+    stamina: CULTIVATION_CONFIG.gameplay.maxStamina,
+    maxStamina: CULTIVATION_CONFIG.gameplay.maxStamina,
     spiritRoot: {
       id: spiritRoot.id,
       name: spiritRoot.name,
       rarity: spiritRoot.rarity,
-      cultivateBonus:
-        spiritRoot.cultivateBonus || 0,
+      cultivateBonus: spiritRoot.cultivateBonus || 0,
     },
     inventory: {},
     equipment: {
@@ -538,11 +238,7 @@ export function createCultivationProfile(
   };
 }
 
-export function normalizeCultivationProfile(
-  raw,
-  guildId,
-  userId,
-) {
+export function normalizeCultivationProfile(raw, guildId, userId) {
   if (!raw || typeof raw !== 'object') {
     return createCultivationProfile(guildId, userId);
   }
@@ -698,10 +394,7 @@ export async function getCultivationProfile(
   return profile;
 }
 
-export async function saveCultivationProfile(
-  client,
-  profile,
-) {
+export async function saveCultivationProfile(client, profile) {
   const data = {
     ...profile,
     version: 8,
@@ -716,11 +409,7 @@ export async function saveCultivationProfile(
   return data;
 }
 
-export function addInventoryItem(
-  profile,
-  itemId,
-  quantity = 1,
-) {
+export function addInventoryItem(profile, itemId, quantity = 1) {
   if (!CULTIVATION_ITEMS[itemId]) {
     return false;
   }
@@ -744,11 +433,7 @@ export function addInventoryItem(
   return true;
 }
 
-export function removeInventoryItem(
-  profile,
-  itemId,
-  quantity = 1,
-) {
+export function removeInventoryItem(profile, itemId, quantity = 1) {
   const current = Math.max(0, Number(profile.inventory?.[itemId]) || 0);
   const safeQuantity = Math.max(1, Math.floor(Number(quantity) || 1));
 
@@ -812,12 +497,7 @@ function rollAdventureDrop(event, dropBonus = 0) {
   };
 }
 
-export async function useCultivationItem(
-  client,
-  guildId,
-  userId,
-  itemId,
-) {
+export async function useCultivationItem(client, guildId, userId, itemId) {
   const lockKey = `cultivation:${guildId}:${userId}`;
 
   return Mutex.runExclusive(lockKey, async () => {
@@ -1033,8 +713,14 @@ export async function cultivate(client, guildId, userId) {
 
     profile.cultivation = Math.max(0, profile.cultivation + cultivationDelta);
     profile.totalCultivation += Math.max(0, cultivationDelta);
-    profile.cultivation += equipmentCultivationBonus + techniqueCultivationBonus + petCultivationBonus;
-    profile.totalCultivation += equipmentCultivationBonus + techniqueCultivationBonus + petCultivationBonus;
+    profile.cultivation +=
+      equipmentCultivationBonus +
+      techniqueCultivationBonus +
+      petCultivationBonus;
+    profile.totalCultivation +=
+      equipmentCultivationBonus +
+      techniqueCultivationBonus +
+      petCultivationBonus;
 
     const pillPercent = Math.max(0, Number(profile.effects?.nextCultivationBonus) || 0);
     let cultivationPillBonus = 0;
@@ -1323,11 +1009,7 @@ export async function breakthrough(client, guildId, userId) {
   });
 }
 
-export async function getCultivationLeaderboard(
-  client,
-  guildId,
-  limit = 10,
-) {
+export async function getCultivationLeaderboard(client, guildId, limit = 10) {
   const prefix = getGuildProfilePrefix(guildId);
   const keys = await client.db.list(prefix);
 
