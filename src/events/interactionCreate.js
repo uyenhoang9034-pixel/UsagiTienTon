@@ -1,6 +1,7 @@
 import { Events, MessageFlags } from 'discord.js';
 
 import { logger } from '../utils/logger.js';
+import { CULTIVATION_CONFIG } from '../config/cultivationGame.js';
 
 async function sendInteractionError(interaction, error) {
   const message =
@@ -45,6 +46,55 @@ function getComponentCollection(interaction, client) {
   return null;
 }
 
+function isCultivationComponent(handlerId) {
+  return (
+    handlerId === 'tutien_action' ||
+    handlerId.startsWith('tutien_')
+  );
+}
+
+function isInsideCultivationThread(interaction) {
+  const channel = interaction.channel;
+
+  return Boolean(
+    channel?.isThread?.() &&
+    channel.parentId === CULTIVATION_CONFIG.channelId,
+  );
+}
+
+/**
+ * Compatibility adapter cho các interaction Tu Tiên cũ.
+ *
+ * Một số handler cũ vẫn kiểm tra:
+ * interaction.channelId === CULTIVATION_CONFIG.channelId
+ *
+ * Sau khi chuyển sang mô hình mỗi người một thread, channelId thật là ID thread.
+ * Adapter này chỉ làm cho các handler cũ "nhìn thấy" parent channel ID khi đọc
+ * channelId, còn interaction.channel vẫn là thread thật nên update/reply vẫn diễn
+ * ra đúng trong chủ đề cá nhân.
+ */
+function createCultivationThreadInteraction(interaction) {
+  if (!isInsideCultivationThread(interaction)) {
+    return interaction;
+  }
+
+  return new Proxy(interaction, {
+    get(target, property) {
+      if (property === 'channelId') {
+        return CULTIVATION_CONFIG.channelId;
+      }
+
+      const value = Reflect.get(target, property, target);
+
+      if (typeof value === 'function') {
+        return value.bind(target);
+      }
+
+      return value;
+    },
+  });
+}
+
 export default {
   name: Events.InteractionCreate,
 
@@ -87,7 +137,11 @@ export default {
         return;
       }
 
-      await handler.execute(interaction, client, args);
+      const routedInteraction = isCultivationComponent(handlerId)
+        ? createCultivationThreadInteraction(interaction)
+        : interaction;
+
+      await handler.execute(routedInteraction, client, args);
     } catch (error) {
       logger.error('InteractionCreate error:', error);
       await sendInteractionError(interaction, error);
