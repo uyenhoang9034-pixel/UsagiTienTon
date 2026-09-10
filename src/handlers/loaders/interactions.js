@@ -8,7 +8,15 @@ import { logger } from '../../utils/logger.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const interactionTypes = ['buttons', 'selectMenus', 'modals'];
+/**
+ * Usagi Tiên Tôn hiện chỉ giữ:
+ * - Music buttons
+ * - Tu Tiên buttons
+ * - Tu Tiên select menus
+ *
+ * Audio modal/button cũ đã xóa nên loader không quét modals nữa.
+ */
+const interactionTypes = ['buttons', 'selectMenus'];
 
 const ALLOWED_INTERACTION_PATTERNS = [
   /^buttons\/tutien\.js$/,
@@ -28,7 +36,10 @@ async function getAllInteractionFiles(directory, fileList = []) {
 
     if (entry.isDirectory()) {
       await getAllInteractionFiles(entryPath, fileList);
-    } else if (entry.name.endsWith('.js')) {
+      continue;
+    }
+
+    if (entry.isFile() && entry.name.endsWith('.js')) {
       fileList.push(entryPath);
     }
   }
@@ -59,25 +70,19 @@ export default async (client) => {
           }
 
           const fileName = relativePath.split('/').pop();
+          const module = await import(pathToFileURL(filePath).href);
+          const moduleExport = module.default;
+          const interactions = Array.isArray(moduleExport) ? moduleExport : [moduleExport];
 
-          try {
-            const module = await import(pathToFileURL(filePath).href);
-            const moduleExport = module.default;
-            const interactions = Array.isArray(moduleExport) ? moduleExport : [moduleExport];
-
-            for (const interaction of interactions) {
-              if (!interaction?.name || !interaction?.execute) {
-                logger.warn(`Interaction ${relativePath} in ${type} is missing required properties.`);
-                continue;
-              }
-
-              client[type].set(interaction.name, interaction);
-              loadedCount += 1;
-              logger.info(`Loaded ${type.slice(0, -1)}: ${interaction.name} (${fileName})`);
+          for (const interaction of interactions) {
+            if (!interaction?.name || !interaction?.execute) {
+              logger.warn(`Interaction ${relativePath} in ${type} is missing required properties.`);
+              continue;
             }
-          } catch (error) {
-            logger.error(`Error loading interaction ${relativePath} in ${type}:`, error);
-            throw error;
+
+            client[type].set(interaction.name, interaction);
+            loadedCount += 1;
+            logger.info(`Loaded ${type.slice(0, -1)}: ${interaction.name} (${fileName})`);
           }
         }
 
