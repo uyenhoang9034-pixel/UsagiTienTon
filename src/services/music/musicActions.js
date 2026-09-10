@@ -17,7 +17,6 @@ import {
     getQueuePageSize,
 } from './musicEmbeds.js';
 import { refreshPlayerMessage } from './playerHandler.js';
-import audioManager from '../audio/audioManager.js';
 
 const YOUTUBE_URL_PATTERN = /(?:youtube\.com|youtu\.be)/i;
 const PLAYER_CONNECT_TIMEOUT_MS = 12_000;
@@ -141,37 +140,12 @@ export function assertCanControl(member, player) {
 export async function ensurePlayer(
     client,
     interaction,
-    options = {},
 ) {
     assertRiffyAvailable(client);
     assertInVoice(interaction.member);
 
     const guildId =
         interaction.guild.id;
-
-    const audioSession =
-        audioManager.getSession(
-            guildId,
-        );
-
-    /*
-     * Music không được giành player
-     * khi Usagi Audio đang sở hữu player.
-     *
-     * Audio gọi hàm này với:
-     *
-     * { allowAudio: true }
-     */
-    if (
-        audioSession?.audioActive &&
-        options.allowAudio !== true
-    ) {
-        throw new TitanBotError(
-            'Audio player is active',
-            ErrorTypes.USER_INPUT,
-            'Usagi Audio đang phát. Hãy dừng Audio trước khi sử dụng Music.',
-        );
-    }
 
     const guildData =
         getGuildMusicData(
@@ -191,7 +165,7 @@ export async function ensurePlayer(
      *
      * assertLavalinkNodeAvailable(client)
      *
-     * ở đây nữa.
+     * ở đây.
      *
      * Riffy tự chọn node khi createConnection().
      */
@@ -351,24 +325,11 @@ export async function playQuery(
      * RESOLVE
      * =====================================================
      *
-     * KHÔNG chặn YouTube URL nữa.
-     *
-     * Nếu là:
-     *
-     * https://youtu.be/xxxxx
-     *
-     * hoặc:
-     *
-     * https://www.youtube.com/watch?v=xxxxx
-     *
+     * Nếu là URL YouTube:
      * → gửi trực tiếp cho Lavalink.
      *
      * Nếu là tên bài:
-     *
-     * "nhạc chill"
-     *
-     * → Riffy/Lavalink xử lý theo source/search
-     * hiện tại của bot.
+     * → Riffy/Lavalink xử lý theo source/search hiện tại.
      */
 
     const result =
@@ -422,11 +383,6 @@ export async function playQuery(
      * =====================================================
      * PLAYLIST
      * =====================================================
-     *
-     * Giữ nguyên behavior Music hiện tại.
-     *
-     * Nếu Lavalink trả playlist:
-     * → add toàn bộ playlist.
      */
 
     if (
@@ -495,18 +451,6 @@ export async function playQuery(
      * =====================================================
      * SINGLE TRACK
      * =====================================================
-     *
-     * Bao gồm:
-     *
-     * TRACK_LOADED
-     * SEARCH_RESULT
-     * SEARCH
-     * TRACK
-     *
-     * → chỉ lấy track đầu tiên.
-     *
-     * Vì /play URL được dùng để phát
-     * từng video một.
      */
 
     if (
@@ -551,27 +495,12 @@ export async function playQuery(
             !player.playing &&
             !player.paused;
 
-        /*
-         * Add vào queue.
-         */
-
         player.queue.add(
             track,
         );
 
         const queuePosition =
             player.queue.length;
-
-        /*
-         * Nếu player đang idle:
-         *
-         * → phát ngay.
-         *
-         * Nếu đang phát:
-         *
-         * → giữ bài hiện tại
-         * → track nằm trong queue.
-         */
 
         if (willPlayNow) {
             await startPlayback(
@@ -598,19 +527,12 @@ export async function playQuery(
         };
     }
 
-    /*
-     * =====================================================
-     * FALLBACK
-     * =====================================================
-     */
-
     throw new TitanBotError(
         'No results',
         ErrorTypes.USER_INPUT,
         `No results found. (loadType: ${result?.loadType || 'unknown'})`,
     );
 }
-
 export async function skipTrack(
     client,
     interaction,
@@ -1144,466 +1066,5 @@ export async function seekTrack(
     return successEmbed(
         'Seeked',
         `Seeked to **${seconds}s**.`,
-    );
-}
-
-export async function removeFromQueue(
-    client,
-    interaction,
-    index,
-) {
-    const player =
-        getPlayer(
-            client,
-            interaction.guild.id,
-        );
-
-    if (
-        !player?.queue?.length
-    ) {
-        throw new TitanBotError(
-            'Empty queue',
-            ErrorTypes.USER_INPUT,
-            'The queue is empty.',
-        );
-    }
-
-    assertCanControl(
-        interaction.member,
-        player,
-    );
-
-    const queueIndex =
-        index - 1;
-
-    if (
-        queueIndex < 0 ||
-        queueIndex >=
-            player.queue.length
-    ) {
-        throw new TitanBotError(
-            'Invalid index',
-            ErrorTypes.USER_INPUT,
-            `Invalid queue position. Queue has ${player.queue.length} track(s).`,
-        );
-    }
-
-    const removed =
-        player.queue[
-            queueIndex
-        ];
-
-    player.queue.remove(
-        queueIndex,
-    );
-
-    await refreshPlayerMessage(
-        client,
-        interaction.guild.id,
-    );
-
-    return successEmbed(
-        'Removed',
-        `Removed **${
-            removed.info?.title ||
-            'track'
-        }** from the queue.`,
-    );
-}
-
-export async function moveInQueue(
-    client,
-    interaction,
-    from,
-    to,
-) {
-    const player =
-        getPlayer(
-            client,
-            interaction.guild.id,
-        );
-
-    if (
-        !player?.queue?.length
-    ) {
-        throw new TitanBotError(
-            'Empty queue',
-            ErrorTypes.USER_INPUT,
-            'The queue is empty.',
-        );
-    }
-
-    assertCanControl(
-        interaction.member,
-        player,
-    );
-
-    const fromIndex =
-        from - 1;
-
-    const toIndex =
-        to - 1;
-
-    if (
-        fromIndex < 0 ||
-        fromIndex >=
-            player.queue.length ||
-        toIndex < 0 ||
-        toIndex >=
-            player.queue.length
-    ) {
-        throw new TitanBotError(
-            'Invalid index',
-            ErrorTypes.USER_INPUT,
-            'Invalid queue positions.',
-        );
-    }
-
-    const track =
-        player.queue[
-            fromIndex
-        ];
-
-    player.queue.remove(
-        fromIndex,
-    );
-
-    player.queue.splice(
-        toIndex,
-        0,
-        track,
-    );
-
-    await refreshPlayerMessage(
-        client,
-        interaction.guild.id,
-    );
-
-    return successEmbed(
-        'Moved',
-        `Moved **${
-            track.info?.title ||
-            'track'
-        }** to position #${to}.`,
-    );
-}
-
-export async function clearQueue(
-    client,
-    interaction,
-) {
-    const player =
-        getPlayer(
-            client,
-            interaction.guild.id,
-        );
-
-    if (
-        !player?.queue?.length
-    ) {
-        throw new TitanBotError(
-            'Empty queue',
-            ErrorTypes.USER_INPUT,
-            'The queue is already empty.',
-        );
-    }
-
-    assertCanControl(
-        interaction.member,
-        player,
-    );
-
-    player.queue.clear();
-
-    await refreshPlayerMessage(
-        client,
-        interaction.guild.id,
-    );
-
-    return successEmbed(
-        'Queue Cleared',
-        'All queued tracks were removed.',
-    );
-}
-
-export async function setTwentyFourSeven(
-    client,
-    interaction,
-    enabled,
-) {
-    const guildData =
-        getGuildMusicData(
-            interaction.guild.id,
-        );
-
-    guildData.twentyFourSeven =
-        enabled;
-
-    return successEmbed(
-        '24/7 Mode',
-        enabled
-            ? '24/7 mode enabled. The bot will stay in the voice channel when the queue ends.'
-            : '24/7 mode disabled. The bot will leave after 30 seconds of idle time.',
-    );
-}
-
-export function buildNowPlayingReply(
-    client,
-    guildId,
-) {
-    const player =
-        getPlayer(
-            client,
-            guildId,
-        );
-
-    if (
-        !player?.current
-    ) {
-        throw new TitanBotError(
-            'No player',
-            ErrorTypes.USER_INPUT,
-            'Nothing is playing right now.',
-        );
-    }
-
-    const guildData =
-        getGuildMusicData(
-            guildId,
-        );
-
-    return {
-        embeds: [
-            buildNowPlayingEmbed(
-                player.current,
-                player,
-                guildData,
-            ),
-        ],
-    };
-}
-
-export function buildQueueReply(
-    client,
-    guildId,
-    page = 0,
-) {
-    const player =
-        getPlayer(
-            client,
-            guildId,
-        );
-
-    if (!player) {
-        throw new TitanBotError(
-            'No player',
-            ErrorTypes.USER_INPUT,
-            'No active music player.',
-        );
-    }
-
-    const totalPages =
-        Math.max(
-            1,
-            Math.ceil(
-                (
-                    player.queue?.length ||
-                    0
-                ) /
-                    getQueuePageSize(),
-            ),
-        );
-
-    const safePage =
-        Math.min(
-            Math.max(
-                page,
-                0,
-            ),
-            totalPages - 1,
-        );
-
-    return {
-        embeds: [
-            buildQueueEmbed(
-                player.queue,
-                player.current,
-                safePage,
-            ),
-        ],
-
-        components:
-            totalPages > 1
-                ? [
-                      buildQueuePaginationRow(
-                          safePage,
-                          totalPages,
-                      ),
-                  ]
-                : [],
-
-        page:
-            safePage,
-
-        totalPages,
-    };
-}
-
-export async function destroyPlayerSession(
-    client,
-    guildId,
-    player,
-    guildData,
-    {
-        forceDisconnect = false,
-    } = {},
-) {
-    clearUpdateInterval(
-        guildData,
-    );
-
-    if (
-        guildData.idleTimeout
-    ) {
-        clearTimeout(
-            guildData.idleTimeout,
-        );
-
-        guildData.idleTimeout =
-            null;
-    }
-
-    guildData.previousTracks =
-        [];
-
-    guildData.stopConfirmPending =
-        null;
-
-    guildData.autoPaused =
-        false;
-
-    guildData.queuePages?.clear();
-
-    if (
-        guildData.playerMessageId &&
-        guildData.playerChannelId
-    ) {
-        try {
-            const channel =
-                client.channels.cache.get(
-                    guildData.playerChannelId,
-                );
-
-            if (channel) {
-                const msg =
-                    await channel.messages.fetch(
-                        guildData.playerMessageId,
-                    );
-
-                await msg.delete();
-            }
-        } catch {
-            // message already deleted
-        }
-    }
-
-    guildData.playerMessageId =
-        null;
-
-    guildData.playerChannelId =
-        null;
-
-    if (player) {
-        player.queue.clear();
-
-        player.stop();
-
-        if (
-            forceDisconnect ||
-            !guildData.twentyFourSeven
-        ) {
-            player.destroy();
-        }
-    }
-}
-
-export async function leaveVoiceChannel(
-    client,
-    interaction,
-) {
-    assertRiffyAvailable(
-        client,
-    );
-
-    const guildId =
-        interaction.guild.id;
-
-    const player =
-        getPlayer(
-            client,
-            guildId,
-        );
-
-    if (!player) {
-        throw new TitanBotError(
-            'No player',
-            ErrorTypes.USER_INPUT,
-            'I am not in a voice channel.',
-        );
-    }
-
-    assertCanControl(
-        interaction.member,
-        player,
-    );
-
-    const channel =
-        interaction.guild.channels.cache.get(
-            player.voiceChannel,
-        );
-
-    const channelName =
-        channel?.name ||
-        'voice channel';
-
-    const guildData =
-        getGuildMusicData(
-            guildId,
-        );
-
-    await destroyPlayerSession(
-        client,
-        guildId,
-        player,
-        guildData,
-        {
-            forceDisconnect: true,
-        },
-    );
-
-    return successEmbed(
-        'Left Voice Channel',
-        `Disconnected from **${channelName}**.`,
-    );
-}
-
-export async function replyMusicSuccess(
-    interaction,
-    embed,
-) {
-    const options = {
-        embeds: [embed],
-    };
-
-    if (
-        !interaction._isPrefixCommand
-    ) {
-        options.flags =
-            MessageFlags.Ephemeral;
-    }
-
-    await InteractionHelper.safeReply(
-        interaction,
-        options,
     );
 }
