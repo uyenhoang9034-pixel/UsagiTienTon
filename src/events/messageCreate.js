@@ -9,13 +9,17 @@ import {
 import { resolveCommandAlias } from '../config/commands/commandAliases.js';
 import { getCommandPrefix } from '../config/bot.js';
 
-const MUSIC_PREFIX_SHORTCUTS = new Set([
-  'leave',
-  'pause',
-  'resume',
-  'skip',
-  'stop',
-  'volume',
+const MUSIC_PREFIX_SHORTCUTS = new Map([
+  ['leave', 'leave'],
+  ['disconnect', 'leave'],
+  ['dc', 'leave'],
+  ['pause', 'pause'],
+  ['resume', 'resume'],
+  ['skip', 'skip'],
+  ['s', 'skip'],
+  ['stop', 'stop'],
+  ['volume', 'volume'],
+  ['vol', 'volume'],
 ]);
 
 export default {
@@ -32,6 +36,10 @@ export default {
 
 async function handlePrefixCommand(message, client) {
   try {
+    if (typeof message.content !== 'string' || !message.content) {
+      return;
+    }
+
     const prefix = getCommandPrefix();
     const parsed = parsePrefixCommand(message.content, prefix);
 
@@ -40,14 +48,24 @@ async function handlePrefixCommand(message, client) {
     }
 
     let { commandName, args } = parsed;
-    const normalizedCommandName = commandName.toLowerCase();
+    const normalizedCommandName = String(commandName || '').toLowerCase();
+    const musicShortcut = MUSIC_PREFIX_SHORTCUTS.get(normalizedCommandName);
 
-    if (MUSIC_PREFIX_SHORTCUTS.has(normalizedCommandName)) {
+    if (musicShortcut) {
       commandName = 'music';
-      args = [normalizedCommandName, ...args];
+      args = [musicShortcut, ...args];
     }
 
     const resolvedCommandName = resolveCommandAlias(commandName);
+
+    /**
+     * Repo Usagi Tiên Tôn chỉ giữ prefix cho music controls.
+     * Tu Tiên và GM command dùng slash command để tránh cấp nhầm item/test event.
+     */
+    if (resolvedCommandName !== 'music') {
+      return;
+    }
+
     const command = client.commands.get(resolvedCommandName);
 
     if (!command) {
