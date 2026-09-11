@@ -229,9 +229,22 @@ export default {
         );
       }
 
+      const member =
+        await interaction.guild.members.fetch(
+          interaction.user.id,
+        );
+
+      const isCultivationAdmin =
+        Boolean(
+          CULTIVATION_CONFIG.adminRoleId &&
+          member.roles.cache.has(
+            CULTIVATION_CONFIG.adminRoleId,
+          ),
+        );
+
       if (
-        !CULTIVATION_CONFIG
-          .enabled
+        !CULTIVATION_CONFIG.enabled &&
+        !isCultivationAdmin
       ) {
         return replyEphemeral(
           interaction,
@@ -252,6 +265,7 @@ export default {
       }
 
       if (
+        !isCultivationAdmin &&
         await isCultivationMaintenance(
           runtimeClient,
           interaction.guildId,
@@ -262,11 +276,6 @@ export default {
           CULTIVATION_MAINTENANCE_MESSAGE,
         );
       }
-
-      const member =
-        await interaction.guild.members.fetch(
-          interaction.user.id,
-        );
 
       if (
         !member.roles.cache.has(
