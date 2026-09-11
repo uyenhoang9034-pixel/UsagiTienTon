@@ -183,6 +183,12 @@ export function buildFormationTribulationPreviewEmbed(result) {
     ? `• Trận Linh: **+${percent(bonuses.spiritSynergyBonus)}**`
     : '• Trận Linh: **Không kích hoạt**';
 
+  const petLine =
+    result.petTribulationSuccessBonus > 0 &&
+    result.activePet
+      ? `${result.activePet.emoji} ${result.activePet.name}: **+${percent(result.petTribulationSuccessBonus)} tỷ lệ thành công · +${percent(result.petTribulationRewardBonus)} phần thưởng**`
+      : null;
+
   return style(
     new EmbedBuilder()
       .setTitle(title(tribulation.name))
@@ -206,11 +212,12 @@ export function buildFormationTribulationPreviewEmbed(result) {
         `• Tương hợp Trận Đồ: **+${percent(bonuses.matchingFormationBonus)}**`,
         `• Cộng Hưởng: **+${percent(bonuses.resonanceBonus)}**`,
         spiritLine,
+        petLine,
         '',
         `${TRIBULATION_EMOJI} **Tỷ lệ ứng kiếp thành công: ${percent(winChance)}**`,
         '',
         '*Thất bại không mất tài nguyên, nhưng người chơi thường vẫn chịu cooldown.*',
-      ].join('\n')),
+      ].filter(Boolean).join('\n')),
   );
 }
 
@@ -267,6 +274,11 @@ export function buildFormationTribulationResultEmbed(result) {
 
   const tribulation = result.preview?.tribulation;
   const chance = result.preview?.winChance;
+  const petLine =
+    result.petTribulationSuccessBonus > 0 &&
+    result.activePet
+      ? `${result.activePet.emoji} **${result.activePet.name}** đã gia trì Trận Kiếp.`
+      : null;
 
   if (!result.success) {
     return style(
@@ -274,13 +286,14 @@ export function buildFormationTribulationResultEmbed(result) {
         .setTitle(title('Ứng Kiếp Thất Bại'))
         .setDescription([
           `${TRIBULATION_EMOJI} **${tribulation?.name || 'Trận Kiếp'}**`,
+          petLine,
           '',
           'Thiên uy phá vỡ trận thế, đạo hữu buộc phải thu trận.',
           `Tỷ lệ khi ứng kiếp: **${percent(chance)}**`,
           '',
           '• **Không mất Tu Vi, Linh Thạch hay tài nguyên Trận Pháp.**',
           '• Lượt Ứng Kiếp này vẫn tính cooldown **30 phút**.',
-        ].join('\n')),
+        ].filter(Boolean).join('\n')),
     );
   }
 
@@ -293,6 +306,11 @@ export function buildFormationTribulationResultEmbed(result) {
   const nextTribulation = result.nextTribulationId
     ? FORMATION_TRIBULATIONS[result.nextTribulationId]
     : null;
+  const rewardPetLine =
+    reward.petRewardBonus > 0 &&
+    result.activePet
+      ? `${result.activePet.emoji} ${result.activePet.name}: **+${percent(reward.petRewardBonus)} toàn bộ phần thưởng Trận Kiếp**`
+      : null;
 
   return style(
     new EmbedBuilder()
@@ -303,12 +321,14 @@ export function buildFormationTribulationResultEmbed(result) {
           ? `${CLEARED_EMOJI} **Sơ phá Thiên Kiếp · nhận thưởng lần đầu!**`
           : `${CLEARED_EMOJI} **Tái vượt Trận Kiếp thành công.**`,
         `Tỷ lệ khi ứng kiếp: **${percent(chance)}**`,
+        petLine,
         '',
         '**Thiên Kiếp phản bổ**',
         `<a:ttlinhngo:1547820024440291389> Lĩnh Ngộ **+${number(reward.insightGain)}**`,
         `<a:ttranvan:1547959053114671297> Trận Văn **+${number(reward.essenceGain)}**`,
         `<a:ttmanhtrando:1547960167667081276> Mảnh **${formation?.name || 'Trận Đồ'} +${number(reward.fragmentGain)}**`,
         `${crystal?.emoji || ''} ${crystal?.name || 'Ngũ Hành'} Tinh Thạch **+${number(reward.crystalGain)}**`,
+        rewardPetLine,
         '',
         '**Thiên cơ lĩnh ngộ**',
         unlocked,
@@ -320,7 +340,7 @@ export function buildFormationTribulationResultEmbed(result) {
           : []),
         '',
         'Cooldown Ứng Kiếp: **30 phút**.',
-      ].join('\n')),
+      ].filter((line) => line !== null && line !== undefined).join('\n')),
   );
 }
 
