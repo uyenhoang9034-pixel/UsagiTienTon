@@ -22,6 +22,10 @@ import {
 } from '../../services/cultivationUI.js';
 
 import {
+  appendFormationButton,
+} from '../../services/cultivationFormationUI.js';
+
+import {
   getDailyQuestCompletedCount,
   getDailyQuestState,
 } from '../../services/cultivationDailyQuest.js';
@@ -398,7 +402,10 @@ export default {
           ],
 
           components:
-            buildDashboardRows(
+            appendFormationButton(
+              buildDashboardRows(
+                interaction.user.id,
+              ),
               interaction.user.id,
             ),
         });
