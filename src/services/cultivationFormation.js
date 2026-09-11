@@ -682,7 +682,7 @@ export async function upgradeActiveFormation(client, guildId, userId) {
   const formation = getActiveFormation(state);
   const currentLevel = getFormationLevel(state, formation.id);
   const essenceCost = 20 + currentLevel * 15;
-  const fragmentCost = Math.max(1, Math.ceil(currentLevel / 5));
+  const fragmentCost = currentLevel >= 5 ? 2 : 1;
   const currentFragments = Math.max(
     0,
     Number(state.formationFragments?.[formation.id]) || 0,
