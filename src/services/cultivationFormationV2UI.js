@@ -10,7 +10,9 @@ import {
 import { CULTIVATION_CONFIG } from '../config/cultivationGame.js';
 import {
   FORMATION_ELEMENTS,
+  FORMATION_EYE_ELEMENT_IDS,
   getActiveFormation,
+  getFormationEye,
   getFormationLayout,
   getFormationSlotLevels,
 } from './cultivationFormation.js';
@@ -74,6 +76,36 @@ function resultLine(result, element) {
   }
 
   return 'Không thể thay đổi Trận Vị này.';
+}
+
+function eyeResultLine(result, element) {
+  if (!result) return null;
+
+  if (result.ok && result.unchanged) {
+    return `${element?.emoji || FORMATION_RESOURCE_EMOJIS.eye} Mắt Trận đã dùng hệ này.`;
+  }
+
+  if (result.ok && result.level && result.essenceCost) {
+    return `${FORMATION_RESOURCE_EMOJIS.refine} **Tinh Luyện Mắt Trận thành công:** Lv.${result.level}`;
+  }
+
+  if (result.ok) {
+    return `${element?.emoji || FORMATION_RESOURCE_EMOJIS.eye} **Đổi Mắt Trận thành công:** ${element?.name || 'Hệ mới'}`;
+  }
+
+  if (result.reason === 'not_enough_essence') {
+    return `${FORMATION_RESOURCE_EMOJIS.essence} Chưa đủ **Trận Văn**.`;
+  }
+
+  if (result.reason === 'not_enough_crystal') {
+    return `${element?.emoji || FORMATION_RESOURCE_EMOJIS.eye} Chưa đủ **${element?.name || ''} Tinh Thạch**.`;
+  }
+
+  if (result.reason === 'max_level') {
+    return `${FORMATION_RESOURCE_EMOJIS.eye} Mắt Trận đã đạt **Lv.10**.`;
+  }
+
+  return 'Không thể thay đổi Mắt Trận này.';
 }
 
 export function buildFormationSlotSelectRows(ownerId, state) {
@@ -163,6 +195,72 @@ export function buildFormationSlotDetailRows(ownerId, state, slotIndex) {
     new ActionRowBuilder().addComponents(
       formationButton(ownerId, `refine:${index}`, 'Tinh Luyện', FORMATION_EMOJIS.refine),
       formationButton(ownerId, 'slots', 'Trận Vị', FORMATION_EMOJIS.slots),
+      formationButton(ownerId, 'main', 'Trận Pháp', FORMATION_EMOJIS.formation),
+    ),
+  ];
+}
+
+export function buildFormationEyeEmbed(state, result = null) {
+  const formation = getActiveFormation(state);
+  const eye = getFormationEye(state, formation.id);
+  const element = FORMATION_ELEMENTS[eye.elementId];
+  const status = eyeResultLine(
+    result,
+    FORMATION_ELEMENTS[result?.elementId] || element,
+  );
+  const crystalAmount = Math.max(
+    0,
+    Number(state.elementCrystals?.[eye.elementId]) || 0,
+  );
+
+  return style(new EmbedBuilder()
+    .setTitle(title('Trận Nhãn'))
+    .setDescription([
+      `<a:ttrando:1547820131889979464> **${formation.name}**`,
+      '',
+      `${FORMATION_RESOURCE_EMOJIS.eye} **Mắt Trận:** ${element?.emoji || ''} **${element?.name || 'Tinh Thần'}**`,
+      `${FORMATION_RESOURCE_EMOJIS.refine} **Cấp Mắt Trận:** Lv.${eye.level}/10`,
+      `${FORMATION_RESOURCE_EMOJIS.essence} **Trận Văn:** ${Number(state.formationEssence || 0).toLocaleString('vi-VN')}`,
+      `${element?.emoji || FORMATION_RESOURCE_EMOJIS.crystal} **${element?.name || 'Tinh Thần'} Tinh Thạch:** ${crystalAmount.toLocaleString('vi-VN')}`,
+      '',
+      eye.elementId === 'chaos'
+        ? '• **Hỗn Độn:** khuếch đại toàn bộ hiệu quả Cộng Hưởng đang có.'
+        : '• **Tinh Thần:** tăng hiệu quả Lĩnh Ngộ Trận Đạo.',
+      '',
+      status ? `**Kết quả**\n${status}\n` : '',
+      '*Đổi loại Mắt Trận hoặc Tinh Luyện để tăng sức mạnh Trận Nhãn.*',
+    ].filter(Boolean).join('\n')));
+}
+
+export function buildFormationEyeRows(ownerId, state) {
+  const formation = getActiveFormation(state);
+  const eye = getFormationEye(state, formation.id);
+
+  const eyeSelect = new StringSelectMenuBuilder()
+    .setCustomId(`tutien_formation_v2:${ownerId}:eye`)
+    .setPlaceholder('Chọn hệ Mắt Trận')
+    .addOptions(
+      FORMATION_EYE_ELEMENT_IDS.map((elementId) => {
+        const element = FORMATION_ELEMENTS[elementId];
+        const option = new StringSelectMenuOptionBuilder()
+          .setLabel(`${element.name}${element.id === eye.elementId ? ' · Đang dùng' : ''}`)
+          .setDescription(
+            element.id === 'chaos'
+              ? 'Hỗn Độn · 60 Trận Văn + 6 Tinh Thạch'
+              : 'Tinh Thần · 30 Trận Văn + 3 Tinh Thạch',
+          )
+          .setValue(element.id);
+
+        const emojiId = rawEmojiId(element.emoji);
+        if (emojiId) option.setEmoji({ id: emojiId });
+        return option;
+      }),
+    );
+
+  return [
+    new ActionRowBuilder().addComponents(eyeSelect),
+    new ActionRowBuilder().addComponents(
+      formationButton(ownerId, 'eye_refine', 'Tinh Luyện Mắt Trận', FORMATION_EMOJIS.refine),
       formationButton(ownerId, 'main', 'Trận Pháp', FORMATION_EMOJIS.formation),
     ),
   ];
