@@ -3,6 +3,8 @@ import { CULTIVATION_CONFIG } from '../config/cultivationGame.js';
 
 const PROFILE_PREFIX = 'games:cultivation:profile:';
 const STAMINA_REGEN_MS = 60_000;
+const NGUYET_QUANG_LINH_THO_ID = 'nguyet_quang_linh_tho';
+const NGUYET_QUANG_STAMINA_BONUS = 3;
 
 function getProfileKey(guildId, userId) {
   return `${PROFILE_PREFIX}${guildId}:${userId}`;
@@ -79,9 +81,19 @@ export async function regenerateCultivationStamina(
       return raw;
     }
 
+    const hasNguyetQuangLinhTho =
+      raw.pets?.active === NGUYET_QUANG_LINH_THO_ID &&
+      raw.pets?.owned?.[NGUYET_QUANG_LINH_THO_ID] === true;
+
+    const staminaPerTick =
+      1 +
+      (hasNguyetQuangLinhTho
+        ? NGUYET_QUANG_STAMINA_BONUS
+        : 0);
+
     const nextStamina = Math.min(
       maxStamina,
-      currentStamina + recovered,
+      currentStamina + recovered * staminaPerTick,
     );
 
     const nextRegenAt =
