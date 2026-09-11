@@ -133,7 +133,10 @@ async function runEyeChange(
     );
   }
 
-  return result;
+  return {
+    ...result,
+    eyeAction: 'change',
+  };
 }
 
 export default {
