@@ -215,6 +215,54 @@ async function runEyeRefine(
   };
 }
 
+async function runUpgrade(
+  interaction,
+  client,
+  guildId,
+  userId,
+) {
+  let result = await upgradeActiveFormation(
+    client,
+    guildId,
+    userId,
+  );
+
+  if (
+    hasFormationAdminRole(interaction) &&
+    !result.ok &&
+    ['not_enough_essence', 'not_enough_fragment'].includes(result.reason)
+  ) {
+    const state = result.state;
+    const formationId = state.activeFormationId;
+
+    state.formationEssence = Math.max(
+      Number(state.formationEssence) || 0,
+      Number(result.essenceCost) || 0,
+    );
+
+    state.formationFragments ||= {};
+    state.formationFragments[formationId] = Math.max(
+      Number(state.formationFragments?.[formationId]) || 0,
+      Number(result.fragmentCost) || 0,
+    );
+
+    await saveFormationState(
+      client,
+      guildId,
+      userId,
+      state,
+    );
+
+    result = await upgradeActiveFormation(
+      client,
+      guildId,
+      userId,
+    );
+  }
+
+  return result;
+}
+
 export default {
   name: 'tutien_formation',
 
@@ -321,7 +369,12 @@ export default {
       }
 
       case 'upgrade': {
-        const result = await upgradeActiveFormation(client, guildId, userId);
+        const result = await runUpgrade(
+          interaction,
+          client,
+          guildId,
+          userId,
+        );
         return interaction.update({
           embeds: [buildFormationUpgradeEmbed(result)],
           components: buildFormationBackRows(ownerId),
