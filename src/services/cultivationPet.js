@@ -18,7 +18,7 @@ export const CULTIVATION_PETS = {
     effectType: 'cultivation_bonus',
     effectValue: 0.03,
     captureChance: 0.40,
-    weight: 30,
+    weight: 50,
   },
 
   xich_viem_hoa_dieu: {
@@ -30,21 +30,21 @@ export const CULTIVATION_PETS = {
     effect: '+30% Linh Thạch khi Thám Hiểm',
     effectType: 'adventure_stone_bonus',
     effectValue: 0.30,
-    captureChance: 0.08,
-    weight: 10,
+    captureChance: 0.20,
+    weight: 15,
   },
 
   huyen_giap_linh_quy: {
     id: 'huyen_giap_linh_quy',
     name: 'Huyền Giáp Linh Quy',
     emoji: '<:tthuyengiaplinhquy:1547460356371259452>',
-    rarity: 'Phàm',
+    rarity: 'Lương Phẩm',
     description: 'Linh quy cổ xưa, huyền giáp ẩn chứa khí tức hộ đạo.',
     effect: 'Giảm 10% Tu Vi mất khi Đột Phá thất bại',
     effectType: 'breakthrough_loss_reduction',
     effectValue: 0.10,
-    captureChance: 0.08,
-    weight: 30,
+    captureChance: 0.30,
+    weight: 25,
   },
 
   thien_loi_bach_ho: {
@@ -56,8 +56,8 @@ export const CULTIVATION_PETS = {
     effect: '+20% tỷ lệ Đột Phá',
     effectType: 'breakthrough_bonus',
     effectValue: 0.20,
-    captureChance: 0.10,
-    weight: 5,
+    captureChance: 0.08,
+    weight: 9.9,
   },
 
   hau_tho_kim_long: {
