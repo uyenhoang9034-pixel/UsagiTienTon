@@ -1,3 +1,7 @@
+import {
+  CULTIVATION_ITEMS,
+} from '../config/cultivationGame.js';
+
 import * as secretRealm from './cultivationSecretRealm.js';
 
 import {
@@ -21,8 +25,17 @@ import {
 
 export * from './cultivationSecretRealm.js';
 
+const SECRET_REALM_PREFIX =
+  'games:cultivation:secretRealm:';
+
 function safeNumber(value) {
   return Number(value) || 0;
+}
+
+function randomInt(min, max) {
+  const safeMin = Math.ceil(Number(min) || 0);
+  const safeMax = Math.max(safeMin, Math.floor(Number(max) || safeMin));
+  return Math.floor(Math.random() * (safeMax - safeMin + 1)) + safeMin;
 }
 
 function calculateBonus(amount, percent) {
@@ -65,6 +78,173 @@ function getSecretRealmFragmentQuantity(floor) {
   }
 
   return 0;
+}
+
+function rollForcedFloorItem(floor) {
+  const roll = Math.random();
+
+  if (
+    floor >= 5 &&
+    roll < 0.08 &&
+    CULTIVATION_ITEMS.vo_danh_kiem_pho
+  ) {
+    return {
+      itemId: 'vo_danh_kiem_pho',
+      quantity: 1,
+    };
+  }
+
+  if (
+    roll < 0.28 &&
+    CULTIVATION_ITEMS.tu_khi_dan
+  ) {
+    return {
+      itemId: 'tu_khi_dan',
+      quantity: 1,
+    };
+  }
+
+  if (
+    roll < 0.60 &&
+    CULTIVATION_ITEMS.huyen_thiet
+  ) {
+    return {
+      itemId: 'huyen_thiet',
+      quantity: randomInt(
+        1,
+        Math.min(
+          3,
+          1 + Math.floor(floor / 2),
+        ),
+      ),
+    };
+  }
+
+  return {
+    itemId: 'thien_linh_thao',
+    quantity: randomInt(
+      1,
+      Math.min(
+        3,
+        1 + Math.floor(floor / 2),
+      ),
+    ),
+  };
+}
+
+async function fightSecretRealmWithPetGuarantee(
+  client,
+  guildId,
+  userId,
+  options,
+) {
+  const combat = await secretRealm.getSecretRealmCombatInfo(
+    client,
+    guildId,
+    userId,
+    options,
+  );
+
+  if (!combat?.ok) return combat;
+
+  const profile = await getCultivationProfile(
+    client,
+    guildId,
+    userId,
+  );
+
+  if (
+    getPetEffectValue(
+      profile,
+      'guaranteed_adventure_combat_win',
+    ) <= 0
+  ) {
+    return secretRealm.fightSecretRealmMonster(
+      client,
+      guildId,
+      userId,
+      options,
+    );
+  }
+
+  const session = combat.session;
+  const monster = combat.monster;
+  const floor = Math.max(1, Number(session.floor) || 1);
+
+  profile.stats ||= {};
+  profile.stats.monsterEncounters =
+    Math.max(0, Number(profile.stats.monsterEncounters) || 0) + 1;
+
+  const cultivation = randomInt(
+    monster.cultivationMin,
+    monster.cultivationMax,
+  );
+  const stones = randomInt(
+    monster.stonesMin,
+    monster.stonesMax,
+  );
+
+  session.loot ||= {
+    cultivation: 0,
+    stones: 0,
+    items: {},
+  };
+  session.loot.items ||= {};
+  session.loot.cultivation =
+    Math.max(0, safeNumber(session.loot.cultivation)) + cultivation;
+  session.loot.stones =
+    Math.max(0, safeNumber(session.loot.stones)) + stones;
+
+  let droppedItem = null;
+
+  if (Math.random() < 0.55) {
+    droppedItem = rollForcedFloorItem(floor);
+
+    if (
+      droppedItem &&
+      CULTIVATION_ITEMS[droppedItem.itemId]
+    ) {
+      session.loot.items[droppedItem.itemId] =
+        Math.max(
+          0,
+          Number(session.loot.items[droppedItem.itemId]) || 0,
+        ) + droppedItem.quantity;
+    } else {
+      droppedItem = null;
+    }
+  }
+
+  session.state = 'cleared';
+  session.monster = null;
+  session.updatedAt = Date.now();
+
+  await Promise.all([
+    client.db.set(
+      `${SECRET_REALM_PREFIX}${guildId}:${userId}`,
+      session,
+    ),
+    saveCultivationProfile(
+      client,
+      profile,
+    ),
+  ]);
+
+  return {
+    ok: true,
+    success: true,
+    clearedFloor: floor,
+    maxFloor: 5,
+    monster,
+    petAssist: Boolean(options?.petAssist),
+    pet: getActivePet(profile),
+    winChance: 1,
+    guaranteedByPet: true,
+    floorCultivation: cultivation,
+    floorStones: stones,
+    droppedItem,
+    loot: session.loot,
+    completed: floor >= 5,
+  };
 }
 
 async function applyFormationLootBonus(
@@ -288,7 +468,7 @@ export async function fightSecretRealmMonster(
   options,
 ) {
   const result =
-    await secretRealm.fightSecretRealmMonster(
+    await fightSecretRealmWithPetGuarantee(
       client,
       guildId,
       userId,
