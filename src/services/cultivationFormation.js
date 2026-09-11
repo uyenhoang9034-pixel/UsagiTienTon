@@ -530,20 +530,66 @@ export async function upgradeActiveFormation(client, guildId, userId) {
   const state = await getFormationState(client, guildId, userId);
   const formation = getActiveFormation(state);
   const currentLevel = getFormationLevel(state, formation.id);
-  const cost = 20 + currentLevel * 15;
+  const essenceCost = 20 + currentLevel * 15;
+  const fragmentCost = Math.max(1, Math.ceil(currentLevel / 5));
+  const currentFragments = Math.max(
+    0,
+    Number(state.formationFragments?.[formation.id]) || 0,
+  );
 
   if (currentLevel >= MAX_FORMATION_LEVEL) {
-    return { ok: false, reason: 'max_level', state, cost: 0 };
+    return {
+      ok: false,
+      reason: 'max_level',
+      state,
+      cost: 0,
+      essenceCost: 0,
+      fragmentCost: 0,
+    };
   }
 
-  if (state.formationEssence < cost) {
-    return { ok: false, reason: 'not_enough_essence', state, cost };
+  if (state.formationEssence < essenceCost) {
+    return {
+      ok: false,
+      reason: 'not_enough_essence',
+      state,
+      cost: essenceCost,
+      essenceCost,
+      fragmentCost,
+    };
   }
 
-  state.formationEssence -= cost;
+  if (currentFragments < fragmentCost) {
+    return {
+      ok: false,
+      reason: 'not_enough_fragment',
+      state,
+      cost: essenceCost,
+      essenceCost,
+      fragmentCost,
+    };
+  }
+
+  state.formationEssence -= essenceCost;
+  state.formationFragments[formation.id] =
+    currentFragments - fragmentCost;
   state.formationLevels[formation.id] = currentLevel + 1;
-  await saveFormationState(client, guildId, userId, state);
-  return { ok: true, state, cost, level: currentLevel + 1 };
+
+  const savedState = await saveFormationState(
+    client,
+    guildId,
+    userId,
+    state,
+  );
+
+  return {
+    ok: true,
+    state: savedState,
+    cost: essenceCost,
+    essenceCost,
+    fragmentCost,
+    level: currentLevel + 1,
+  };
 }
 
 export function getFormationProgress(state) {
