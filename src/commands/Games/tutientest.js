@@ -142,6 +142,34 @@ async function activateFormationSpiritTestPet(
   };
 }
 
+async function clearFormationSpiritTestPet(
+  client,
+  guildId,
+  userId,
+) {
+  const [service, petService] = await Promise.all([
+    import('../../services/cultivationService.js'),
+    import('../../services/cultivationPet.js'),
+  ]);
+
+  const profile = await service.getCultivationProfile(
+    client,
+    guildId,
+    userId,
+  );
+
+  petService.ensurePetData(
+    profile,
+  );
+
+  profile.pets.active = null;
+
+  return service.saveCultivationProfile(
+    client,
+    profile,
+  );
+}
+
 async function setAdventureSession(
   client,
   guildId,
@@ -346,6 +374,11 @@ export default {
               },
 
               {
+                name: 'Trận Linh · Tắt Linh Thú',
+                value: 'formation_spirit_none',
+              },
+
+              {
                 name: 'Trận Linh · Thanh Phong Linh Hồ',
                 value: 'formation_spirit_thanh_phong_linh_ho',
               },
@@ -437,6 +470,26 @@ export default {
         interaction.user.id;
 
       await interaction.deferReply();
+
+      if (event === 'formation_spirit_none') {
+        await clearFormationSpiritTestPet(
+          client,
+          guildId,
+          userId,
+        );
+
+        return interaction.editReply({
+          content: [
+            '<a:ttconghuong:1547830051951738960> **TRẬN LINH · GM TEST**',
+            '',
+            'Đã **tắt Linh Thú đang kích hoạt** để test baseline không có Trận Linh.',
+            '• Linh Thú đã sở hữu vẫn được giữ nguyên.',
+            '• Mở `/tutien` → **Trận Pháp** để so sánh Cộng Hưởng.',
+          ].join('\n'),
+          embeds: [],
+          components: [],
+        });
+      }
 
       const formationSpiritPet =
         FORMATION_SPIRIT_TEST_PETS[event];
