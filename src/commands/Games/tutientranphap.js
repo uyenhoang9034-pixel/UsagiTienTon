@@ -409,6 +409,9 @@ export default {
           };
         }
 
+        state.activeFormationId =
+          'five_elements';
+
         state =
           await saveFormationState(
             interaction.client,
@@ -432,6 +435,7 @@ export default {
             '• 1.000.000 Tinh Thạch mỗi hệ',
             '• Reset cooldown Lĩnh Ngộ',
             '• Bố cục chuẩn cho toàn bộ Trận Đồ',
+            '• Trận Đồ đang dùng: Tiểu Ngũ Hành Trận',
           ].join('\n'),
         });
       }
