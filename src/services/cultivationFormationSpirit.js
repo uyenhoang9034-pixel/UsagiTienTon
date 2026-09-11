@@ -50,7 +50,7 @@ export const FORMATION_SPIRIT_SYNERGIES = {
     name: 'Thiên Lôi Bạch Hổ',
     type: 'adventure',
     label: 'Thiên Lôi Phá Trận',
-    description: 'Lôi uy dẫn trận thế, thiên về Thám Hiểm và giao chiến.',
+    description: 'Lôi uy dẫn trận thế, thiên về Thám Hiểm.',
     effects: {
       adventureBonus: 0.04,
     },
@@ -78,6 +78,23 @@ function normalizeEffects(effects = {}) {
   };
 }
 
+function hasFiveElementCycle(formationState) {
+  const layout = formationState?.layouts?.[formationState?.activeFormationId];
+
+  if (!Array.isArray(layout)) {
+    return false;
+  }
+
+  const unique = new Set(layout);
+  return [
+    'metal',
+    'wood',
+    'water',
+    'fire',
+    'earth',
+  ].every((elementId) => unique.has(elementId));
+}
+
 export function getFormationSpiritSynergy(profile, formationState = null) {
   const pet = getActivePet(profile);
 
@@ -92,9 +109,15 @@ export function getFormationSpiritSynergy(profile, formationState = null) {
   }
 
   const activeFormationId = formationState?.activeFormationId || null;
-  const active =
+  const matchesRequiredFormation =
     !synergy.requiredFormationId ||
     synergy.requiredFormationId === activeFormationId;
+  const matchesSpecialCondition =
+    synergy.type !== 'five_elements' ||
+    hasFiveElementCycle(formationState);
+  const active =
+    matchesRequiredFormation &&
+    matchesSpecialCondition;
 
   return {
     ...synergy,
