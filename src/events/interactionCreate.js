@@ -300,6 +300,7 @@ export default {
       if (
         isCultivationComponent(handlerId) &&
         interaction.guildId &&
+        !hasCultivationAdminRole(interaction) &&
         await isCultivationMaintenance(
           client,
           interaction.guildId,
