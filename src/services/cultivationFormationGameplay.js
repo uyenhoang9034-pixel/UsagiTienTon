@@ -58,13 +58,29 @@ function mergeEffects(baseEffects = {}, extraEffects = {}) {
 
 export async function getFormationGameplayBonus(client, guildId, userId) {
   try {
-    const [state, profile] = await Promise.all([
-      getFormationState(client, guildId, userId),
-      getCultivationProfile(client, guildId, userId),
-    ]);
-
+    const state = await getFormationState(
+      client,
+      guildId,
+      userId,
+    );
     const resonance = getFormationResonance(state);
-    const spiritSynergy = getFormationSpiritSynergy(profile, state);
+    let spiritSynergy = null;
+    let spiritError = null;
+
+    try {
+      const profile = await getCultivationProfile(
+        client,
+        guildId,
+        userId,
+      );
+      spiritSynergy = getFormationSpiritSynergy(
+        profile,
+        state,
+      );
+    } catch (error) {
+      spiritError = error;
+    }
+
     const effects = mergeEffects(
       resonance.effects,
       spiritSynergy?.effects,
@@ -83,6 +99,7 @@ export async function getFormationGameplayBonus(client, guildId, userId) {
       lines,
       effects,
       spiritSynergy,
+      spiritError,
     };
   } catch (error) {
     // Formation bonuses must never make the base cultivation game unusable.
@@ -92,6 +109,7 @@ export async function getFormationGameplayBonus(client, guildId, userId) {
       lines: [],
       effects: { ...EMPTY_EFFECTS },
       spiritSynergy: null,
+      spiritError: null,
       error,
     };
   }
