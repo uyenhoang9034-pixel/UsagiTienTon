@@ -72,6 +72,20 @@ function applyStyle(
   return embed;
 }
 
+function formatPercent(chance) {
+  const percent = Math.max(0, Number(chance) || 0) * 100;
+
+  if (percent >= 1) {
+    return `${Number.isInteger(percent) ? percent : percent.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}%`;
+  }
+
+  if (percent >= 0.01) {
+    return `${percent.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}%`;
+  }
+
+  return `${percent.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')}%`;
+}
+
 /**
  * =========================================================
  * LINH THÚ DASHBOARD
@@ -274,10 +288,7 @@ export function buildPetEncounterEmbed(
           `Phẩm Chất: **${pet.rarity}**`,
           `Hiệu Quả: **${pet.effect}**`,
           '',
-          `Tỷ Lệ Thu Phục: **${Math.round(
-            pet.captureChance *
-              100,
-          )}%**`,
+          `Tỷ Lệ Thu Phục: **${formatPercent(pet.captureChance)}**`,
         ].join(
           '\n',
         ),
@@ -353,6 +364,28 @@ export function buildPetCaptureResultEmbed(
           ].join(
             '\n',
           ),
+        ),
+    );
+  }
+
+  if (
+    !result.ok &&
+    result.reason ===
+      'not_capturable'
+  ) {
+    return applyStyle(
+      new EmbedBuilder()
+        .setTitle(
+          'TIÊN DUYÊN KHÔNG THỂ CƯỠNG CẦU',
+        )
+        .setDescription(
+          [
+            pet
+              ? `${pet.emoji} **${pet.name}** không thể thu phục bằng phương thức này.`
+              : '**Linh Thú này không thể thu phục bằng phương thức này.**',
+            '',
+            '*Có những linh thú chỉ giáng thế khi tiên duyên thật sự hội tụ.*',
+          ].join('\n'),
         ),
     );
   }
