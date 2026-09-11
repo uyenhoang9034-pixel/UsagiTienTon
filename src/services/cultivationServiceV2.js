@@ -5,6 +5,11 @@ import {
 import * as baseService from './cultivationService.js';
 
 import {
+  getActivePet,
+  getPetEffectValue,
+} from './cultivationPet.js';
+
+import {
   applyFormationCultivationBonus,
   applyFormationSpiritStoneBonus,
   applyFormationStaminaReduction,
@@ -17,6 +22,31 @@ async function saveProfile(client, profile) {
   return baseService.saveCultivationProfile(
     client,
     profile,
+  );
+}
+
+function getWrapperCultivationPetBonus(profile) {
+  const pet = getActivePet(profile);
+
+  if (!pet) return 0;
+
+  // Hai Linh Thú cũ này đã được base cultivationService.js xử lý sẵn.
+  // Chỉ cộng tại wrapper cho các Linh Thú mới để tránh nhân đôi hiệu quả cũ.
+  if (
+    pet.id === 'thanh_phong_linh_ho' ||
+    pet.id === 'hau_tho_kim_long'
+  ) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Number(
+      getPetEffectValue(
+        profile,
+        'cultivation_bonus',
+      ),
+    ) || 0,
   );
 }
 
@@ -143,6 +173,28 @@ export async function cultivate(
     const savedProfile =
       result.profile;
 
+    const activePet =
+      getActivePet(
+        savedProfile,
+      );
+
+    const petCultivationPercent =
+      getWrapperCultivationPetBonus(
+        savedProfile,
+      );
+
+    const petCultivationBonus =
+      petCultivationPercent > 0 &&
+      result.cultivationDelta > 0
+        ? Math.max(
+            1,
+            Math.round(
+              result.cultivationDelta *
+                petCultivationPercent,
+            ),
+          )
+        : 0;
+
     if (cultivation.bonus > 0) {
       savedProfile.cultivation +=
         cultivation.bonus;
@@ -156,9 +208,18 @@ export async function cultivate(
         stones.bonus;
     }
 
+    if (petCultivationBonus > 0) {
+      savedProfile.cultivation +=
+        petCultivationBonus;
+
+      savedProfile.totalCultivation +=
+        petCultivationBonus;
+    }
+
     const finalProfile =
       cultivation.bonus > 0 ||
-      stones.bonus > 0
+      stones.bonus > 0 ||
+      petCultivationBonus > 0
         ? await saveProfile(
             client,
             savedProfile,
@@ -168,6 +229,11 @@ export async function cultivate(
     return {
       ...result,
       profile: finalProfile,
+      activePet,
+      extraPetCultivationBonus:
+        petCultivationBonus,
+      extraPetCultivationPercent:
+        petCultivationPercent,
       formationCultivationBonus:
         cultivation.bonus,
       formationCultivationPercent:
@@ -218,6 +284,123 @@ export async function cultivate(
   }
 }
 
+async function guaranteedBreakthrough(
+  client,
+  guildId,
+  userId,
+  formationBonus,
+  formationLines,
+) {
+  const profile =
+    await baseService.getCultivationProfile(
+      client,
+      guildId,
+      userId,
+    );
+
+  if (baseService.isMaxRealm(profile)) {
+    return baseService.breakthrough(
+      client,
+      guildId,
+      userId,
+    );
+  }
+
+  const required =
+    baseService.getCultivationRequired(
+      profile,
+    );
+
+  if (profile.cultivation < required) {
+    return baseService.breakthrough(
+      client,
+      guildId,
+      userId,
+    );
+  }
+
+  const baseChance =
+    baseService.getBreakthroughChance(
+      profile,
+    );
+
+  const breakthroughPillBonus =
+    Math.max(
+      0,
+      Number(
+        profile.effects
+          ?.nextBreakthroughBonus,
+      ) || 0,
+    );
+
+  const oldRealm =
+    baseService.getRealmDisplay(
+      profile,
+    );
+
+  profile.effects ||= {};
+  profile.effects.nextBreakthroughBonus = 0;
+  profile.cultivation -= required;
+
+  const { CULTIVATION_STAGES } =
+    await import(
+      '../config/cultivationGame.js'
+    );
+
+  if (
+    profile.stageIndex <
+    CULTIVATION_STAGES.length - 1
+  ) {
+    profile.stageIndex += 1;
+  } else {
+    profile.stageIndex = 0;
+    profile.realmIndex += 1;
+  }
+
+  profile.stats ||= {};
+  profile.stats.breakthroughSuccess =
+    Math.max(
+      0,
+      Number(
+        profile.stats
+          .breakthroughSuccess,
+      ) || 0,
+    ) + 1;
+
+  const saved =
+    await saveProfile(
+      client,
+      profile,
+    );
+
+  const activePet =
+    getActivePet(
+      saved,
+    );
+
+  return {
+    ok: true,
+    success: true,
+    chance: 1,
+    baseChance,
+    breakthroughPillBonus,
+    techniqueBreakthroughBonus: 0,
+    petBreakthroughBonus: 0,
+    formationBreakthroughBonus:
+      formationBonus,
+    guaranteedByPet: true,
+    activePet,
+    oldRealm,
+    newRealm:
+      baseService.getRealmDisplay(
+        saved,
+      ),
+    profile: saved,
+    formationResonanceLines:
+      formationLines || [],
+  };
+}
+
 export async function breakthrough(
   client,
   guildId,
@@ -239,20 +422,76 @@ export async function breakthrough(
       ) || 0,
     );
 
-  if (formationBonus <= 0) {
-    return baseService.breakthrough(
-      client,
-      guildId,
-      userId,
-    );
-  }
-
-  const profile =
+  const preProfile =
     await baseService.getCultivationProfile(
       client,
       guildId,
       userId,
     );
+
+  if (
+    getPetEffectValue(
+      preProfile,
+      'guaranteed_breakthrough',
+    ) > 0
+  ) {
+    return guaranteedBreakthrough(
+      client,
+      guildId,
+      userId,
+      formationBonus,
+      formation.lines || [],
+    );
+  }
+
+  if (formationBonus <= 0) {
+    const result =
+      await baseService.breakthrough(
+        client,
+        guildId,
+        userId,
+      );
+
+    if (
+      result?.ok &&
+      !result.success &&
+      getActivePet(result.profile)?.id ===
+        'bach_giac_linh_loc'
+    ) {
+      const refund = Math.max(
+        0,
+        Math.round(
+          (Number(result.originalLoss) || 0) *
+            0.10,
+        ),
+      );
+
+      if (refund > 0) {
+        result.profile.cultivation += refund;
+        result.profile = await saveProfile(
+          client,
+          result.profile,
+        );
+        result.petLossReduction = 0.10;
+        result.petLossSaved = refund;
+        result.loss = Math.max(
+          0,
+          (Number(result.loss) || 0) - refund,
+        );
+      }
+    }
+
+    return {
+      ...result,
+      activePet:
+        getActivePet(
+          result?.profile || preProfile,
+        ),
+    };
+  }
+
+  const profile =
+    preProfile;
 
   if (
     baseService.isMaxRealm(
@@ -317,8 +556,40 @@ export async function breakthrough(
       return result;
     }
 
+    if (
+      !result.success &&
+      getActivePet(result.profile)?.id ===
+        'bach_giac_linh_loc'
+    ) {
+      const refund = Math.max(
+        0,
+        Math.round(
+          (Number(result.originalLoss) || 0) *
+            0.10,
+        ),
+      );
+
+      if (refund > 0) {
+        result.profile.cultivation += refund;
+        result.profile = await saveProfile(
+          client,
+          result.profile,
+        );
+        result.petLossReduction = 0.10;
+        result.petLossSaved = refund;
+        result.loss = Math.max(
+          0,
+          (Number(result.loss) || 0) - refund,
+        );
+      }
+    }
+
     return {
       ...result,
+      activePet:
+        getActivePet(
+          result.profile,
+        ),
       breakthroughPillBonus:
         originalPillBonus,
       formationBreakthroughBonus:
