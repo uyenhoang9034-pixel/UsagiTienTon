@@ -98,11 +98,11 @@ function eyeResultLine(result, element) {
   }
 
   if (result.reason === 'not_enough_essence') {
-    return `${FORMATION_RESOURCE_EMOJIS.essence} Chưa đủ **Trận Văn**.`;
+    return `${FORMATION_RESOURCE_EMOJIS.essence} Chưa đủ **Trận Văn**. Cần **${Number(result.essenceCost || 0).toLocaleString('vi-VN')}**.`;
   }
 
   if (result.reason === 'not_enough_crystal') {
-    return `${element?.emoji || FORMATION_RESOURCE_EMOJIS.eye} Chưa đủ **${element?.name || ''} Tinh Thạch**.`;
+    return `${element?.emoji || FORMATION_RESOURCE_EMOJIS.eye} Chưa đủ **${element?.name || ''} Tinh Thạch**. Cần **${Number(result.crystalCost || 0).toLocaleString('vi-VN')}**.`;
   }
 
   if (result.reason === 'max_level') {
@@ -216,6 +216,12 @@ export function buildFormationEyeEmbed(state, result = null) {
     0,
     Number(state.elementCrystals?.[eye.elementId]) || 0,
   );
+  const nextEssenceCost = eye.level >= 10
+    ? 0
+    : 15 + eye.level * 15;
+  const nextCrystalCost = eye.level >= 10
+    ? 0
+    : 1 + Math.ceil(eye.level / 2);
 
   return style(new EmbedBuilder()
     .setTitle(title('Trận Nhãn'))
@@ -226,6 +232,9 @@ export function buildFormationEyeEmbed(state, result = null) {
       `${FORMATION_RESOURCE_EMOJIS.refine} **Cấp Mắt Trận:** Lv.${eye.level}/10`,
       `${FORMATION_RESOURCE_EMOJIS.essence} **Trận Văn:** ${Number(state.formationEssence || 0).toLocaleString('vi-VN')}`,
       `${element?.emoji || FORMATION_RESOURCE_EMOJIS.crystal} **${element?.name || 'Tinh Thần'} Tinh Thạch:** ${crystalAmount.toLocaleString('vi-VN')}`,
+      eye.level >= 10
+        ? `${FORMATION_RESOURCE_EMOJIS.refine} **Tinh Luyện kế tiếp:** Đã đạt cấp tối đa.`
+        : `${FORMATION_RESOURCE_EMOJIS.refine} **Tinh Luyện kế tiếp:** ${nextEssenceCost.toLocaleString('vi-VN')} Trận Văn + ${nextCrystalCost.toLocaleString('vi-VN')} ${element?.name || 'Tinh Thần'} Tinh Thạch`,
       '',
       eye.elementId === 'chaos'
         ? '• **Hỗn Độn:** khuếch đại toàn bộ hiệu quả Cộng Hưởng đang có.'
