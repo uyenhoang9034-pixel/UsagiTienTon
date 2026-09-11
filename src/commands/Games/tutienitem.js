@@ -75,8 +75,8 @@ export default {
         (option) =>
           option
             .setName('item')
-            .setDescription('Thứ muốn cấp.')
-            .setRequired(true)
+            .setDescription('Vật phẩm, Linh Thạch hoặc Trận Pháp muốn cấp.')
+            .setRequired(false)
             .addChoices(
               { name: 'Tụ Khí Đan', value: 'tu_khi_dan' },
               { name: 'Hồi Nguyên Đan', value: 'hoi_nguyen_dan' },
@@ -92,11 +92,30 @@ export default {
               { name: 'Trận Đồ · Huyền Băng Tỏa Linh Trận', value: 'formation:frozen_spirit' },
               { name: 'Trận Đồ · Âm Dương Lưỡng Nghi Trận', value: 'formation:yin_yang' },
               { name: 'Trận Đồ · Hỗn Độn Quy Nhất Trận', value: 'formation:chaos_unity' },
-              { name: 'Linh Thú · Thanh Phong Linh Hồ', value: 'pet:thanh_phong_linh_ho' },
-              { name: 'Linh Thú · Xích Viêm Hỏa Điểu', value: 'pet:xich_viem_hoa_dieu' },
-              { name: 'Linh Thú · Huyền Giáp Linh Quy', value: 'pet:huyen_giap_linh_quy' },
-              { name: 'Linh Thú · Thiên Lôi Bạch Hổ', value: 'pet:thien_loi_bach_ho' },
-              { name: 'Linh Thú · Hậu Thổ Kim Long', value: 'pet:hau_tho_kim_long' },
+            ),
+      )
+      .addStringOption(
+        (option) =>
+          option
+            .setName('linhthu')
+            .setDescription('Linh Thú muốn ban tặng trực tiếp.')
+            .setRequired(false)
+            .addChoices(
+              { name: 'Thanh Phong Linh Hồ', value: 'thanh_phong_linh_ho' },
+              { name: 'Xích Viêm Hỏa Điểu', value: 'xich_viem_hoa_dieu' },
+              { name: 'Huyền Giáp Linh Quy', value: 'huyen_giap_linh_quy' },
+              { name: 'Thiên Lôi Bạch Hổ', value: 'thien_loi_bach_ho' },
+              { name: 'Hậu Thổ Kim Long', value: 'hau_tho_kim_long' },
+              { name: 'Tầm Linh Miêu', value: 'tam_linh_mieu' },
+              { name: 'Nguyệt Quang Linh Thố', value: 'nguyet_quang_linh_tho' },
+              { name: 'Hàn Ngọc Linh Xà', value: 'han_ngoc_linh_xa' },
+              { name: 'U Minh Huyền Xà', value: 'u_minh_huyen_xa' },
+              { name: 'Bạch Giác Linh Lộc', value: 'bach_giac_linh_loc' },
+              { name: 'Thái Âm Cửu Vĩ Hồ', value: 'thai_am_cuu_vi_ho' },
+              { name: 'Tử Điện Kỳ Lân', value: 'tu_dien_ky_lan' },
+              { name: 'Niết Bàn Phượng Hoàng', value: 'niet_ban_phuong_hoang' },
+              { name: 'Bạch Vũ Phong Lang', value: 'bach_vu_phong_lang' },
+              { name: 'Hư Không Côn Bằng', value: 'hu_khong_con_bang' },
             ),
       )
       .addIntegerOption(
@@ -139,7 +158,26 @@ export default {
         });
       }
 
-      const selectedId = interaction.options.getString('item', true);
+      const baseSelectedId = interaction.options.getString('item');
+      const selectedPetId = interaction.options.getString('linhthu');
+
+      if (!baseSelectedId && !selectedPetId) {
+        return interaction.reply({
+          content: formatError('Hãy chọn `item` hoặc `linhthu` muốn cấp.'),
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      if (baseSelectedId && selectedPetId) {
+        return interaction.reply({
+          content: formatError('Mỗi lần chỉ chọn một trong hai: `item` hoặc `linhthu`.'),
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      const selectedId = selectedPetId
+        ? `pet:${selectedPetId}`
+        : baseSelectedId;
       const requestedQuantity = interaction.options.getInteger('soluong');
       const targetUser =
         interaction.options.getUser('member') ||
@@ -323,6 +361,7 @@ export default {
             '',
             `${userEmoji} Đạo Hữu: <@${targetUser.id}>`,
             `${pet.emoji} Linh Thú: **${pet.name}**`,
+            `${pet.emoji} Phẩm Chất: **${pet.rarity}**`,
             `${pet.emoji} Trạng Thái: **${alreadyOwned ? 'Đã sở hữu từ trước' : 'Đã ban tặng'}**`,
           ].join('\n'),
         });
