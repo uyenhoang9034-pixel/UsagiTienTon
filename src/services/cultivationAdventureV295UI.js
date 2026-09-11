@@ -9,6 +9,10 @@ import {
   CULTIVATION_CONFIG,
 } from '../config/cultivationGame.js';
 
+import {
+  buildFormationAdventureLines,
+} from './cultivationFormationResultUI.js';
+
 const E = {
   left:
     '<a:trangtrig2:1546040703375904801>',
@@ -85,6 +89,27 @@ function number(
       ),
     ),
   );
+}
+
+function formationRewardLines(
+  result,
+) {
+  const lines =
+    buildFormationAdventureLines(
+      result,
+    );
+
+  if (
+    !Array.isArray(lines) ||
+    lines.length === 0
+  ) {
+    return [];
+  }
+
+  return [
+    '',
+    ...lines,
+  ];
 }
 
 /**
@@ -317,6 +342,10 @@ export function buildEquipmentResonanceEmbed(
             result.stoneDelta,
           )}`,
 
+          ...formationRewardLines(
+            result,
+          ),
+
           '',
 
           `${E.victory} *Nhân khí hợp nhất, pháp bảo sinh linh.*`,
@@ -375,6 +404,10 @@ export function buildTechniqueResonanceEmbed(
           `+${number(
             result.stoneDelta,
           )}`,
+
+          ...formationRewardLines(
+            result,
+          ),
 
           '',
 
