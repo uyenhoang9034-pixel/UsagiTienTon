@@ -27,7 +27,7 @@ function buildSpiritEffectLines(synergy) {
   }
 
   if ((Number(effects.adventureBonus) || 0) > 0) {
-    lines.push(`• Thám Hiểm: **+${percent(effects.adventureBonus)}**`);
+    lines.push(`• Thám Hiểm · Bí Cảnh: **+${percent(effects.adventureBonus)}**`);
   }
 
   if ((Number(effects.spiritStoneBonus) || 0) > 0) {
@@ -52,7 +52,7 @@ function buildSpiritEffectLines(synergy) {
 function buildTotalEffectLines(effects = {}) {
   return [
     `• Tu Vi: **+${percent(effects.cultivationBonus)}**`,
-    `• Thám Hiểm: **+${percent(effects.adventureBonus)}**`,
+    `• Thám Hiểm · Bí Cảnh: **+${percent(effects.adventureBonus)}**`,
     `• Linh Thạch: **+${percent(effects.spiritStoneBonus)}**`,
     `• Giảm Thể Lực: **${percent(effects.staminaReduction)}**`,
     `• Đột Phá: **+${percent(effects.breakthroughBonus)}**`,
@@ -108,7 +108,8 @@ export function buildFormationResonanceEmbed(state, gameplayBonus = null) {
   }
 
   const data = embed.toJSON();
-  const description = String(data.description || '');
+  const description = String(data.description || '')
+    .replace('• Thám Hiểm:', '• Thám Hiểm · Bí Cảnh:');
   const spiritLines = [
     '**Trận Linh bổ sung**',
     `• ${synergy.pet.emoji || ''} **${synergy.pet.name}** · **${synergy.label}**`,
