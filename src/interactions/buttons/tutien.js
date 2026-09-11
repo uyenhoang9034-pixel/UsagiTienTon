@@ -574,7 +574,7 @@ async function handleAdventureChoice(interaction, client, ownerId, guildId, user
   }
 
   if (result.type === 'secret_realm' && result.secretRealm) {
-    const secretUI = await import('../../services/cultivationSecretRealmUI.js');
+    const secretUI = await import('../../services/cultivationSecretRealmUIFormation.js');
 
     return interaction.update({
       embeds: [ensureFunction(secretUI, 'buildSecretRealmDiscoverEmbed', 'cultivationSecretRealmUI.js')(result.secretRealm)],
@@ -917,7 +917,7 @@ async function handleSecretRealmEnter(interaction, client, ownerId, guildId, use
   const [adventure, secret, secretUI] = await Promise.all([
     import('../../services/cultivationAdventureV2.js'),
     import('../../services/cultivationSecretRealmFormationV2.js'),
-    import('../../services/cultivationSecretRealmUI.js'),
+    import('../../services/cultivationSecretRealmUIFormation.js'),
   ]);
 
   const started = await ensureFunction(secret, 'startSecretRealm', 'cultivationSecretRealm.js')(
@@ -956,7 +956,7 @@ async function handleSecretRealmEnter(interaction, client, ownerId, guildId, use
 async function handleSecretRealmAssist(interaction, client, ownerId, guildId, userId) {
   const [secret, secretUI] = await Promise.all([
     import('../../services/cultivationSecretRealmFormationV2.js'),
-    import('../../services/cultivationSecretRealmUI.js'),
+    import('../../services/cultivationSecretRealmUIFormation.js'),
   ]);
 
   const result = await ensureFunction(secret, 'getSecretRealmCombatInfo', 'cultivationSecretRealm.js')(
@@ -979,7 +979,7 @@ async function handleSecretRealmAssist(interaction, client, ownerId, guildId, us
 async function handleSecretRealmFight(interaction, client, ownerId, guildId, userId, petAssist) {
   const [secret, secretUI] = await Promise.all([
     import('../../services/cultivationSecretRealmFormationV2.js'),
-    import('../../services/cultivationSecretRealmUI.js'),
+    import('../../services/cultivationSecretRealmUIFormation.js'),
   ]);
 
   const result = await ensureFunction(secret, 'fightSecretRealmMonster', 'cultivationSecretRealm.js')(
@@ -1009,7 +1009,7 @@ async function handleSecretRealmFight(interaction, client, ownerId, guildId, use
 async function handleSecretRealmContinue(interaction, client, ownerId, guildId, userId) {
   const [secret, secretUI] = await Promise.all([
     import('../../services/cultivationSecretRealmFormationV2.js'),
-    import('../../services/cultivationSecretRealmUI.js'),
+    import('../../services/cultivationSecretRealmUIFormation.js'),
   ]);
 
   const continued = await ensureFunction(secret, 'continueSecretRealm', 'cultivationSecretRealm.js')(
@@ -1041,7 +1041,7 @@ async function handleSecretRealmContinue(interaction, client, ownerId, guildId, 
 async function handleSecretRealmLeave(interaction, client, ownerId, guildId, userId) {
   const [secret, secretUI] = await Promise.all([
     import('../../services/cultivationSecretRealmFormationV2.js'),
-    import('../../services/cultivationSecretRealmUI.js'),
+    import('../../services/cultivationSecretRealmUIFormation.js'),
   ]);
 
   const result = await ensureFunction(secret, 'leaveSecretRealm', 'cultivationSecretRealm.js')(
