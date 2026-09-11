@@ -40,12 +40,13 @@ function rawEmojiId(raw) {
   return match?.[1] || null;
 }
 
-function formationButton(ownerId, action, label, emoji) {
+function formationButton(ownerId, action, label, emoji, disabled = false) {
   return new ButtonBuilder()
     .setCustomId(`tutien_formation:${ownerId}:${action}`)
     .setLabel(label)
     .setEmoji(emoji)
-    .setStyle(ButtonStyle.Secondary);
+    .setStyle(ButtonStyle.Secondary)
+    .setDisabled(disabled);
 }
 
 function resultLine(result, element) {
@@ -170,7 +171,9 @@ export function buildFormationSlotDetailRows(ownerId, state, slotIndex) {
   const formation = getActiveFormation(state);
   const index = Math.max(0, Math.min(formation.slots - 1, Number(slotIndex) || 0));
   const layout = getFormationLayout(state, formation.id);
+  const levels = getFormationSlotLevels(state, formation.id);
   const currentElementId = layout[index];
+  const isMaxLevel = levels[index] >= 10;
 
   const elementSelect = new StringSelectMenuBuilder()
     .setCustomId(`tutien_formation_v2:${ownerId}:element:${index}`)
@@ -197,7 +200,13 @@ export function buildFormationSlotDetailRows(ownerId, state, slotIndex) {
   return [
     new ActionRowBuilder().addComponents(elementSelect),
     new ActionRowBuilder().addComponents(
-      formationButton(ownerId, `refine:${index}`, 'Tinh Luyện', FORMATION_EMOJIS.refine),
+      formationButton(
+        ownerId,
+        `refine:${index}`,
+        isMaxLevel ? 'Đã Viên Mãn' : 'Tinh Luyện',
+        FORMATION_EMOJIS.refine,
+        isMaxLevel,
+      ),
       formationButton(ownerId, 'slots', 'Trận Vị', FORMATION_EMOJIS.slots),
       formationButton(ownerId, 'main', 'Trận Pháp', FORMATION_EMOJIS.formation),
     ),
@@ -248,6 +257,7 @@ export function buildFormationEyeEmbed(state, result = null) {
 export function buildFormationEyeRows(ownerId, state) {
   const formation = getActiveFormation(state);
   const eye = getFormationEye(state, formation.id);
+  const isMaxLevel = eye.level >= 10;
 
   const eyeSelect = new StringSelectMenuBuilder()
     .setCustomId(`tutien_formation_v2:${ownerId}:eye`)
@@ -273,7 +283,13 @@ export function buildFormationEyeRows(ownerId, state) {
   return [
     new ActionRowBuilder().addComponents(eyeSelect),
     new ActionRowBuilder().addComponents(
-      formationButton(ownerId, 'eye_refine', 'Tinh Luyện Mắt Trận', FORMATION_EMOJIS.refine),
+      formationButton(
+        ownerId,
+        'eye_refine',
+        isMaxLevel ? 'Đã Viên Mãn' : 'Tinh Luyện Mắt Trận',
+        FORMATION_EMOJIS.refine,
+        isMaxLevel,
+      ),
       formationButton(ownerId, 'main', 'Trận Pháp', FORMATION_EMOJIS.formation),
     ),
   ];
