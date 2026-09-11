@@ -11,6 +11,7 @@ import {
 import {
   getCultivationPetList,
   getOwnedPets,
+  getPetEffectValue,
 } from './cultivationPet.js';
 
 import {
@@ -29,6 +30,12 @@ import {
 
 const SESSION_PREFIX =
   'games:cultivation:adventureV2:';
+
+const RARE_OR_HIGHER = new Set([
+  'Hiếm',
+  'Cực Hiếm',
+  'Thần Thoại',
+]);
 
 function getSessionKey(
   guildId,
@@ -127,8 +134,7 @@ async function finishAdventure(
 }
 
 /**
- * Giữ nguyên trọng số thập phân.
- * Hậu Thổ Kim Long dùng weight 0.1 nên tuyệt đối không ép tối thiểu về 1.
+ * Giữ nguyên trọng số thập phân của 5 Linh Thú cũ.
  */
 function getPetWeight(
   pet,
@@ -139,6 +145,26 @@ function getPetWeight(
       pet?.weight,
     ) || 0,
   );
+}
+
+function weightedPick(pets) {
+  if (!Array.isArray(pets) || pets.length === 0) return null;
+
+  const totalWeight = pets.reduce(
+    (total, pet) => total + getPetWeight(pet),
+    0,
+  );
+
+  if (totalWeight <= 0) return null;
+
+  let roll = Math.random() * totalWeight;
+
+  for (const pet of pets) {
+    roll -= getPetWeight(pet);
+    if (roll <= 0) return pet;
+  }
+
+  return pets[pets.length - 1] || null;
 }
 
 function rollAvailablePet(
@@ -160,6 +186,7 @@ function rollAvailablePet(
           !owned.has(
             pet.id,
           ) &&
+          pet.encounterEnabled !== false &&
           getPetWeight(pet) > 0,
       );
 
@@ -169,45 +196,59 @@ function rollAvailablePet(
     return null;
   }
 
-  const totalWeight =
-    available.reduce(
-      (
-        total,
-        pet,
-      ) =>
-        total +
-        getPetWeight(pet),
-      0,
-    );
-
-  if (
-    totalWeight <= 0
-  ) {
-    return null;
-  }
-
-  let roll =
-    Math.random() *
-    totalWeight;
-
-  for (
-    const pet of available
-  ) {
-    roll -=
-      getPetWeight(pet);
-
-    if (
-      roll <= 0
-    ) {
-      return pet;
-    }
-  }
-
-  return (
-    available[
-      available.length - 1
-    ] || null
+  const rareEncounterBonus = Math.max(
+    0,
+    Number(
+      getPetEffectValue(
+        profile,
+        'rare_pet_encounter_bonus',
+      ),
+    ) || 0,
   );
+
+  /**
+   * Các Linh Thú mới có encounterChance riêng và được roll độc lập.
+   * Vì các tỷ lệ KHÔNG cần cộng thành 100%, nhiều Linh Thú có thể cùng
+   * vượt roll trong một lần; khi đó chọn một trong số các ứng viên đã trúng.
+   */
+  const explicitCandidates = available.filter(
+    pet => Number.isFinite(Number(pet.encounterChance)) &&
+      Number(pet.encounterChance) > 0,
+  );
+
+  const successfulCandidates = explicitCandidates.filter(
+    pet => {
+      const bonus =
+        RARE_OR_HIGHER.has(pet.rarity)
+          ? rareEncounterBonus
+          : 0;
+
+      const chance = Math.min(
+        1,
+        Math.max(
+          0,
+          Number(pet.encounterChance) + bonus,
+        ),
+      );
+
+      return Math.random() < chance;
+    },
+  );
+
+  if (successfulCandidates.length > 0) {
+    return weightedPick(successfulCandidates) || successfulCandidates[0];
+  }
+
+  /**
+   * Nếu không Linh Thú mới nào vượt roll, quay về pool trọng số cũ.
+   * Cách này giữ 5 Linh Thú cũ còn xuất hiện đúng hệ thống cũ,
+   * đồng thời Bạch Vũ Phong Lang (weight 0/encounter disabled) không bao giờ gặp.
+   */
+  const legacyPool = available.filter(
+    pet => !Number.isFinite(Number(pet.encounterChance)),
+  );
+
+  return weightedPick(legacyPool);
 }
 
 export async function startAdventurePetEncounter(
