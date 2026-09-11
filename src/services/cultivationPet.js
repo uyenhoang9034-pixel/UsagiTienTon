@@ -247,8 +247,8 @@ export const CULTIVATION_PETS = {
       formation_essence_bonus: 1.00,
     },
     captureChance: 0.000001,
-    encounterChance: 0.90,
-    weight: 90,
+    encounterChance: 0.50,
+    weight: 50,
     encounterEnabled: true,
   },
 };
