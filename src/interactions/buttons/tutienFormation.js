@@ -16,6 +16,10 @@ import {
 } from '../../services/cultivationFormation.js';
 
 import {
+  getFormationGameplayBonus,
+} from '../../services/cultivationFormationGameplay.js';
+
+import {
   appendFormationButton,
   buildFormationArrangeEmbed,
   buildFormationBackRows,
@@ -353,7 +357,22 @@ export default {
       }
 
       case 'comprehend': {
-        const result = await comprehendFormation(client, guildId, userId);
+        const formationBonus = await getFormationGameplayBonus(
+          client,
+          guildId,
+          userId,
+        );
+        const result = await comprehendFormation(
+          client,
+          guildId,
+          userId,
+          {
+            extraInsightBonus:
+              formationBonus?.spiritSynergy?.active
+                ? Number(formationBonus.spiritSynergy.effects?.insightBonus) || 0
+                : 0,
+          },
+        );
         return interaction.update({
           embeds: [buildFormationComprehendEmbed(result)],
           components: buildFormationBackRows(ownerId),
