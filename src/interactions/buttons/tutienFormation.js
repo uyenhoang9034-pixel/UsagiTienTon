@@ -1,11 +1,16 @@
 import { MessageFlags } from 'discord.js';
 
 import {
+  CULTIVATION_CONFIG,
+} from '../../config/cultivationGame.js';
+
+import {
   arrangeActiveFormation,
   comprehendFormation,
   cycleActiveFormation,
   getFormationState,
   refineFormationSlot,
+  saveFormationState,
   upgradeActiveFormation,
 } from '../../services/cultivationFormation.js';
 
@@ -53,6 +58,14 @@ async function replyEphemeral(interaction, content) {
   return interaction.reply(payload);
 }
 
+function hasFormationAdminRole(interaction) {
+  const roleId = CULTIVATION_CONFIG.adminRoleId;
+  return Boolean(
+    roleId &&
+    interaction.member?.roles?.cache?.has?.(roleId),
+  );
+}
+
 async function rejectWrongPlayer(interaction, ownerId) {
   if (interaction.user.id === ownerId) return false;
 
@@ -93,6 +106,58 @@ async function showDashboard(interaction, client, ownerId) {
     embeds: [buildDashboardEmbed(interaction.user, profile)],
     components: rows,
   });
+}
+
+async function runRefine(
+  interaction,
+  client,
+  guildId,
+  userId,
+  slotIndex,
+) {
+  let result = await refineFormationSlot(
+    client,
+    guildId,
+    userId,
+    slotIndex,
+  );
+
+  if (
+    hasFormationAdminRole(interaction) &&
+    !result.ok &&
+    ['not_enough_essence', 'not_enough_crystal'].includes(result.reason)
+  ) {
+    const state = result.state;
+    const elementId = result.elementId;
+
+    state.formationEssence = Math.max(
+      Number(state.formationEssence) || 0,
+      Number(result.essenceCost) || 0,
+    );
+
+    if (elementId) {
+      state.elementCrystals[elementId] = Math.max(
+        Number(state.elementCrystals?.[elementId]) || 0,
+        Number(result.crystalCost) || 0,
+      );
+    }
+
+    await saveFormationState(
+      client,
+      guildId,
+      userId,
+      state,
+    );
+
+    result = await refineFormationSlot(
+      client,
+      guildId,
+      userId,
+      slotIndex,
+    );
+  }
+
+  return result;
 }
 
 export default {
@@ -148,7 +213,8 @@ export default {
 
       case 'refine': {
         const slotIndex = Number(extra);
-        const result = await refineFormationSlot(
+        const result = await runRefine(
+          interaction,
           client,
           guildId,
           userId,
