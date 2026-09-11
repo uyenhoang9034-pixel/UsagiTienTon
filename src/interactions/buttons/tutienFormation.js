@@ -5,6 +5,7 @@ import {
   comprehendFormation,
   cycleActiveFormation,
   getFormationState,
+  refineFormationSlot,
   upgradeActiveFormation,
 } from '../../services/cultivationFormation.js';
 
@@ -23,6 +24,12 @@ import {
   buildFormationStorageEmbed,
   buildFormationUpgradeEmbed,
 } from '../../services/cultivationFormationUI.js';
+
+import {
+  buildFormationSlotDetailEmbed,
+  buildFormationSlotDetailRows,
+  buildFormationSlotSelectRows,
+} from '../../services/cultivationFormationV2UI.js';
 
 import {
   getCultivationProfile,
@@ -92,7 +99,7 @@ export default {
   name: 'tutien_formation',
 
   async execute(interaction, client, args = []) {
-    const [ownerId, action = 'main'] = args;
+    const [ownerId, action = 'main', extra] = args;
 
     if (!ownerId) return;
     if (await rejectWrongPlayer(interaction, ownerId)) return;
@@ -135,7 +142,22 @@ export default {
         const state = await getFormationState(client, guildId, userId);
         return interaction.update({
           embeds: [buildFormationSlotsEmbed(state)],
-          components: buildFormationBackRows(ownerId),
+          components: buildFormationSlotSelectRows(ownerId, state),
+        });
+      }
+
+      case 'refine': {
+        const slotIndex = Number(extra);
+        const result = await refineFormationSlot(
+          client,
+          guildId,
+          userId,
+          slotIndex,
+        );
+
+        return interaction.update({
+          embeds: [buildFormationSlotDetailEmbed(result.state, slotIndex, result)],
+          components: buildFormationSlotDetailRows(ownerId, result.state, slotIndex),
         });
       }
 
