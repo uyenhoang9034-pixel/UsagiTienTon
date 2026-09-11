@@ -34,6 +34,7 @@ import {
 import {
   getActivePet,
   getCultivationPet,
+  getPetEffectValue,
 } from './cultivationPet.js';
 
 import {
@@ -348,6 +349,14 @@ function getPetEmoji(
     getCultivationPet(
       petId,
     )?.emoji || ''
+  );
+}
+
+function getResultActivePet(
+  result,
+) {
+  return getActivePet(
+    result?.profile || {},
   );
 }
 
@@ -974,12 +983,16 @@ export function buildCultivateEmbed(
         )} Linh Thạch**`
       : null;
 
+  const activePet =
+    getResultActivePet(
+      result,
+    );
+
   const petCultivationLine =
     result.petCultivationBonus >
-    0
-      ? `${getPetEmoji(
-          'thanh_phong_linh_ho',
-        )} Thanh Phong Linh Hồ: **+${number(
+      0 &&
+    activePet
+      ? `${activePet.emoji} ${activePet.name}: **+${number(
           result.petCultivationBonus,
         )} Tu Vi**`
       : null;
@@ -1149,12 +1162,16 @@ export function buildAdventureEmbed(
         )} Linh Thạch**`
       : null;
 
+  const activePet =
+    getResultActivePet(
+      result,
+    );
+
   const petStoneLine =
     result.petStoneBonus >
-    0
-      ? `${getPetEmoji(
-          'xich_viem_hoa_dieu',
-        )} Xích Viêm Hỏa Điểu: **+${number(
+      0 &&
+    activePet
+      ? `${activePet.emoji} ${activePet.name}: **+${number(
           result.petStoneBonus,
         )} Linh Thạch**`
       : null;
@@ -1564,12 +1581,16 @@ export function buildBreakthroughEmbed(
         )}**`
       : null;
 
+  const activePet =
+    getResultActivePet(
+      result,
+    );
+
   const petChanceLine =
     result.petBreakthroughBonus >
-    0
-      ? `${getPetEmoji(
-          'thien_loi_bach_ho',
-        )} Thiên Lôi Bạch Hổ: **+${percent(
+      0 &&
+    activePet
+      ? `${activePet.emoji} ${activePet.name}: **+${percent(
           result.petBreakthroughBonus,
         )}**`
       : null;
@@ -1640,10 +1661,9 @@ export function buildBreakthroughEmbed(
 
   const petLossLine =
     result.petLossSaved >
-    0
-      ? `${getPetEmoji(
-          'huyen_giap_linh_quy',
-        )} Huyền Giáp Linh Quy: **Giảm ${number(
+      0 &&
+    activePet
+      ? `${activePet.emoji} ${activePet.name}: **Giảm ${number(
           result.petLossSaved,
         )} Tu Vi hao tổn**`
       : null;
@@ -1763,14 +1783,12 @@ export function buildProfileEmbed(
       : 0;
 
   const petBreakthroughBonus =
-    activePet
-      ?.effectType ===
-      'breakthrough_bonus'
-      ? Math.round(
-          activePet
-            .effectValue * 100,
-        )
-      : 0;
+    Math.round(
+      getPetEffectValue(
+        profile,
+        'breakthrough_bonus',
+      ) * 100,
+    );
 
   const chance =
     Math.min(
@@ -1875,7 +1893,7 @@ export function buildLeaderboardEmbed(
   return applyStyle(
     new EmbedBuilder()
       .setTitle(
-        '<a:trangtrig2:1546040703375904801> 𝓣𝓲𝓮̂𝓷 𝓑𝓪̉𝓷𝓰 <a:trangtrig3:1546040818261954610>',
+        '<a:trangtrig2:1546040703375904801>𝓣𝓲𝓮̂𝓷 𝓑𝓪̉𝓷𝓰 <a:trangtrig3:1546040818261954610>',
       )
       .setDescription(
         lines.length > 0
