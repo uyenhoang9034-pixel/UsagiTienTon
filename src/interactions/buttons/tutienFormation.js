@@ -9,6 +9,7 @@ import {
   comprehendFormation,
   cycleActiveFormation,
   getFormationState,
+  refineFormationEye,
   refineFormationSlot,
   saveFormationState,
   upgradeActiveFormation,
@@ -31,6 +32,8 @@ import {
 } from '../../services/cultivationFormationUI.js';
 
 import {
+  buildFormationEyeEmbed,
+  buildFormationEyeRows,
   buildFormationSlotDetailEmbed,
   buildFormationSlotDetailRows,
   buildFormationSlotSelectRows,
@@ -160,6 +163,55 @@ async function runRefine(
   return result;
 }
 
+async function runEyeRefine(
+  interaction,
+  client,
+  guildId,
+  userId,
+) {
+  let result = await refineFormationEye(
+    client,
+    guildId,
+    userId,
+  );
+
+  if (
+    hasFormationAdminRole(interaction) &&
+    !result.ok &&
+    ['not_enough_essence', 'not_enough_crystal'].includes(result.reason)
+  ) {
+    const state = result.state;
+    const elementId = result.elementId;
+
+    state.formationEssence = Math.max(
+      Number(state.formationEssence) || 0,
+      Number(result.essenceCost) || 0,
+    );
+
+    if (elementId) {
+      state.elementCrystals[elementId] = Math.max(
+        Number(state.elementCrystals?.[elementId]) || 0,
+        Number(result.crystalCost) || 0,
+      );
+    }
+
+    await saveFormationState(
+      client,
+      guildId,
+      userId,
+      state,
+    );
+
+    result = await refineFormationEye(
+      client,
+      guildId,
+      userId,
+    );
+  }
+
+  return result;
+}
+
 export default {
   name: 'tutien_formation',
 
@@ -224,6 +276,28 @@ export default {
         return interaction.update({
           embeds: [buildFormationSlotDetailEmbed(result.state, slotIndex, result)],
           components: buildFormationSlotDetailRows(ownerId, result.state, slotIndex),
+        });
+      }
+
+      case 'eye': {
+        const state = await getFormationState(client, guildId, userId);
+        return interaction.update({
+          embeds: [buildFormationEyeEmbed(state)],
+          components: buildFormationEyeRows(ownerId, state),
+        });
+      }
+
+      case 'eye_refine': {
+        const result = await runEyeRefine(
+          interaction,
+          client,
+          guildId,
+          userId,
+        );
+
+        return interaction.update({
+          embeds: [buildFormationEyeEmbed(result.state, result)],
+          components: buildFormationEyeRows(ownerId, result.state),
         });
       }
 
