@@ -85,12 +85,16 @@ function eyeResultLine(result, element) {
     return `${element?.emoji || FORMATION_RESOURCE_EMOJIS.eye} Mắt Trận đã dùng hệ này.`;
   }
 
-  if (result.ok && result.level && result.essenceCost) {
+  if (result.ok && result.eyeAction === 'refine') {
     return `${FORMATION_RESOURCE_EMOJIS.refine} **Tinh Luyện Mắt Trận thành công:** Lv.${result.level}`;
   }
 
-  if (result.ok) {
+  if (result.ok && result.eyeAction === 'change') {
     return `${element?.emoji || FORMATION_RESOURCE_EMOJIS.eye} **Đổi Mắt Trận thành công:** ${element?.name || 'Hệ mới'}`;
+  }
+
+  if (result.ok) {
+    return `${element?.emoji || FORMATION_RESOURCE_EMOJIS.eye} **Mắt Trận đã được cập nhật.**`;
   }
 
   if (result.reason === 'not_enough_essence') {
