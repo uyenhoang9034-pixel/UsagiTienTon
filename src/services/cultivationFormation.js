@@ -260,11 +260,14 @@ export function getFormationResonance(state) {
     insightBonus: 0,
   };
 
-  let multiplier = 1 + (level - 1) * 0.03;
   const avgSlotLevel = slotLevels.length
     ? slotLevels.reduce((sum, value) => sum + value, 0) / slotLevels.length
     : 1;
-  multiplier += Math.max(0, avgSlotLevel - 1) * 0.01;
+  const progressionMultiplier =
+    1 +
+    (level - 1) * 0.03 +
+    Math.max(0, avgSlotLevel - 1) * 0.01;
+  let multiplier = progressionMultiplier;
 
   const pairKey = (a, b) => `${a}>${b}`;
   const activePairs = new Set();
@@ -345,6 +348,7 @@ export function getFormationResonance(state) {
   }
 
   for (const key of Object.keys(effects)) {
+    effects[key] *= progressionMultiplier;
     effects[key] = Math.max(0, Math.min(0.75, effects[key]));
   }
 
