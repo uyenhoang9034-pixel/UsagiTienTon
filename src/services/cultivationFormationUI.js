@@ -18,6 +18,7 @@ import {
 
 export const FORMATION_EMOJIS = {
   formation: { id: '1547820164291240076' },
+  dashboardFormation: { id: '1547915911497785435' },
   diagrams: { id: '1547820131889979464' },
   storage: { id: '1547820098465824809' },
   slots: { id: '1547820065292943421' },
@@ -71,12 +72,12 @@ export function appendFormationButton(rows, ownerId) {
   const target = cloned[2];
   if (target?.components?.length < 5) {
     target.addComponents(
-      button(ownerId, 'main', 'Trận Pháp', FORMATION_EMOJIS.formation),
+      button(ownerId, 'main', 'Trận Pháp', FORMATION_EMOJIS.dashboardFormation),
     );
   } else {
     cloned.push(
       new ActionRowBuilder().addComponents(
-        button(ownerId, 'main', 'Trận Pháp', FORMATION_EMOJIS.formation),
+        button(ownerId, 'main', 'Trận Pháp', FORMATION_EMOJIS.dashboardFormation),
       ),
     );
   }
