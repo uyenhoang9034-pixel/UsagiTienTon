@@ -9,6 +9,10 @@ import {
   getFormationGameplayBonus,
 } from './cultivationFormationGameplay.js';
 
+import {
+  rollFormationFragmentDrop,
+} from './cultivationFormationRewards.js';
+
 export * from './cultivationSecretRealm.js';
 
 function safeNumber(value) {
@@ -27,6 +31,25 @@ function calculateBonus(amount, percent) {
     1,
     Math.round(base * rate),
   );
+}
+
+function getSecretRealmFragmentQuantity(floor) {
+  const depth = Math.max(
+    0,
+    Math.floor(
+      Number(floor) || 0,
+    ),
+  );
+
+  if (depth >= 5) {
+    return 2;
+  }
+
+  if (depth >= 2) {
+    return 1;
+  }
+
+  return 0;
 }
 
 async function applyFormationLootBonus(
@@ -180,6 +203,7 @@ export async function fightSecretRealmMonster(
   }
 
   // Thất bại: base service đã trả 40% keptLoot vào profile.
+  // Không rơi Mảnh Trận Đồ khi thất bại.
   return applyFormationLootBonus(
     client,
     guildId,
@@ -201,11 +225,44 @@ export async function leaveSecretRealm(
       userId,
     );
 
-  return applyFormationLootBonus(
-    client,
-    guildId,
-    userId,
-    result,
-    result?.loot,
-  );
+  const rewarded =
+    await applyFormationLootBonus(
+      client,
+      guildId,
+      userId,
+      result,
+      result?.loot,
+    );
+
+  if (!rewarded?.ok) {
+    return rewarded;
+  }
+
+  const fragmentQuantity =
+    getSecretRealmFragmentQuantity(
+      rewarded.floor,
+    );
+
+  const formationFragmentDrop =
+    await rollFormationFragmentDrop(
+      client,
+      guildId,
+      userId,
+      {
+        chance:
+          fragmentQuantity > 0
+            ? 1
+            : 0,
+        quantity:
+          Math.max(
+            1,
+            fragmentQuantity,
+          ),
+      },
+    );
+
+  return {
+    ...rewarded,
+    formationFragmentDrop,
+  };
 }
