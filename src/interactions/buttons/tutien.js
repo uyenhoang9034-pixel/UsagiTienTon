@@ -916,7 +916,7 @@ async function handleSecretRealmEnter(interaction, client, ownerId, guildId, use
 
   const [adventure, secret, secretUI] = await Promise.all([
     import('../../services/cultivationAdventureV2.js'),
-    import('../../services/cultivationSecretRealm.js'),
+    import('../../services/cultivationSecretRealmFormationV2.js'),
     import('../../services/cultivationSecretRealmUI.js'),
   ]);
 
@@ -955,7 +955,7 @@ async function handleSecretRealmEnter(interaction, client, ownerId, guildId, use
 
 async function handleSecretRealmAssist(interaction, client, ownerId, guildId, userId) {
   const [secret, secretUI] = await Promise.all([
-    import('../../services/cultivationSecretRealm.js'),
+    import('../../services/cultivationSecretRealmFormationV2.js'),
     import('../../services/cultivationSecretRealmUI.js'),
   ]);
 
@@ -978,7 +978,7 @@ async function handleSecretRealmAssist(interaction, client, ownerId, guildId, us
 
 async function handleSecretRealmFight(interaction, client, ownerId, guildId, userId, petAssist) {
   const [secret, secretUI] = await Promise.all([
-    import('../../services/cultivationSecretRealm.js'),
+    import('../../services/cultivationSecretRealmFormationV2.js'),
     import('../../services/cultivationSecretRealmUI.js'),
   ]);
 
@@ -1008,7 +1008,7 @@ async function handleSecretRealmFight(interaction, client, ownerId, guildId, use
 
 async function handleSecretRealmContinue(interaction, client, ownerId, guildId, userId) {
   const [secret, secretUI] = await Promise.all([
-    import('../../services/cultivationSecretRealm.js'),
+    import('../../services/cultivationSecretRealmFormationV2.js'),
     import('../../services/cultivationSecretRealmUI.js'),
   ]);
 
@@ -1040,7 +1040,7 @@ async function handleSecretRealmContinue(interaction, client, ownerId, guildId, 
 
 async function handleSecretRealmLeave(interaction, client, ownerId, guildId, userId) {
   const [secret, secretUI] = await Promise.all([
-    import('../../services/cultivationSecretRealm.js'),
+    import('../../services/cultivationSecretRealmFormationV2.js'),
     import('../../services/cultivationSecretRealmUI.js'),
   ]);
 
