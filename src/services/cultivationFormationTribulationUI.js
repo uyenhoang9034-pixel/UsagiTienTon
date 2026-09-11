@@ -10,6 +10,10 @@ import {
 } from '../config/cultivationGame.js';
 
 import {
+  FORMATION_DEFINITIONS,
+} from './cultivationFormation.js';
+
+import {
   FORMATION_TRIBULATIONS,
 } from './cultivationFormationTribulation.js';
 
@@ -59,11 +63,17 @@ export function appendFormationTribulationRow(rows, ownerId) {
 
 export function buildFormationTribulationListEmbed() {
   const lines = Object.values(FORMATION_TRIBULATIONS).map(
-    (tribulation) => [
-      `${TRIBULATION_EMOJI} **${tribulation.name}** · Kiếp cấp ${tribulation.difficulty}`,
-      `• Trận Đồ tương ứng: **${tribulation.recommendedFormationId}**`,
-      `• ${tribulation.description}`,
-    ].join('\n'),
+    (tribulation) => {
+      const recommended = FORMATION_DEFINITIONS[
+        tribulation.recommendedFormationId
+      ];
+
+      return [
+        `${TRIBULATION_EMOJI} **${tribulation.name}** · Kiếp cấp ${tribulation.difficulty}`,
+        `• Trận Đồ tương ứng: **${recommended?.name || 'Không rõ'}**`,
+        `• ${tribulation.description}`,
+      ].join('\n');
+    },
   );
 
   return style(
