@@ -118,6 +118,26 @@ export default {
               { name: 'Hư Không Côn Bằng', value: 'hu_khong_con_bang' },
             ),
       )
+      .addStringOption(
+        (option) =>
+          option
+            .setName('tinhthach')
+            .setDescription('Tinh Thạch Trận Pháp muốn cấp.')
+            .setRequired(false)
+            .addChoices(
+              { name: 'Tinh Thạch · Kim', value: 'metal' },
+              { name: 'Tinh Thạch · Mộc', value: 'wood' },
+              { name: 'Tinh Thạch · Thủy', value: 'water' },
+              { name: 'Tinh Thạch · Hỏa', value: 'fire' },
+              { name: 'Tinh Thạch · Thổ', value: 'earth' },
+              { name: 'Tinh Thạch · Phong', value: 'wind' },
+              { name: 'Tinh Thạch · Lôi', value: 'lightning' },
+              { name: 'Tinh Thạch · Băng', value: 'ice' },
+              { name: 'Tinh Thạch · Âm Dương', value: 'yin_yang' },
+              { name: 'Tinh Thạch · Tinh Thần', value: 'spirit' },
+              { name: 'Tinh Thạch · Hỗn Độn', value: 'chaos' },
+            ),
+      )
       .addIntegerOption(
         (option) =>
           option
@@ -160,24 +180,32 @@ export default {
 
       const baseSelectedId = interaction.options.getString('item');
       const selectedPetId = interaction.options.getString('linhthu');
+      const selectedCrystalId = interaction.options.getString('tinhthach');
+      const selectedCount = [
+        baseSelectedId,
+        selectedPetId,
+        selectedCrystalId,
+      ].filter(Boolean).length;
 
-      if (!baseSelectedId && !selectedPetId) {
+      if (selectedCount === 0) {
         return interaction.reply({
-          content: formatError('Hãy chọn `item` hoặc `linhthu` muốn cấp.'),
+          content: formatError('Hãy chọn `item`, `linhthu` hoặc `tinhthach` muốn cấp.'),
           flags: MessageFlags.Ephemeral,
         });
       }
 
-      if (baseSelectedId && selectedPetId) {
+      if (selectedCount > 1) {
         return interaction.reply({
-          content: formatError('Mỗi lần chỉ chọn một trong hai: `item` hoặc `linhthu`.'),
+          content: formatError('Mỗi lần chỉ chọn một trong ba: `item`, `linhthu` hoặc `tinhthach`.'),
           flags: MessageFlags.Ephemeral,
         });
       }
 
       const selectedId = selectedPetId
         ? `pet:${selectedPetId}`
-        : baseSelectedId;
+        : selectedCrystalId
+          ? `crystal:${selectedCrystalId}`
+          : baseSelectedId;
       const requestedQuantity = interaction.options.getInteger('soluong');
       const targetUser =
         interaction.options.getUser('member') ||
@@ -261,6 +289,51 @@ export default {
             `${userEmoji} Đạo Hữu: <@${targetUser.id}>`,
             `<a:tttrankho:1547820098465824809> Đã cấp Trận Văn: **+${formatNumber(quantity)}**`,
             `<a:tttrankho:1547820098465824809> Hiện có: **${formatNumber(saved.formationEssence)}**`,
+          ].join('\n'),
+        });
+      }
+
+      if (selectedId.startsWith('crystal:')) {
+        const crystalId = selectedId.slice('crystal:'.length);
+        const quantity = clampLargeQuantity(requestedQuantity);
+        const {
+          FORMATION_ELEMENTS,
+          getFormationState,
+          saveFormationState,
+        } = await import('../../services/cultivationFormation.js');
+
+        const crystal = FORMATION_ELEMENTS[crystalId];
+
+        if (!crystal) {
+          return interaction.editReply({
+            content: formatError('Không tìm thấy loại Tinh Thạch Trận Pháp này.'),
+          });
+        }
+
+        const state = await getFormationState(
+          interaction.client,
+          interaction.guildId,
+          targetUser.id,
+        );
+
+        state.elementCrystals[crystalId] =
+          Math.max(0, Number(state.elementCrystals?.[crystalId]) || 0) + quantity;
+
+        const saved = await saveFormationState(
+          interaction.client,
+          interaction.guildId,
+          targetUser.id,
+          state,
+        );
+
+        return interaction.editReply({
+          content: [
+            HEADER,
+            '',
+            `${userEmoji} Đạo Hữu: <@${targetUser.id}>`,
+            `${crystal.emoji || '💎'} Tinh Thạch: **${crystal.name}**`,
+            `${crystal.emoji || '💎'} Đã cấp: **+${formatNumber(quantity)}**`,
+            `${crystal.emoji || '💎'} Hiện có: **${formatNumber(saved.elementCrystals?.[crystalId])}**`,
           ].join('\n'),
         });
       }
