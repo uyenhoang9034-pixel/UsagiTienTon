@@ -20,6 +20,18 @@ import {
 } from '../../services/cultivationFormationGameplay.js';
 
 import {
+  getFormationTribulationPreview,
+} from '../../services/cultivationFormationTribulation.js';
+
+import {
+  appendFormationTribulationRow,
+  buildFormationTribulationListEmbed,
+  buildFormationTribulationPreviewEmbed,
+  buildFormationTribulationPreviewRows,
+  buildFormationTribulationRows,
+} from '../../services/cultivationFormationTribulationUI.js';
+
+import {
   appendFormationButton,
   buildFormationArrangeEmbed,
   buildFormationBackRows,
@@ -103,7 +115,10 @@ async function showMain(interaction, client, ownerId) {
 
   return interaction.update({
     embeds: [buildFormationMainEmbed(interaction.user, state, profile)],
-    components: buildFormationMainRows(ownerId),
+    components: appendFormationTribulationRow(
+      buildFormationMainRows(ownerId),
+      ownerId,
+    ),
   });
 }
 
@@ -418,6 +433,26 @@ export default {
         return interaction.update({
           embeds: [buildFormationResonanceEmbed(state, gameplayBonus)],
           components: buildFormationBackRows(ownerId),
+        });
+      }
+
+      case 'tribulation':
+        return interaction.update({
+          embeds: [buildFormationTribulationListEmbed()],
+          components: buildFormationTribulationRows(ownerId),
+        });
+
+      case 'tribulation_preview': {
+        const result = await getFormationTribulationPreview(
+          client,
+          guildId,
+          userId,
+          extra,
+        );
+
+        return interaction.update({
+          embeds: [buildFormationTribulationPreviewEmbed(result)],
+          components: buildFormationTribulationPreviewRows(ownerId),
         });
       }
 
