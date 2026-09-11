@@ -22,6 +22,11 @@ export const FORMATION_ELEMENTS = {
   chaos: { id: 'chaos', name: 'Hỗn Độn', tier: 'rare', emoji: '<a:tthondon:1547842242885066793>' },
 };
 
+export const FORMATION_EYE_ELEMENT_IDS = [
+  'spirit',
+  'chaos',
+];
+
 export const FORMATION_DEFINITIONS = {
   five_elements: {
     id: 'five_elements',
@@ -521,6 +526,152 @@ export async function refineFormationSlot(client, guildId, userId, slotIndex) {
     slotIndex: index,
     level: level + 1,
     elementId,
+    essenceCost,
+    crystalCost,
+  };
+}
+
+export async function setFormationEyeElement(client, guildId, userId, elementId) {
+  const state = await getFormationState(client, guildId, userId);
+  const formation = getActiveFormation(state);
+  const eye = getFormationEye(state, formation.id);
+
+  if (!FORMATION_EYE_ELEMENT_IDS.includes(elementId)) {
+    return {
+      ok: false,
+      reason: 'invalid_eye_element',
+      state,
+    };
+  }
+
+  if (eye.elementId === elementId) {
+    return {
+      ok: true,
+      unchanged: true,
+      state,
+      elementId,
+      level: eye.level,
+    };
+  }
+
+  const essenceCost =
+    elementId === 'chaos'
+      ? 60
+      : 30;
+  const crystalCost =
+    elementId === 'chaos'
+      ? 6
+      : 3;
+
+  if (state.formationEssence < essenceCost) {
+    return {
+      ok: false,
+      reason: 'not_enough_essence',
+      state,
+      elementId,
+      essenceCost,
+      crystalCost,
+    };
+  }
+
+  if ((state.elementCrystals[elementId] || 0) < crystalCost) {
+    return {
+      ok: false,
+      reason: 'not_enough_crystal',
+      state,
+      elementId,
+      essenceCost,
+      crystalCost,
+    };
+  }
+
+  state.formationEssence -= essenceCost;
+  state.elementCrystals[elementId] -= crystalCost;
+  state.formationEyes[formation.id] = {
+    elementId,
+    level: eye.level,
+  };
+
+  const savedState = await saveFormationState(
+    client,
+    guildId,
+    userId,
+    state,
+  );
+
+  return {
+    ok: true,
+    state: savedState,
+    elementId,
+    level: eye.level,
+    essenceCost,
+    crystalCost,
+  };
+}
+
+export async function refineFormationEye(client, guildId, userId) {
+  const state = await getFormationState(client, guildId, userId);
+  const formation = getActiveFormation(state);
+  const eye = getFormationEye(state, formation.id);
+  const elementId = eye.elementId;
+  const level = eye.level;
+
+  if (level >= MAX_SLOT_LEVEL) {
+    return {
+      ok: false,
+      reason: 'max_level',
+      state,
+      elementId,
+      level,
+    };
+  }
+
+  const essenceCost = 15 + level * 15;
+  const crystalCost = 1 + Math.ceil(level / 2);
+
+  if (state.formationEssence < essenceCost) {
+    return {
+      ok: false,
+      reason: 'not_enough_essence',
+      state,
+      elementId,
+      level,
+      essenceCost,
+      crystalCost,
+    };
+  }
+
+  if ((state.elementCrystals[elementId] || 0) < crystalCost) {
+    return {
+      ok: false,
+      reason: 'not_enough_crystal',
+      state,
+      elementId,
+      level,
+      essenceCost,
+      crystalCost,
+    };
+  }
+
+  state.formationEssence -= essenceCost;
+  state.elementCrystals[elementId] -= crystalCost;
+  state.formationEyes[formation.id] = {
+    elementId,
+    level: level + 1,
+  };
+
+  const savedState = await saveFormationState(
+    client,
+    guildId,
+    userId,
+    state,
+  );
+
+  return {
+    ok: true,
+    state: savedState,
+    elementId,
+    level: level + 1,
     essenceCost,
     crystalCost,
   };
