@@ -22,7 +22,7 @@ import {
 import {
   attemptFormationTribulation,
   getFormationTribulationPreview,
-} from '../../services/cultivationFormationTribulation.js';
+} from '../../services/cultivationFormationTribulationPet.js';
 
 import {
   appendFormationTribulationRow,
@@ -78,7 +78,8 @@ import {
 async function replyEphemeral(interaction, content) {
   const payload = {
     content,
-    flags: MessageFlags.Ephemeral,
+    flags:
+      MessageFlags.Ephemeral,
   };
 
   if (
