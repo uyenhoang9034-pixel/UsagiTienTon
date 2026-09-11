@@ -6,6 +6,10 @@ import {
 } from './cultivationService.js';
 
 import {
+  getPetEffectValue,
+} from './cultivationPet.js';
+
+import {
   getFormationGameplayBonus,
 } from './cultivationFormationGameplay.js';
 
@@ -44,6 +48,16 @@ async function runWithFormationAdventureReward(
     safeNumber(
       beforeProfile.spiritStones,
     );
+
+  const petAdventureStonePercent = Math.max(
+    0,
+    safeNumber(
+      getPetEffectValue(
+        beforeProfile,
+        'adventure_stone_bonus',
+      ),
+    ),
+  );
 
   const formation =
     await getFormationGameplayBonus(
@@ -120,6 +134,18 @@ async function runWithFormationAdventureReward(
     ),
   );
 
+  const petAdventureStoneBonus =
+    stoneGain > 0 &&
+    petAdventureStonePercent > 0
+      ? Math.max(
+          1,
+          Math.round(
+            stoneGain *
+              petAdventureStonePercent,
+          ),
+        )
+      : 0;
+
   const formationAdventureBonus =
     cultivationGain > 0 &&
     adventurePercent > 0
@@ -145,11 +171,14 @@ async function runWithFormationAdventureReward(
       : 0;
 
   if (
+    petAdventureStoneBonus <= 0 &&
     formationAdventureBonus <= 0 &&
     formationStoneBonus <= 0
   ) {
     return {
       ...result,
+      petAdventureStoneBonus: 0,
+      petAdventureStonePercent,
       formationAdventureBonus: 0,
       formationAdventurePercent:
         adventurePercent,
@@ -170,6 +199,11 @@ async function runWithFormationAdventureReward(
       formationAdventureBonus;
   }
 
+  if (petAdventureStoneBonus > 0) {
+    afterProfile.spiritStones +=
+      petAdventureStoneBonus;
+  }
+
   if (formationStoneBonus > 0) {
     afterProfile.spiritStones +=
       formationStoneBonus;
@@ -184,6 +218,8 @@ async function runWithFormationAdventureReward(
   return {
     ...result,
     profile: savedProfile,
+    petAdventureStoneBonus,
+    petAdventureStonePercent,
     formationAdventureBonus,
     formationAdventurePercent:
       adventurePercent,
