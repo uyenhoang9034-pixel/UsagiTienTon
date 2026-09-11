@@ -91,6 +91,20 @@ function number(
   );
 }
 
+function formatPercent(chance) {
+  const percent = Math.max(0, Number(chance) || 0) * 100;
+
+  if (percent >= 1) {
+    return `${Number.isInteger(percent) ? percent : percent.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}%`;
+  }
+
+  if (percent >= 0.01) {
+    return `${percent.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}%`;
+  }
+
+  return `${percent.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')}%`;
+}
+
 function formationRewardLines(
   result,
 ) {
@@ -218,10 +232,7 @@ export function buildAdventurePetRevealEmbed(
           '',
 
           `${E.light} **Tỷ Lệ Thu Phục**`,
-          `**${Math.round(
-            pet.captureChance *
-              100,
-          )}%**`,
+          `**${formatPercent(pet.captureChance)}**`,
 
           '',
 
