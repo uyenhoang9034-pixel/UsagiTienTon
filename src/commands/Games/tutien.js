@@ -22,6 +22,7 @@ import {
 } from '../../services/cultivationUI.js';
 
 import {
+  getDailyQuestCompletedCount,
   getDailyQuestState,
 } from '../../services/cultivationDailyQuest.js';
 
@@ -106,6 +107,26 @@ async function hasExistingMessage(
   }
 }
 
+async function deleteMessageIfExists(
+  interaction,
+  messageId,
+) {
+  if (!messageId) {
+    return;
+  }
+
+  try {
+    const message =
+      await interaction.channel.messages.fetch(
+        messageId,
+      );
+
+    await message.delete();
+  } catch {
+    // Message đã mất hoặc không thể xóa thì bỏ qua.
+  }
+}
+
 async function ensureDailyQuestPanel(
   interaction,
   runtimeClient,
@@ -114,15 +135,6 @@ async function ensureDailyQuestPanel(
   const existingId =
     threadData?.dailyQuestMessageId ||
     null;
-
-  if (
-    await hasExistingMessage(
-      interaction,
-      existingId,
-    )
-  ) {
-    return existingId;
-  }
 
   const questState =
     await getDailyQuestState(
@@ -133,6 +145,38 @@ async function ensureDailyQuestPanel(
         sync: true,
       },
     );
+
+  const total =
+    Array.isArray(
+      questState?.quests,
+    )
+      ? questState.quests.length
+      : 0;
+
+  const allDone =
+    questState?.rolled &&
+    total > 0 &&
+    getDailyQuestCompletedCount(
+      questState,
+    ) >= total;
+
+  if (allDone) {
+    await deleteMessageIfExists(
+      interaction,
+      existingId,
+    );
+
+    return null;
+  }
+
+  if (
+    await hasExistingMessage(
+      interaction,
+      existingId,
+    )
+  ) {
+    return existingId;
+  }
 
   const message =
     await interaction.channel.send({
