@@ -23,7 +23,6 @@ import {
   appendFormationButton,
   buildFormationArrangeEmbed,
   buildFormationBackRows,
-  buildFormationComprehendEmbed,
   buildFormationDiagramsEmbed,
   buildFormationDiagramsRows,
   buildFormationElementsEmbed,
@@ -34,6 +33,10 @@ import {
   buildFormationStorageEmbed,
   buildFormationUpgradeEmbed,
 } from '../../services/cultivationFormationUI.js';
+
+import {
+  buildFormationComprehendEmbed,
+} from '../../services/cultivationFormationSpiritUI.js';
 
 import {
   buildFormationEyeEmbed,
