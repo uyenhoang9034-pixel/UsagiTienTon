@@ -28,6 +28,12 @@ function appendFormationLines(embed, lines) {
   );
 }
 
+function number(value) {
+  return new Intl.NumberFormat('vi-VN').format(
+    Math.max(0, Math.round(Number(value) || 0)),
+  );
+}
+
 export function buildCultivateEmbed(result) {
   const embed = baseUI.buildCultivateEmbed(result);
 
@@ -35,9 +41,22 @@ export function buildCultivateEmbed(result) {
     return embed;
   }
 
+  const lines = [
+    ...buildFormationCultivateLines(result),
+  ];
+
+  if (
+    result.extraPetCultivationBonus > 0 &&
+    result.activePet
+  ) {
+    lines.push(
+      `${result.activePet.emoji} ${result.activePet.name}: **+${number(result.extraPetCultivationBonus)} Tu Vi**`,
+    );
+  }
+
   return appendFormationLines(
     embed,
-    buildFormationCultivateLines(result),
+    lines,
   );
 }
 
@@ -48,8 +67,21 @@ export function buildBreakthroughEmbed(result) {
     return embed;
   }
 
+  const lines = [
+    ...buildFormationBreakthroughLines(result),
+  ];
+
+  if (
+    result.guaranteedByPet &&
+    result.activePet
+  ) {
+    lines.push(
+      `${result.activePet.emoji} ${result.activePet.name}: **Đột Phá chắc chắn thành công 100%**`,
+    );
+  }
+
   return appendFormationLines(
     embed,
-    buildFormationBreakthroughLines(result),
+    lines,
   );
 }
