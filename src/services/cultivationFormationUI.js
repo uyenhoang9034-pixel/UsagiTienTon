@@ -28,7 +28,15 @@ export const FORMATION_EMOJIS = {
   elements: { id: '1547830093747982376' },
 };
 
+const TITLE_LEFT = '<a:trangtrig2:1546040703375904801>';
+const TITLE_RIGHT = '<a:trangtrig3:1546040818261954610>';
+const FORMATION_STATUS_EMOJI = '<a:trangtrig43:1547238351869059082>';
+const UPGRADE_SUCCESS_EMOJI = '<a:trangtrig38:1547237720332439574>';
 const SEPARATOR = '꒷꒦︶꒷꒦︶ ๋ ࣭ ⭑꒷꒦';
+
+function formationTitle(label) {
+  return `${TITLE_LEFT} ${label} ${TITLE_RIGHT}`;
+}
 
 function style(embed) {
   embed.setColor(CULTIVATION_CONFIG.ui.color);
@@ -82,11 +90,11 @@ export function buildFormationMainEmbed(user, state) {
   const next = getFormationProgress(state);
 
   return style(new EmbedBuilder()
-    .setTitle('𝓣𝓻𝓪̣̂𝓷 𝓓𝓪̣𝓸 · 陣道')
+    .setTitle(formationTitle('Trận Pháp'))
     .setDescription([
       `${FORMATION_ELEMENTS.spirit.emoji} **Trận Sư:** <@${user.id}>`,
       '',
-      `<a:tttranphap:1547820164291240076> **Trận Đồ đang dùng:** **${active.name}**`,
+      `<a:ttrando:1547820131889979464> **Trận Đồ đang dùng:** **${active.name}**`,
       `<a:ttnangcap:1547830013473067148> **Cấp Trận:** Lv.${level}`,
       `<a:tttranvi:1547820065292943421> **Trận Vị:** ${active.slots}/${active.slots}`,
       `<a:ttlinhngo:1547820024440291389> **Trận Đạo Lĩnh Ngộ:** ${number(state.insight)}`,
@@ -125,11 +133,15 @@ export function buildFormationMainRows(ownerId) {
 export function buildFormationDiagramsEmbed(state) {
   const unlocked = new Set(state.unlockedFormationIds);
   return style(new EmbedBuilder()
-    .setTitle('TRẬN ĐỒ · 陣圖')
+    .setTitle(formationTitle('Trận Đồ'))
     .setDescription(Object.values(FORMATION_DEFINITIONS).map((formation) => {
       const open = unlocked.has(formation.id);
       const active = state.activeFormationId === formation.id ? ' ◈ **Đang dùng**' : '';
-      return `${open ? '🔓' : '🔒'} **${formation.name}** · ${formation.rarity}${active}\nTrận Vị: **${formation.slots}** · Cấp: **Lv.${open ? getFormationLevel(state, formation.id) : '-'}**\nLĩnh Ngộ: **${number(formation.unlockInsight)}**\n*${formation.effect}*`;
+      const unlockedLine = open
+        ? `\n${FORMATION_STATUS_EMOJI} **Đã mở khóa**`
+        : '';
+
+      return `${FORMATION_STATUS_EMOJI} **${formation.name}** · ${formation.rarity}${active}\nTrận Vị: **${formation.slots}** · Cấp: **Lv.${open ? getFormationLevel(state, formation.id) : '-'}**\nLĩnh Ngộ: **${number(formation.unlockInsight)}**${unlockedLine}\n*${formation.effect}*`;
     }).join('\n\n')));
 }
 
@@ -141,7 +153,7 @@ export function buildFormationDiagramsRows(ownerId) {
 }
 
 export function buildFormationStorageEmbed(state) {
-  return style(new EmbedBuilder().setTitle('TRẬN KHỐ · 陣庫').setDescription([
+  return style(new EmbedBuilder().setTitle(formationTitle('Trận Khố')).setDescription([
     `<a:tttrankho:1547820098465824809> **Trận Văn:** ${number(state.formationEssence)}`,
     '',
     '• **Trận Văn** — dùng để nâng cấp Trận Đồ.',
@@ -155,7 +167,7 @@ export function buildFormationStorageEmbed(state) {
 export function buildFormationSlotsEmbed(state) {
   const formation = getActiveFormation(state);
   const layout = getFormationLayout(state, formation.id);
-  return style(new EmbedBuilder().setTitle('TRẬN VỊ · 陣位').setDescription([
+  return style(new EmbedBuilder().setTitle(formationTitle('Trận Vị')).setDescription([
     `<a:tttranphap:1547820164291240076> **${formation.name}**`,
     '',
     ...layout.map((id, index) => {
@@ -169,16 +181,16 @@ export function buildFormationSlotsEmbed(state) {
 
 export function buildFormationComprehendEmbed(result) {
   if (!result.ok) {
-    return style(new EmbedBuilder().setTitle('LĨNH NGỘ · 道心未定').setDescription(
+    return style(new EmbedBuilder().setTitle(formationTitle('Lĩnh Ngộ')).setDescription(
       `<a:ttlinhngo:1547820024440291389> Trận tâm chưa ổn định. Có thể Lĩnh Ngộ lại sau **${duration(result.remainingMs)}**.`,
     ));
   }
 
   const unlocked = result.unlockedNow?.length
-    ? result.unlockedNow.map((f) => `✨ **${f.name}**`).join('\n')
+    ? result.unlockedNow.map((f) => `${FORMATION_STATUS_EMOJI} **${f.name}**\n**Đã mở khóa**`).join('\n\n')
     : 'Chưa mở khóa Trận Đồ mới.';
 
-  return style(new EmbedBuilder().setTitle('LĨNH NGỘ · 陣道推演').setDescription([
+  return style(new EmbedBuilder().setTitle(formationTitle('Lĩnh Ngộ')).setDescription([
     `<a:ttlinhngo:1547820024440291389> **Lĩnh Ngộ +${result.insightGain}**`,
     `<a:tttrankho:1547820098465824809> **Trận Văn +${result.essenceGain}**`,
     `Tổng Lĩnh Ngộ: **${number(result.state.insight)}**`,
@@ -190,7 +202,7 @@ export function buildFormationComprehendEmbed(result) {
 export function buildFormationArrangeEmbed(state) {
   const formation = getActiveFormation(state);
   const resonance = getFormationResonance(state);
-  return style(new EmbedBuilder().setTitle('BỐ TRÍ · 布陣').setDescription([
+  return style(new EmbedBuilder().setTitle(formationTitle('Bố Trí')).setDescription([
     `<a:ttbotri:1547829974025773117> **${formation.name}** đã được bố trí theo Trận Đồ chuẩn.`,
     '',
     ...(resonance.lines.length ? resonance.lines.map((line) => `• ${line}`) : ['• Chưa có cộng hưởng.']),
@@ -200,16 +212,18 @@ export function buildFormationArrangeEmbed(state) {
 export function buildFormationUpgradeEmbed(result) {
   const formation = getActiveFormation(result.state);
   let status = `Chưa đủ Trận Văn. Cần **${number(result.cost)}**, hiện có **${number(result.state.formationEssence)}**.`;
-  if (result.ok) status = `✨ Nâng cấp thành công lên **Lv.${result.level}**. Đã tiêu **${number(result.cost)} Trận Văn**.`;
+  if (result.ok) {
+    status = `${UPGRADE_SUCCESS_EMOJI} Nâng cấp thành công lên **Lv.${result.level}**. Đã tiêu **${number(result.cost)} Trận Văn**.`;
+  }
   if (result.reason === 'max_level') status = '🌟 Trận Đồ đã đạt **Lv.10**.';
-  return style(new EmbedBuilder().setTitle('NÂNG CẤP · 陣階').setDescription([
+  return style(new EmbedBuilder().setTitle(formationTitle('Nâng Cấp')).setDescription([
     `<a:ttnangcap:1547830013473067148> **${formation.name}**`, '', status,
   ].join('\n')));
 }
 
 export function buildFormationResonanceEmbed(state) {
   const resonance = getFormationResonance(state);
-  return style(new EmbedBuilder().setTitle('CỘNG HƯỞNG · 共鳴').setDescription([
+  return style(new EmbedBuilder().setTitle(formationTitle('Cộng Hưởng')).setDescription([
     '<a:ttconghuong:1547830051951738960> **Trận mạch đang cộng hưởng**', '',
     ...(resonance.lines.length ? resonance.lines.map((line) => `• **${line}**`) : ['• Chưa hình thành cộng hưởng.']),
     '', `Hiệu suất tổng: **${Math.round(resonance.multiplier * 100)}%**`,
@@ -219,7 +233,7 @@ export function buildFormationResonanceEmbed(state) {
 export function buildFormationElementsEmbed() {
   const values = Object.values(FORMATION_ELEMENTS);
   const line = (tier) => values.filter((item) => item.tier === tier).map((item) => `${item.emoji} **${item.name}**`).join(' · ');
-  return style(new EmbedBuilder().setTitle('NGŨ HÀNH · 五行').setDescription([
+  return style(new EmbedBuilder().setTitle(formationTitle('Ngũ Hành')).setDescription([
     '<a:ttnguhanhchung:1547830093747982376> **HỆ THUỘC TÍNH TRẬN ĐẠO**', '',
     '**5 hệ cơ bản**', line('basic'), '',
     '**3 hệ biến dị**', line('variant'), '',
