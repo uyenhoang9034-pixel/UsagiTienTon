@@ -66,6 +66,11 @@ import {
 } from '../../services/cultivationService.js';
 
 import {
+  getActivePet,
+  getPetEffectValue,
+} from '../../services/cultivationPet.js';
+
+import {
   buildDashboardEmbed,
   buildDashboardRows,
 } from '../../services/cultivationUI.js';
@@ -76,7 +81,10 @@ async function replyEphemeral(interaction, content) {
     flags: MessageFlags.Ephemeral,
   };
 
-  if (interaction.replied || interaction.deferred) {
+  if (
+    interaction.replied ||
+    interaction.deferred
+  ) {
     return interaction.followUp(payload);
   }
 
@@ -385,11 +393,19 @@ export default {
       }
 
       case 'comprehend': {
-        const formationBonus = await getFormationGameplayBonus(
-          client,
-          guildId,
-          userId,
-        );
+        const [formationBonus, profile] = await Promise.all([
+          getFormationGameplayBonus(
+            client,
+            guildId,
+            userId,
+          ),
+          getCultivationProfile(
+            client,
+            guildId,
+            userId,
+          ),
+        ]);
+
         const result = await comprehendFormation(
           client,
           guildId,
@@ -401,6 +417,47 @@ export default {
                 : 0,
           },
         );
+
+        if (result?.ok) {
+          const essencePercent = Math.max(
+            0,
+            Number(
+              getPetEffectValue(
+                profile,
+                'formation_essence_bonus',
+              ),
+            ) || 0,
+          );
+
+          if (essencePercent > 0 && result.essenceGain > 0) {
+            const petEssenceBonus = Math.max(
+              1,
+              Math.round(
+                result.essenceGain * essencePercent,
+              ),
+            );
+
+            result.state.formationEssence =
+              Math.max(
+                0,
+                Number(result.state.formationEssence) || 0,
+              ) + petEssenceBonus;
+
+            result.state = await saveFormationState(
+              client,
+              guildId,
+              userId,
+              result.state,
+            );
+
+            result.baseEssenceGain = result.essenceGain;
+            result.petEssenceBonus = petEssenceBonus;
+            result.petEssencePercent = essencePercent;
+            result.essenceGain += petEssenceBonus;
+            result.activePet = getActivePet(profile);
+          }
+        }
+
         return interaction.update({
           embeds: [buildFormationComprehendEmbed(result)],
           components: buildFormationBackRows(ownerId),
