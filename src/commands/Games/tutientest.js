@@ -50,6 +50,56 @@ const TEST_PETS = {
     id: 'hau_tho_kim_long',
     label: 'Hậu Thổ Kim Long',
   },
+
+  pet_tam_linh_mieu: {
+    id: 'tam_linh_mieu',
+    label: 'Tầm Linh Miêu',
+  },
+
+  pet_nguyet_quang_linh_tho: {
+    id: 'nguyet_quang_linh_tho',
+    label: 'Nguyệt Quang Linh Thố',
+  },
+
+  pet_han_ngoc_linh_xa: {
+    id: 'han_ngoc_linh_xa',
+    label: 'Hàn Ngọc Linh Xà',
+  },
+
+  pet_u_minh_huyen_xa: {
+    id: 'u_minh_huyen_xa',
+    label: 'U Minh Huyền Xà',
+  },
+
+  pet_bach_giac_linh_loc: {
+    id: 'bach_giac_linh_loc',
+    label: 'Bạch Giác Linh Lộc',
+  },
+
+  pet_thai_am_cuu_vi_ho: {
+    id: 'thai_am_cuu_vi_ho',
+    label: 'Thái Âm Cửu Vĩ Hồ',
+  },
+
+  pet_tu_dien_ky_lan: {
+    id: 'tu_dien_ky_lan',
+    label: 'Tử Điện Kỳ Lân',
+  },
+
+  pet_niet_ban_phuong_hoang: {
+    id: 'niet_ban_phuong_hoang',
+    label: 'Niết Bàn Phượng Hoàng',
+  },
+
+  pet_bach_vu_phong_lang: {
+    id: 'bach_vu_phong_lang',
+    label: 'Bạch Vũ Phong Lang',
+  },
+
+  pet_hu_khong_con_bang: {
+    id: 'hu_khong_con_bang',
+    label: 'Hư Không Côn Bằng',
+  },
 };
 
 const FORMATION_SPIRIT_TEST_PETS = {
@@ -338,70 +388,29 @@ export default {
               true,
             )
             .addChoices(
-              {
-                name: 'Thương Nhân Thần Bí',
-                value: 'merchant',
-              },
-
-              {
-                name: 'Thiên Đạo Cơ Duyên',
-                value: 'heavenly_fortune',
-              },
-
-              {
-                name: 'Thanh Phong Linh Hồ',
-                value: 'pet_thanh_phong_linh_ho',
-              },
-
-              {
-                name: 'Xích Viêm Hỏa Điểu',
-                value: 'pet_xich_viem_hoa_dieu',
-              },
-
-              {
-                name: 'Huyền Giáp Linh Quy',
-                value: 'pet_huyen_giap_linh_quy',
-              },
-
-              {
-                name: 'Thiên Lôi Bạch Hổ',
-                value: 'pet_thien_loi_bach_ho',
-              },
-
-              {
-                name: 'Hậu Thổ Kim Long',
-                value: 'pet_hau_tho_kim_long',
-              },
-
-              {
-                name: 'Trận Linh · Tắt Linh Thú',
-                value: 'formation_spirit_none',
-              },
-
-              {
-                name: 'Trận Linh · Thanh Phong Linh Hồ',
-                value: 'formation_spirit_thanh_phong_linh_ho',
-              },
-
-              {
-                name: 'Trận Linh · Xích Viêm Hỏa Điểu',
-                value: 'formation_spirit_xich_viem_hoa_dieu',
-              },
-
-              {
-                name: 'Trận Linh · Huyền Giáp Linh Quy',
-                value: 'formation_spirit_huyen_giap_linh_quy',
-              },
-
-              {
-                name: 'Trận Linh · Thiên Lôi Bạch Hổ',
-                value: 'formation_spirit_thien_loi_bach_ho',
-              },
-
-              {
-                name: 'Trận Linh · Hậu Thổ Kim Long',
-                value: 'formation_spirit_hau_tho_kim_long',
-              },
+              { name: 'Thương Nhân Thần Bí', value: 'merchant' },
+              { name: 'Thiên Đạo Cơ Duyên', value: 'heavenly_fortune' },
+              { name: 'Thanh Phong Linh Hồ', value: 'pet_thanh_phong_linh_ho' },
+              { name: 'Xích Viêm Hỏa Điểu', value: 'pet_xich_viem_hoa_dieu' },
+              { name: 'Huyền Giáp Linh Quy', value: 'pet_huyen_giap_linh_quy' },
+              { name: 'Thiên Lôi Bạch Hổ', value: 'pet_thien_loi_bach_ho' },
+              { name: 'Hậu Thổ Kim Long', value: 'pet_hau_tho_kim_long' },
+              { name: 'Tầm Linh Miêu', value: 'pet_tam_linh_mieu' },
+              { name: 'Nguyệt Quang Linh Thố', value: 'pet_nguyet_quang_linh_tho' },
+              { name: 'Hàn Ngọc Linh Xà', value: 'pet_han_ngoc_linh_xa' },
+              { name: 'U Minh Huyền Xà', value: 'pet_u_minh_huyen_xa' },
+              { name: 'Bạch Giác Linh Lộc', value: 'pet_bach_giac_linh_loc' },
+              { name: 'Thái Âm Cửu Vĩ Hồ', value: 'pet_thai_am_cuu_vi_ho' },
+              { name: 'Tử Điện Kỳ Lân', value: 'pet_tu_dien_ky_lan' },
+              { name: 'Niết Bàn Phượng Hoàng', value: 'pet_niet_ban_phuong_hoang' },
+              { name: 'Bạch Vũ Phong Lang', value: 'pet_bach_vu_phong_lang' },
+              { name: 'Hư Không Côn Bằng', value: 'pet_hu_khong_con_bang' },
+              { name: 'Trận Linh · Tắt Linh Thú', value: 'formation_spirit_none' },
+              { name: 'Trận Linh · Thanh Phong Linh Hồ', value: 'formation_spirit_thanh_phong_linh_ho' },
+              { name: 'Trận Linh · Xích Viêm Hỏa Điểu', value: 'formation_spirit_xich_viem_hoa_dieu' },
+              { name: 'Trận Linh · Huyền Giáp Linh Quy', value: 'formation_spirit_huyen_giap_linh_quy' },
+              { name: 'Trận Linh · Thiên Lôi Bạch Hổ', value: 'formation_spirit_thien_loi_bach_ho' },
+              { name: 'Trận Linh · Hậu Thổ Kim Long', value: 'formation_spirit_hau_tho_kim_long' },
             ),
       ),
 
