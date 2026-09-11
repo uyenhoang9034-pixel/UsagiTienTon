@@ -20,6 +20,7 @@ import {
 } from '../../services/cultivationFormationGameplay.js';
 
 import {
+  attemptFormationTribulation,
   getFormationTribulationPreview,
 } from '../../services/cultivationFormationTribulation.js';
 
@@ -28,6 +29,8 @@ import {
   buildFormationTribulationListEmbed,
   buildFormationTribulationPreviewEmbed,
   buildFormationTribulationPreviewRows,
+  buildFormationTribulationResultEmbed,
+  buildFormationTribulationResultRows,
   buildFormationTribulationRows,
 } from '../../services/cultivationFormationTribulationUI.js';
 
@@ -452,7 +455,28 @@ export default {
 
         return interaction.update({
           embeds: [buildFormationTribulationPreviewEmbed(result)],
-          components: buildFormationTribulationPreviewRows(ownerId),
+          components: buildFormationTribulationPreviewRows(
+            ownerId,
+            extra,
+          ),
+        });
+      }
+
+      case 'tribulation_attempt': {
+        const result = await attemptFormationTribulation(
+          client,
+          guildId,
+          userId,
+          extra,
+          {
+            ignoreCooldown:
+              hasFormationAdminRole(interaction),
+          },
+        );
+
+        return interaction.update({
+          embeds: [buildFormationTribulationResultEmbed(result)],
+          components: buildFormationTribulationResultRows(ownerId),
         });
       }
 
