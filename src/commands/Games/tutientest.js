@@ -52,6 +52,14 @@ const TEST_PETS = {
   },
 };
 
+const FORMATION_SPIRIT_TEST_PETS = {
+  formation_spirit_thanh_phong_linh_ho: TEST_PETS.pet_thanh_phong_linh_ho,
+  formation_spirit_xich_viem_hoa_dieu: TEST_PETS.pet_xich_viem_hoa_dieu,
+  formation_spirit_huyen_giap_linh_quy: TEST_PETS.pet_huyen_giap_linh_quy,
+  formation_spirit_thien_loi_bach_ho: TEST_PETS.pet_thien_loi_bach_ho,
+  formation_spirit_hau_tho_kim_long: TEST_PETS.pet_hau_tho_kim_long,
+};
+
 function getAdventureSessionKey(
   guildId,
   userId,
@@ -81,6 +89,57 @@ async function loadAdventure295UI() {
   return import(
     '../../services/cultivationAdventureV295UI.js'
   );
+}
+
+async function activateFormationSpiritTestPet(
+  client,
+  guildId,
+  userId,
+  petId,
+) {
+  const [service, petService] = await Promise.all([
+    import('../../services/cultivationService.js'),
+    import('../../services/cultivationPet.js'),
+  ]);
+
+  const pet = petService.getCultivationPet(
+    petId,
+  );
+
+  if (!pet) {
+    return {
+      ok: false,
+      reason: 'invalid_pet',
+    };
+  }
+
+  const profile = await service.getCultivationProfile(
+    client,
+    guildId,
+    userId,
+  );
+
+  petService.ensurePetData(
+    profile,
+  );
+
+  const newlyGranted =
+    profile.pets.owned[petId] !== true;
+
+  profile.pets.owned[petId] = true;
+  profile.pets.active = petId;
+
+  const saved = await service.saveCultivationProfile(
+    client,
+    profile,
+  );
+
+  return {
+    ok: true,
+    pet,
+    profile: saved,
+    newlyGranted,
+  };
 }
 
 async function setAdventureSession(
@@ -285,6 +344,31 @@ export default {
                 name: 'Hậu Thổ Kim Long',
                 value: 'pet_hau_tho_kim_long',
               },
+
+              {
+                name: 'Trận Linh · Thanh Phong Linh Hồ',
+                value: 'formation_spirit_thanh_phong_linh_ho',
+              },
+
+              {
+                name: 'Trận Linh · Xích Viêm Hỏa Điểu',
+                value: 'formation_spirit_xich_viem_hoa_dieu',
+              },
+
+              {
+                name: 'Trận Linh · Huyền Giáp Linh Quy',
+                value: 'formation_spirit_huyen_giap_linh_quy',
+              },
+
+              {
+                name: 'Trận Linh · Thiên Lôi Bạch Hổ',
+                value: 'formation_spirit_thien_loi_bach_ho',
+              },
+
+              {
+                name: 'Trận Linh · Hậu Thổ Kim Long',
+                value: 'formation_spirit_hau_tho_kim_long',
+              },
             ),
       ),
 
@@ -316,15 +400,6 @@ export default {
         return replyEphemeral(
           interaction,
           'Bạn không có quyền sử dụng lệnh test Tiên Lộ.',
-        );
-      }
-
-      if (
-        !CULTIVATION_CONFIG.enabled
-      ) {
-        return replyEphemeral(
-          interaction,
-          'Tiên Lộ hiện đang tạm đóng.',
         );
       }
 
@@ -362,6 +437,42 @@ export default {
         interaction.user.id;
 
       await interaction.deferReply();
+
+      const formationSpiritPet =
+        FORMATION_SPIRIT_TEST_PETS[event];
+
+      if (formationSpiritPet) {
+        const result =
+          await activateFormationSpiritTestPet(
+            client,
+            guildId,
+            userId,
+            formationSpiritPet.id,
+          );
+
+        if (!result.ok) {
+          return interaction.editReply({
+            content:
+              `❌ Không thể kích hoạt Trận Linh test: \`${result.reason || 'unknown'}\``,
+            embeds: [],
+            components: [],
+          });
+        }
+
+        return interaction.editReply({
+          content: [
+            '<a:ttconghuong:1547830051951738960> **TRẬN LINH · GM TEST**',
+            '',
+            `${result.pet.emoji || ''} Đã kích hoạt **${result.pet.name}** làm Linh Thú hiện hành.`,
+            result.newlyGranted
+              ? '• Linh Thú chưa sở hữu trước đó nên đã được **cấp vào hồ sơ**.'
+              : '• Linh Thú đã có sẵn trong hồ sơ.',
+            '• Mở `/tutien` → **Trận Pháp** để kiểm tra Cộng Hưởng Trận Linh.',
+          ].join('\n'),
+          embeds: [],
+          components: [],
+        });
+      }
 
       if (
         event === 'merchant'
