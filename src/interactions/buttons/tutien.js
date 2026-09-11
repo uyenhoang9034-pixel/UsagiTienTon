@@ -91,7 +91,7 @@ function ensureFunction(moduleObject, name, moduleLabel) {
 async function loadCore() {
   const [service, ui] = await Promise.all([
     import('../../services/cultivationServiceV2.js'),
-    import('../../services/cultivationUI.js'),
+    import('../../services/cultivationUIV2.js'),
   ]);
 
   return { service, ui };
