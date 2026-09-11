@@ -3,6 +3,7 @@ import { EmbedBuilder } from 'discord.js';
 import {
   buildFormationComprehendEmbed as buildBaseFormationComprehendEmbed,
   buildFormationMainEmbed as buildBaseFormationMainEmbed,
+  buildFormationResonanceEmbed as buildBaseFormationResonanceEmbed,
 } from './cultivationFormationUI.js';
 
 import {
@@ -48,6 +49,17 @@ function buildSpiritEffectLines(synergy) {
   return lines;
 }
 
+function buildTotalEffectLines(effects = {}) {
+  return [
+    `• Tu Vi: **+${percent(effects.cultivationBonus)}**`,
+    `• Thám Hiểm: **+${percent(effects.adventureBonus)}**`,
+    `• Linh Thạch: **+${percent(effects.spiritStoneBonus)}**`,
+    `• Giảm Thể Lực: **${percent(effects.staminaReduction)}**`,
+    `• Đột Phá: **+${percent(effects.breakthroughBonus)}**`,
+    `• Lĩnh Ngộ: **+${percent(effects.insightBonus)}**`,
+  ];
+}
+
 export function buildFormationMainEmbed(user, state, profile = null) {
   const embed = buildBaseFormationMainEmbed(user, state);
   const synergy = profile
@@ -83,6 +95,47 @@ export function buildFormationMainEmbed(user, state, profile = null) {
       description,
       '',
       ...spiritLines,
+    ].join('\n'),
+  );
+}
+
+export function buildFormationResonanceEmbed(state, gameplayBonus = null) {
+  const embed = buildBaseFormationResonanceEmbed(state);
+  const synergy = gameplayBonus?.spiritSynergy || null;
+
+  if (!synergy?.pet) {
+    return embed;
+  }
+
+  const data = embed.toJSON();
+  const description = String(data.description || '');
+  const spiritLines = [
+    '**Trận Linh bổ sung**',
+    `• ${synergy.pet.emoji || ''} **${synergy.pet.name}** · **${synergy.label}**`,
+    synergy.active
+      ? '• Trạng thái: **Đang cộng hưởng**'
+      : '• Trạng thái: **Chưa đủ điều kiện cộng hưởng**',
+    ...buildSpiritEffectLines(synergy),
+  ];
+
+  if (!synergy.active && synergy.requiredFormationId === 'five_elements') {
+    spiritLines.push('• Điều kiện: **Tiểu Ngũ Hành Trận có đủ Kim · Mộc · Thủy · Hỏa · Thổ**.');
+  }
+
+  const totalLines = synergy.active
+    ? [
+        '',
+        '**Tổng hiệu quả gameplay**',
+        ...buildTotalEffectLines(gameplayBonus?.effects || {}),
+      ]
+    : [];
+
+  return new EmbedBuilder(data).setDescription(
+    [
+      description,
+      '',
+      ...spiritLines,
+      ...totalLines,
     ].join('\n'),
   );
 }
