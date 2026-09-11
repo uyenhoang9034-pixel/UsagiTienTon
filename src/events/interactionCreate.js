@@ -14,6 +14,9 @@ import {
   getDailyQuestCompletedCount,
   syncDailyQuests,
 } from '../services/cultivationDailyQuest.js';
+import {
+  regenerateCultivationStamina,
+} from '../services/cultivationStamina.js';
 
 async function sendInteractionError(interaction, error) {
   const message =
@@ -129,6 +132,28 @@ function getCultivationThreadKey(guildId, userId) {
   return `games:cultivation:thread:${guildId}:${userId}`;
 }
 
+async function refreshCultivationStamina(interaction, client) {
+  if (
+    !interaction.guildId ||
+    !interaction.user?.id
+  ) {
+    return;
+  }
+
+  try {
+    await regenerateCultivationStamina(
+      client,
+      interaction.guildId,
+      interaction.user.id,
+    );
+  } catch (error) {
+    logger.warn(
+      'Cultivation stamina regeneration failed:',
+      error,
+    );
+  }
+}
+
 async function hideCompletedDailyQuestPanel(
   interaction,
   client,
@@ -230,6 +255,13 @@ export default {
           return;
         }
 
+        if (interaction.commandName === 'tutien') {
+          await refreshCultivationStamina(
+            interaction,
+            client,
+          );
+        }
+
         const routedCommandInteraction =
           interaction.commandName !== 'tutien' &&
           interaction.commandName.startsWith('tutien')
@@ -275,6 +307,13 @@ export default {
       ) {
         await replyMaintenance(interaction);
         return;
+      }
+
+      if (isCultivationComponent(handlerId)) {
+        await refreshCultivationStamina(
+          interaction,
+          client,
+        );
       }
 
       const routedInteraction = isCultivationComponent(handlerId)
