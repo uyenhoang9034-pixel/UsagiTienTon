@@ -7,10 +7,13 @@ import {
 import {
   getFormationState,
   saveFormationState,
+  setFormationEyeElement,
   setFormationSlotElement,
 } from '../../services/cultivationFormation.js';
 
 import {
+  buildFormationEyeEmbed,
+  buildFormationEyeRows,
   buildFormationSlotDetailEmbed,
   buildFormationSlotDetailRows,
 } from '../../services/cultivationFormationV2UI.js';
@@ -86,6 +89,53 @@ async function runElementChange(
   return result;
 }
 
+async function runEyeChange(
+  interaction,
+  client,
+  guildId,
+  userId,
+  elementId,
+) {
+  let result = await setFormationEyeElement(
+    client,
+    guildId,
+    userId,
+    elementId,
+  );
+
+  if (
+    hasFormationAdminRole(interaction) &&
+    !result.ok &&
+    ['not_enough_essence', 'not_enough_crystal'].includes(result.reason)
+  ) {
+    const state = result.state;
+    state.formationEssence = Math.max(
+      Number(state.formationEssence) || 0,
+      Number(result.essenceCost) || 0,
+    );
+    state.elementCrystals[elementId] = Math.max(
+      Number(state.elementCrystals?.[elementId]) || 0,
+      Number(result.crystalCost) || 0,
+    );
+
+    await saveFormationState(
+      client,
+      guildId,
+      userId,
+      state,
+    );
+
+    result = await setFormationEyeElement(
+      client,
+      guildId,
+      userId,
+      elementId,
+    );
+  }
+
+  return result;
+}
+
 export default {
   name: 'tutien_formation_v2',
 
@@ -132,6 +182,27 @@ export default {
       return interaction.update({
         embeds: [buildFormationSlotDetailEmbed(result.state, slotIndex, result)],
         components: buildFormationSlotDetailRows(ownerId, result.state, slotIndex),
+      });
+    }
+
+    if (action === 'eye') {
+      const elementId = interaction.values?.[0];
+
+      if (!elementId) {
+        return replyEphemeral(interaction, 'Không xác định được hệ Mắt Trận mới.');
+      }
+
+      const result = await runEyeChange(
+        interaction,
+        client,
+        guildId,
+        userId,
+        elementId,
+      );
+
+      return interaction.update({
+        embeds: [buildFormationEyeEmbed(result.state, result)],
+        components: buildFormationEyeRows(ownerId, result.state),
       });
     }
 
