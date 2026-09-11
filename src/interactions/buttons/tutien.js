@@ -100,7 +100,7 @@ async function loadCore() {
 async function loadAdventure() {
   const [service, ui] = await Promise.all([
     import('../../services/cultivationAdventureFormationV2.js'),
-    import('../../services/cultivationAdventureV2UI.js'),
+    import('../../services/cultivationAdventureV2UIFormation.js'),
   ]);
 
   return { service, ui };
