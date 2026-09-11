@@ -28,6 +28,8 @@ import {
   appendFormationButton,
 } from '../services/cultivationFormationUI.js';
 
+const activeFormationInteractions = new Set();
+
 async function sendInteractionError(interaction, error) {
   const message =
     process.env.NODE_ENV === 'production'
@@ -68,6 +70,19 @@ async function replyMaintenance(interaction) {
   return interaction.reply(payload);
 }
 
+async function replyFormationBusy(interaction) {
+  const payload = {
+    content: 'Trận Pháp đang xử lý thao tác trước đó. Hãy chờ một chút rồi thao tác tiếp.',
+    flags: MessageFlags.Ephemeral,
+  };
+
+  if (interaction.replied || interaction.deferred) {
+    return interaction.followUp(payload);
+  }
+
+  return interaction.reply(payload);
+}
+
 function getComponentCollection(interaction, client) {
   if (interaction.isButton()) {
     return client.buttons;
@@ -88,6 +103,13 @@ function isCultivationComponent(handlerId) {
   return (
     handlerId === 'tutien_action' ||
     handlerId.startsWith('tutien_')
+  );
+}
+
+function isFormationComponent(handlerId) {
+  return (
+    handlerId === 'tutien_formation' ||
+    handlerId === 'tutien_formation_v2'
   );
 }
 
@@ -382,7 +404,38 @@ export default {
         ? createCultivationCompatInteraction(interaction)
         : interaction;
 
-      await handler.execute(routedInteraction, client, args);
+      const formationGuardKey =
+        isFormationComponent(handlerId) &&
+        interaction.guildId &&
+        interaction.user?.id
+          ? `${interaction.guildId}:${interaction.user.id}`
+          : null;
+
+      if (
+        formationGuardKey &&
+        activeFormationInteractions.has(
+          formationGuardKey,
+        )
+      ) {
+        await replyFormationBusy(interaction);
+        return;
+      }
+
+      if (formationGuardKey) {
+        activeFormationInteractions.add(
+          formationGuardKey,
+        );
+      }
+
+      try {
+        await handler.execute(routedInteraction, client, args);
+      } finally {
+        if (formationGuardKey) {
+          activeFormationInteractions.delete(
+            formationGuardKey,
+          );
+        }
+      }
 
       if (
         isCultivationComponent(handlerId)
