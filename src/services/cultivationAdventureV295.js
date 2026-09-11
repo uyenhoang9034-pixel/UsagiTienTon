@@ -240,15 +240,12 @@ function rollAvailablePet(
   }
 
   /**
-   * Nếu không Linh Thú mới nào vượt roll, quay về pool trọng số cũ.
-   * Cách này giữ 5 Linh Thú cũ còn xuất hiện đúng hệ thống cũ,
-   * đồng thời Bạch Vũ Phong Lang (weight 0/encounter disabled) không bao giờ gặp.
+   * Nếu không ứng viên mới nào vượt roll, vẫn chọn trong toàn bộ Linh Thú
+   * chưa sở hữu và được phép xuất hiện. Như vậy không trả nhầm all_pets_owned
+   * khi người chơi vẫn còn Linh Thú mới chưa bắt được.
+   * Bạch Vũ Phong Lang vẫn không thể lọt vào đây vì encounterEnabled=false.
    */
-  const legacyPool = available.filter(
-    pet => !Number.isFinite(Number(pet.encounterChance)),
-  );
-
-  return weightedPick(legacyPool);
+  return weightedPick(available);
 }
 
 export async function startAdventurePetEncounter(
