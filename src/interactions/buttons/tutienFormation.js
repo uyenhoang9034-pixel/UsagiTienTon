@@ -209,7 +209,10 @@ async function runEyeRefine(
     );
   }
 
-  return result;
+  return {
+    ...result,
+    eyeAction: 'refine',
+  };
 }
 
 export default {
