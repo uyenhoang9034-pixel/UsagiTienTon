@@ -367,7 +367,14 @@ export function getFormationResonance(state) {
   };
 }
 
-export async function comprehendFormation(client, guildId, userId) {
+export async function comprehendFormation(
+  client,
+  guildId,
+  userId,
+  {
+    extraInsightBonus = 0,
+  } = {},
+) {
   const state = await getFormationState(client, guildId, userId);
   const now = Date.now();
   const last = Number(state.lastComprehendAt) || 0;
@@ -380,7 +387,25 @@ export async function comprehendFormation(client, guildId, userId) {
   const resonance = getFormationResonance(state);
   const insightBase = 20 + Math.floor(Math.random() * 16);
   const essenceGain = 6 + Math.floor(Math.random() * 7);
-  const insightGain = Math.max(1, Math.round(insightBase * (1 + resonance.effects.insightBonus)));
+  const safeExtraInsightBonus = Math.max(
+    0,
+    Math.min(0.75, Number(extraInsightBonus) || 0),
+  );
+  const totalInsightBonus = Math.max(
+    0,
+    Math.min(
+      0.75,
+      (Number(resonance.effects.insightBonus) || 0) +
+      safeExtraInsightBonus,
+    ),
+  );
+  const insightGain = Math.max(
+    1,
+    Math.round(
+      insightBase *
+      (1 + totalInsightBonus),
+    ),
+  );
   const before = new Set(state.unlockedFormationIds);
 
   const crystalIds = Object.keys(FORMATION_ELEMENTS);
@@ -420,6 +445,8 @@ export async function comprehendFormation(client, guildId, userId) {
   return {
     ok: true,
     insightGain,
+    insightBonus: totalInsightBonus,
+    extraInsightBonus: safeExtraInsightBonus,
     essenceGain,
     crystalId,
     crystalGain,
