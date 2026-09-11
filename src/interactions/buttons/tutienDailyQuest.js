@@ -7,6 +7,7 @@ import {
 } from '../../config/cultivationGame.js';
 
 import {
+  getDailyQuestCompletedCount,
   getDailyQuestState,
   rollDailyQuests,
 } from '../../services/cultivationDailyQuest.js';
@@ -60,6 +61,45 @@ async function enforceChannel(
   return true;
 }
 
+function isAllDailyQuestsDone(
+  state,
+) {
+  const total =
+    Array.isArray(
+      state?.quests,
+    )
+      ? state.quests.length
+      : 0;
+
+  return Boolean(
+    state?.rolled &&
+    total > 0 &&
+    getDailyQuestCompletedCount(
+      state,
+    ) >= total
+  );
+}
+
+async function hideCurrentQuestPanel(
+  interaction,
+) {
+  try {
+    if (
+      !interaction.deferred &&
+      !interaction.replied
+    ) {
+      await interaction.deferUpdate();
+    }
+
+    await interaction.message?.delete();
+  } catch (error) {
+    console.warn(
+      '[TU TIEN DAILY QUEST CLEANUP WARNING]',
+      error,
+    );
+  }
+}
+
 export default {
   name:
     'tutien_daily_quest',
@@ -108,6 +148,16 @@ export default {
             interaction.user.id,
           );
 
+        if (
+          isAllDailyQuestsDone(
+            state,
+          )
+        ) {
+          return hideCurrentQuestPanel(
+            interaction,
+          );
+        }
+
         return interaction.update({
           embeds: [
             buildDailyQuestEmbed(
@@ -132,6 +182,16 @@ export default {
             sync: true,
           },
         );
+
+      if (
+        isAllDailyQuestsDone(
+          state,
+        )
+      ) {
+        return hideCurrentQuestPanel(
+          interaction,
+        );
+      }
 
       return interaction.update({
         embeds: [
