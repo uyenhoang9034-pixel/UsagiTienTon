@@ -8,9 +8,6 @@ import {
   CULTIVATION_ITEMS,
 } from '../../config/cultivationGame.js';
 
-const TUTIEN_ADMIN_ROLE_ID =
-  '1541303749916754001';
-
 const ERROR_EMOJI =
   '<a:angryg1:1541441195144773652>';
 
@@ -18,20 +15,40 @@ const HEADER =
   '<a:trangtrig2:1546040703375904801> **TIÊN LỘ · GM** <a:trangtrig3:1546040818261954610>';
 
 function hasTutienAdminRole(member) {
+  const adminRoleId =
+    CULTIVATION_CONFIG.adminRoleId;
+
   return Boolean(
-    member?.roles?.cache?.has(
-      TUTIEN_ADMIN_ROLE_ID,
+    adminRoleId &&
+    member?.roles?.cache?.has?.(
+      adminRoleId,
     ),
   );
 }
 
-function clampQuantity(value) {
+function clampItemQuantity(value) {
   return Math.max(
     1,
     Math.min(
       99,
       Math.floor(Number(value) || 1),
     ),
+  );
+}
+
+function clampLargeQuantity(value) {
+  return Math.max(
+    1,
+    Math.min(
+      1000000000,
+      Math.floor(Number(value) || 1),
+    ),
+  );
+}
+
+function formatNumber(value) {
+  return new Intl.NumberFormat('vi-VN').format(
+    Math.max(0, Math.floor(Number(value) || 0)),
   );
 }
 
@@ -53,12 +70,12 @@ export default {
   data:
     new SlashCommandBuilder()
       .setName('tutienitem')
-      .setDescription('GM: Cấp vật phẩm hoặc Linh Thú Tiên Lộ cho đạo hữu.')
+      .setDescription('GM: Cấp vật phẩm, Linh Thú, Linh Thạch hoặc Trận Pháp.')
       .addStringOption(
         (option) =>
           option
             .setName('item')
-            .setDescription('Vật phẩm hoặc Linh Thú muốn cấp.')
+            .setDescription('Thứ muốn cấp.')
             .setRequired(true)
             .addChoices(
               { name: 'Tụ Khí Đan', value: 'tu_khi_dan' },
@@ -68,6 +85,13 @@ export default {
               { name: 'Huyền Thiết', value: 'huyen_thiet' },
               { name: 'Thượng Cổ Phù', value: 'co_phu' },
               { name: 'Vô Danh Kiếm Phổ', value: 'vo_danh_kiem_pho' },
+              { name: 'Linh Thạch', value: 'currency:spirit_stones' },
+              { name: 'Trận Văn', value: 'formation_essence' },
+              { name: 'Trận Đồ · Tiểu Ngũ Hành Trận', value: 'formation:five_elements' },
+              { name: 'Trận Đồ · Phong Lôi Dẫn Thiên Trận', value: 'formation:wind_lightning' },
+              { name: 'Trận Đồ · Huyền Băng Tỏa Linh Trận', value: 'formation:frozen_spirit' },
+              { name: 'Trận Đồ · Âm Dương Lưỡng Nghi Trận', value: 'formation:yin_yang' },
+              { name: 'Trận Đồ · Hỗn Độn Quy Nhất Trận', value: 'formation:chaos_unity' },
               { name: 'Linh Thú · Thanh Phong Linh Hồ', value: 'pet:thanh_phong_linh_ho' },
               { name: 'Linh Thú · Xích Viêm Hỏa Điểu', value: 'pet:xich_viem_hoa_dieu' },
               { name: 'Linh Thú · Huyền Giáp Linh Quy', value: 'pet:huyen_giap_linh_quy' },
@@ -79,9 +103,9 @@ export default {
         (option) =>
           option
             .setName('soluong')
-            .setDescription('Số lượng vật phẩm muốn cấp. Linh Thú luôn cấp 1 con.')
+            .setDescription('Số lượng muốn cấp. Trận Đồ/Linh Thú luôn cấp 1.')
             .setMinValue(1)
-            .setMaxValue(99),
+            .setMaxValue(1000000000),
       )
       .addUserOption(
         (option) =>
@@ -108,23 +132,6 @@ export default {
         });
       }
 
-      if (!CULTIVATION_CONFIG.enabled) {
-        return interaction.reply({
-          content: 'Tiên Lộ hiện đang tạm đóng.',
-          flags: MessageFlags.Ephemeral,
-        });
-      }
-
-      if (
-        CULTIVATION_CONFIG.channelId &&
-        interaction.channelId !== CULTIVATION_CONFIG.channelId
-      ) {
-        return interaction.reply({
-          content: `Tiên Lộ chỉ mở tại <#${CULTIVATION_CONFIG.channelId}>.`,
-          flags: MessageFlags.Ephemeral,
-        });
-      }
-
       if (!interaction.client?.db) {
         return interaction.reply({
           content: formatError('Database chưa sẵn sàng, thử lại sau một chút nhé.'),
@@ -133,16 +140,14 @@ export default {
       }
 
       const selectedId = interaction.options.getString('item', true);
-      const quantity = clampQuantity(
-        interaction.options.getInteger('soluong'),
-      );
+      const requestedQuantity = interaction.options.getInteger('soluong');
       const targetUser =
         interaction.options.getUser('member') ||
         interaction.user;
 
       if (targetUser.bot) {
         return interaction.reply({
-          content: formatError('Không thể cấp vật phẩm hoặc Linh Thú cho bot.'),
+          content: formatError('Không thể cấp dữ liệu Tiên Lộ cho bot.'),
           flags: MessageFlags.Ephemeral,
         });
       }
@@ -158,6 +163,117 @@ export default {
       const userEmoji =
         CULTIVATION_CONFIG.ui?.emojis?.user ||
         '🐰';
+
+      if (selectedId === 'currency:spirit_stones') {
+        const quantity = clampLargeQuantity(requestedQuantity);
+        const profile = await getCultivationProfile(
+          interaction.client,
+          interaction.guildId,
+          targetUser.id,
+        );
+
+        profile.spiritStones =
+          Math.max(0, Number(profile.spiritStones) || 0) + quantity;
+
+        const saved = await saveCultivationProfile(
+          interaction.client,
+          profile,
+        );
+
+        const emoji = CULTIVATION_CONFIG.ui?.emojis?.spiritStone || '💎';
+
+        return interaction.editReply({
+          content: [
+            HEADER,
+            '',
+            `${userEmoji} Đạo Hữu: <@${targetUser.id}>`,
+            `${emoji} Đã cấp Linh Thạch: **+${formatNumber(quantity)}**`,
+            `${emoji} Hiện có: **${formatNumber(saved.spiritStones)}**`,
+          ].join('\n'),
+        });
+      }
+
+      if (selectedId === 'formation_essence') {
+        const quantity = clampLargeQuantity(requestedQuantity);
+        const {
+          getFormationState,
+          saveFormationState,
+        } = await import('../../services/cultivationFormation.js');
+
+        const state = await getFormationState(
+          interaction.client,
+          interaction.guildId,
+          targetUser.id,
+        );
+
+        state.formationEssence =
+          Math.max(0, Number(state.formationEssence) || 0) + quantity;
+
+        const saved = await saveFormationState(
+          interaction.client,
+          interaction.guildId,
+          targetUser.id,
+          state,
+        );
+
+        return interaction.editReply({
+          content: [
+            HEADER,
+            '',
+            `${userEmoji} Đạo Hữu: <@${targetUser.id}>`,
+            `<a:tttrankho:1547820098465824809> Đã cấp Trận Văn: **+${formatNumber(quantity)}**`,
+            `<a:tttrankho:1547820098465824809> Hiện có: **${formatNumber(saved.formationEssence)}**`,
+          ].join('\n'),
+        });
+      }
+
+      if (selectedId.startsWith('formation:')) {
+        const formationId = selectedId.slice('formation:'.length);
+        const {
+          FORMATION_DEFINITIONS,
+          getFormationState,
+          saveFormationState,
+        } = await import('../../services/cultivationFormation.js');
+
+        const formation = FORMATION_DEFINITIONS[formationId];
+
+        if (!formation) {
+          return interaction.editReply({
+            content: formatError('Không tìm thấy Trận Đồ này.'),
+          });
+        }
+
+        const state = await getFormationState(
+          interaction.client,
+          interaction.guildId,
+          targetUser.id,
+        );
+
+        const alreadyUnlocked = state.unlockedFormationIds.includes(formationId);
+
+        if (!alreadyUnlocked) {
+          state.unlockedFormationIds.push(formationId);
+          state.formationLevels[formationId] ||= 1;
+          state.layouts[formationId] ||= [...formation.pattern];
+
+          await saveFormationState(
+            interaction.client,
+            interaction.guildId,
+            targetUser.id,
+            state,
+          );
+        }
+
+        return interaction.editReply({
+          content: [
+            HEADER,
+            '',
+            `${userEmoji} Đạo Hữu: <@${targetUser.id}>`,
+            `<a:ttrando:1547820131889979464> Trận Đồ: **${formation.name}**`,
+            `<a:trangtrig43:1547238351869059082> Trạng Thái: **${alreadyUnlocked ? 'Đã mở khóa từ trước' : 'Đã mở khóa'}**`,
+          ].join('\n'),
+        });
+      }
 
       if (selectedId.startsWith('pet:')) {
         const petId = selectedId.slice(4);
@@ -220,6 +336,7 @@ export default {
         });
       }
 
+      const quantity = clampItemQuantity(requestedQuantity);
       const profile = await getCultivationProfile(
         interaction.client,
         interaction.guildId,
@@ -264,7 +381,7 @@ export default {
       console.error('[TU TIEN ITEM ERROR]', error);
 
       const message = formatError(
-        `Lệnh cấp vật phẩm/Linh Thú bị lỗi: \`${error?.message || 'Unknown error'}\``,
+        `Lệnh cấp dữ liệu Tiên Lộ bị lỗi: \`${error?.message || 'Unknown error'}\``,
       );
 
       if (interaction.deferred || interaction.replied) {
