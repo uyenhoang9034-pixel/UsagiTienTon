@@ -1,9 +1,20 @@
 import {
+  getDatabaseValue,
+  setDatabaseValue,
+} from '../utils/database.js';
+
+import {
+  Mutex,
+} from '../utils/mutex.js';
+
+import {
+  FORMATION_DEFINITIONS,
   getActiveFormation,
   getFormationEye,
   getFormationLevel,
   getFormationSlotLevels,
   getFormationState,
+  saveFormationState,
 } from './cultivationFormation.js';
 
 import {
@@ -13,6 +24,12 @@ import {
 import {
   getCultivationProfile,
 } from './cultivationService.js';
+
+const TRIBULATION_KEY_PREFIX =
+  'games:cultivation:formationTribulation:';
+
+export const FORMATION_TRIBULATION_COOLDOWN_MS =
+  30 * 60 * 1000;
 
 export const FORMATION_TRIBULATIONS = {
   five_elements_earth: {
@@ -61,6 +78,10 @@ export const FORMATION_TRIBULATIONS = {
   },
 };
 
+function tribulationKey(guildId, userId) {
+  return `${TRIBULATION_KEY_PREFIX}${guildId}:${userId}`;
+}
+
 function clamp(value, min, max) {
   return Math.max(
     min,
@@ -82,6 +103,67 @@ function average(values = []) {
   );
 
   return total / values.length;
+}
+
+function randomInt(min, max) {
+  const safeMin = Math.ceil(Number(min) || 0);
+  const safeMax = Math.max(
+    safeMin,
+    Math.floor(Number(max) || safeMin),
+  );
+
+  return Math.floor(
+    Math.random() *
+      (safeMax - safeMin + 1),
+  ) + safeMin;
+}
+
+function normalizeTribulationStatus(raw) {
+  return {
+    lastAttemptAt: Math.max(
+      0,
+      Number(raw?.lastAttemptAt) || 0,
+    ),
+    totalAttempts: Math.max(
+      0,
+      Math.floor(Number(raw?.totalAttempts) || 0),
+    ),
+    totalWins: Math.max(
+      0,
+      Math.floor(Number(raw?.totalWins) || 0),
+    ),
+  };
+}
+
+export async function getFormationTribulationStatus(
+  client,
+  guildId,
+  userId,
+) {
+  const stored = await getDatabaseValue(
+    client,
+    tribulationKey(guildId, userId),
+    null,
+  );
+
+  return normalizeTribulationStatus(stored);
+}
+
+export function getFormationTribulationCooldownRemaining(status) {
+  const lastAttemptAt = Math.max(
+    0,
+    Number(status?.lastAttemptAt) || 0,
+  );
+
+  if (!lastAttemptAt) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    FORMATION_TRIBULATION_COOLDOWN_MS -
+      (Date.now() - lastAttemptAt),
+  );
 }
 
 export function getFormationTribulation(id) {
@@ -236,4 +318,184 @@ export async function getFormationTribulationPreview(
       resonanceBonus,
     },
   };
+}
+
+export async function attemptFormationTribulation(
+  client,
+  guildId,
+  userId,
+  tribulationId,
+  {
+    ignoreCooldown = false,
+  } = {},
+) {
+  const lockKey =
+    `cultivation:formationTribulation:${guildId}:${userId}`;
+
+  return Mutex.runExclusive(
+    lockKey,
+    async () => {
+      const preview =
+        await getFormationTribulationPreview(
+          client,
+          guildId,
+          userId,
+          tribulationId,
+        );
+
+      if (!preview.ok) {
+        return preview;
+      }
+
+      const status =
+        await getFormationTribulationStatus(
+          client,
+          guildId,
+          userId,
+        );
+
+      const remainingMs =
+        getFormationTribulationCooldownRemaining(
+          status,
+        );
+
+      if (
+        !ignoreCooldown &&
+        remainingMs > 0
+      ) {
+        return {
+          ok: false,
+          reason: 'cooldown',
+          remainingMs,
+          status,
+          preview,
+        };
+      }
+
+      const success =
+        Math.random() < preview.winChance;
+
+      let reward = null;
+      let state = preview.state;
+
+      if (success) {
+        const difficulty = Math.max(
+          1,
+          Number(preview.tribulation.difficulty) || 1,
+        );
+
+        const insightGain = randomInt(
+          20 + difficulty * 10,
+          30 + difficulty * 15,
+        );
+
+        const essenceGain = randomInt(
+          10 + difficulty * 8,
+          18 + difficulty * 12,
+        );
+
+        const fragmentGain =
+          difficulty >= 4
+            ? 2
+            : 1;
+
+        const crystalGain =
+          difficulty >= 5
+            ? 3
+            : difficulty >= 3
+              ? 2
+              : 1;
+
+        const recommendedFormation =
+          FORMATION_DEFINITIONS[
+            preview.tribulation.recommendedFormationId
+          ];
+
+        const crystalPool = Array.from(
+          new Set(
+            recommendedFormation?.pattern || [],
+          ),
+        );
+
+        const crystalId = crystalPool.length
+          ? crystalPool[
+              Math.floor(
+                Math.random() * crystalPool.length,
+              )
+            ]
+          : 'spirit';
+
+        state.insight = Math.max(
+          0,
+          Number(state.insight) || 0,
+        ) + insightGain;
+
+        state.formationEssence = Math.max(
+          0,
+          Number(state.formationEssence) || 0,
+        ) + essenceGain;
+
+        state.formationFragments ||= {};
+        state.formationFragments[
+          preview.tribulation.recommendedFormationId
+        ] = Math.max(
+          0,
+          Number(
+            state.formationFragments?.[
+              preview.tribulation.recommendedFormationId
+            ],
+          ) || 0,
+        ) + fragmentGain;
+
+        state.elementCrystals ||= {};
+        state.elementCrystals[crystalId] = Math.max(
+          0,
+          Number(state.elementCrystals?.[crystalId]) || 0,
+        ) + crystalGain;
+
+        state = await saveFormationState(
+          client,
+          guildId,
+          userId,
+          state,
+        );
+
+        reward = {
+          insightGain,
+          essenceGain,
+          fragmentGain,
+          crystalId,
+          crystalGain,
+          formationId:
+            preview.tribulation.recommendedFormationId,
+        };
+      }
+
+      const nextStatus = {
+        lastAttemptAt: Date.now(),
+        totalAttempts:
+          status.totalAttempts + 1,
+        totalWins:
+          status.totalWins +
+          (success ? 1 : 0),
+      };
+
+      await setDatabaseValue(
+        client,
+        tribulationKey(guildId, userId),
+        nextStatus,
+      );
+
+      return {
+        ok: true,
+        success,
+        preview,
+        state,
+        reward,
+        status: nextStatus,
+        cooldownMs:
+          FORMATION_TRIBULATION_COOLDOWN_MS,
+      };
+    },
+  );
 }
