@@ -3,10 +3,15 @@ import { Events, MessageFlags } from 'discord.js';
 import { logger } from '../utils/logger.js';
 import { CULTIVATION_CONFIG } from '../config/cultivationGame.js';
 import {
+  getDatabaseValue,
+  setDatabaseValue,
+} from '../utils/database.js';
+import {
   CULTIVATION_MAINTENANCE_MESSAGE,
   isCultivationMaintenance,
 } from '../services/cultivationMaintenance.js';
 import {
+  getDailyQuestCompletedCount,
   syncDailyQuests,
 } from '../services/cultivationDailyQuest.js';
 
@@ -120,6 +125,65 @@ function createCultivationCompatInteraction(interaction) {
   });
 }
 
+function getCultivationThreadKey(guildId, userId) {
+  return `games:cultivation:thread:${guildId}:${userId}`;
+}
+
+async function hideCompletedDailyQuestPanel(
+  interaction,
+  client,
+  state,
+) {
+  const total = Array.isArray(state?.quests)
+    ? state.quests.length
+    : 0;
+
+  if (
+    !state?.rolled ||
+    total <= 0 ||
+    getDailyQuestCompletedCount(state) < total
+  ) {
+    return;
+  }
+
+  const threadKey = getCultivationThreadKey(
+    interaction.guildId,
+    interaction.user.id,
+  );
+
+  const threadData = await getDatabaseValue(
+    client,
+    threadKey,
+    null,
+  );
+
+  const messageId = threadData?.dailyQuestMessageId;
+
+  if (messageId) {
+    try {
+      const message = await interaction.channel.messages.fetch(messageId);
+      await message.delete();
+    } catch (error) {
+      logger.warn(
+        'Failed to delete completed daily quest panel:',
+        error,
+      );
+    }
+  }
+
+  if (threadData) {
+    await setDatabaseValue(
+      client,
+      threadKey,
+      {
+        ...threadData,
+        dailyQuestMessageId: null,
+        updatedAt: Date.now(),
+      },
+    );
+  }
+}
+
 async function autoSyncDailyQuests(
   interaction,
   client,
@@ -135,10 +199,16 @@ async function autoSyncDailyQuests(
   }
 
   try {
-    await syncDailyQuests(
+    const state = await syncDailyQuests(
       client,
       interaction.guildId,
       interaction.user.id,
+    );
+
+    await hideCompletedDailyQuestPanel(
+      interaction,
+      client,
+      state,
     );
   } catch (error) {
     logger.warn(
