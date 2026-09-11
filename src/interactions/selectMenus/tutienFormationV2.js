@@ -1,7 +1,12 @@
 import { MessageFlags } from 'discord.js';
 
 import {
+  CULTIVATION_CONFIG,
+} from '../../config/cultivationGame.js';
+
+import {
   getFormationState,
+  saveFormationState,
   setFormationSlotElement,
 } from '../../services/cultivationFormation.js';
 
@@ -21,6 +26,64 @@ async function replyEphemeral(interaction, content) {
   }
 
   return interaction.reply(payload);
+}
+
+function hasFormationAdminRole(interaction) {
+  const roleId = CULTIVATION_CONFIG.adminRoleId;
+  return Boolean(
+    roleId &&
+    interaction.member?.roles?.cache?.has?.(roleId),
+  );
+}
+
+async function runElementChange(
+  interaction,
+  client,
+  guildId,
+  userId,
+  slotIndex,
+  elementId,
+) {
+  let result = await setFormationSlotElement(
+    client,
+    guildId,
+    userId,
+    slotIndex,
+    elementId,
+  );
+
+  if (
+    hasFormationAdminRole(interaction) &&
+    !result.ok &&
+    ['not_enough_essence', 'not_enough_crystal'].includes(result.reason)
+  ) {
+    const state = result.state;
+    state.formationEssence = Math.max(
+      Number(state.formationEssence) || 0,
+      Number(result.essenceCost) || 0,
+    );
+    state.elementCrystals[elementId] = Math.max(
+      Number(state.elementCrystals?.[elementId]) || 0,
+      Number(result.crystalCost) || 0,
+    );
+
+    await saveFormationState(
+      client,
+      guildId,
+      userId,
+      state,
+    );
+
+    result = await setFormationSlotElement(
+      client,
+      guildId,
+      userId,
+      slotIndex,
+      elementId,
+    );
+  }
+
+  return result;
 }
 
 export default {
@@ -57,7 +120,8 @@ export default {
         return replyEphemeral(interaction, 'Không xác định được hệ thuộc tính mới.');
       }
 
-      const result = await setFormationSlotElement(
+      const result = await runElementChange(
+        interaction,
         client,
         guildId,
         userId,
