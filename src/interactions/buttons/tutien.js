@@ -251,7 +251,7 @@ async function handleForge(interaction, client, ownerId, guildId, userId) {
 
   return interaction.update({
     embeds: [ensureFunction(equipmentUI, 'buildForgeEmbed', 'cultivationEquipmentUI.js')(interaction.user, profile)],
-    components: ensureFunction(equipmentUI, 'buildForgeRows', 'cultivationEquipmentUI.js')(ownerId, profile),
+    components: ensureFunction(equipmentUI, 'buildForgeRows', 'cultivationEquipmentUI.js')(ownerId),
   });
 }
 
