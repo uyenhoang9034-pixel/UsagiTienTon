@@ -190,7 +190,6 @@ async function autoSyncDailyQuests(
   handlerId,
 ) {
   if (
-    handlerId === 'tutien_daily_quest' ||
     !interaction.guildId ||
     !interaction.user?.id ||
     !isInsideCultivationThread(interaction)
