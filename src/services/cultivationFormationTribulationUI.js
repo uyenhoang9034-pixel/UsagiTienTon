@@ -5,9 +5,7 @@ import {
   EmbedBuilder,
 } from 'discord.js';
 
-import {
-  CULTIVATION_CONFIG,
-} from '../config/cultivationGame.js';
+import { CULTIVATION_CONFIG } from '../config/cultivationGame.js';
 
 import {
   FORMATION_DEFINITIONS,
@@ -16,6 +14,7 @@ import {
 
 import {
   FORMATION_TRIBULATIONS,
+  FORMATION_TRIBULATION_ORDER,
 } from './cultivationFormationTribulation.js';
 
 const TITLE_LEFT = '<a:trangtrig2:1546040703375904801>';
@@ -31,9 +30,7 @@ function title(label) {
 function style(embed) {
   embed.setColor(CULTIVATION_CONFIG.ui.color);
   embed.setFooter({ text: CULTIVATION_CONFIG.ui.footer });
-  if (CULTIVATION_CONFIG.ui.image) {
-    embed.setImage(CULTIVATION_CONFIG.ui.image);
-  }
+  if (CULTIVATION_CONFIG.ui.image) embed.setImage(CULTIVATION_CONFIG.ui.image);
   return embed;
 }
 
@@ -48,13 +45,9 @@ function number(value) {
 }
 
 function duration(ms) {
-  const totalSeconds = Math.max(
-    0,
-    Math.ceil((Number(ms) || 0) / 1000),
-  );
+  const totalSeconds = Math.max(0, Math.ceil((Number(ms) || 0) / 1000));
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-
   if (!minutes) return `${seconds}s`;
   if (!seconds) return `${minutes}m`;
   return `${minutes}m ${seconds}s`;
@@ -78,29 +71,21 @@ export function appendFormationTribulationRow(rows, ownerId) {
   return [
     ...rows,
     new ActionRowBuilder().addComponents(
-      button(
-        ownerId,
-        'tribulation',
-        'Trận Kiếp',
-      ),
+      button(ownerId, 'tribulation', 'Trận Kiếp'),
     ),
   ];
 }
 
 export function buildFormationTribulationListEmbed() {
-  const lines = Object.values(FORMATION_TRIBULATIONS).map(
-    (tribulation) => {
-      const recommended = FORMATION_DEFINITIONS[
-        tribulation.recommendedFormationId
-      ];
-
-      return [
-        `${TRIBULATION_EMOJI} **${tribulation.name}** · Kiếp cấp ${tribulation.difficulty}`,
-        `• Trận Đồ tương ứng: **${recommended?.name || 'Không rõ'}**`,
-        `• ${tribulation.description}`,
-      ].join('\n');
-    },
-  );
+  const lines = FORMATION_TRIBULATION_ORDER.map((id, index) => {
+    const tribulation = FORMATION_TRIBULATIONS[id];
+    const recommended = FORMATION_DEFINITIONS[tribulation.recommendedFormationId];
+    return [
+      `${TRIBULATION_EMOJI} **${index + 1}. ${tribulation.name}** · Kiếp cấp ${tribulation.difficulty}`,
+      `• Trận Đồ tương ứng: **${recommended?.name || 'Không rõ'}**`,
+      `• ${tribulation.description}`,
+    ].join('\n');
+  });
 
   return style(
     new EmbedBuilder()
@@ -108,14 +93,19 @@ export function buildFormationTribulationListEmbed() {
       .setDescription([
         `${TRIBULATION_EMOJI} **Thiên Kiếp giáng thế · Trận Đạo nghịch thiên**`,
         '',
+        'Tiến trình rất đơn giản: **vượt Kiếp trước → mở Kiếp sau**.',
+        'Kiếp đã vượt vẫn có thể đánh lại để nhận thưởng thường.',
+        '',
         ...lines.flatMap((line) => [line, '']),
-        '*Chọn một Kiếp để xem tỷ lệ ứng kiếp với Trận Đồ hiện tại.*',
+        '*Hãy bắt đầu từ Ngũ Hành Địa Kiếp.*',
       ].join('\n')),
   );
 }
 
 export function buildFormationTribulationRows(ownerId) {
-  const values = Object.values(FORMATION_TRIBULATIONS);
+  const values = FORMATION_TRIBULATION_ORDER.map(
+    (id) => FORMATION_TRIBULATIONS[id],
+  );
 
   return [
     new ActionRowBuilder().addComponents(
@@ -135,18 +125,34 @@ export function buildFormationTribulationRows(ownerId) {
           tribulation.name,
         ),
       ),
-      button(
-        ownerId,
-        'main',
-        'Trận Pháp',
-        FORMATION_EMOJI_ID,
-      ),
+      button(ownerId, 'main', 'Trận Pháp', FORMATION_EMOJI_ID),
     ),
   ];
 }
 
 export function buildFormationTribulationPreviewEmbed(result) {
   if (!result?.ok) {
+    if (result?.reason === 'locked') {
+      const index = FORMATION_TRIBULATION_ORDER.indexOf(
+        result.tribulation?.id,
+      );
+      const previous = index > 0
+        ? FORMATION_TRIBULATIONS[FORMATION_TRIBULATION_ORDER[index - 1]]
+        : null;
+
+      return style(
+        new EmbedBuilder()
+          .setTitle(title('Trận Kiếp Chưa Mở'))
+          .setDescription([
+            '🔒 **Thiên Kiếp này chưa thể khiêu chiến.**',
+            '',
+            previous
+              ? `Hãy vượt **${previous.name}** trước để mở **${result.tribulation?.name}**.`
+              : 'Hãy hoàn thành Trận Kiếp trước đó.',
+          ].join('\n')),
+      );
+    }
+
     return style(
       new EmbedBuilder()
         .setTitle(title('Trận Kiếp'))
@@ -164,6 +170,7 @@ export function buildFormationTribulationPreviewEmbed(result) {
     gameplayBonus,
     bonuses,
     winChance,
+    firstClear,
   } = result;
 
   const recommended = formationMatch
@@ -179,6 +186,7 @@ export function buildFormationTribulationPreviewEmbed(result) {
       .setTitle(title(tribulation.name))
       .setDescription([
         `${TRIBULATION_EMOJI} **Kiếp cấp ${tribulation.difficulty}**`,
+        firstClear ? '✨ **Lần đầu vượt Kiếp sẽ nhận thêm thưởng.**' : '✅ **Đã từng vượt Kiếp · có thể khiêu chiến lại.**',
         `*${tribulation.description}*`,
         '',
         `<a:ttrando:1547820131889979464> **Trận Đồ:** ${formation.name} · Lv.${formationLevel}`,
@@ -197,7 +205,7 @@ export function buildFormationTribulationPreviewEmbed(result) {
         '',
         `${TRIBULATION_EMOJI} **Tỷ lệ ứng kiếp thành công: ${percent(winChance)}**`,
         '',
-        '*Ứng Kiếp thất bại ở bản hiện tại không làm mất tài nguyên, nhưng vẫn tính cooldown.*',
+        '*Thất bại không mất tài nguyên, nhưng người chơi thường vẫn chịu cooldown.*',
       ].join('\n')),
   );
 }
@@ -205,9 +213,12 @@ export function buildFormationTribulationPreviewEmbed(result) {
 export function buildFormationTribulationPreviewRows(
   ownerId,
   tribulationId,
+  result = null,
 ) {
-  return [
-    new ActionRowBuilder().addComponents(
+  const rows = [];
+
+  if (result?.ok !== false) {
+    rows.push(
       button(
         ownerId,
         `tribulation_attempt:${tribulationId}`,
@@ -215,19 +226,15 @@ export function buildFormationTribulationPreviewRows(
         LIGHTNING_EMOJI_ID,
         ButtonStyle.Danger,
       ),
-      button(
-        ownerId,
-        'tribulation',
-        'Đổi Trận Kiếp',
-      ),
-      button(
-        ownerId,
-        'main',
-        'Trận Pháp',
-        FORMATION_EMOJI_ID,
-      ),
-    ),
-  ];
+    );
+  }
+
+  rows.push(
+    button(ownerId, 'tribulation', 'Đổi Trận Kiếp'),
+    button(ownerId, 'main', 'Trận Pháp', FORMATION_EMOJI_ID),
+  );
+
+  return [new ActionRowBuilder().addComponents(...rows)];
 }
 
 export function buildFormationTribulationResultEmbed(result) {
@@ -241,6 +248,10 @@ export function buildFormationTribulationResultEmbed(result) {
             `Có thể Ứng Kiếp lại sau **${duration(result.remainingMs)}**.`,
           ].join('\n')),
       );
+    }
+
+    if (result?.reason === 'locked') {
+      return buildFormationTribulationPreviewEmbed(result);
     }
 
     return style(
@@ -270,21 +281,21 @@ export function buildFormationTribulationResultEmbed(result) {
   }
 
   const reward = result.reward || {};
-  const formation = FORMATION_DEFINITIONS[
-    reward.formationId
-  ];
-  const crystal = FORMATION_ELEMENTS[
-    reward.crystalId
-  ];
+  const formation = FORMATION_DEFINITIONS[reward.formationId];
+  const crystal = FORMATION_ELEMENTS[reward.crystalId];
   const unlocked = Array.isArray(reward.unlockedNow) && reward.unlockedNow.length
     ? reward.unlockedNow.map((item) => `• **${item.name}**`).join('\n')
     : '• Không mở khóa Trận Đồ mới.';
+  const nextTribulation = result.nextTribulationId
+    ? FORMATION_TRIBULATIONS[result.nextTribulationId]
+    : null;
 
   return style(
     new EmbedBuilder()
       .setTitle(title('Ứng Kiếp Thành Công'))
       .setDescription([
         `${TRIBULATION_EMOJI} **${tribulation?.name || 'Trận Kiếp'}** đã bị Trận Đạo hóa giải.`,
+        result.firstClear ? '✨ **Sơ phá Thiên Kiếp · nhận thưởng lần đầu!**' : '✅ **Tái vượt Trận Kiếp thành công.**',
         `Tỷ lệ khi ứng kiếp: **${percent(chance)}**`,
         '',
         '**Thiên Kiếp phản bổ**',
@@ -295,6 +306,12 @@ export function buildFormationTribulationResultEmbed(result) {
         '',
         '**Thiên cơ lĩnh ngộ**',
         unlocked,
+        ...(result.firstClear && nextTribulation
+          ? ['', `🔓 **Đã mở Trận Kiếp tiếp theo: ${nextTribulation.name}**`]
+          : []),
+        ...(result.firstClear && !nextTribulation
+          ? ['', '🌟 **Đạo hữu đã vượt qua toàn bộ 5 Trận Kiếp.**']
+          : []),
         '',
         'Cooldown Ứng Kiếp: **30 phút**.',
       ].join('\n')),
@@ -304,17 +321,8 @@ export function buildFormationTribulationResultEmbed(result) {
 export function buildFormationTribulationResultRows(ownerId) {
   return [
     new ActionRowBuilder().addComponents(
-      button(
-        ownerId,
-        'tribulation',
-        'Trận Kiếp',
-      ),
-      button(
-        ownerId,
-        'main',
-        'Trận Pháp',
-        FORMATION_EMOJI_ID,
-      ),
+      button(ownerId, 'tribulation', 'Trận Kiếp'),
+      button(ownerId, 'main', 'Trận Pháp', FORMATION_EMOJI_ID),
     ),
   ];
 }
