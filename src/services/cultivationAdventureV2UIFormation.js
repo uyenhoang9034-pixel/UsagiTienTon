@@ -3,16 +3,70 @@ import { EmbedBuilder } from 'discord.js';
 import * as baseUI from './cultivationAdventureV2UI.js';
 
 import {
+  CULTIVATION_ITEMS,
+} from '../config/cultivationGame.js';
+
+import {
   buildFormationAdventureLines,
 } from './cultivationFormationResultUI.js';
 
 export * from './cultivationAdventureV2UI.js';
 
-function appendFormationLines(embed, result) {
-  const lines =
-    buildFormationAdventureLines(
-      result,
+function number(value) {
+  return new Intl.NumberFormat('vi-VN').format(
+    Math.max(0, Math.round(Number(value) || 0)),
+  );
+}
+
+function buildPetAdventureLines(result) {
+  if (!result?.activePet) return [];
+
+  const pet = result.activePet;
+  const lines = [];
+
+  if (result.guaranteedByPet) {
+    lines.push(
+      `${pet.emoji} ${pet.name}: **Giao chiến chắc chắn chiến thắng 100%**`,
     );
+  }
+
+  if (result.petAllCultivationBonus > 0) {
+    lines.push(
+      `${pet.emoji} ${pet.name}: **+${number(result.petAllCultivationBonus)} Tu Vi Thám Hiểm**`,
+    );
+  }
+
+  if (result.petAllStoneBonus > 0) {
+    lines.push(
+      `${pet.emoji} ${pet.name}: **+${number(result.petAllStoneBonus)} Linh Thạch Thám Hiểm**`,
+    );
+  }
+
+  for (const [itemId, quantity] of Object.entries(result.petAllItemBonuses || {})) {
+    const item = CULTIVATION_ITEMS[itemId];
+    lines.push(
+      `${pet.emoji} ${pet.name}: **+${number(quantity)} ${item?.name || itemId}**`,
+    );
+  }
+
+  if (result.petMaterialFindBonus) {
+    lines.push(
+      `${pet.emoji} ${pet.name}: **Tầm Bảo +${number(result.petMaterialFindBonus.quantity)} ${result.petMaterialFindBonus.item?.name || result.petMaterialFindBonus.itemId}**`,
+    );
+  }
+
+  return lines;
+}
+
+function appendFormationLines(embed, result) {
+  const lines = [
+    ...buildFormationAdventureLines(
+      result,
+    ),
+    ...buildPetAdventureLines(
+      result,
+    ),
+  ];
 
   if (
     !embed ||
