@@ -20,6 +20,8 @@ import {
 const TITLE_LEFT = '<a:trangtrig2:1546040703375904801>';
 const TITLE_RIGHT = '<a:trangtrig3:1546040818261954610>';
 const TRIBULATION_EMOJI = '<a:ttloi:1547835063406698496>';
+const LOCKED_EMOJI = '<a:ttmansuongden:1547485663065014335>';
+const CLEARED_EMOJI = '<a:trangtrig31:1546905996893626440>';
 const FORMATION_EMOJI_ID = '1547820164291240076';
 const LIGHTNING_EMOJI_ID = '1547835063406698496';
 
@@ -144,7 +146,7 @@ export function buildFormationTribulationPreviewEmbed(result) {
         new EmbedBuilder()
           .setTitle(title('Trận Kiếp Chưa Mở'))
           .setDescription([
-            '🔒 **Thiên Kiếp này chưa thể khiêu chiến.**',
+            `${LOCKED_EMOJI} **Thiên Kiếp này chưa thể khiêu chiến.**`,
             '',
             previous
               ? `Hãy vượt **${previous.name}** trước để mở **${result.tribulation?.name}**.`
@@ -186,7 +188,9 @@ export function buildFormationTribulationPreviewEmbed(result) {
       .setTitle(title(tribulation.name))
       .setDescription([
         `${TRIBULATION_EMOJI} **Kiếp cấp ${tribulation.difficulty}**`,
-        firstClear ? '✨ **Lần đầu vượt Kiếp sẽ nhận thêm thưởng.**' : '✅ **Đã từng vượt Kiếp · có thể khiêu chiến lại.**',
+        firstClear
+          ? `${TRIBULATION_EMOJI} **Chưa vượt · lần đầu thành công sẽ nhận thêm thưởng.**`
+          : `${CLEARED_EMOJI} **Đã vượt · có thể khiêu chiến lại.**`,
         `*${tribulation.description}*`,
         '',
         `<a:ttrando:1547820131889979464> **Trận Đồ:** ${formation.name} · Lv.${formationLevel}`,
@@ -294,8 +298,10 @@ export function buildFormationTribulationResultEmbed(result) {
     new EmbedBuilder()
       .setTitle(title('Ứng Kiếp Thành Công'))
       .setDescription([
-        `${TRIBULATION_EMOJI} **${tribulation?.name || 'Trận Kiếp'}** đã bị Trận Đạo hóa giải.`,
-        result.firstClear ? '✨ **Sơ phá Thiên Kiếp · nhận thưởng lần đầu!**' : '✅ **Tái vượt Trận Kiếp thành công.**',
+        `${CLEARED_EMOJI} **${tribulation?.name || 'Trận Kiếp'}** đã bị Trận Đạo hóa giải.`,
+        result.firstClear
+          ? `${CLEARED_EMOJI} **Sơ phá Thiên Kiếp · nhận thưởng lần đầu!**`
+          : `${CLEARED_EMOJI} **Tái vượt Trận Kiếp thành công.**`,
         `Tỷ lệ khi ứng kiếp: **${percent(chance)}**`,
         '',
         '**Thiên Kiếp phản bổ**',
@@ -307,10 +313,10 @@ export function buildFormationTribulationResultEmbed(result) {
         '**Thiên cơ lĩnh ngộ**',
         unlocked,
         ...(result.firstClear && nextTribulation
-          ? ['', `🔓 **Đã mở Trận Kiếp tiếp theo: ${nextTribulation.name}**`]
+          ? ['', `${TRIBULATION_EMOJI} **Đã mở Trận Kiếp tiếp theo: ${nextTribulation.name}**`]
           : []),
         ...(result.firstClear && !nextTribulation
-          ? ['', '🌟 **Đạo hữu đã vượt qua toàn bộ 5 Trận Kiếp.**']
+          ? ['', `${CLEARED_EMOJI} **Đạo hữu đã vượt qua toàn bộ 5 Trận Kiếp.**`]
           : []),
         '',
         'Cooldown Ứng Kiếp: **30 phút**.',
