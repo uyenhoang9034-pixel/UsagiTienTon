@@ -2,6 +2,12 @@ import {
   getFormationState,
   getFormationResonance,
 } from './cultivationFormation.js';
+import {
+  getCultivationProfile,
+} from './cultivationService.js';
+import {
+  getFormationSpiritSynergy,
+} from './cultivationFormationSpirit.js';
 
 const EMPTY_EFFECTS = Object.freeze({
   cultivationBonus: 0,
@@ -27,16 +33,56 @@ function normalizeEffects(effects = {}) {
   };
 }
 
+function mergeEffects(baseEffects = {}, extraEffects = {}) {
+  return normalizeEffects({
+    cultivationBonus:
+      (Number(baseEffects.cultivationBonus) || 0) +
+      (Number(extraEffects.cultivationBonus) || 0),
+    adventureBonus:
+      (Number(baseEffects.adventureBonus) || 0) +
+      (Number(extraEffects.adventureBonus) || 0),
+    staminaReduction:
+      (Number(baseEffects.staminaReduction) || 0) +
+      (Number(extraEffects.staminaReduction) || 0),
+    breakthroughBonus:
+      (Number(baseEffects.breakthroughBonus) || 0) +
+      (Number(extraEffects.breakthroughBonus) || 0),
+    spiritStoneBonus:
+      (Number(baseEffects.spiritStoneBonus) || 0) +
+      (Number(extraEffects.spiritStoneBonus) || 0),
+    insightBonus:
+      (Number(baseEffects.insightBonus) || 0) +
+      (Number(extraEffects.insightBonus) || 0),
+  });
+}
+
 export async function getFormationGameplayBonus(client, guildId, userId) {
   try {
-    const state = await getFormationState(client, guildId, userId);
+    const [state, profile] = await Promise.all([
+      getFormationState(client, guildId, userId),
+      getCultivationProfile(client, guildId, userId),
+    ]);
+
     const resonance = getFormationResonance(state);
+    const spiritSynergy = getFormationSpiritSynergy(profile, state);
+    const effects = mergeEffects(
+      resonance.effects,
+      spiritSynergy?.effects,
+    );
+    const lines = Array.isArray(resonance.lines)
+      ? [...resonance.lines]
+      : [];
+
+    if (spiritSynergy?.active && spiritSynergy.line) {
+      lines.push(spiritSynergy.line);
+    }
 
     return {
       ok: true,
       formationId: state.activeFormationId,
-      lines: Array.isArray(resonance.lines) ? resonance.lines : [],
-      effects: normalizeEffects(resonance.effects),
+      lines,
+      effects,
+      spiritSynergy,
     };
   } catch (error) {
     // Formation bonuses must never make the base cultivation game unusable.
@@ -45,6 +91,7 @@ export async function getFormationGameplayBonus(client, guildId, userId) {
       formationId: null,
       lines: [],
       effects: { ...EMPTY_EFFECTS },
+      spiritSynergy: null,
       error,
     };
   }
