@@ -249,15 +249,49 @@ export function buildFormationArrangeEmbed(state) {
 
 export function buildFormationUpgradeEmbed(result) {
   const formation = getActiveFormation(result.state);
-  let status = `Chưa đủ Trận Văn. Cần **${number(result.cost)}**, hiện có **${number(result.state.formationEssence)}**.`;
-  if (result.ok) {
-    status = `${UPGRADE_SUCCESS_EMOJI} Nâng cấp thành công lên **Lv.${result.level}**. Đã tiêu **${number(result.cost)} Trận Văn**.`;
+  const currentFragments = Math.max(
+    0,
+    Number(result.state.formationFragments?.[formation.id]) || 0,
+  );
+  const essenceCost = Math.max(
+    0,
+    Number(result.essenceCost ?? result.cost) || 0,
+  );
+  const fragmentCost = Math.max(
+    0,
+    Number(result.fragmentCost) || 0,
+  );
+
+  let status = [
+    `${FORMATION_RESOURCE_EMOJIS.essence} Chưa đủ **Trận Văn**.`,
+    `Cần **${number(essenceCost)}**, hiện có **${number(result.state.formationEssence)}**.`,
+  ].join(' ');
+
+  if (result.reason === 'not_enough_fragment') {
+    status = [
+      `${FORMATION_RESOURCE_EMOJIS.fragment} Chưa đủ **Mảnh Trận Đồ**.`,
+      `Cần **${number(fragmentCost)}**, hiện có **${number(currentFragments)}**.`,
+    ].join(' ');
   }
-  if (result.reason === 'max_level') status = '🌟 Trận Đồ đã đạt **Lv.10**.';
+
+  if (result.ok) {
+    status = [
+      `${UPGRADE_SUCCESS_EMOJI} Nâng cấp thành công lên **Lv.${result.level}**.`,
+      `Đã tiêu **${number(essenceCost)} Trận Văn** + **${number(fragmentCost)} Mảnh Trận Đồ**.`,
+    ].join(' ');
+  }
+
+  if (result.reason === 'max_level') {
+    status = '🌟 Trận Đồ đã đạt **Lv.10**.';
+  }
+
   return style(new EmbedBuilder().setTitle(formationTitle('Nâng Cấp')).setDescription([
     `<a:ttnangcap:1547830013473067148> **${formation.name}**`,
     '',
-    `${FORMATION_RESOURCE_EMOJIS.essence} ${status}`,
+    `${FORMATION_RESOURCE_EMOJIS.essence} **Trận Văn:** ${number(result.state.formationEssence)}`,
+    `${FORMATION_RESOURCE_EMOJIS.fragment} **Mảnh ${formation.name}:** ${number(currentFragments)}`,
+    '',
+    status,
   ].join('\n')));
 }
 
