@@ -69,6 +69,121 @@ export const FORMATION_SPIRIT_SYNERGIES = {
       staminaReduction: 0.02,
     },
   },
+
+  tam_linh_mieu: {
+    petId: 'tam_linh_mieu',
+    name: 'Tầm Linh Miêu',
+    type: 'adventure',
+    label: 'Tầm Linh Dẫn Trận',
+    description: 'Linh miêu cảm ứng linh khí, giúp trận thế truy tìm cơ duyên trong Thám Hiểm.',
+    effects: {
+      adventureBonus: 0.03,
+    },
+  },
+
+  nguyet_quang_linh_tho: {
+    petId: 'nguyet_quang_linh_tho',
+    name: 'Nguyệt Quang Linh Thố',
+    type: 'stamina',
+    label: 'Nguyệt Hoa Dưỡng Trận',
+    description: 'Nguyệt hoa ôn dưỡng trận mạch, giúp giảm tiêu hao Thể Lực.',
+    effects: {
+      staminaReduction: 0.03,
+    },
+  },
+
+  han_ngoc_linh_xa: {
+    petId: 'han_ngoc_linh_xa',
+    name: 'Hàn Ngọc Linh Xà',
+    type: 'cultivation',
+    label: 'Hàn Ngọc Tụ Khí',
+    description: 'Hàn ngọc linh tức hội tụ trong trận, hỗ trợ Tu Luyện.',
+    effects: {
+      cultivationBonus: 0.04,
+    },
+  },
+
+  u_minh_huyen_xa: {
+    petId: 'u_minh_huyen_xa',
+    name: 'U Minh Huyền Xà',
+    type: 'adventure',
+    label: 'U Minh Hộ Trận',
+    description: 'U minh chi khí bao phủ trận thế, hỗ trợ hành tẩu Thám Hiểm và Bí Cảnh.',
+    effects: {
+      adventureBonus: 0.04,
+    },
+  },
+
+  bach_giac_linh_loc: {
+    petId: 'bach_giac_linh_loc',
+    name: 'Bạch Giác Linh Lộc',
+    type: 'breakthrough',
+    label: 'Bạch Giác Hộ Đạo',
+    description: 'Bạch giác linh quang ổn định trận tâm, hỗ trợ Đột Phá.',
+    effects: {
+      breakthroughBonus: 0.04,
+    },
+  },
+
+  thai_am_cuu_vi_ho: {
+    petId: 'thai_am_cuu_vi_ho',
+    name: 'Thái Âm Cửu Vĩ Hồ',
+    type: 'insight',
+    label: 'Thái Âm Diễn Pháp',
+    description: 'Thái Âm chi lực diễn hóa trận đạo, đồng thời trợ giúp Tu Luyện.',
+    effects: {
+      insightBonus: 0.05,
+      cultivationBonus: 0.03,
+    },
+  },
+
+  tu_dien_ky_lan: {
+    petId: 'tu_dien_ky_lan',
+    name: 'Tử Điện Kỳ Lân',
+    type: 'breakthrough',
+    label: 'Tử Điện Trấn Trận',
+    description: 'Tử điện thiên uy gia cố trận thế, tăng khả năng phá cảnh.',
+    effects: {
+      breakthroughBonus: 0.06,
+      insightBonus: 0.03,
+    },
+  },
+
+  niet_ban_phuong_hoang: {
+    petId: 'niet_ban_phuong_hoang',
+    name: 'Niết Bàn Phượng Hoàng',
+    type: 'adventure',
+    label: 'Niết Bàn Sinh Trận',
+    description: 'Niết Bàn chi hỏa tái sinh trận lực, khuếch đại cơ duyên trong Thám Hiểm và Bí Cảnh.',
+    effects: {
+      adventureBonus: 0.06,
+      spiritStoneBonus: 0.03,
+    },
+  },
+
+  bach_vu_phong_lang: {
+    petId: 'bach_vu_phong_lang',
+    name: 'Bạch Vũ Phong Lang',
+    type: 'mythic',
+    label: 'Bạch Vũ Thần Trận',
+    description: 'Thần lang dẫn phong nhập trận, đồng thời khuếch đại Tu Luyện và hành trình Thám Hiểm.',
+    effects: {
+      cultivationBonus: 0.08,
+      adventureBonus: 0.08,
+    },
+  },
+
+  hu_khong_con_bang: {
+    petId: 'hu_khong_con_bang',
+    name: 'Hư Không Côn Bằng',
+    type: 'mythic',
+    label: 'Hư Không Chí Trận',
+    description: 'Hư Không chi lực phá vỡ giới hạn trận đạo, khuếch đại Lĩnh Ngộ và khả năng Đột Phá.',
+    effects: {
+      insightBonus: 0.10,
+      breakthroughBonus: 0.10,
+    },
+  },
 };
 
 function normalizeEffects(effects = {}) {
