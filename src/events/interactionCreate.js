@@ -17,6 +17,16 @@ import {
 import {
   regenerateCultivationStamina,
 } from '../services/cultivationStamina.js';
+import {
+  getCultivationProfile,
+} from '../services/cultivationService.js';
+import {
+  buildDashboardEmbed,
+  buildDashboardRows,
+} from '../services/cultivationUI.js';
+import {
+  appendFormationButton,
+} from '../services/cultivationFormationUI.js';
 
 async function sendInteractionError(interaction, error) {
   const message =
@@ -242,6 +252,40 @@ async function autoSyncDailyQuests(
   }
 }
 
+async function handleDashboardWithFormation(
+  interaction,
+  client,
+  ownerId,
+) {
+  if (
+    !ownerId ||
+    interaction.user.id !== ownerId
+  ) {
+    return false;
+  }
+
+  const profile = await getCultivationProfile(
+    client,
+    interaction.guildId,
+    interaction.user.id,
+  );
+
+  await interaction.update({
+    embeds: [
+      buildDashboardEmbed(
+        interaction.user,
+        profile,
+      ),
+    ],
+    components: appendFormationButton(
+      buildDashboardRows(ownerId),
+      ownerId,
+    ),
+  });
+
+  return true;
+}
+
 export default {
   name: Events.InteractionCreate,
 
@@ -315,6 +359,23 @@ export default {
           interaction,
           client,
         );
+      }
+
+      if (
+        handlerId === 'tutien_action' &&
+        args[1] === 'dashboard' &&
+        await handleDashboardWithFormation(
+          interaction,
+          client,
+          args[0],
+        )
+      ) {
+        await autoSyncDailyQuests(
+          interaction,
+          client,
+          handlerId,
+        );
+        return;
       }
 
       const routedInteraction = isCultivationComponent(handlerId)
