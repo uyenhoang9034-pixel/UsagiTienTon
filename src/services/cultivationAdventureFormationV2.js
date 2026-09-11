@@ -9,7 +9,13 @@ import {
   getFormationGameplayBonus,
 } from './cultivationFormationGameplay.js';
 
+import {
+  rollFormationFragmentDrop,
+} from './cultivationFormationRewards.js';
+
 export * from './cultivationAdventureV2.js';
+
+const ADVENTURE_FRAGMENT_DROP_CHANCE = 0.10;
 
 function safeNumber(value) {
   return Number(value) || 0;
@@ -78,6 +84,26 @@ async function runWithFormationAdventureReward(
     ) - beforeStones,
   );
 
+  const hasPositiveReward =
+    cultivationGain > 0 ||
+    stoneGain > 0;
+
+  const formationFragmentDrop =
+    await rollFormationFragmentDrop(
+      client,
+      guildId,
+      userId,
+      {
+        chance:
+          hasPositiveReward
+            ? ADVENTURE_FRAGMENT_DROP_CHANCE
+            : 0,
+        quantity: 1,
+        formationId:
+          formation.formationId || null,
+      },
+    );
+
   const adventurePercent = Math.max(
     0,
     safeNumber(
@@ -130,6 +156,7 @@ async function runWithFormationAdventureReward(
       formationStoneBonus: 0,
       formationStonePercent:
         stonePercent,
+      formationFragmentDrop,
       formationResonanceLines:
         formation.lines || [],
     };
@@ -163,6 +190,7 @@ async function runWithFormationAdventureReward(
     formationStoneBonus,
     formationStonePercent:
       stonePercent,
+    formationFragmentDrop,
     formationResonanceLines:
       formation.lines || [],
   };
