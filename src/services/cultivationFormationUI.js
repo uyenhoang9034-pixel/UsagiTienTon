@@ -30,6 +30,7 @@ export const FORMATION_EMOJIS = {
   resonance: { id: '1547830051951738960' },
   elements: { id: '1547830093747982376' },
   refine: { id: '1547960553950158848' },
+  eye: { id: '1547959565490855946' },
 };
 
 export const FORMATION_RESOURCE_EMOJIS = {
@@ -143,6 +144,7 @@ export function buildFormationMainRows(ownerId) {
     new ActionRowBuilder().addComponents(
       button(ownerId, 'upgrade', 'Nâng Cấp', FORMATION_EMOJIS.upgrade),
       button(ownerId, 'resonance', 'Cộng Hưởng', FORMATION_EMOJIS.resonance),
+      button(ownerId, 'eye', 'Trận Nhãn', FORMATION_EMOJIS.eye),
       button(ownerId, 'elements', 'Ngũ Hành', FORMATION_EMOJIS.elements),
       button(ownerId, 'dashboard', 'Quay lại', FORMATION_EMOJIS.formation),
     ),
