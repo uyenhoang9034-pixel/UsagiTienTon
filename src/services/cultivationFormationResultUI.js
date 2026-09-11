@@ -11,6 +11,20 @@ function percent(value) {
   return `${Math.round((Number(value) || 0) * 100)}%`;
 }
 
+function appendFormationSpiritLine(lines, result) {
+  const spiritLine = Array.isArray(result?.formationResonanceLines)
+    ? result.formationResonanceLines.find((line) =>
+        String(line || '').includes('Trận Linh ·'),
+      )
+    : null;
+
+  if (spiritLine) {
+    lines.push(`${FORMATION_EMOJI} ${spiritLine}`);
+  }
+
+  return lines;
+}
+
 function appendFragmentDropLine(lines, result) {
   const drop = result?.formationFragmentDrop;
 
@@ -46,7 +60,10 @@ export function buildFormationCultivateLines(result) {
     );
   }
 
-  return lines;
+  return appendFormationSpiritLine(
+    lines,
+    result,
+  );
 }
 
 export function buildFormationBreakthroughLines(result) {
@@ -79,6 +96,11 @@ export function buildFormationAdventureLines(result) {
     );
   }
 
+  appendFormationSpiritLine(
+    lines,
+    result,
+  );
+
   return appendFragmentDropLine(
     lines,
     result,
@@ -99,6 +121,11 @@ export function buildFormationSecretRealmLines(result) {
       `${FORMATION_EMOJI} Trận Thế Tụ Linh: **+${number(result.formationStoneBonus)} Linh Thạch**`,
     );
   }
+
+  appendFormationSpiritLine(
+    lines,
+    result,
+  );
 
   return appendFragmentDropLine(
     lines,
