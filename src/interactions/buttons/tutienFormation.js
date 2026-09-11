@@ -27,7 +27,6 @@ import {
   buildFormationDiagramsRows,
   buildFormationElementsEmbed,
   buildFormationMainRows,
-  buildFormationResonanceEmbed,
   buildFormationSlotsEmbed,
   buildFormationStorageEmbed,
   buildFormationUpgradeEmbed,
@@ -36,6 +35,7 @@ import {
 import {
   buildFormationComprehendEmbed,
   buildFormationMainEmbed,
+  buildFormationResonanceEmbed,
 } from '../../services/cultivationFormationSpiritUI.js';
 
 import {
@@ -411,9 +411,12 @@ export default {
       }
 
       case 'resonance': {
-        const state = await getFormationState(client, guildId, userId);
+        const [state, gameplayBonus] = await Promise.all([
+          getFormationState(client, guildId, userId),
+          getFormationGameplayBonus(client, guildId, userId),
+        ]);
         return interaction.update({
-          embeds: [buildFormationResonanceEmbed(state)],
+          embeds: [buildFormationResonanceEmbed(state, gameplayBonus)],
           components: buildFormationBackRows(ownerId),
         });
       }
