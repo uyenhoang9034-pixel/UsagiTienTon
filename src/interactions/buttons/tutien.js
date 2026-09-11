@@ -90,7 +90,7 @@ function ensureFunction(moduleObject, name, moduleLabel) {
 
 async function loadCore() {
   const [service, ui] = await Promise.all([
-    import('../../services/cultivationService.js'),
+    import('../../services/cultivationServiceV2.js'),
     import('../../services/cultivationUI.js'),
   ]);
 
@@ -251,7 +251,7 @@ async function handleForge(interaction, client, ownerId, guildId, userId) {
 
   return interaction.update({
     embeds: [ensureFunction(equipmentUI, 'buildForgeEmbed', 'cultivationEquipmentUI.js')(interaction.user, profile)],
-    components: ensureFunction(equipmentUI, 'buildForgeRows', 'cultivationEquipmentUI.js')(ownerId),
+    components: ensureFunction(equipmentUI, 'buildForgeRows', 'cultivationEquipmentUI.js')(ownerId, profile),
   });
 }
 
