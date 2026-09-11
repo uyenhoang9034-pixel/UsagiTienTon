@@ -9,6 +9,10 @@ import {
   CULTIVATION_CONFIG,
 } from '../config/cultivationGame.js';
 
+import {
+  buildFormationAdventureLines,
+} from './cultivationFormationResultUI.js';
+
 const E = {
   left:
     '<a:trangtrig2:1546040703375904801>',
@@ -98,6 +102,27 @@ function buttonEmoji(
     id:
       String(id),
   };
+}
+
+function formationRewardLines(
+  result,
+) {
+  const lines =
+    buildFormationAdventureLines(
+      result,
+    );
+
+  if (
+    !Array.isArray(lines) ||
+    lines.length === 0
+  ) {
+    return [];
+  }
+
+  return [
+    '',
+    ...lines,
+  ];
 }
 
 /**
@@ -400,6 +425,9 @@ export function buildHeavenlyFortuneEmbed(
   }
 
   lines.push(
+    ...formationRewardLines(
+      result,
+    ),
     '',
     `${E.victory} *Đây là một Đại Cơ Duyên hiếm gặp trên Tiên Lộ.*`,
   );
