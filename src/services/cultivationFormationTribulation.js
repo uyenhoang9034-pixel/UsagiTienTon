@@ -118,6 +118,71 @@ function randomInt(min, max) {
   ) + safeMin;
 }
 
+function unlockEligibleFormations(state) {
+  const unlockedNow = [];
+
+  state.unlockedFormationIds ||= [];
+  state.formationLevels ||= {};
+  state.layouts ||= {};
+  state.slotLevels ||= {};
+  state.formationFragments ||= {};
+  state.formationEyes ||= {};
+
+  for (const formation of Object.values(FORMATION_DEFINITIONS)) {
+    if (
+      Number(state.insight) <
+      Number(formation.unlockInsight)
+    ) {
+      continue;
+    }
+
+    if (
+      state.unlockedFormationIds.includes(
+        formation.id,
+      )
+    ) {
+      continue;
+    }
+
+    state.unlockedFormationIds.push(
+      formation.id,
+    );
+
+    state.formationLevels[
+      formation.id
+    ] ||= 1;
+
+    state.layouts[
+      formation.id
+    ] ||= [
+      ...formation.pattern,
+    ];
+
+    state.slotLevels[
+      formation.id
+    ] ||= Array(
+      formation.slots,
+    ).fill(1);
+
+    state.formationFragments[
+      formation.id
+    ] ||= 0;
+
+    state.formationEyes[
+      formation.id
+    ] ||= {
+      elementId: 'spirit',
+      level: 1,
+    };
+
+    unlockedNow.push(
+      formation,
+    );
+  }
+
+  return unlockedNow;
+}
+
 function normalizeTribulationStatus(raw) {
   return {
     lastAttemptAt: Math.max(
@@ -453,6 +518,11 @@ export async function attemptFormationTribulation(
           Number(state.elementCrystals?.[crystalId]) || 0,
         ) + crystalGain;
 
+        const unlockedNow =
+          unlockEligibleFormations(
+            state,
+          );
+
         state = await saveFormationState(
           client,
           guildId,
@@ -468,6 +538,7 @@ export async function attemptFormationTribulation(
           crystalGain,
           formationId:
             preview.tribulation.recommendedFormationId,
+          unlockedNow,
         };
       }
 
