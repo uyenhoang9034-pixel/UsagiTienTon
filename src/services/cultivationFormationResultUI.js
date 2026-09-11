@@ -84,6 +84,12 @@ export function buildFormationBreakthroughLines(result) {
 export function buildFormationAdventureLines(result) {
   const lines = [];
 
+  if ((Number(result?.petAdventureStoneBonus) || 0) > 0) {
+    lines.push(
+      `🐾 Linh Thú trợ lực: **+${number(result.petAdventureStoneBonus)} Linh Thạch**`,
+    );
+  }
+
   if ((Number(result?.formationAdventureBonus) || 0) > 0) {
     lines.push(
       `${FORMATION_EMOJI} Cộng Hưởng Thám Hiểm: **+${number(result.formationAdventureBonus)} Tu Vi**`,
