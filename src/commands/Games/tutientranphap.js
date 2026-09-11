@@ -9,6 +9,7 @@ import {
 
 import {
   FORMATION_DEFINITIONS,
+  FORMATION_ELEMENTS,
   getFormationState,
   saveFormationState,
 } from '../../services/cultivationFormation.js';
@@ -349,6 +350,22 @@ export default {
         state.formationEssence = 1000000;
         state.lastComprehendAt = null;
 
+        state.slotLevels ||= {};
+        state.formationFragments ||= {};
+        state.elementCrystals ||= {};
+        state.formationEyes ||= {};
+
+        for (
+          const elementId of
+          Object.keys(
+            FORMATION_ELEMENTS,
+          )
+        ) {
+          state.elementCrystals[
+            elementId
+          ] = 1000000;
+        }
+
         for (
           const formation of
           Object.values(
@@ -369,6 +386,27 @@ export default {
           ] = [
             ...formation.pattern,
           ];
+
+          state.slotLevels[
+            formation.id
+          ] = Array.from(
+            {
+              length:
+                formation.slots,
+            },
+            () => 10,
+          );
+
+          state.formationFragments[
+            formation.id
+          ] = 1000000;
+
+          state.formationEyes[
+            formation.id
+          ] = {
+            elementId: 'spirit',
+            level: 10,
+          };
         }
 
         state =
@@ -383,11 +421,15 @@ export default {
           content: [
             HEADER,
             '',
-            `Đã bật **FULL TEST** cho <@${userId}>.`,
+            `Đã bật **FULL TEST V2** cho <@${userId}>.`,
             '• Mở toàn bộ Trận Đồ',
             '• Tất cả Trận Đồ Lv.10',
+            '• Tất cả Trận Vị Lv.10',
+            '• Tất cả Mắt Trận Lv.10',
             '• 1.000.000 Lĩnh Ngộ',
             '• 1.000.000 Trận Văn',
+            '• 1.000.000 Mảnh Trận Đồ mỗi loại',
+            '• 1.000.000 Tinh Thạch mỗi hệ',
             '• Reset cooldown Lĩnh Ngộ',
             '• Bố cục chuẩn cho toàn bộ Trận Đồ',
           ].join('\n'),
