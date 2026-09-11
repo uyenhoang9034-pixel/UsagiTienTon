@@ -11,6 +11,7 @@ import {
 
 import {
   FORMATION_DEFINITIONS,
+  FORMATION_ELEMENTS,
 } from './cultivationFormation.js';
 
 import {
@@ -40,12 +41,37 @@ function percent(value) {
   return `${Math.round((Number(value) || 0) * 100)}%`;
 }
 
-function button(ownerId, action, label, emoji = LIGHTNING_EMOJI_ID) {
+function number(value) {
+  return new Intl.NumberFormat('vi-VN').format(
+    Math.max(0, Math.round(Number(value) || 0)),
+  );
+}
+
+function duration(ms) {
+  const totalSeconds = Math.max(
+    0,
+    Math.ceil((Number(ms) || 0) / 1000),
+  );
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  if (!minutes) return `${seconds}s`;
+  if (!seconds) return `${minutes}m`;
+  return `${minutes}m ${seconds}s`;
+}
+
+function button(
+  ownerId,
+  action,
+  label,
+  emoji = LIGHTNING_EMOJI_ID,
+  styleValue = ButtonStyle.Secondary,
+) {
   return new ButtonBuilder()
     .setCustomId(`tutien_formation:${ownerId}:${action}`)
     .setLabel(label)
     .setEmoji(emoji)
-    .setStyle(ButtonStyle.Secondary);
+    .setStyle(styleValue);
 }
 
 export function appendFormationTribulationRow(rows, ownerId) {
@@ -171,18 +197,117 @@ export function buildFormationTribulationPreviewEmbed(result) {
         '',
         `${TRIBULATION_EMOJI} **Tỷ lệ ứng kiếp thành công: ${percent(winChance)}**`,
         '',
-        '*Đây mới là quan trắc. Chưa tiêu tài nguyên và chưa thực sự ứng kiếp.*',
+        '*Ứng Kiếp thất bại ở bản hiện tại không làm mất tài nguyên, nhưng vẫn tính cooldown.*',
       ].join('\n')),
   );
 }
 
-export function buildFormationTribulationPreviewRows(ownerId) {
+export function buildFormationTribulationPreviewRows(
+  ownerId,
+  tribulationId,
+) {
+  return [
+    new ActionRowBuilder().addComponents(
+      button(
+        ownerId,
+        `tribulation_attempt:${tribulationId}`,
+        'Ứng Kiếp',
+        LIGHTNING_EMOJI_ID,
+        ButtonStyle.Danger,
+      ),
+      button(
+        ownerId,
+        'tribulation',
+        'Đổi Trận Kiếp',
+      ),
+      button(
+        ownerId,
+        'main',
+        'Trận Pháp',
+        FORMATION_EMOJI_ID,
+      ),
+    ),
+  ];
+}
+
+export function buildFormationTribulationResultEmbed(result) {
+  if (!result?.ok) {
+    if (result?.reason === 'cooldown') {
+      return style(
+        new EmbedBuilder()
+          .setTitle(title('Trận Kiếp'))
+          .setDescription([
+            `${TRIBULATION_EMOJI} **Kiếp khí chưa tan.**`,
+            `Có thể Ứng Kiếp lại sau **${duration(result.remainingMs)}**.`,
+          ].join('\n')),
+      );
+    }
+
+    return style(
+      new EmbedBuilder()
+        .setTitle(title('Trận Kiếp'))
+        .setDescription('Không thể tiến hành Ứng Kiếp lúc này.'),
+    );
+  }
+
+  const tribulation = result.preview?.tribulation;
+  const chance = result.preview?.winChance;
+
+  if (!result.success) {
+    return style(
+      new EmbedBuilder()
+        .setTitle(title('Ứng Kiếp Thất Bại'))
+        .setDescription([
+          `${TRIBULATION_EMOJI} **${tribulation?.name || 'Trận Kiếp'}**`,
+          '',
+          'Thiên uy phá vỡ trận thế, đạo hữu buộc phải thu trận.',
+          `Tỷ lệ khi ứng kiếp: **${percent(chance)}**`,
+          '',
+          '• **Không mất Tu Vi, Linh Thạch hay tài nguyên Trận Pháp.**',
+          '• Lượt Ứng Kiếp này vẫn tính cooldown **30 phút**.',
+        ].join('\n')),
+    );
+  }
+
+  const reward = result.reward || {};
+  const formation = FORMATION_DEFINITIONS[
+    reward.formationId
+  ];
+  const crystal = FORMATION_ELEMENTS[
+    reward.crystalId
+  ];
+  const unlocked = Array.isArray(reward.unlockedNow) && reward.unlockedNow.length
+    ? reward.unlockedNow.map((item) => `• **${item.name}**`).join('\n')
+    : '• Không mở khóa Trận Đồ mới.';
+
+  return style(
+    new EmbedBuilder()
+      .setTitle(title('Ứng Kiếp Thành Công'))
+      .setDescription([
+        `${TRIBULATION_EMOJI} **${tribulation?.name || 'Trận Kiếp'}** đã bị Trận Đạo hóa giải.`,
+        `Tỷ lệ khi ứng kiếp: **${percent(chance)}**`,
+        '',
+        '**Thiên Kiếp phản bổ**',
+        `<a:ttlinhngo:1547820024440291389> Lĩnh Ngộ **+${number(reward.insightGain)}**`,
+        `<a:ttranvan:1547959053114671297> Trận Văn **+${number(reward.essenceGain)}**`,
+        `<a:ttmanhtrando:1547960167667081276> Mảnh **${formation?.name || 'Trận Đồ'} +${number(reward.fragmentGain)}**`,
+        `${crystal?.emoji || ''} ${crystal?.name || 'Ngũ Hành'} Tinh Thạch **+${number(reward.crystalGain)}**`,
+        '',
+        '**Thiên cơ lĩnh ngộ**',
+        unlocked,
+        '',
+        'Cooldown Ứng Kiếp: **30 phút**.',
+      ].join('\n')),
+  );
+}
+
+export function buildFormationTribulationResultRows(ownerId) {
   return [
     new ActionRowBuilder().addComponents(
       button(
         ownerId,
         'tribulation',
-        'Đổi Trận Kiếp',
+        'Trận Kiếp',
       ),
       button(
         ownerId,
