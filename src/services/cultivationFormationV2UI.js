@@ -225,6 +225,7 @@ export function buildFormationEyeEmbed(state, result = null) {
     0,
     Number(state.elementCrystals?.[eye.elementId]) || 0,
   );
+  const eyeEffectPercent = Math.max(0, Math.round(eye.level * 2));
   const nextEssenceCost = eye.level >= 10
     ? 0
     : 15 + eye.level * 15;
@@ -246,8 +247,8 @@ export function buildFormationEyeEmbed(state, result = null) {
         : `${FORMATION_RESOURCE_EMOJIS.refine} **Tinh Luyện kế tiếp:** ${nextEssenceCost.toLocaleString('vi-VN')} Trận Văn + ${nextCrystalCost.toLocaleString('vi-VN')} ${element?.name || 'Tinh Thần'} Tinh Thạch`,
       '',
       eye.elementId === 'chaos'
-        ? '• **Hỗn Độn:** khuếch đại toàn bộ hiệu quả Cộng Hưởng đang có.'
-        : '• **Tinh Thần:** tăng hiệu quả Lĩnh Ngộ Trận Đạo.',
+        ? `• **Hỗn Độn:** khuếch đại toàn bộ hiệu quả Cộng Hưởng thêm **${eyeEffectPercent}%**.`
+        : `• **Tinh Thần:** tăng hiệu quả Lĩnh Ngộ Trận Đạo thêm **${eyeEffectPercent}%**.`,
       '',
       status ? `**Kết quả**\n${status}\n` : '',
       '*Đổi loại Mắt Trận hoặc Tinh Luyện để tăng sức mạnh Trận Nhãn.*',
