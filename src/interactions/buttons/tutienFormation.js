@@ -26,7 +26,6 @@ import {
   buildFormationDiagramsEmbed,
   buildFormationDiagramsRows,
   buildFormationElementsEmbed,
-  buildFormationMainEmbed,
   buildFormationMainRows,
   buildFormationResonanceEmbed,
   buildFormationSlotsEmbed,
@@ -36,6 +35,7 @@ import {
 
 import {
   buildFormationComprehendEmbed,
+  buildFormationMainEmbed,
 } from '../../services/cultivationFormationSpiritUI.js';
 
 import {
@@ -88,14 +88,21 @@ async function rejectWrongPlayer(interaction, ownerId) {
 }
 
 async function showMain(interaction, client, ownerId) {
-  const state = await getFormationState(
-    client,
-    interaction.guildId,
-    interaction.user.id,
-  );
+  const [state, profile] = await Promise.all([
+    getFormationState(
+      client,
+      interaction.guildId,
+      interaction.user.id,
+    ),
+    getCultivationProfile(
+      client,
+      interaction.guildId,
+      interaction.user.id,
+    ),
+  ]);
 
   return interaction.update({
-    embeds: [buildFormationMainEmbed(interaction.user, state)],
+    embeds: [buildFormationMainEmbed(interaction.user, state, profile)],
     components: buildFormationMainRows(ownerId),
   });
 }
