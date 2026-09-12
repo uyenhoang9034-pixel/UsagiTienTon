@@ -19,11 +19,7 @@ import {
 import {
   buildDashboardEmbed,
   buildDashboardRows,
-} from '../../services/cultivationUI.js';
-
-import {
-  appendFormationButton,
-} from '../../services/cultivationFormationUI.js';
+} from '../../services/cultivationUIV2.js';
 
 import {
   getDailyQuestCompletedCount,
@@ -402,10 +398,7 @@ export default {
           ],
 
           components:
-            appendFormationButton(
-              buildDashboardRows(
-                interaction.user.id,
-              ),
+            buildDashboardRows(
               interaction.user.id,
               interaction.guild,
             ),
