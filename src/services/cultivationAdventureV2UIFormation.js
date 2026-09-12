@@ -90,6 +90,12 @@ function buildPetAdventureLines(result) {
     );
   }
 
+  if ((Number(result.protectedStamina) || 0) > 0) {
+    lines.push(
+      `${pet.emoji} ${pet.name}: **Tiên vận hộ thể · tránh mất ${number(result.protectedStamina)} Thể Lực**`,
+    );
+  }
+
   return lines;
 }
 
