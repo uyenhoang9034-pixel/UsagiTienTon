@@ -99,6 +99,55 @@ function rollForcedFloorItem(floor) {
   };
 }
 
+export async function getSecretRealmCombatInfo(
+  client,
+  guildId,
+  userId,
+  options = {},
+) {
+  const result = await secretRealm.getSecretRealmCombatInfo(
+    client,
+    guildId,
+    userId,
+    options,
+  );
+
+  if (!result?.ok) return result;
+
+  const profile = await getCultivationProfile(
+    client,
+    guildId,
+    userId,
+  );
+  const activePet = getActivePet(profile);
+  const petCombatBonus = Math.max(
+    0,
+    safeNumber(getPetEffectValue(profile, 'combat_success_bonus')),
+  );
+  const petCombatRewardBonus = Math.max(
+    0,
+    safeNumber(getPetEffectValue(profile, 'combat_reward_bonus')),
+  );
+  const baseWinChance = Math.max(
+    0,
+    Math.min(1, safeNumber(result.winChance)),
+  );
+  const winChance = Math.min(
+    1,
+    baseWinChance + petCombatBonus,
+  );
+
+  return {
+    ...result,
+    pet: activePet || result.pet || null,
+    activePet,
+    baseWinChance,
+    winChance,
+    petCombatBonus,
+    petCombatRewardBonus,
+  };
+}
+
 async function fightSecretRealmWithPetBonus(
   client,
   guildId,
