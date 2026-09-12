@@ -31,12 +31,6 @@ import {
 const SESSION_PREFIX =
   'games:cultivation:adventureV2:';
 
-const RARE_OR_HIGHER = new Set([
-  'Hiếm',
-  'Cực Hiếm',
-  'Thần Thoại',
-]);
-
 function getSessionKey(
   guildId,
   userId,
@@ -133,9 +127,6 @@ async function finishAdventure(
   );
 }
 
-/**
- * Giữ nguyên trọng số thập phân của 5 Linh Thú cũ.
- */
 function getPetWeight(
   pet,
 ) {
@@ -187,7 +178,8 @@ function rollAvailablePet(
             pet.id,
           ) &&
           pet.encounterEnabled !== false &&
-          getPetWeight(pet) > 0,
+          getPetWeight(pet) > 0 &&
+          Number(pet.encounterChance) > 0,
       );
 
   if (
@@ -196,32 +188,44 @@ function rollAvailablePet(
     return null;
   }
 
-  const rareEncounterBonus = Math.max(
+  const mythicEncounterBonus = Math.max(
     0,
     Number(
       getPetEffectValue(
         profile,
-        'rare_pet_encounter_bonus',
+        'mythic_pet_encounter_bonus',
+      ),
+    ) || 0,
+  );
+
+  const immortalEncounterBonus = Math.max(
+    0,
+    Number(
+      getPetEffectValue(
+        profile,
+        'immortal_pet_encounter_bonus',
       ),
     ) || 0,
   );
 
   /**
-   * Các Linh Thú mới có encounterChance riêng và được roll độc lập.
-   * Vì các tỷ lệ KHÔNG cần cộng thành 100%, nhiều Linh Thú có thể cùng
-   * vượt roll trong một lần; khi đó chọn một trong số các ứng viên đã trúng.
+   * Mỗi Linh Thú roll độc lập theo encounterChance đã khai báo.
+   * Tỷ lệ các phẩm chất KHÔNG cộng lại thành 100%.
+   * Nếu nhiều Linh Thú cùng vượt roll, dùng weight chỉ để chọn
+   * một ứng viên trong nhóm đã trúng. Nếu không con nào trúng,
+   * lần này không xuất hiện Linh Thú.
    */
-  const explicitCandidates = available.filter(
-    pet => Number.isFinite(Number(pet.encounterChance)) &&
-      Number(pet.encounterChance) > 0,
-  );
-
-  const successfulCandidates = explicitCandidates.filter(
+  const successfulCandidates = available.filter(
     pet => {
-      const bonus =
-        RARE_OR_HIGHER.has(pet.rarity)
-          ? rareEncounterBonus
-          : 0;
+      let bonus = 0;
+
+      if (pet.rarity === 'Thần Thoại') {
+        bonus += mythicEncounterBonus;
+      }
+
+      if (pet.rarity === 'Tiên Phẩm') {
+        bonus += immortalEncounterBonus;
+      }
 
       const chance = Math.min(
         1,
@@ -235,17 +239,11 @@ function rollAvailablePet(
     },
   );
 
-  if (successfulCandidates.length > 0) {
-    return weightedPick(successfulCandidates) || successfulCandidates[0];
+  if (successfulCandidates.length === 0) {
+    return null;
   }
 
-  /**
-   * Nếu không ứng viên mới nào vượt roll, vẫn chọn trong toàn bộ Linh Thú
-   * chưa sở hữu và được phép xuất hiện. Như vậy không trả nhầm all_pets_owned
-   * khi người chơi vẫn còn Linh Thú mới chưa bắt được.
-   * Bạch Vũ Phong Lang vẫn không thể lọt vào đây vì encounterEnabled=false.
-   */
-  return weightedPick(available);
+  return weightedPick(successfulCandidates) || successfulCandidates[0];
 }
 
 export async function startAdventurePetEncounter(
@@ -277,6 +275,21 @@ export async function startAdventurePetEncounter(
       userId,
     );
 
+  const availableCount = getCultivationPetList().filter(
+    pet =>
+      pet.encounterEnabled !== false &&
+      Number(pet.encounterChance) > 0 &&
+      !getOwnedPets(profile).some(owned => owned.id === pet.id),
+  ).length;
+
+  if (availableCount <= 0) {
+    return {
+      ok: false,
+      reason: 'all_pets_owned',
+      profile,
+    };
+  }
+
   const pet =
     rollAvailablePet(
       profile,
@@ -285,7 +298,7 @@ export async function startAdventurePetEncounter(
   if (!pet) {
     return {
       ok: false,
-      reason: 'all_pets_owned',
+      reason: 'no_pet_encounter',
       profile,
     };
   }
