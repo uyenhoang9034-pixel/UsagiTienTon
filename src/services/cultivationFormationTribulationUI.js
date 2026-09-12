@@ -69,6 +69,31 @@ function button(
     .setStyle(styleValue);
 }
 
+function buildPetTribulationLine(result) {
+  if (!result?.activePet) return null;
+
+  const successBonus = Math.max(
+    0,
+    Number(result.petTribulationSuccessBonus) || 0,
+  );
+  const rewardBonus = Math.max(
+    0,
+    Number(result.petTribulationRewardBonus) || 0,
+  );
+
+  if (successBonus <= 0 && rewardBonus <= 0) return null;
+
+  const parts = [];
+  if (successBonus > 0) {
+    parts.push(`+${percent(successBonus)} tỷ lệ thành công`);
+  }
+  if (rewardBonus > 0) {
+    parts.push(`+${percent(rewardBonus)} phần thưởng`);
+  }
+
+  return `${result.activePet.emoji} ${result.activePet.name}: **${parts.join(' · ')}**`;
+}
+
 export function appendFormationTribulationRow(rows, ownerId) {
   return [
     ...rows,
@@ -183,11 +208,7 @@ export function buildFormationTribulationPreviewEmbed(result) {
     ? `• Trận Linh: **+${percent(bonuses.spiritSynergyBonus)}**`
     : '• Trận Linh: **Không kích hoạt**';
 
-  const petLine =
-    result.petTribulationSuccessBonus > 0 &&
-    result.activePet
-      ? `${result.activePet.emoji} ${result.activePet.name}: **+${percent(result.petTribulationSuccessBonus)} tỷ lệ thành công · +${percent(result.petTribulationRewardBonus)} phần thưởng**`
-      : null;
+  const petLine = buildPetTribulationLine(result);
 
   return style(
     new EmbedBuilder()
@@ -274,11 +295,7 @@ export function buildFormationTribulationResultEmbed(result) {
 
   const tribulation = result.preview?.tribulation;
   const chance = result.preview?.winChance;
-  const petLine =
-    result.petTribulationSuccessBonus > 0 &&
-    result.activePet
-      ? `${result.activePet.emoji} **${result.activePet.name}** đã gia trì Trận Kiếp.`
-      : null;
+  const petLine = buildPetTribulationLine(result);
 
   if (!result.success) {
     return style(
