@@ -83,7 +83,7 @@ function rollFractionalQuantity(baseQuantity, percent) {
   return guaranteed + (fraction > 0 && Math.random() < fraction ? 1 : 0);
 }
 
-async function forceCongBangCombatWin(
+async function fightWithPetCombatBonus(
   client,
   guildId,
   userId,
@@ -106,12 +106,17 @@ async function forceCongBangCombatWin(
       userId,
     );
 
-  if (
-    getPetEffectValue(
-      profile,
-      'guaranteed_adventure_combat_win',
-    ) <= 0
-  ) {
+  const petCombatBonus = Math.max(
+    0,
+    safeNumber(
+      getPetEffectValue(
+        profile,
+        'combat_success_bonus',
+      ),
+    ),
+  );
+
+  if (petCombatBonus <= 0) {
     return adventure.fightAdventureV2Monster(
       client,
       guildId,
@@ -121,9 +126,9 @@ async function forceCongBangCombatWin(
   }
 
   const monster = combat.monster;
-  const rootBonus = Math.max(
-    0,
-    Number(profile.spiritRoot?.cultivateBonus) || 0,
+  const finalWinChance = Math.min(
+    1,
+    Math.max(0, Number(combat.winChance) || 0) + petCombatBonus,
   );
 
   profile.stats ||= {};
@@ -131,43 +136,98 @@ async function forceCongBangCombatWin(
   profile.stats.monsterEncounters =
     Math.max(0, Number(profile.stats.monsterEncounters) || 0) + 1;
 
-  const baseCultivation = randomInt(
-    monster.cultivationMin,
-    monster.cultivationMax,
-  );
-  const cultivation = Math.max(
-    0,
-    Math.round(baseCultivation * (1 + rootBonus)),
-  );
-  const stones = randomInt(
-    monster.stonesMin,
-    monster.stonesMax,
-  );
+  const success = Math.random() < finalWinChance;
 
-  profile.cultivation = Math.max(0, Number(profile.cultivation) || 0) + cultivation;
-  profile.totalCultivation = Math.max(0, Number(profile.totalCultivation) || 0) + cultivation;
-  profile.spiritStones = Math.max(0, Number(profile.spiritStones) || 0) + stones;
+  if (success) {
+    const rootBonus = Math.max(
+      0,
+      Number(profile.spiritRoot?.cultivateBonus) || 0,
+    );
 
-  let droppedItem = null;
+    const baseCultivation = randomInt(
+      monster.cultivationMin,
+      monster.cultivationMax,
+    );
+    const cultivation = Math.max(
+      0,
+      Math.round(baseCultivation * (1 + rootBonus)),
+    );
+    const stones = randomInt(
+      monster.stonesMin,
+      monster.stonesMax,
+    );
 
-  if (Math.random() < 0.45) {
-    const lootPool = [
-      'thien_linh_thao',
-      'huyen_thiet',
-      'tu_khi_dan',
-    ].filter((itemId) => CULTIVATION_ITEMS[itemId]);
-    const itemId = randomItem(lootPool);
+    profile.cultivation = Math.max(0, Number(profile.cultivation) || 0) + cultivation;
+    profile.totalCultivation = Math.max(0, Number(profile.totalCultivation) || 0) + cultivation;
+    profile.spiritStones = Math.max(0, Number(profile.spiritStones) || 0) + stones;
 
-    if (itemId) {
-      addInventoryItem(profile, itemId, 1);
-      droppedItem = {
-        itemId,
-        item: CULTIVATION_ITEMS[itemId],
-        quantity: 1,
-      };
+    let droppedItem = null;
+
+    if (Math.random() < 0.45) {
+      const lootPool = [
+        'thien_linh_thao',
+        'huyen_thiet',
+        'tu_khi_dan',
+      ].filter((itemId) => CULTIVATION_ITEMS[itemId]);
+      const itemId = randomItem(lootPool);
+
+      if (itemId) {
+        addInventoryItem(profile, itemId, 1);
+        droppedItem = {
+          itemId,
+          item: CULTIVATION_ITEMS[itemId],
+          quantity: 1,
+        };
+      }
     }
+
+    profile.stats.adventureCount =
+      Math.max(0, Number(profile.stats.adventureCount) || 0) + 1;
+    profile.cooldowns.adventureAt =
+      Date.now() + CULTIVATION_CONFIG.gameplay.adventureCooldownMs;
+
+    const saved = await saveCultivationProfile(client, profile);
+    await adventure.clearAdventureV2Session(client, guildId, userId);
+
+    return {
+      ok: true,
+      type: 'combat',
+      success: true,
+      monster,
+      winChance: finalWinChance,
+      baseWinChance: combat.winChance,
+      petCombatBonus,
+      petAssist: Boolean(options?.petAssist),
+      pet: getActivePet(saved),
+      cultivationDelta: cultivation,
+      stoneDelta: stones,
+      droppedItem,
+      profile: saved,
+      required: getCultivationRequired(saved),
+    };
   }
 
+  const requestedLoss = randomInt(
+    monster.lossMin,
+    monster.lossMax,
+  );
+  const cultivationLoss = Math.min(
+    Math.max(0, Number(profile.cultivation) || 0),
+    requestedLoss,
+  );
+  const staminaLoss = Math.min(
+    Math.max(0, Number(profile.stamina) || 0),
+    randomInt(5, 15),
+  );
+
+  profile.cultivation = Math.max(
+    0,
+    Number(profile.cultivation) - cultivationLoss,
+  );
+  profile.stamina = Math.max(
+    0,
+    Number(profile.stamina) - staminaLoss,
+  );
   profile.stats.adventureCount =
     Math.max(0, Number(profile.stats.adventureCount) || 0) + 1;
   profile.cooldowns.adventureAt =
@@ -179,15 +239,16 @@ async function forceCongBangCombatWin(
   return {
     ok: true,
     type: 'combat',
-    success: true,
+    success: false,
     monster,
-    winChance: 1,
-    guaranteedByPet: true,
+    winChance: finalWinChance,
+    baseWinChance: combat.winChance,
+    petCombatBonus,
     petAssist: Boolean(options?.petAssist),
     pet: getActivePet(saved),
-    cultivationDelta: cultivation,
-    stoneDelta: stones,
-    droppedItem,
+    cultivationDelta: -cultivationLoss,
+    staminaDelta: -staminaLoss,
+    stoneDelta: 0,
     profile: saved,
     required: getCultivationRequired(saved),
   };
@@ -209,6 +270,7 @@ async function runWithFormationAdventureReward(
 
   const beforeCultivation = safeNumber(beforeProfile.cultivation);
   const beforeStones = safeNumber(beforeProfile.spiritStones);
+  const beforeStamina = safeNumber(beforeProfile.stamina);
   const beforeInventory = getInventorySnapshot(beforeProfile);
   const activePet = getActivePet(beforeProfile);
 
@@ -242,6 +304,25 @@ async function runWithFormationAdventureReward(
     ),
   );
 
+  const petStaminaRefundPercent = Math.min(
+    0.95,
+    Math.max(
+      0,
+      safeNumber(
+        getPetEffectValue(
+          beforeProfile,
+          'stamina_cost_refund',
+        ),
+      ),
+    ),
+  );
+
+  const adventureAlwaysPositive =
+    getPetEffectValue(
+      beforeProfile,
+      'adventure_always_positive',
+    ) > 0;
+
   const formation =
     await getFormationGameplayBonus(
       client,
@@ -267,6 +348,21 @@ async function runWithFormationAdventureReward(
       userId,
     );
 
+  let protectedCultivation = 0;
+
+  if (
+    adventureAlwaysPositive &&
+    safeNumber(afterProfile.cultivation) < beforeCultivation
+  ) {
+    protectedCultivation =
+      beforeCultivation - safeNumber(afterProfile.cultivation);
+    afterProfile.cultivation = beforeCultivation;
+
+    if ((Number(result.cultivationDelta) || 0) < 0) {
+      result.cultivationDelta = 0;
+    }
+  }
+
   const cultivationGain = Math.max(
     0,
     safeNumber(afterProfile.cultivation) - beforeCultivation,
@@ -276,6 +372,33 @@ async function runWithFormationAdventureReward(
     0,
     safeNumber(afterProfile.spiritStones) - beforeStones,
   );
+
+  const staminaSpent = Math.max(
+    0,
+    beforeStamina - safeNumber(afterProfile.stamina),
+  );
+
+  const petStaminaRefund =
+    staminaSpent > 0 && petStaminaRefundPercent > 0
+      ? Math.min(
+          staminaSpent,
+          Math.max(
+            1,
+            Math.round(staminaSpent * petStaminaRefundPercent),
+          ),
+        )
+      : 0;
+
+  if (petStaminaRefund > 0) {
+    afterProfile.stamina = Math.min(
+      Math.max(
+        1,
+        Number(afterProfile.maxStamina) ||
+          CULTIVATION_CONFIG.gameplay.maxStamina,
+      ),
+      safeNumber(afterProfile.stamina) + petStaminaRefund,
+    );
+  }
 
   const afterInventory = getInventorySnapshot(afterProfile);
   const inventoryGains = getInventoryGains(beforeInventory, afterInventory);
@@ -383,6 +506,55 @@ async function runWithFormationAdventureReward(
     }
   }
 
+  const petCombatRewardPercent =
+    result.type === 'combat' && result.success
+      ? Math.max(
+          0,
+          safeNumber(
+            getPetEffectValue(
+              beforeProfile,
+              'combat_reward_bonus',
+            ),
+          ),
+        )
+      : 0;
+
+  const petCombatCultivationBonus =
+    cultivationGain > 0 && petCombatRewardPercent > 0
+      ? Math.max(
+          1,
+          Math.round(cultivationGain * petCombatRewardPercent),
+        )
+      : 0;
+
+  const petCombatStoneBonus =
+    stoneGain > 0 && petCombatRewardPercent > 0
+      ? Math.max(
+          1,
+          Math.round(stoneGain * petCombatRewardPercent),
+        )
+      : 0;
+
+  const petCombatItemBonuses = {};
+
+  if (petCombatRewardPercent > 0) {
+    for (const [itemId, quantity] of Object.entries(inventoryGains)) {
+      const bonusQuantity = rollFractionalQuantity(
+        quantity,
+        petCombatRewardPercent,
+      );
+
+      if (bonusQuantity > 0) {
+        addInventoryItem(
+          afterProfile,
+          itemId,
+          bonusQuantity,
+        );
+        petCombatItemBonuses[itemId] = bonusQuantity;
+      }
+    }
+  }
+
   const formationAdventureBonus =
     cultivationGain > 0 &&
     adventurePercent > 0
@@ -415,6 +587,11 @@ async function runWithFormationAdventureReward(
     afterProfile.totalCultivation += petAllCultivationBonus;
   }
 
+  if (petCombatCultivationBonus > 0) {
+    afterProfile.cultivation += petCombatCultivationBonus;
+    afterProfile.totalCultivation += petCombatCultivationBonus;
+  }
+
   if (petAdventureStoneBonus > 0) {
     afterProfile.spiritStones += petAdventureStoneBonus;
   }
@@ -423,16 +600,25 @@ async function runWithFormationAdventureReward(
     afterProfile.spiritStones += petAllStoneBonus;
   }
 
+  if (petCombatStoneBonus > 0) {
+    afterProfile.spiritStones += petCombatStoneBonus;
+  }
+
   if (formationStoneBonus > 0) {
     afterProfile.spiritStones += formationStoneBonus;
   }
 
   const needsSave =
+    protectedCultivation > 0 ||
+    petStaminaRefund > 0 ||
     petAdventureStoneBonus > 0 ||
     petAllCultivationBonus > 0 ||
     petAllStoneBonus > 0 ||
     Object.keys(petAllItemBonuses).length > 0 ||
     Boolean(petMaterialFindBonus) ||
+    petCombatCultivationBonus > 0 ||
+    petCombatStoneBonus > 0 ||
+    Object.keys(petCombatItemBonuses).length > 0 ||
     formationAdventureBonus > 0 ||
     formationStoneBonus > 0;
 
@@ -448,6 +634,10 @@ async function runWithFormationAdventureReward(
     ...result,
     profile: savedProfile,
     activePet,
+    protectedCultivation,
+    adventureAlwaysPositive,
+    petStaminaRefund,
+    petStaminaRefundPercent,
     petAdventureStoneBonus,
     petAdventureStonePercent,
     petAllRewardPercent,
@@ -456,6 +646,10 @@ async function runWithFormationAdventureReward(
     petAllItemBonuses,
     petMaterialFindPercent,
     petMaterialFindBonus,
+    petCombatRewardPercent,
+    petCombatCultivationBonus,
+    petCombatStoneBonus,
+    petCombatItemBonuses,
     formationAdventureBonus,
     formationAdventurePercent:
       adventurePercent,
@@ -490,7 +684,7 @@ export async function fightAdventureV2Monster(
   options,
 ) {
   return runWithFormationAdventureReward(
-    forceCongBangCombatWin,
+    fightWithPetCombatBonus,
     client,
     guildId,
     userId,
