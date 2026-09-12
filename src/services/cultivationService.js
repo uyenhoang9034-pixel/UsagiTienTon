@@ -603,7 +603,7 @@ export function getProgressionIndex(profile) {
 
 export function getCultivationRequired(profile) {
   const step = getProgressionIndex(profile);
-  return Math.round(500 * Math.pow(1.42, step));
+  return Math.round(500 * Math.pow(1.35, step));
 }
 
 export function isMaxRealm(profile) {
