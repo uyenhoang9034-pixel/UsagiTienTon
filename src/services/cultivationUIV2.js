@@ -34,6 +34,10 @@ function number(value) {
   );
 }
 
+function percent(value) {
+  return `${Math.round((Number(value) || 0) * 100)}%`;
+}
+
 export function buildCultivateEmbed(result) {
   const embed = baseUI.buildCultivateEmbed(result);
 
@@ -51,6 +55,15 @@ export function buildCultivateEmbed(result) {
   ) {
     lines.push(
       `${result.activePet.emoji} ${result.activePet.name}: **+${number(result.extraPetCultivationBonus)} Tu Vi**`,
+    );
+  }
+
+  if (
+    result.petStaminaRefund > 0 &&
+    result.activePet
+  ) {
+    lines.push(
+      `${result.activePet.emoji} ${result.activePet.name}: **Bù lại ${number(result.petStaminaRefund)} Thể Lực**`,
     );
   }
 
@@ -77,6 +90,23 @@ export function buildBreakthroughEmbed(result) {
   ) {
     lines.push(
       `${result.activePet.emoji} ${result.activePet.name}: **Đột Phá chắc chắn thành công 100%**`,
+    );
+  } else if (
+    (Number(result.petBreakthroughBonus) || 0) > 0 &&
+    result.activePet
+  ) {
+    lines.push(
+      `${result.activePet.emoji} ${result.activePet.name}: **+${percent(result.petBreakthroughBonus)} tỷ lệ Đột Phá**`,
+    );
+  }
+
+  if (
+    !result.success &&
+    (Number(result.petLossSaved) || 0) > 0 &&
+    result.activePet
+  ) {
+    lines.push(
+      `${result.activePet.emoji} ${result.activePet.name}: **Bù lại ${number(result.petLossSaved)} Tu Vi tổn thất**`,
     );
   }
 
