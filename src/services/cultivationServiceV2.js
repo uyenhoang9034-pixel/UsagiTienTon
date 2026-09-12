@@ -30,12 +30,8 @@ function getWrapperCultivationPetBonus(profile) {
 
   if (!pet) return 0;
 
-  // Hai Linh Thú cũ này đã được base cultivationService.js xử lý sẵn.
-  // Chỉ cộng tại wrapper cho các Linh Thú mới để tránh nhân đôi hiệu quả cũ.
-  if (
-    pet.id === 'thanh_phong_linh_ho' ||
-    pet.id === 'hau_tho_kim_long'
-  ) {
+  // Thanh Phong Linh Hồ vẫn được base service xử lý đúng +3%.
+  if (pet.id === 'thanh_phong_linh_ho') {
     return 0;
   }
 
@@ -47,6 +43,21 @@ function getWrapperCultivationPetBonus(profile) {
         'cultivation_bonus',
       ),
     ) || 0,
+  );
+}
+
+function getPetStaminaRefund(profile) {
+  return Math.min(
+    0.95,
+    Math.max(
+      0,
+      Number(
+        getPetEffectValue(
+          profile,
+          'stamina_cost_refund',
+        ),
+      ) || 0,
+    ),
   );
 }
 
@@ -85,6 +96,12 @@ export async function cultivate(
     );
   }
 
+  const activePet = getActivePet(profile);
+  const petCultivationPercent =
+    getWrapperCultivationPetBonus(profile);
+  const petStaminaRefundPercent =
+    getPetStaminaRefund(profile);
+
   const baseStaminaCost =
     CULTIVATION_CONFIG.gameplay
       .cultivateStaminaCost;
@@ -95,39 +112,72 @@ export async function cultivate(
       effects,
     );
 
-  if (profile.stamina < stamina.total) {
+  const petStaminaRefund =
+    petStaminaRefundPercent > 0
+      ? Math.min(
+          stamina.total,
+          Math.max(
+            1,
+            Math.round(
+              stamina.total * petStaminaRefundPercent,
+            ),
+          ),
+        )
+      : 0;
+
+  const effectiveStaminaCost = Math.max(
+    0,
+    stamina.total - petStaminaRefund,
+  );
+
+  if (profile.stamina < effectiveStaminaCost) {
     return {
       ok: false,
       reason: 'stamina',
       profile,
-      staminaCost: stamina.total,
+      staminaCost: effectiveStaminaCost,
       baseStaminaCost,
-      formationStaminaSaved:
-        stamina.saved,
+      formationStaminaSaved: stamina.saved,
       formationStaminaReduction:
-        Number(
-          effects.staminaReduction,
-        ) || 0,
+        Number(effects.staminaReduction) || 0,
+      petStaminaRefund,
+      petStaminaRefundPercent,
+      activePet,
     };
   }
 
   const originalStamina =
     Number(profile.stamina) || 0;
+  const originalActivePetId =
+    profile.pets?.active || null;
 
-  let staminaCreditApplied = false;
+  // Hậu Thổ Kim Long trước đây bị hard-code +20% Tu Vi trong base service.
+  // Phiên bản cân bằng mới không còn buff Tu Luyện, nên tạm ẩn pet khỏi base.
+  const suppressLegacyCultivationPet =
+    originalActivePetId === 'hau_tho_kim_long';
+
+  let preCreditApplied = false;
 
   try {
-    if (stamina.saved > 0) {
+    const totalPreCredit =
+      Math.max(0, stamina.saved) +
+      Math.max(0, petStaminaRefund);
+
+    if (totalPreCredit > 0 || suppressLegacyCultivationPet) {
       profile.stamina =
-        originalStamina +
-        stamina.saved;
+        originalStamina + totalPreCredit;
+
+      if (suppressLegacyCultivationPet) {
+        profile.pets ||= { owned: {}, active: null };
+        profile.pets.active = null;
+      }
 
       await saveProfile(
         client,
         profile,
       );
 
-      staminaCreditApplied = true;
+      preCreditApplied = true;
     }
 
     const result =
@@ -138,7 +188,7 @@ export async function cultivate(
       );
 
     if (!result.ok) {
-      if (staminaCreditApplied) {
+      if (preCreditApplied) {
         const latest =
           await baseService.getCultivationProfile(
             client,
@@ -146,8 +196,9 @@ export async function cultivate(
             userId,
           );
 
-        latest.stamina =
-          originalStamina;
+        latest.stamina = originalStamina;
+        latest.pets ||= { owned: {}, active: null };
+        latest.pets.active = originalActivePetId;
 
         await saveProfile(
           client,
@@ -170,18 +221,9 @@ export async function cultivate(
         effects,
       );
 
-    const savedProfile =
-      result.profile;
-
-    const activePet =
-      getActivePet(
-        savedProfile,
-      );
-
-    const petCultivationPercent =
-      getWrapperCultivationPetBonus(
-        savedProfile,
-      );
+    const savedProfile = result.profile;
+    savedProfile.pets ||= { owned: {}, active: null };
+    savedProfile.pets.active = originalActivePetId;
 
     const petCultivationBonus =
       petCultivationPercent > 0 &&
@@ -216,15 +258,10 @@ export async function cultivate(
         petCultivationBonus;
     }
 
-    const finalProfile =
-      cultivation.bonus > 0 ||
-      stones.bonus > 0 ||
-      petCultivationBonus > 0
-        ? await saveProfile(
-            client,
-            savedProfile,
-          )
-        : savedProfile;
+    const finalProfile = await saveProfile(
+      client,
+      savedProfile,
+    );
 
     return {
       ...result,
@@ -237,29 +274,24 @@ export async function cultivate(
       formationCultivationBonus:
         cultivation.bonus,
       formationCultivationPercent:
-        Number(
-          effects.cultivationBonus,
-        ) || 0,
+        Number(effects.cultivationBonus) || 0,
       formationStoneBonus:
         stones.bonus,
       formationStonePercent:
-        Number(
-          effects.spiritStoneBonus,
-        ) || 0,
-      staminaCost:
-        stamina.total,
+        Number(effects.spiritStoneBonus) || 0,
+      staminaCost: effectiveStaminaCost,
       baseStaminaCost,
       formationStaminaSaved:
         stamina.saved,
       formationStaminaReduction:
-        Number(
-          effects.staminaReduction,
-        ) || 0,
+        Number(effects.staminaReduction) || 0,
+      petStaminaRefund,
+      petStaminaRefundPercent,
       formationResonanceLines:
         formation.lines || [],
     };
   } catch (error) {
-    if (staminaCreditApplied) {
+    if (preCreditApplied) {
       try {
         const latest =
           await baseService.getCultivationProfile(
@@ -268,8 +300,9 @@ export async function cultivate(
             userId,
           );
 
-        latest.stamina =
-          originalStamina;
+        latest.stamina = originalStamina;
+        latest.pets ||= { owned: {}, active: null };
+        latest.pets.active = originalActivePetId;
 
         await saveProfile(
           client,
@@ -290,6 +323,7 @@ async function guaranteedBreakthrough(
   userId,
   formationBonus,
   formationLines,
+  activePet,
 ) {
   const profile =
     await baseService.getCultivationProfile(
@@ -373,11 +407,6 @@ async function guaranteedBreakthrough(
       profile,
     );
 
-  const activePet =
-    getActivePet(
-      saved,
-    );
-
   return {
     ok: true,
     success: true,
@@ -385,7 +414,7 @@ async function guaranteedBreakthrough(
     baseChance,
     breakthroughPillBonus,
     techniqueBreakthroughBonus: 0,
-    petBreakthroughBonus: 0,
+    petBreakthroughBonus: 1,
     formationBreakthroughBonus:
       formationBonus,
     guaranteedByPet: true,
@@ -422,16 +451,39 @@ export async function breakthrough(
       ) || 0,
     );
 
-  const preProfile =
+  const profile =
     await baseService.getCultivationProfile(
       client,
       guildId,
       userId,
     );
 
+  const activePet = getActivePet(profile);
+  const petBreakthroughBonus = Math.max(
+    0,
+    Number(
+      getPetEffectValue(
+        profile,
+        'breakthrough_bonus',
+      ),
+    ) || 0,
+  );
+  const petLossReduction = Math.min(
+    0.95,
+    Math.max(
+      0,
+      Number(
+        getPetEffectValue(
+          profile,
+          'breakthrough_loss_reduction',
+        ),
+      ) || 0,
+    ),
+  );
+
   if (
     getPetEffectValue(
-      preProfile,
+      profile,
       'guaranteed_breakthrough',
     ) > 0
   ) {
@@ -441,87 +493,28 @@ export async function breakthrough(
       userId,
       formationBonus,
       formation.lines || [],
+      activePet,
     );
   }
 
-  if (formationBonus <= 0) {
-    const result =
-      await baseService.breakthrough(
-        client,
-        guildId,
-        userId,
-      );
-
-    if (
-      result?.ok &&
-      !result.success &&
-      getActivePet(result.profile)?.id ===
-        'bach_giac_linh_loc'
-    ) {
-      const refund = Math.max(
-        0,
-        Math.round(
-          (Number(result.originalLoss) || 0) *
-            0.10,
-        ),
-      );
-
-      if (refund > 0) {
-        result.profile.cultivation += refund;
-        result.profile = await saveProfile(
-          client,
-          result.profile,
-        );
-        result.petLossReduction = 0.10;
-        result.petLossSaved = refund;
-        result.loss = Math.max(
-          0,
-          (Number(result.loss) || 0) - refund,
-        );
-      }
-    }
-
-    return {
-      ...result,
-      activePet:
-        getActivePet(
-          result?.profile || preProfile,
-        ),
-    };
-  }
-
-  const profile =
-    preProfile;
-
-  if (
-    baseService.isMaxRealm(
-      profile,
-    ) ||
-    profile.cultivation <
-      baseService.getCultivationRequired(
-        profile,
-      )
-  ) {
-    return baseService.breakthrough(
-      client,
-      guildId,
-      userId,
-    );
-  }
-
-  const originalPillBonus =
-    Math.max(
-      0,
-      Number(
-        profile.effects
-          ?.nextBreakthroughBonus,
-      ) || 0,
-    );
+  const originalActivePetId =
+    profile.pets?.active || null;
+  const originalPillBonus = Math.max(
+    0,
+    Number(
+      profile.effects?.nextBreakthroughBonus,
+    ) || 0,
+  );
 
   profile.effects ||= {};
+  profile.pets ||= { owned: {}, active: null };
+
+  // Tạm ẩn Linh Thú để vô hiệu hóa các bonus hard-code cũ trong base service.
+  profile.pets.active = null;
   profile.effects.nextBreakthroughBonus =
     originalPillBonus +
-    formationBonus;
+    formationBonus +
+    petBreakthroughBonus;
 
   await saveProfile(
     client,
@@ -536,62 +529,74 @@ export async function breakthrough(
         userId,
       );
 
-    if (!result.ok) {
-      const latest =
-        await baseService.getCultivationProfile(
-          client,
-          guildId,
-          userId,
-        );
+    const latest =
+      result?.profile ||
+      await baseService.getCultivationProfile(
+        client,
+        guildId,
+        userId,
+      );
 
-      latest.effects ||= {};
+    latest.pets ||= { owned: {}, active: null };
+    latest.pets.active = originalActivePetId;
+    latest.effects ||= {};
+
+    if (!result?.ok) {
       latest.effects.nextBreakthroughBonus =
         originalPillBonus;
 
-      await saveProfile(
+      const restored = await saveProfile(
         client,
         latest,
       );
 
-      return result;
+      return {
+        ...result,
+        profile: restored,
+        activePet,
+      };
     }
+
+    latest.effects.nextBreakthroughBonus = 0;
+
+    let petLossSaved = 0;
 
     if (
       !result.success &&
-      getActivePet(result.profile)?.id ===
-        'bach_giac_linh_loc'
+      petLossReduction > 0
     ) {
-      const refund = Math.max(
+      petLossSaved = Math.max(
         0,
         Math.round(
           (Number(result.originalLoss) || 0) *
-            0.10,
+            petLossReduction,
         ),
       );
 
-      if (refund > 0) {
-        result.profile.cultivation += refund;
-        result.profile = await saveProfile(
-          client,
-          result.profile,
-        );
-        result.petLossReduction = 0.10;
-        result.petLossSaved = refund;
+      if (petLossSaved > 0) {
+        latest.cultivation += petLossSaved;
         result.loss = Math.max(
           0,
-          (Number(result.loss) || 0) - refund,
+          (Number(result.loss) || 0) -
+            petLossSaved,
         );
       }
     }
 
+    const saved = await saveProfile(
+      client,
+      latest,
+    );
+
     return {
       ...result,
-      activePet:
-        getActivePet(
-          result.profile,
-        ),
+      profile: saved,
+      activePet,
       breakthroughPillBonus:
         originalPillBonus,
+      petBreakthroughBonus,
+      petLossReduction,
+      petLossSaved,
       formationBreakthroughBonus:
         formationBonus,
       formationResonanceLines:
@@ -606,6 +611,8 @@ export async function breakthrough(
           userId,
         );
 
+      latest.pets ||= { owned: {}, active: null };
+      latest.pets.active = originalActivePetId;
       latest.effects ||= {};
       latest.effects.nextBreakthroughBonus =
         originalPillBonus;
