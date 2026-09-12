@@ -25,6 +25,11 @@ import {
   rollFormationFragmentDrop,
 } from './cultivationFormationRewards.js';
 
+import {
+  getAdventureRealmRewardMultipliers,
+  scalePositiveRealmReward,
+} from './cultivationRealmRewards.js';
+
 export * from './cultivationAdventureV2.js';
 
 const ADVENTURE_FRAGMENT_DROP_CHANCE = 0.10;
@@ -327,6 +332,11 @@ async function runWithFormationAdventureReward(
       userId,
     );
 
+  const realmRewards =
+    getAdventureRealmRewardMultipliers(
+      beforeProfile,
+    );
+
   const beforeCultivation = safeNumber(beforeProfile.cultivation);
   const beforeStones = safeNumber(beforeProfile.spiritStones);
   const beforeStamina = safeNumber(beforeProfile.stamina);
@@ -436,15 +446,54 @@ async function runWithFormationAdventureReward(
     }
   }
 
-  const cultivationGain = Math.max(
+  const rawCultivationGain = Math.max(
     0,
     safeNumber(afterProfile.cultivation) - beforeCultivation,
   );
 
-  const stoneGain = Math.max(
+  const rawStoneGain = Math.max(
     0,
     safeNumber(afterProfile.spiritStones) - beforeStones,
   );
+
+  const cultivationGain =
+    scalePositiveRealmReward(
+      rawCultivationGain,
+      realmRewards.cultivation,
+    );
+
+  const stoneGain =
+    scalePositiveRealmReward(
+      rawStoneGain,
+      realmRewards.spiritStones,
+    );
+
+  const realmCultivationBonus = Math.max(
+    0,
+    cultivationGain - rawCultivationGain,
+  );
+
+  const realmStoneBonus = Math.max(
+    0,
+    stoneGain - rawStoneGain,
+  );
+
+  if (realmCultivationBonus > 0) {
+    afterProfile.cultivation += realmCultivationBonus;
+    afterProfile.totalCultivation += realmCultivationBonus;
+  }
+
+  if (realmStoneBonus > 0) {
+    afterProfile.spiritStones += realmStoneBonus;
+  }
+
+  if (rawCultivationGain > 0) {
+    result.cultivationDelta = cultivationGain;
+  }
+
+  if (rawStoneGain > 0) {
+    result.stoneDelta = stoneGain;
+  }
 
   const staminaSpent = Math.max(
     0,
@@ -682,6 +731,8 @@ async function runWithFormationAdventureReward(
   }
 
   const needsSave =
+    realmCultivationBonus > 0 ||
+    realmStoneBonus > 0 ||
     protectedCultivation > 0 ||
     protectedStamina > 0 ||
     petStaminaRefund > 0 ||
@@ -708,6 +759,14 @@ async function runWithFormationAdventureReward(
     ...result,
     profile: savedProfile,
     activePet,
+    realmRewardBaseMultiplier:
+      realmRewards.base,
+    realmCultivationMultiplier:
+      realmRewards.cultivation,
+    realmStoneMultiplier:
+      realmRewards.spiritStones,
+    realmCultivationBonus,
+    realmStoneBonus,
     protectedCultivation,
     protectedStamina,
     adventureAlwaysPositive,
