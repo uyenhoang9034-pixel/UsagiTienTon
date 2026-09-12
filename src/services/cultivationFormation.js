@@ -389,12 +389,12 @@ export async function comprehendFormation(
   const essenceGain = 6 + Math.floor(Math.random() * 7);
   const safeExtraInsightBonus = Math.max(
     0,
-    Math.min(0.75, Number(extraInsightBonus) || 0),
+    Math.min(5, Number(extraInsightBonus) || 0),
   );
   const totalInsightBonus = Math.max(
     0,
     Math.min(
-      0.75,
+      5,
       (Number(resonance.effects.insightBonus) || 0) +
       safeExtraInsightBonus,
     ),
