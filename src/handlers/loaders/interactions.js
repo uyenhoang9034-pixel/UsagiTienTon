@@ -22,6 +22,7 @@ const ALLOWED_INTERACTION_PATTERNS = [
   /^buttons\/tutien\.js$/,
   /^buttons\/tutienDailyQuest\.js$/,
   /^buttons\/tutienFormation\.js$/,
+  /^buttons\/tutienFormationHeart\.js$/,
   /^buttons\/tutienShop\.js$/,
   /^buttons\/tutienSpiritVein\.js$/,
   /^buttons\/tutienPetCodex.*\.js$/,
