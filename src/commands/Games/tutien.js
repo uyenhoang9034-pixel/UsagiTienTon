@@ -407,6 +407,7 @@ export default {
                 interaction.user.id,
               ),
               interaction.user.id,
+              interaction.guild,
             ),
         });
 
