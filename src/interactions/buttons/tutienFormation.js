@@ -407,15 +407,31 @@ export default {
           ),
         ]);
 
+        const spiritInsightBonus =
+          formationBonus?.spiritSynergy?.active
+            ? Math.max(
+                0,
+                Number(formationBonus.spiritSynergy.effects?.insightBonus) || 0,
+              )
+            : 0;
+
+        const petInsightBonus = Math.max(
+          0,
+          Number(
+            getPetEffectValue(
+              profile,
+              'formation_insight_bonus',
+            ),
+          ) || 0,
+        );
+
         const result = await comprehendFormation(
           client,
           guildId,
           userId,
           {
             extraInsightBonus:
-              formationBonus?.spiritSynergy?.active
-                ? Number(formationBonus.spiritSynergy.effects?.insightBonus) || 0
-                : 0,
+              spiritInsightBonus + petInsightBonus,
           },
         );
 
@@ -429,6 +445,21 @@ export default {
               ),
             ) || 0,
           );
+
+          const specialCrystalChance = Math.min(
+            1,
+            Math.max(
+              0,
+              Number(
+                getPetEffectValue(
+                  profile,
+                  'special_crystal_drop_chance',
+                ),
+              ) || 0,
+            ),
+          );
+
+          let needsSave = false;
 
           if (essencePercent > 0 && result.essenceGain > 0) {
             const petEssenceBonus = Math.max(
@@ -444,19 +475,51 @@ export default {
                 Number(result.state.formationEssence) || 0,
               ) + petEssenceBonus;
 
+            result.baseEssenceGain = result.essenceGain;
+            result.petEssenceBonus = petEssenceBonus;
+            result.petEssencePercent = essencePercent;
+            result.essenceGain += petEssenceBonus;
+            needsSave = true;
+          }
+
+          if (
+            specialCrystalChance > 0 &&
+            Math.random() < specialCrystalChance
+          ) {
+            const crystalId =
+              Math.random() < 0.5
+                ? 'spirit'
+                : 'chaos';
+
+            result.state.elementCrystals ||= {};
+            result.state.elementCrystals[crystalId] =
+              Math.max(
+                0,
+                Number(result.state.elementCrystals?.[crystalId]) || 0,
+              ) + 1;
+
+            result.specialCrystalDrop = {
+              crystalId,
+              quantity: 1,
+            };
+            result.specialCrystalDropChance = specialCrystalChance;
+            needsSave = true;
+          }
+
+          if (needsSave) {
             result.state = await saveFormationState(
               client,
               guildId,
               userId,
               result.state,
             );
-
-            result.baseEssenceGain = result.essenceGain;
-            result.petEssenceBonus = petEssenceBonus;
-            result.petEssencePercent = essencePercent;
-            result.essenceGain += petEssenceBonus;
-            result.activePet = getActivePet(profile);
           }
+
+          result.activePet = getActivePet(profile);
+          result.spiritInsightBonus = spiritInsightBonus;
+          result.petInsightBonus = petInsightBonus;
+          result.extraInsightBonus =
+            spiritInsightBonus + petInsightBonus;
         }
 
         return interaction.update({
