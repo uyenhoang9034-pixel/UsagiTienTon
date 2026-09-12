@@ -625,7 +625,7 @@ export function getEffectiveBreakthroughChance(profile) {
   const pillBonus = Math.max(0, Number(profile.effects?.nextBreakthroughBonus) || 0);
   const techniqueBonus = getTechniqueBreakthroughBonus(profile);
   const petBonus = getPetBreakthroughBonus(profile);
-  return Math.min(0.95, base + pillBonus + techniqueBonus + petBonus);
+  return Math.min(1, base + pillBonus + techniqueBonus + petBonus);
 }
 
 export function getCultivateCooldownRemaining(profile) {
@@ -911,7 +911,7 @@ export async function breakthrough(client, guildId, userId) {
     const techniqueBreakthroughBonus = getTechniqueBreakthroughBonus(profile);
     const petBreakthroughBonus = getPetBreakthroughBonus(profile);
     const chance = Math.min(
-      0.95,
+      1,
       baseChance + breakthroughPillBonus + techniqueBreakthroughBonus + petBreakthroughBonus,
     );
     const oldRealm = getRealmDisplay(profile);
