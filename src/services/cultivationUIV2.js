@@ -3,6 +3,10 @@ import { EmbedBuilder } from 'discord.js';
 import * as baseUI from './cultivationUI.js';
 
 import {
+  appendFormationButton,
+} from './cultivationFormationUI.js';
+
+import {
   buildFormationBreakthroughLines,
   buildFormationCultivateLines,
 } from './cultivationFormationResultUI.js';
@@ -36,6 +40,13 @@ function number(value) {
 
 function percent(value) {
   return `${Math.round((Number(value) || 0) * 100)}%`;
+}
+
+export function buildDashboardRows(ownerId) {
+  return appendFormationButton(
+    baseUI.buildDashboardRows(ownerId),
+    ownerId,
+  );
 }
 
 export function buildCultivateEmbed(result) {
