@@ -83,7 +83,11 @@ function formatPercent(chance) {
     return `${percent.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}%`;
   }
 
-  return `${percent.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')}%`;
+  if (percent <= 0) {
+    return '0%';
+  }
+
+  return `${percent.toFixed(6).replace(/0+$/, '').replace(/\.$/, '')}%`;
 }
 
 /**
@@ -152,6 +156,7 @@ export function buildPetEmbed(
             : '**Chưa Có**',
           '',
           `**Linh Thú Đã Thu Phục**: ${owned.length}`,
+          '*Sắp xếp: Tiên Phẩm → Thần Thoại → Cực Hiếm → Hiếm → Lương Phẩm → Phàm*',
           '',
           SEPARATOR,
           '',
@@ -181,29 +186,35 @@ export function buildPetRows(
   if (
     owned.length > 0
   ) {
-    rows.push(
-      new ActionRowBuilder()
-        .addComponents(
-          new StringSelectMenuBuilder()
-            .setCustomId(
-              `tutien_pet_select:${ownerId}`,
-            )
-            .setPlaceholder(
-              'Chọn Linh Thú Đồng Hành',
-            )
-            .setMinValues(
-              1,
-            )
-            .setMaxValues(
-              1,
-            )
-            .addOptions(
-              owned
-                .slice(
-                  0,
-                  25,
-                )
-                .map(
+    const chunks = [];
+
+    for (let index = 0; index < owned.length; index += 25) {
+      chunks.push(owned.slice(index, index + 25));
+    }
+
+    for (let index = 0; index < chunks.length; index += 1) {
+      const pets = chunks[index];
+
+      rows.push(
+        new ActionRowBuilder()
+          .addComponents(
+            new StringSelectMenuBuilder()
+              .setCustomId(
+                `tutien_pet_select:${ownerId}:${index + 1}`,
+              )
+              .setPlaceholder(
+                chunks.length > 1
+                  ? `Chọn Linh Thú Đồng Hành · ${index + 1}/${chunks.length}`
+                  : 'Chọn Linh Thú Đồng Hành',
+              )
+              .setMinValues(
+                1,
+              )
+              .setMaxValues(
+                1,
+              )
+              .addOptions(
+                pets.map(
                   (
                     pet,
                   ) => ({
@@ -220,9 +231,10 @@ export function buildPetRows(
                       ),
                   }),
                 ),
-            ),
-        ),
-    );
+              ),
+          ),
+      );
+    }
   }
 
   rows.push(
