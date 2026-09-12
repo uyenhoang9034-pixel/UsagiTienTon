@@ -88,6 +88,18 @@ function shopButton(ownerId, action, label, emoji = null) {
   return component;
 }
 
+function spiritVeinButton(ownerId) {
+  const component = new ButtonBuilder()
+    .setCustomId(`tutien_spirit_vein:${ownerId}:main`)
+    .setLabel('Linh Mạch')
+    .setStyle(ButtonStyle.Secondary);
+
+  const emoji = parseEmoji(SPIRIT_STONE);
+  if (emoji) component.setEmoji(emoji);
+
+  return component;
+}
+
 function productButton(ownerId, item) {
   return shopButton(
     ownerId,
@@ -158,6 +170,9 @@ export function buildShopMainEmbed(user, profile) {
         `${SPIRIT_STONE} **2.000.000.000 Linh Thạch**`,
         '*Không thể gặp hoặc thu phục tự nhiên.*',
         '',
+        `${SPIRIT_STONE} **Linh Mạch**`,
+        '*Linh khí trong động phủ tự kết thành Linh Thạch theo thời gian.*',
+        '',
         SEPARATOR,
         '',
         '<a:ttlinhquang:1547489273949978725> *Tiên duyên hữu định — Thám Hiểm nếu hữu duyên gặp **Thương Nhân Bí Ẩn**, đạo hữu có thể mua được bảo vật với giá rẻ bất ngờ.*',
@@ -178,6 +193,7 @@ export function buildShopMainRows(ownerId, guild = null) {
       categoryButton(ownerId, 'pets'),
     ),
     new ActionRowBuilder().addComponents(
+      spiritVeinButton(ownerId),
       shopButton(ownerId, 'dashboard', 'Quay lại Tiên Lộ', shopEmoji),
     ),
   ];
