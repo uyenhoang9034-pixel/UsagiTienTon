@@ -102,7 +102,11 @@ function formatPercent(chance) {
     return `${percent.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}%`;
   }
 
-  return `${percent.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')}%`;
+  if (percent <= 0) {
+    return '0%';
+  }
+
+  return `${percent.toFixed(6).replace(/0+$/, '').replace(/\.$/, '')}%`;
 }
 
 function formationRewardLines(
@@ -126,12 +130,6 @@ function formationRewardLines(
   ];
 }
 
-/**
- * =========================================================
- * 34 · LINH THÚ UNKNOWN
- * =========================================================
- */
-
 export function buildAdventurePetUnknownEmbed() {
   return style(
     new EmbedBuilder()
@@ -140,25 +138,15 @@ export function buildAdventurePetUnknownEmbed() {
           title(
             '灵兽现世 · LINH THÚ HIỆN THẾ',
           ),
-
           '',
-
           `${E.pet} *Một luồng khí tức xa lạ chợt xuất hiện giữa Lôi Vực.*`,
-
           '',
-
           'Trong màn điện quang, một bóng dáng nhỏ đang lặng lẽ quan sát đạo hữu.',
-
           '',
-
           `${E.light} Linh khí quanh sinh linh này cực kỳ tinh thuần.`,
-
           '',
-
           '*Có vẻ đây không phải yêu thú bình thường...*',
-        ].join(
-          '\n',
-        ),
+        ].join('\n'),
       ),
   );
 }
@@ -194,12 +182,6 @@ export function buildAdventurePetUnknownRows(
   ];
 }
 
-/**
- * =========================================================
- * 35 · REVEAL
- * =========================================================
- */
-
 export function buildAdventurePetRevealEmbed(
   result,
 ) {
@@ -213,33 +195,20 @@ export function buildAdventurePetRevealEmbed(
           title(
             '灵兽现世 · LINH THÚ HIỆN THẾ',
           ),
-
           '',
-
           `${pet.emoji} *Sinh linh chậm rãi bước ra khỏi màn linh quang.*`,
-
           '',
-
           `${pet.emoji} **${pet.name}**`,
-
           `Phẩm Chất: **${pet.rarity}**`,
-
           '',
-
           `${E.ancient} **Thiên Phú**`,
           `**${pet.effect}**`,
-
           '',
-
           `${E.light} **Tỷ Lệ Thu Phục**`,
           `**${formatPercent(pet.captureChance)}**`,
-
           '',
-
           '*Linh thú vẫn đang quan sát đạo hữu, chưa hề có ý rời đi.*',
-        ].join(
-          '\n',
-        ),
+        ].join('\n'),
       ),
   );
 }
@@ -276,12 +245,6 @@ export function buildAdventurePetRevealRows(
   ];
 }
 
-/**
- * =========================================================
- * PET LEAVE
- * =========================================================
- */
-
 export function buildAdventurePetLeaveEmbed() {
   return style(
     new EmbedBuilder()
@@ -290,30 +253,16 @@ export function buildAdventurePetLeaveEmbed() {
           title(
             '缘尽 · LINH THÚ RỜI ĐI',
           ),
-
           '',
-
           `${E.pet} *Đạo hữu không tiếp tục tiến lại gần.*`,
-
           '',
-
           'Sinh linh thần bí nhìn về phía đạo hữu một lúc, sau đó hóa thành lưu quang biến mất.',
-
           '',
-
           '*Hữu duyên ngày sau ắt sẽ tương phùng.*',
-        ].join(
-          '\n',
-        ),
+        ].join('\n'),
       ),
   );
 }
-
-/**
- * =========================================================
- * 37 · PHÁP KHÍ CỘNG MINH
- * =========================================================
- */
 
 export function buildEquipmentResonanceEmbed(
   result,
@@ -325,53 +274,26 @@ export function buildEquipmentResonanceEmbed(
           title(
             '法器共鸣 · PHÁP KHÍ CỘNG MINH',
           ),
-
           '',
-
           `${result.equipment.emoji} *Pháp khí bên người đột nhiên rung lên khe khẽ.*`,
-
           '',
-
           `${E.light} Thiên địa linh khí như bị một lực lượng vô hình dẫn động, liên tục hội tụ quanh **${result.equipment.name}**.`,
-
           '',
-
           `${result.equipment.emoji} **Pháp Khí**`,
           `**${result.equipment.name}**`,
-
           '',
-
           `${E.cultivation} **Tu Vi**`,
-          `+${number(
-            result.cultivationDelta,
-          )}`,
-
+          `+${number(result.cultivationDelta)}`,
           '',
-
           `${E.stone} **Linh Thạch**`,
-          `+${number(
-            result.stoneDelta,
-          )}`,
-
-          ...formationRewardLines(
-            result,
-          ),
-
+          `+${number(result.stoneDelta)}`,
+          ...formationRewardLines(result),
           '',
-
           `${E.victory} *Nhân khí hợp nhất, pháp bảo sinh linh.*`,
-        ].join(
-          '\n',
-        ),
+        ].join('\n'),
       ),
   );
 }
-
-/**
- * =========================================================
- * 38 · CÔNG PHÁP CỘNG MINH
- * =========================================================
- */
 
 export function buildTechniqueResonanceEmbed(
   result,
@@ -383,49 +305,26 @@ export function buildTechniqueResonanceEmbed(
           title(
             '功法共鸣 · CÔNG PHÁP CỘNG MINH',
           ),
-
           '',
-
           `${result.technique.emoji} *Công pháp trong thức hải bỗng tự vận chuyển.*`,
-
           '',
-
           `${E.light} Từng dòng linh khí theo kinh mạch lưu chuyển, khiến đạo vận quanh thân càng lúc càng rõ rệt.`,
-
           '',
-
           `${result.technique.emoji} **Công Pháp**`,
           `**${result.technique.name}**`,
-
           '',
-
           `${E.ancient} **Đạo Ý**`,
           `*${result.technique.description}*`,
-
           '',
-
           `${E.cultivation} **Tu Vi**`,
-          `+${number(
-            result.cultivationDelta,
-          )}`,
-
+          `+${number(result.cultivationDelta)}`,
           '',
-
           `${E.stone} **Linh Thạch**`,
-          `+${number(
-            result.stoneDelta,
-          )}`,
-
-          ...formationRewardLines(
-            result,
-          ),
-
+          `+${number(result.stoneDelta)}`,
+          ...formationRewardLines(result),
           '',
-
           `${E.victory} *Đạo pháp tương ứng, nhất niệm thông huyền.*`,
-        ].join(
-          '\n',
-        ),
+        ].join('\n'),
       ),
   );
 }
