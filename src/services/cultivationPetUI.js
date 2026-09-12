@@ -236,6 +236,20 @@ export function buildPetRows(
       .addComponents(
         new ButtonBuilder()
           .setCustomId(
+            `tutien_pet_codex:${ownerId}`,
+          )
+          .setLabel(
+            'Đồ Giám',
+          )
+          .setEmoji(
+            PET_BUTTON_EMOJI,
+          )
+          .setStyle(
+            ButtonStyle.Secondary,
+          ),
+
+        new ButtonBuilder()
+          .setCustomId(
             `tutien_action:${ownerId}:dashboard`,
           )
           .setLabel(
