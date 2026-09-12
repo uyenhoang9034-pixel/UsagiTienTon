@@ -418,7 +418,6 @@ async function runWithFormationAdventureReward(
     );
 
   let protectedCultivation = 0;
-  let protectedStamina = 0;
 
   if (
     adventureAlwaysPositive &&
@@ -430,19 +429,6 @@ async function runWithFormationAdventureReward(
 
     if ((Number(result.cultivationDelta) || 0) < 0) {
       result.cultivationDelta = 0;
-    }
-  }
-
-  if (
-    adventureAlwaysPositive &&
-    safeNumber(afterProfile.stamina) < beforeStamina
-  ) {
-    protectedStamina =
-      beforeStamina - safeNumber(afterProfile.stamina);
-    afterProfile.stamina = beforeStamina;
-
-    if ((Number(result.staminaDelta) || 0) < 0) {
-      result.staminaDelta = 0;
     }
   }
 
@@ -734,7 +720,6 @@ async function runWithFormationAdventureReward(
     realmCultivationBonus > 0 ||
     realmStoneBonus > 0 ||
     protectedCultivation > 0 ||
-    protectedStamina > 0 ||
     petStaminaRefund > 0 ||
     petAdventureStoneBonus > 0 ||
     petAllCultivationBonus > 0 ||
@@ -768,7 +753,6 @@ async function runWithFormationAdventureReward(
     realmCultivationBonus,
     realmStoneBonus,
     protectedCultivation,
-    protectedStamina,
     adventureAlwaysPositive,
     petStaminaRefund,
     petStaminaRefundPercent,
