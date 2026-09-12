@@ -34,6 +34,12 @@ function buildPetLines(result) {
     );
   }
 
+  if ((Number(result.petCombatRewardBonus) || 0) > 0 && result.success) {
+    lines.push(
+      `${pet.emoji} ${pet.name}: **+${percent(result.petCombatRewardBonus)} phần thưởng giao chiến**`,
+    );
+  }
+
   if ((Number(result.petLootKeepPercent) || 0) > 0) {
     lines.push(
       `${pet.emoji} ${pet.name}: **Giữ thêm ${percent(result.petLootKeepPercent)} chiến lợi phẩm khi thất bại**`,
@@ -89,6 +95,16 @@ function appendFormationLines(embed, result) {
         )
         .join('\n'),
     );
+}
+
+export function buildSecretRealmWinEmbed(result) {
+  const embed = baseUI.buildSecretRealmWinEmbed(result);
+
+  if (!result?.ok) {
+    return embed;
+  }
+
+  return appendFormationLines(embed, result);
 }
 
 export function buildSecretRealmFailEmbed(result) {
