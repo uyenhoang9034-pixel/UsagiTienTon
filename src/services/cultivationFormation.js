@@ -75,6 +75,59 @@ export const FORMATION_DEFINITIONS = {
   },
 };
 
+// Mỗi Trận Đồ cao cấp có một tầng sức mạnh nền riêng.
+// Nhờ vậy phẩm cao luôn mạnh hơn phẩm thấp, nhưng vẫn giữ thiên hướng riêng.
+const FORMATION_TIER_BASE_EFFECTS = {
+  five_elements: {
+    cultivationBonus: 0,
+    adventureBonus: 0,
+    staminaReduction: 0,
+    breakthroughBonus: 0,
+    spiritStoneBonus: 0,
+    insightBonus: 0,
+  },
+  wind_lightning: {
+    cultivationBonus: 0.06,
+    adventureBonus: 0.16,
+    staminaReduction: 0.06,
+    breakthroughBonus: 0.04,
+    spiritStoneBonus: 0.06,
+    insightBonus: 0.04,
+  },
+  frozen_spirit: {
+    cultivationBonus: 0.08,
+    adventureBonus: 0.10,
+    staminaReduction: 0.18,
+    breakthroughBonus: 0.06,
+    spiritStoneBonus: 0.08,
+    insightBonus: 0.06,
+  },
+  yin_yang: {
+    cultivationBonus: 0.12,
+    adventureBonus: 0.12,
+    staminaReduction: 0.10,
+    breakthroughBonus: 0.18,
+    spiritStoneBonus: 0.10,
+    insightBonus: 0.10,
+  },
+  chaos_unity: {
+    cultivationBonus: 0.16,
+    adventureBonus: 0.18,
+    staminaReduction: 0.14,
+    breakthroughBonus: 0.16,
+    spiritStoneBonus: 0.16,
+    insightBonus: 0.14,
+  },
+};
+
+const FORMATION_TIER_EFFICIENCY_BONUS = {
+  five_elements: 0,
+  wind_lightning: 0.10,
+  frozen_spirit: 0.20,
+  yin_yang: 0.30,
+  chaos_unity: 0.40,
+};
+
 const EMPTY_CRYSTALS = Object.fromEntries(
   Object.keys(FORMATION_ELEMENTS).map((id) => [id, 0]),
 );
@@ -265,6 +318,18 @@ export function getFormationResonance(state) {
     insightBonus: 0,
   };
 
+  const tierEffects =
+    FORMATION_TIER_BASE_EFFECTS[formation.id] ||
+    FORMATION_TIER_BASE_EFFECTS.five_elements;
+
+  for (const key of Object.keys(effects)) {
+    effects[key] += Number(tierEffects[key]) || 0;
+  }
+
+  if (formation.id !== 'five_elements') {
+    lines.push(`${formation.rarity} Phẩm Trận Thế`);
+  }
+
   const avgSlotLevel = slotLevels.length
     ? slotLevels.reduce((sum, value) => sum + value, 0) / slotLevels.length
     : 1;
@@ -272,7 +337,9 @@ export function getFormationResonance(state) {
     1 +
     (level - 1) * 0.03 +
     Math.max(0, avgSlotLevel - 1) * 0.01;
-  let multiplier = progressionMultiplier;
+  let multiplier =
+    progressionMultiplier +
+    (Number(FORMATION_TIER_EFFICIENCY_BONUS[formation.id]) || 0);
 
   const pairKey = (a, b) => `${a}>${b}`;
   const activePairs = new Set();
