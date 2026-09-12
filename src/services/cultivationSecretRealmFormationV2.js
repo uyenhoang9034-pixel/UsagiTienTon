@@ -75,6 +75,28 @@ function getSecretRealmFragmentQuantity(floor) {
   return 0;
 }
 
+function getRealmFloorMinimumWinChance(profile, floor) {
+  const realmIndex = Math.max(0, Math.floor(Number(profile?.realmIndex) || 0));
+  const depth = Math.max(1, Math.min(5, Math.floor(Number(floor) || 1)));
+
+  const minimumsByRealm = {
+    12: [1.00, 1.00, 0.99, 0.97, 0.95],
+    11: [1.00, 0.99, 0.97, 0.95, 0.93],
+    10: [0.99, 0.97, 0.95, 0.92, 0.90],
+    9: [0.97, 0.95, 0.92, 0.89, 0.86],
+    8: [0.95, 0.92, 0.89, 0.86, 0.83],
+    7: [0.92, 0.89, 0.86, 0.83, 0.80],
+  };
+
+  for (const threshold of [12, 11, 10, 9, 8, 7]) {
+    if (realmIndex >= threshold) {
+      return minimumsByRealm[threshold][depth - 1];
+    }
+  }
+
+  return 0;
+}
+
 function rollForcedFloorItem(floor) {
   const roll = Math.random();
 
@@ -132,9 +154,16 @@ export async function getSecretRealmCombatInfo(
     0,
     Math.min(1, safeNumber(result.winChance)),
   );
+  const realmMinimumWinChance = getRealmFloorMinimumWinChance(
+    profile,
+    result.session?.floor,
+  );
   const winChance = Math.min(
     1,
-    baseWinChance + petCombatBonus,
+    Math.max(
+      realmMinimumWinChance,
+      baseWinChance + petCombatBonus,
+    ),
   );
 
   return {
@@ -143,6 +172,7 @@ export async function getSecretRealmCombatInfo(
     activePet,
     baseWinChance,
     winChance,
+    realmMinimumWinChance,
     petCombatBonus,
     petCombatRewardBonus,
   };
@@ -178,21 +208,19 @@ async function fightSecretRealmWithPetBonus(
     safeNumber(getPetEffectValue(profile, 'combat_reward_bonus')),
   );
 
-  if (petCombatBonus <= 0 && petCombatRewardBonus <= 0) {
-    return secretRealm.fightSecretRealmMonster(
-      client,
-      guildId,
-      userId,
-      options,
-    );
-  }
-
   const session = combat.session;
   const monster = combat.monster;
   const floor = Math.max(1, Number(session.floor) || 1);
+  const realmMinimumWinChance = getRealmFloorMinimumWinChance(
+    profile,
+    floor,
+  );
   const finalWinChance = Math.min(
     1,
-    Math.max(0, Number(combat.winChance) || 0) + petCombatBonus,
+    Math.max(
+      realmMinimumWinChance,
+      Math.max(0, Number(combat.winChance) || 0) + petCombatBonus,
+    ),
   );
 
   profile.stats ||= {};
@@ -271,6 +299,7 @@ async function fightSecretRealmWithPetBonus(
       pet: getActivePet(profile),
       winChance: finalWinChance,
       baseWinChance: combat.winChance,
+      realmMinimumWinChance,
       petCombatBonus,
       petCombatRewardBonus,
       floorCultivation: cultivation,
@@ -352,6 +381,7 @@ async function fightSecretRealmWithPetBonus(
     pet: getActivePet(saved),
     winChance: finalWinChance,
     baseWinChance: combat.winChance,
+    realmMinimumWinChance,
     petCombatBonus,
     petCombatRewardBonus,
   };
