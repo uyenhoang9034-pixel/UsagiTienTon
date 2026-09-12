@@ -16,6 +16,11 @@ import {
   getFormationGameplayBonus,
 } from './cultivationFormationGameplay.js';
 
+import {
+  getCultivationRealmRewardMultipliers,
+  scalePositiveRealmReward,
+} from './cultivationRealmRewards.js';
+
 export * from './cultivationService.js';
 
 async function saveProfile(client, profile) {
@@ -108,6 +113,11 @@ export async function cultivate(
       userId,
     );
   }
+
+  const realmRewards =
+    getCultivationRealmRewardMultipliers(
+      profile,
+    );
 
   const activePet = getActivePet(profile);
   const petCultivationPercent =
@@ -220,6 +230,48 @@ export async function cultivate(
       return result;
     }
 
+    const rawCultivationDelta =
+      Number(result.cultivationDelta) || 0;
+    const rawStoneDelta =
+      Number(result.stoneDelta) || 0;
+
+    const scaledCultivationDelta =
+      scalePositiveRealmReward(
+        rawCultivationDelta,
+        realmRewards.cultivation,
+      );
+
+    const scaledStoneDelta =
+      scalePositiveRealmReward(
+        rawStoneDelta,
+        realmRewards.spiritStones,
+      );
+
+    const realmCultivationBonus = Math.max(
+      0,
+      scaledCultivationDelta - rawCultivationDelta,
+    );
+    const realmStoneBonus = Math.max(
+      0,
+      scaledStoneDelta - rawStoneDelta,
+    );
+
+    const savedProfile = result.profile;
+    savedProfile.pets ||= { owned: {}, active: null };
+    savedProfile.pets.active = originalActivePetId;
+
+    if (realmCultivationBonus > 0) {
+      savedProfile.cultivation += realmCultivationBonus;
+      savedProfile.totalCultivation += realmCultivationBonus;
+    }
+
+    if (realmStoneBonus > 0) {
+      savedProfile.spiritStones += realmStoneBonus;
+    }
+
+    result.cultivationDelta = scaledCultivationDelta;
+    result.stoneDelta = scaledStoneDelta;
+
     const cultivation =
       applyFormationCultivationBonus(
         result.cultivationDelta,
@@ -231,10 +283,6 @@ export async function cultivate(
         result.stoneDelta,
         effects,
       );
-
-    const savedProfile = result.profile;
-    savedProfile.pets ||= { owned: {}, active: null };
-    savedProfile.pets.active = originalActivePetId;
 
     const petCultivationBonus =
       petCultivationPercent > 0 &&
@@ -278,6 +326,14 @@ export async function cultivate(
       ...result,
       profile: finalProfile,
       activePet,
+      realmRewardBaseMultiplier:
+        realmRewards.base,
+      realmCultivationMultiplier:
+        realmRewards.cultivation,
+      realmStoneMultiplier:
+        realmRewards.spiritStones,
+      realmCultivationBonus,
+      realmStoneBonus,
       extraPetCultivationBonus:
         petCultivationBonus,
       extraPetCultivationPercent:
