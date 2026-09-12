@@ -7,6 +7,10 @@ import {
 } from './cultivationFormationUI.js';
 
 import {
+  appendSpiritVeinButton,
+} from './cultivationSpiritVeinUI.js';
+
+import {
   buildFormationBreakthroughLines,
   buildFormationCultivateLines,
 } from './cultivationFormationResultUI.js';
@@ -42,9 +46,15 @@ function percent(value) {
   return `${Math.round((Number(value) || 0) * 100)}%`;
 }
 
-export function buildDashboardRows(ownerId) {
-  return appendFormationButton(
+export function buildDashboardRows(ownerId, guild = null) {
+  const withFormation = appendFormationButton(
     baseUI.buildDashboardRows(ownerId),
+    ownerId,
+    guild,
+  );
+
+  return appendSpiritVeinButton(
+    withFormation,
     ownerId,
   );
 }
