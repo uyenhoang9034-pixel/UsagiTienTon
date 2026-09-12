@@ -169,7 +169,7 @@ export function applyFormationBreakthroughBonus(chance, effects) {
   const bonus = clamp(effects?.breakthroughBonus);
 
   return {
-    total: Math.min(0.95, base + bonus),
+    total: Math.min(1, base + bonus),
     bonus,
   };
 }
