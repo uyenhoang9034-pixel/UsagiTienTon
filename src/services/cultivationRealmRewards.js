@@ -14,7 +14,23 @@ export const CULTIVATION_REALM_REWARD_MULTIPLIERS = [
   800000,
 ];
 
-const CULTIVATION_TUVI_REALM_GROWTH = 1.35;
+// Tu Vi nhận từ Tu Luyện giữ đường cong gần bản gốc,
+// nhưng giảm nhẹ ở các cảnh giới cao để progression bớt quá nhanh.
+const CULTIVATION_TUVI_REALM_MULTIPLIERS = [
+  1,
+  3,
+  8,
+  23,
+  70,
+  210,
+  650,
+  2000,
+  6000,
+  18000,
+  55000,
+  170000,
+  600000,
+];
 
 function getRealmIndex(profile) {
   const raw = Math.floor(Number(profile?.realmIndex) || 0);
@@ -36,10 +52,7 @@ export function getRealmBaseRewardMultiplier(profile) {
 export function getCultivationRealmRewardMultipliers(profile) {
   const realmIndex = getRealmIndex(profile);
   const base = getRealmBaseRewardMultiplier(profile);
-  const cultivation = Math.pow(
-    CULTIVATION_TUVI_REALM_GROWTH,
-    realmIndex,
-  );
+  const cultivation = CULTIVATION_TUVI_REALM_MULTIPLIERS[realmIndex] || 1;
 
   return {
     base,
