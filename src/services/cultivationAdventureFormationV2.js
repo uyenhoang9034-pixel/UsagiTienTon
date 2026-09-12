@@ -83,6 +83,65 @@ function rollFractionalQuantity(baseQuantity, percent) {
   return guaranteed + (fraction > 0 && Math.random() < fraction ? 1 : 0);
 }
 
+export async function getAdventureV2CombatInfo(
+  client,
+  guildId,
+  userId,
+  options = {},
+) {
+  const result = await adventure.getAdventureV2CombatInfo(
+    client,
+    guildId,
+    userId,
+    options,
+  );
+
+  if (!result?.ok) return result;
+
+  const profile = await getCultivationProfile(
+    client,
+    guildId,
+    userId,
+  );
+  const activePet = getActivePet(profile);
+  const petCombatBonus = Math.max(
+    0,
+    safeNumber(
+      getPetEffectValue(
+        profile,
+        'combat_success_bonus',
+      ),
+    ),
+  );
+  const petCombatRewardBonus = Math.max(
+    0,
+    safeNumber(
+      getPetEffectValue(
+        profile,
+        'combat_reward_bonus',
+      ),
+    ),
+  );
+  const baseWinChance = Math.max(
+    0,
+    Math.min(1, safeNumber(result.winChance)),
+  );
+  const winChance = Math.min(
+    1,
+    baseWinChance + petCombatBonus,
+  );
+
+  return {
+    ...result,
+    pet: activePet || result.pet || null,
+    activePet,
+    baseWinChance,
+    winChance,
+    petCombatBonus,
+    petCombatRewardBonus,
+  };
+}
+
 async function fightWithPetCombatBonus(
   client,
   guildId,
