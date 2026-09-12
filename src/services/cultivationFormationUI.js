@@ -83,9 +83,41 @@ function button(ownerId, action, label, emoji) {
     .setStyle(ButtonStyle.Secondary);
 }
 
-export function appendFormationButton(rows, ownerId) {
+function resolveTienPhuongEmoji(guild) {
+  const emoji = guild?.emojis?.cache?.find?.(
+    (item) => item.name === 'tttienphuong',
+  );
+
+  if (!emoji?.id) {
+    return null;
+  }
+
+  return {
+    id: emoji.id,
+    name: emoji.name,
+    animated: emoji.animated,
+  };
+}
+
+function shopDashboardButton(ownerId, guild = null) {
+  const component = new ButtonBuilder()
+    .setCustomId(`tutien_shop:${ownerId}:main`)
+    .setLabel('Tiên Phường')
+    .setStyle(ButtonStyle.Secondary);
+
+  const emoji = resolveTienPhuongEmoji(guild);
+
+  if (emoji) {
+    component.setEmoji(emoji);
+  }
+
+  return component;
+}
+
+export function appendFormationButton(rows, ownerId, guild = null) {
   const cloned = [...rows];
   const target = cloned[2];
+
   if (target?.components?.length < 5) {
     target.addComponents(
       button(ownerId, 'main', 'Trận Pháp', FORMATION_EMOJIS.dashboardFormation),
@@ -97,6 +129,18 @@ export function appendFormationButton(rows, ownerId) {
       ),
     );
   }
+
+  let shopTarget = cloned[2];
+
+  if (!shopTarget || shopTarget.components.length >= 5) {
+    shopTarget = new ActionRowBuilder();
+    cloned.push(shopTarget);
+  }
+
+  shopTarget.addComponents(
+    shopDashboardButton(ownerId, guild),
+  );
+
   return cloned;
 }
 
