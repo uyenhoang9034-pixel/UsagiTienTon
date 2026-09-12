@@ -216,10 +216,9 @@ export const FORMATION_SPIRIT_SYNERGIES = {
   hau_tho_kim_long: {
     petId: 'hau_tho_kim_long',
     name: 'Hậu Thổ Kim Long',
-    type: 'five_elements',
-    label: 'Hậu Thổ Trấn Ngũ Hành',
-    description: 'Hậu Thổ thần lực ổn định Ngũ Hành, thiên về hộ đạo và phá cảnh.',
-    requiredFormationId: 'five_elements',
+    type: 'breakthrough',
+    label: 'Hậu Thổ Hộ Đạo',
+    description: 'Hậu Thổ thần lực gia cố trận thế, thiên về hộ đạo và phá cảnh.',
     effects: {
       breakthroughBonus: 0.08,
       staminaReduction: 0.05,
