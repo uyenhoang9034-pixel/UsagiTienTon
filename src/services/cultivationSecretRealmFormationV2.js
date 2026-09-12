@@ -1,4 +1,5 @@
 import {
+  CULTIVATION_CONFIG,
   CULTIVATION_ITEMS,
 } from '../config/cultivationGame.js';
 
@@ -25,8 +26,7 @@ import {
 
 export * from './cultivationSecretRealm.js';
 
-const SECRET_REALM_PREFIX =
-  'games:cultivation:secretRealm:';
+const SECRET_REALM_PREFIX = 'games:cultivation:secretRealm:';
 
 function safeNumber(value) {
   return Number(value) || 0;
@@ -41,7 +41,6 @@ function randomInt(min, max) {
 function calculateBonus(amount, percent) {
   const base = Math.max(0, safeNumber(amount));
   const rate = Math.max(0, safeNumber(percent));
-
   if (base <= 0 || rate <= 0) return 0;
   return Math.max(1, Math.round(base * rate));
 }
@@ -53,6 +52,20 @@ function rollFractionalQuantity(baseQuantity, percent) {
   const guaranteed = Math.floor(raw);
   const fraction = raw - guaranteed;
   return guaranteed + (fraction > 0 && Math.random() < fraction ? 1 : 0);
+}
+
+function mergeItemQuantities(...sources) {
+  const merged = {};
+
+  for (const source of sources) {
+    for (const [itemId, quantity] of Object.entries(source || {})) {
+      merged[itemId] =
+        Math.max(0, Number(merged[itemId]) || 0) +
+        Math.max(0, Number(quantity) || 0);
+    }
+  }
+
+  return merged;
 }
 
 function getSecretRealmFragmentQuantity(floor) {
@@ -109,15 +122,11 @@ async function fightSecretRealmWithPetBonus(
 
   const petCombatBonus = Math.max(
     0,
-    safeNumber(
-      getPetEffectValue(profile, 'combat_success_bonus'),
-    ),
+    safeNumber(getPetEffectValue(profile, 'combat_success_bonus')),
   );
   const petCombatRewardBonus = Math.max(
     0,
-    safeNumber(
-      getPetEffectValue(profile, 'combat_reward_bonus'),
-    ),
+    safeNumber(getPetEffectValue(profile, 'combat_reward_bonus')),
   );
 
   if (petCombatBonus <= 0 && petCombatRewardBonus <= 0) {
@@ -138,6 +147,7 @@ async function fightSecretRealmWithPetBonus(
   );
 
   profile.stats ||= {};
+  profile.cooldowns ||= {};
   profile.stats.monsterEncounters =
     Math.max(0, Number(profile.stats.monsterEncounters) || 0) + 1;
 
@@ -222,9 +232,6 @@ async function fightSecretRealmWithPetBonus(
     };
   }
 
-  // Nếu bonus tỷ lệ thắng không cứu được lượt này, để base xử lý thất bại
-  // bằng một roll chắc chắn thất bại sẽ không an toàn. Ta tái hiện nhánh fail
-  // để giữ đúng mất Tu Vi/Thể Lực và cơ chế giữ 40% loot.
   const cultivationLoss = Math.min(
     Math.max(0, Number(profile.cultivation) || 0),
     randomInt(monster.lossMin, monster.lossMax),
@@ -275,8 +282,10 @@ async function fightSecretRealmWithPetBonus(
     addInventoryItem(profile, itemId, quantity);
   }
 
-  profile.cooldowns ||= {};
-  profile.cooldowns.adventureAt = Date.now();
+  profile.stats.adventureCount =
+    Math.max(0, Number(profile.stats.adventureCount) || 0) + 1;
+  profile.cooldowns.adventureAt =
+    Date.now() + CULTIVATION_CONFIG.gameplay.adventureCooldownMs;
 
   const saved = await saveCultivationProfile(client, profile);
   await secretRealm.clearSecretRealmSession(client, guildId, userId);
@@ -324,10 +333,7 @@ async function applyPetFailureProtection(
     Math.max(
       0,
       safeNumber(
-        getPetEffectValue(
-          profile,
-          'secret_realm_loot_keep_percent',
-        ),
+        getPetEffectValue(profile, 'secret_realm_loot_keep_percent'),
       ),
     ),
   );
@@ -550,10 +556,10 @@ export async function fightSecretRealmMonster(
       stones:
         Math.max(0, safeNumber(result.keptLoot?.stones)) +
         Math.max(0, safeNumber(petProtected.petExtraKeptLoot?.stones)),
-      items: {
-        ...(result.keptLoot?.items || {}),
-        ...(petProtected.petExtraKeptLoot?.items || {}),
-      },
+      items: mergeItemQuantities(
+        result.keptLoot?.items,
+        petProtected.petExtraKeptLoot?.items,
+      ),
     },
   );
 }
