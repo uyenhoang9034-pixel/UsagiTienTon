@@ -25,11 +25,7 @@ import {
 import {
   buildDashboardEmbed,
   buildDashboardRows,
-} from '../../services/cultivationUI.js';
-
-import {
-  appendFormationButton,
-} from '../../services/cultivationFormationUI.js';
+} from '../../services/cultivationUIV2.js';
 
 async function replyEphemeral(interaction, content) {
   const payload = {
@@ -131,11 +127,7 @@ async function showDashboard(interaction, client, ownerId) {
 
   return interaction.update({
     embeds: [buildDashboardEmbed(interaction.user, profile)],
-    components: appendFormationButton(
-      buildDashboardRows(ownerId),
-      ownerId,
-      interaction.guild,
-    ),
+    components: buildDashboardRows(ownerId, interaction.guild),
   });
 }
 
