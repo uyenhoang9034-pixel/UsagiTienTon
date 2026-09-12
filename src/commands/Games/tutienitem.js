@@ -8,11 +8,8 @@ import {
   CULTIVATION_ITEMS,
 } from '../../config/cultivationGame.js';
 
-const ERROR_EMOJI =
-  '<a:angryg1:1541441195144773652>';
-
-const HEADER =
-  '<a:trangtrig2:1546040703375904801> **TIÊN LỘ · GM** <a:trangtrig3:1546040818261954610>';
+const ERROR_EMOJI = '<a:angryg1:1541441195144773652>';
+const HEADER = '<a:trangtrig2:1546040703375904801> **TIÊN LỘ · GM** <a:trangtrig3:1546040818261954610>';
 
 const PET_CHOICES = [
   ['Thanh Phong Linh Hồ', 'thanh_phong_linh_ho'],
@@ -44,35 +41,16 @@ const PET_CHOICES = [
 ].map(([name, value]) => ({ name, value }));
 
 function hasTutienAdminRole(member) {
-  const adminRoleId =
-    CULTIVATION_CONFIG.adminRoleId;
-
-  return Boolean(
-    adminRoleId &&
-    member?.roles?.cache?.has?.(
-      adminRoleId,
-    ),
-  );
+  const adminRoleId = CULTIVATION_CONFIG.adminRoleId;
+  return Boolean(adminRoleId && member?.roles?.cache?.has?.(adminRoleId));
 }
 
 function clampItemQuantity(value) {
-  return Math.max(
-    1,
-    Math.min(
-      99,
-      Math.floor(Number(value) || 1),
-    ),
-  );
+  return Math.max(1, Math.min(99, Math.floor(Number(value) || 1)));
 }
 
 function clampLargeQuantity(value) {
-  return Math.max(
-    1,
-    Math.min(
-      1000000000,
-      Math.floor(Number(value) || 1),
-    ),
-  );
+  return Math.max(1, Math.min(1000000000, Math.floor(Number(value) || 1)));
 }
 
 function formatNumber(value) {
@@ -87,7 +65,6 @@ function formatError(message) {
 
 function getItemEmoji(item) {
   const type = item?.type;
-
   return (
     CULTIVATION_CONFIG.ui?.itemEmojis?.[type] ||
     CULTIVATION_CONFIG.ui?.emojis?.spiritStone ||
@@ -103,16 +80,39 @@ function normalizeSearch(value) {
     .trim();
 }
 
+function isRevokeAction(action) {
+  return action === 'revoke';
+}
+
+function actionLabel(action) {
+  return isRevokeAction(action) ? 'Thu Hồi' : 'Cấp';
+}
+
+function actionVerb(action) {
+  return isRevokeAction(action) ? 'Đã thu hồi' : 'Đã cấp';
+}
+
 export default {
   data:
     new SlashCommandBuilder()
       .setName('tutienitem')
-      .setDescription('GM: Cấp vật phẩm, Linh Thú, Linh Thạch hoặc Trận Pháp.')
+      .setDescription('GM: Cấp hoặc thu hồi dữ liệu Tiên Lộ.')
+      .addStringOption(
+        (option) =>
+          option
+            .setName('hanhdong')
+            .setDescription('Chọn cấp hoặc thu hồi.')
+            .setRequired(true)
+            .addChoices(
+              { name: 'Cấp', value: 'give' },
+              { name: 'Thu hồi', value: 'revoke' },
+            ),
+      )
       .addStringOption(
         (option) =>
           option
             .setName('item')
-            .setDescription('Vật phẩm, Linh Thạch hoặc Trận Pháp muốn cấp.')
+            .setDescription('Vật phẩm, Linh Thạch hoặc Trận Pháp.')
             .setRequired(false)
             .addChoices(
               { name: 'Tụ Khí Đan', value: 'tu_khi_dan' },
@@ -135,7 +135,7 @@ export default {
         (option) =>
           option
             .setName('linhthu')
-            .setDescription('Linh Thú muốn ban tặng trực tiếp.')
+            .setDescription('Linh Thú muốn cấp hoặc thu hồi.')
             .setRequired(false)
             .setAutocomplete(true),
       )
@@ -143,7 +143,7 @@ export default {
         (option) =>
           option
             .setName('tinhthach')
-            .setDescription('Tinh Thạch Trận Pháp muốn cấp.')
+            .setDescription('Tinh Thạch Trận Pháp muốn cấp hoặc thu hồi.')
             .setRequired(false)
             .addChoices(
               { name: 'Tinh Thạch · Kim', value: 'metal' },
@@ -163,7 +163,7 @@ export default {
         (option) =>
           option
             .setName('soluong')
-            .setDescription('Số lượng muốn cấp. Trận Đồ/Linh Thú luôn cấp 1.')
+            .setDescription('Số lượng cấp/thu hồi. Trận Đồ và Linh Thú luôn là 1.')
             .setMinValue(1)
             .setMaxValue(1000000000),
       )
@@ -171,7 +171,7 @@ export default {
         (option) =>
           option
             .setName('member')
-            .setDescription('Đạo hữu muốn nhận. Để trống = chính bạn.'),
+            .setDescription('Đạo hữu mục tiêu. Để trống = chính bạn.'),
       ),
 
   category: 'Games',
@@ -218,6 +218,7 @@ export default {
         });
       }
 
+      const action = interaction.options.getString('hanhdong', true);
       const baseSelectedId = interaction.options.getString('item');
       const selectedPetId = interaction.options.getString('linhthu');
       const selectedCrystalId = interaction.options.getString('tinhthach');
@@ -229,7 +230,7 @@ export default {
 
       if (selectedCount === 0) {
         return interaction.reply({
-          content: formatError('Hãy chọn `item`, `linhthu` hoặc `tinhthach` muốn cấp.'),
+          content: formatError('Hãy chọn `item`, `linhthu` hoặc `tinhthach`.'),
           flags: MessageFlags.Ephemeral,
         });
       }
@@ -247,13 +248,12 @@ export default {
           ? `crystal:${selectedCrystalId}`
           : baseSelectedId;
       const requestedQuantity = interaction.options.getInteger('soluong');
-      const targetUser =
-        interaction.options.getUser('member') ||
-        interaction.user;
+      const targetUser = interaction.options.getUser('member') || interaction.user;
+      const revoke = isRevokeAction(action);
 
       if (targetUser.bot) {
         return interaction.reply({
-          content: formatError('Không thể cấp dữ liệu Tiên Lộ cho bot.'),
+          content: formatError('Không thể chỉnh dữ liệu Tiên Lộ của bot.'),
           flags: MessageFlags.Ephemeral,
         });
       }
@@ -266,9 +266,7 @@ export default {
         saveCultivationProfile,
       } = await import('../../services/cultivationService.js');
 
-      const userEmoji =
-        CULTIVATION_CONFIG.ui?.emojis?.user ||
-        '🐰';
+      const userEmoji = CULTIVATION_CONFIG.ui?.emojis?.user || '🐰';
 
       if (selectedId === 'currency:spirit_stones') {
         const quantity = clampLargeQuantity(requestedQuantity);
@@ -277,15 +275,14 @@ export default {
           interaction.guildId,
           targetUser.id,
         );
+        const current = Math.max(0, Number(profile.spiritStones) || 0);
+        const changed = revoke ? Math.min(current, quantity) : quantity;
 
-        profile.spiritStones =
-          Math.max(0, Number(profile.spiritStones) || 0) + quantity;
+        profile.spiritStones = revoke
+          ? Math.max(0, current - changed)
+          : current + changed;
 
-        const saved = await saveCultivationProfile(
-          interaction.client,
-          profile,
-        );
-
+        const saved = await saveCultivationProfile(interaction.client, profile);
         const emoji = CULTIVATION_CONFIG.ui?.emojis?.spiritStone || '💎';
 
         return interaction.editReply({
@@ -293,7 +290,7 @@ export default {
             HEADER,
             '',
             `${userEmoji} Đạo Hữu: <@${targetUser.id}>`,
-            `${emoji} Đã cấp Linh Thạch: **+${formatNumber(quantity)}**`,
+            `${emoji} ${actionVerb(action)} Linh Thạch: **${revoke ? '-' : '+'}${formatNumber(changed)}**`,
             `${emoji} Hiện có: **${formatNumber(saved.spiritStones)}**`,
           ].join('\n'),
         });
@@ -311,9 +308,12 @@ export default {
           interaction.guildId,
           targetUser.id,
         );
+        const current = Math.max(0, Number(state.formationEssence) || 0);
+        const changed = revoke ? Math.min(current, quantity) : quantity;
 
-        state.formationEssence =
-          Math.max(0, Number(state.formationEssence) || 0) + quantity;
+        state.formationEssence = revoke
+          ? Math.max(0, current - changed)
+          : current + changed;
 
         const saved = await saveFormationState(
           interaction.client,
@@ -327,7 +327,7 @@ export default {
             HEADER,
             '',
             `${userEmoji} Đạo Hữu: <@${targetUser.id}>`,
-            `<a:tttrankho:1547820098465824809> Đã cấp Trận Văn: **+${formatNumber(quantity)}**`,
+            `<a:tttrankho:1547820098465824809> ${actionVerb(action)} Trận Văn: **${revoke ? '-' : '+'}${formatNumber(changed)}**`,
             `<a:tttrankho:1547820098465824809> Hiện có: **${formatNumber(saved.formationEssence)}**`,
           ].join('\n'),
         });
@@ -343,7 +343,6 @@ export default {
         } = await import('../../services/cultivationFormation.js');
 
         const crystal = FORMATION_ELEMENTS[crystalId];
-
         if (!crystal) {
           return interaction.editReply({
             content: formatError('Không tìm thấy loại Tinh Thạch Trận Pháp này.'),
@@ -355,9 +354,12 @@ export default {
           interaction.guildId,
           targetUser.id,
         );
+        const current = Math.max(0, Number(state.elementCrystals?.[crystalId]) || 0);
+        const changed = revoke ? Math.min(current, quantity) : quantity;
 
-        state.elementCrystals[crystalId] =
-          Math.max(0, Number(state.elementCrystals?.[crystalId]) || 0) + quantity;
+        state.elementCrystals[crystalId] = revoke
+          ? Math.max(0, current - changed)
+          : current + changed;
 
         const saved = await saveFormationState(
           interaction.client,
@@ -372,7 +374,7 @@ export default {
             '',
             `${userEmoji} Đạo Hữu: <@${targetUser.id}>`,
             `${crystal.emoji || '💎'} Tinh Thạch: **${crystal.name}**`,
-            `${crystal.emoji || '💎'} Đã cấp: **+${formatNumber(quantity)}**`,
+            `${crystal.emoji || '💎'} ${actionLabel(action)}: **${revoke ? '-' : '+'}${formatNumber(changed)}**`,
             `${crystal.emoji || '💎'} Hiện có: **${formatNumber(saved.elementCrystals?.[crystalId])}**`,
           ].join('\n'),
         });
@@ -387,7 +389,6 @@ export default {
         } = await import('../../services/cultivationFormation.js');
 
         const formation = FORMATION_DEFINITIONS[formationId];
-
         if (!formation) {
           return interaction.editReply({
             content: formatError('Không tìm thấy Trận Đồ này.'),
@@ -399,8 +400,45 @@ export default {
           interaction.guildId,
           targetUser.id,
         );
-
         const alreadyUnlocked = state.unlockedFormationIds.includes(formationId);
+
+        if (revoke) {
+          if (formationId === 'five_elements') {
+            return interaction.editReply({
+              content: formatError('Tiểu Ngũ Hành Trận là Trận Đồ nền tảng mặc định nên không thể thu hồi.'),
+            });
+          }
+
+          if (alreadyUnlocked) {
+            state.unlockedFormationIds = state.unlockedFormationIds.filter(
+              (id) => id !== formationId,
+            );
+
+            if (state.activeFormationId === formationId) {
+              state.activeFormationId = 'five_elements';
+            }
+
+            await saveFormationState(
+              interaction.client,
+              interaction.guildId,
+              targetUser.id,
+              state,
+            );
+          }
+
+          return interaction.editReply({
+            content: [
+              HEADER,
+              '',
+              `${userEmoji} Đạo Hữu: <@${targetUser.id}>`,
+              `<a:ttrando:1547820131889979464> Trận Đồ: **${formation.name}**`,
+              `<a:trangtrig43:1547238351869059082> Trạng Thái: **${alreadyUnlocked ? 'Đã thu hồi' : 'Không sở hữu'}**`,
+              state.activeFormationId === 'five_elements'
+                ? '<a:ttrando:1547820131889979464> Nếu Trận Đồ này đang dùng, hệ thống đã chuyển về **Tiểu Ngũ Hành Trận**.'
+                : null,
+            ].filter(Boolean).join('\n'),
+          });
+        }
 
         if (!alreadyUnlocked) {
           state.unlockedFormationIds.push(formationId);
@@ -436,7 +474,6 @@ export default {
         } = await import('../../services/cultivationPet.js');
 
         const pet = getCultivationPet(petId);
-
         if (!pet) {
           return interaction.editReply({
             content: formatError('Không tìm thấy Linh Thú này.'),
@@ -450,11 +487,33 @@ export default {
         );
 
         ensurePetData(profile);
+        const alreadyOwned = ownsPet(profile, petId);
 
-        const alreadyOwned = ownsPet(
-          profile,
-          petId,
-        );
+        if (revoke) {
+          if (alreadyOwned) {
+            delete profile.pets.owned[petId];
+
+            if (profile.pets.active === petId) {
+              profile.pets.active = null;
+            }
+
+            await saveCultivationProfile(interaction.client, profile);
+          }
+
+          return interaction.editReply({
+            content: [
+              HEADER,
+              '',
+              `${userEmoji} Đạo Hữu: <@${targetUser.id}>`,
+              `${pet.emoji} Linh Thú: **${pet.name}**`,
+              `${pet.emoji} Phẩm Chất: **${pet.rarity}**`,
+              `${pet.emoji} Trạng Thái: **${alreadyOwned ? 'Đã thu hồi' : 'Không sở hữu'}**`,
+              profile.pets.active === null && alreadyOwned
+                ? `${pet.emoji} Nếu Linh Thú này đang xuất chiến, hệ thống đã tự bỏ trạng thái active.`
+                : null,
+            ].filter(Boolean).join('\n'),
+          });
+        }
 
         if (!alreadyOwned) {
           profile.pets.owned[petId] = true;
@@ -463,10 +522,7 @@ export default {
             profile.pets.active = petId;
           }
 
-          await saveCultivationProfile(
-            interaction.client,
-            profile,
-          );
+          await saveCultivationProfile(interaction.client, profile);
 
           if (petId === 'thai_hu_tien_hac') {
             await announceThaiHuTienHacAcquisition(
@@ -489,7 +545,6 @@ export default {
       }
 
       const item = CULTIVATION_ITEMS[selectedId];
-
       if (!item) {
         return interaction.editReply({
           content: formatError('Không tìm thấy vật phẩm này trong Tiên Lộ.'),
@@ -502,30 +557,50 @@ export default {
         interaction.guildId,
         targetUser.id,
       );
+      const itemEmoji = getItemEmoji(item);
 
-      const added = addInventoryItem(
-        profile,
-        selectedId,
-        quantity,
-      );
+      if (revoke) {
+        const current = Math.max(0, Number(profile.inventory?.[selectedId]) || 0);
+        const changed = Math.min(current, quantity);
+        const remaining = Math.max(0, current - changed);
 
+        profile.inventory ||= {};
+        if (remaining > 0) {
+          profile.inventory[selectedId] = remaining;
+        } else {
+          delete profile.inventory[selectedId];
+        }
+
+        const saved = await saveCultivationProfile(interaction.client, profile);
+        const currentQuantity = Math.max(
+          0,
+          Number(saved.inventory?.[selectedId]) || 0,
+        );
+
+        return interaction.editReply({
+          content: [
+            HEADER,
+            '',
+            `${userEmoji} Đạo Hữu: <@${targetUser.id}>`,
+            `${itemEmoji} Vật Phẩm: **${item.name}**`,
+            `${itemEmoji} Đã Thu Hồi: **×${changed}**`,
+            `${itemEmoji} Hiện Có: **×${currentQuantity}**`,
+          ].join('\n'),
+        });
+      }
+
+      const added = addInventoryItem(profile, selectedId, quantity);
       if (!added) {
         return interaction.editReply({
           content: formatError('Không thể thêm vật phẩm vào Túi Đồ.'),
         });
       }
 
-      const saved = await saveCultivationProfile(
-        interaction.client,
-        profile,
-      );
-
+      const saved = await saveCultivationProfile(interaction.client, profile);
       const currentQuantity = Math.max(
         0,
         Number(saved.inventory?.[selectedId]) || 0,
       );
-
-      const itemEmoji = getItemEmoji(item);
 
       return interaction.editReply({
         content: [
@@ -541,7 +616,7 @@ export default {
       console.error('[TU TIEN ITEM ERROR]', error);
 
       const message = formatError(
-        `Lệnh cấp dữ liệu Tiên Lộ bị lỗi: \`${error?.message || 'Unknown error'}\``,
+        `Lệnh quản lý dữ liệu Tiên Lộ bị lỗi: \`${error?.message || 'Unknown error'}\``,
       );
 
       if (interaction.deferred || interaction.replied) {
