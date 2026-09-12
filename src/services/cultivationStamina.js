@@ -4,10 +4,17 @@ import { CULTIVATION_CONFIG } from '../config/cultivationGame.js';
 const PROFILE_PREFIX = 'games:cultivation:profile:';
 const STAMINA_REGEN_MS = 60_000;
 const NGUYET_QUANG_LINH_THO_ID = 'nguyet_quang_linh_tho';
-const NGUYET_QUANG_STAMINA_BONUS = 3;
+const NGUYET_QUANG_STAMINA_BONUS = 0.03;
 
 function getProfileKey(guildId, userId) {
   return `${PROFILE_PREFIX}${guildId}:${userId}`;
+}
+
+function rollFractionalBonus(baseAmount, percent) {
+  const raw = Math.max(0, Number(baseAmount) || 0) * Math.max(0, Number(percent) || 0);
+  const whole = Math.floor(raw);
+  const fraction = raw - whole;
+  return whole + (fraction > 0 && Math.random() < fraction ? 1 : 0);
 }
 
 export async function regenerateCultivationStamina(
@@ -85,15 +92,17 @@ export async function regenerateCultivationStamina(
       raw.pets?.active === NGUYET_QUANG_LINH_THO_ID &&
       raw.pets?.owned?.[NGUYET_QUANG_LINH_THO_ID] === true;
 
-    const staminaPerTick =
-      1 +
-      (hasNguyetQuangLinhTho
-        ? NGUYET_QUANG_STAMINA_BONUS
-        : 0);
+    const petRecoveryBonus =
+      hasNguyetQuangLinhTho
+        ? rollFractionalBonus(
+            recovered,
+            NGUYET_QUANG_STAMINA_BONUS,
+          )
+        : 0;
 
     const nextStamina = Math.min(
       maxStamina,
-      currentStamina + recovered * staminaPerTick,
+      currentStamina + recovered + petRecoveryBonus,
     );
 
     const nextRegenAt =
