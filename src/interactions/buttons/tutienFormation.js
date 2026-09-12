@@ -579,6 +579,7 @@ export default {
           components: buildFormationTribulationPreviewRows(
             ownerId,
             extra,
+            result,
           ),
         });
       }
