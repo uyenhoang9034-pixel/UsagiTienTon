@@ -56,6 +56,17 @@ function mergeEffects(baseEffects = {}, extraEffects = {}) {
   });
 }
 
+function rollFractionalAmount(value) {
+  const raw = Math.max(0, Number(value) || 0);
+  const whole = Math.floor(raw);
+  const fraction = raw - whole;
+
+  return whole +
+    (fraction > 0 && Math.random() < fraction
+      ? 1
+      : 0);
+}
+
 export async function getFormationGameplayBonus(client, guildId, userId) {
   try {
     const state = await getFormationState(
@@ -145,7 +156,9 @@ export function applyFormationStaminaReduction(cost, effects) {
 
   const saved = Math.min(
     base,
-    Math.max(0, Math.floor(base * clamp(effects?.staminaReduction))),
+    rollFractionalAmount(
+      base * clamp(effects?.staminaReduction),
+    ),
   );
 
   return { total: Math.max(0, base - saved), saved };
