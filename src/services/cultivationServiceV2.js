@@ -61,6 +61,19 @@ function getPetStaminaRefund(profile) {
   );
 }
 
+function rollFractionalAmount(baseAmount, percent) {
+  const raw =
+    Math.max(0, Number(baseAmount) || 0) *
+    Math.max(0, Number(percent) || 0);
+  const whole = Math.floor(raw);
+  const fraction = raw - whole;
+
+  return whole +
+    (fraction > 0 && Math.random() < fraction
+      ? 1
+      : 0);
+}
+
 export async function cultivate(
   client,
   guildId,
@@ -116,11 +129,9 @@ export async function cultivate(
     petStaminaRefundPercent > 0
       ? Math.min(
           stamina.total,
-          Math.max(
-            1,
-            Math.round(
-              stamina.total * petStaminaRefundPercent,
-            ),
+          rollFractionalAmount(
+            stamina.total,
+            petStaminaRefundPercent,
           ),
         )
       : 0;
