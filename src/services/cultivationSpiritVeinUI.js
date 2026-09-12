@@ -75,6 +75,22 @@ function veinButton(ownerId, action, label, styleType = ButtonStyle.Secondary) {
   return component;
 }
 
+export function appendSpiritVeinButton(rows, ownerId) {
+  const cloned = [...rows];
+  let target = cloned[2];
+
+  if (!target || target.components.length >= 5) {
+    target = new ActionRowBuilder();
+    cloned.push(target);
+  }
+
+  target.addComponents(
+    veinButton(ownerId, 'main', 'Linh Mạch'),
+  );
+
+  return cloned;
+}
+
 export function buildSpiritVeinEmbed(user, snapshot, notice = null) {
   const {
     profile,
