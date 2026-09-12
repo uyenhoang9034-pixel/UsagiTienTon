@@ -14,6 +14,8 @@ export const CULTIVATION_REALM_REWARD_MULTIPLIERS = [
   800000,
 ];
 
+const CULTIVATION_TUVI_REALM_GROWTH = 1.35;
+
 function getRealmIndex(profile) {
   const raw = Math.floor(Number(profile?.realmIndex) || 0);
   return Math.max(
@@ -32,11 +34,16 @@ export function getRealmBaseRewardMultiplier(profile) {
 }
 
 export function getCultivationRealmRewardMultipliers(profile) {
+  const realmIndex = getRealmIndex(profile);
   const base = getRealmBaseRewardMultiplier(profile);
+  const cultivation = Math.pow(
+    CULTIVATION_TUVI_REALM_GROWTH,
+    realmIndex,
+  );
 
   return {
     base,
-    cultivation: base,
+    cultivation,
     spiritStones: Math.max(1, Math.round(base * 0.30)),
   };
 }
