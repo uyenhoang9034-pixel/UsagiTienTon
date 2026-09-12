@@ -382,9 +382,9 @@ async function runWithFormationAdventureReward(
     staminaSpent > 0 && petStaminaRefundPercent > 0
       ? Math.min(
           staminaSpent,
-          Math.max(
-            1,
-            Math.round(staminaSpent * petStaminaRefundPercent),
+          rollFractionalQuantity(
+            staminaSpent,
+            petStaminaRefundPercent,
           ),
         )
       : 0;
