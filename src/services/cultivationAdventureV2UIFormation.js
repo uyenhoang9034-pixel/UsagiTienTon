@@ -18,15 +18,38 @@ function number(value) {
   );
 }
 
+function percent(value) {
+  return `${Math.round((Number(value) || 0) * 100)}%`;
+}
+
 function buildPetAdventureLines(result) {
   if (!result?.activePet) return [];
 
   const pet = result.activePet;
   const lines = [];
 
-  if (result.guaranteedByPet) {
+  if ((Number(result.petCombatBonus) || 0) > 0) {
     lines.push(
-      `${pet.emoji} ${pet.name}: **Giao chiến chắc chắn chiến thắng 100%**`,
+      `${pet.emoji} ${pet.name}: **+${percent(result.petCombatBonus)} tỷ lệ thắng giao chiến**`,
+    );
+  }
+
+  if ((Number(result.petCombatCultivationBonus) || 0) > 0) {
+    lines.push(
+      `${pet.emoji} ${pet.name}: **+${number(result.petCombatCultivationBonus)} Tu Vi thưởng giao chiến**`,
+    );
+  }
+
+  if ((Number(result.petCombatStoneBonus) || 0) > 0) {
+    lines.push(
+      `${pet.emoji} ${pet.name}: **+${number(result.petCombatStoneBonus)} Linh Thạch thưởng giao chiến**`,
+    );
+  }
+
+  for (const [itemId, quantity] of Object.entries(result.petCombatItemBonuses || {})) {
+    const item = CULTIVATION_ITEMS[itemId];
+    lines.push(
+      `${pet.emoji} ${pet.name}: **+${number(quantity)} ${item?.name || itemId} thưởng giao chiến**`,
     );
   }
 
@@ -51,7 +74,19 @@ function buildPetAdventureLines(result) {
 
   if (result.petMaterialFindBonus) {
     lines.push(
-      `${pet.emoji} ${pet.name}: **Tầm Bảo +${number(result.petMaterialFindBonus.quantity)} ${result.petMaterialFindBonus.item?.name || result.petMaterialFindBonus.itemId}**`,
+      `${pet.emoji} ${pet.name}: **Tầm Linh +${number(result.petMaterialFindBonus.quantity)} ${result.petMaterialFindBonus.item?.name || result.petMaterialFindBonus.itemId}**`,
+    );
+  }
+
+  if ((Number(result.petStaminaRefund) || 0) > 0) {
+    lines.push(
+      `${pet.emoji} ${pet.name}: **Bù lại ${number(result.petStaminaRefund)} Thể Lực**`,
+    );
+  }
+
+  if ((Number(result.protectedCultivation) || 0) > 0) {
+    lines.push(
+      `${pet.emoji} ${pet.name}: **Tiên vận hộ thể · tránh mất ${number(result.protectedCultivation)} Tu Vi**`,
     );
   }
 
