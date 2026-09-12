@@ -144,6 +144,36 @@ function wrapResult(builder, result) {
   );
 }
 
+export function buildAdventureV2AssistEmbed(result) {
+  const embed = baseUI.buildAdventureV2AssistEmbed(result);
+
+  if (!result?.ok) return embed;
+
+  const pet = result?.activePet || result?.pet;
+  if (!pet) return embed;
+
+  const lines = [];
+
+  if ((Number(result.petCombatBonus) || 0) > 0) {
+    lines.push(
+      `${pet.emoji} ${pet.name}: **+${percent(result.petCombatBonus)} tỷ lệ thắng giao chiến**`,
+    );
+  }
+
+  if ((Number(result.petCombatRewardBonus) || 0) > 0) {
+    lines.push(
+      `${pet.emoji} ${pet.name}: **+${percent(result.petCombatRewardBonus)} phần thưởng khi thắng giao chiến**`,
+    );
+  }
+
+  if (lines.length === 0) return embed;
+
+  const data = embed.toJSON();
+  return new EmbedBuilder(data).setDescription(
+    [data.description || '', '', ...lines].join('\n'),
+  );
+}
+
 export function buildAdventureV2ResultEmbed(result) {
   return wrapResult(
     baseUI.buildAdventureV2ResultEmbed,
