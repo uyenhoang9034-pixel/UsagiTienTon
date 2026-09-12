@@ -123,17 +123,11 @@ export function buildPetEmbed(
                   ? ' · **Đồng Hành**'
                   : '';
 
-              return [
-                `${pet.emoji} **${pet.name}**${mark}`,
-                `Phẩm Chất: **${pet.rarity}**`,
-                `Hiệu Quả: **${pet.effect}**`,
-              ].join(
-                '\n',
-              );
+              return `${pet.emoji} **${pet.name}** · **${pet.rarity}**${mark}\n↳ ${pet.effect}`;
             },
           )
           .join(
-            '\n\n',
+            '\n',
           )
       : '*Chưa thu phục Linh Thú nào.*';
 
