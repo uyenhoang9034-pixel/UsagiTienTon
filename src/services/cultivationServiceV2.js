@@ -235,6 +235,23 @@ export async function cultivate(
     const rawStoneDelta =
       Number(result.stoneDelta) || 0;
 
+    const rawEquipmentCultivationBonus = Math.max(
+      0,
+      Number(result.equipmentCultivationBonus) || 0,
+    );
+    const rawTechniqueCultivationBonus = Math.max(
+      0,
+      Number(result.techniqueCultivationBonus) || 0,
+    );
+    const rawLegacyPetCultivationBonus = Math.max(
+      0,
+      Number(result.petCultivationBonus) || 0,
+    );
+    const rawCultivationPillBonus = Math.max(
+      0,
+      Number(result.cultivationPillBonus) || 0,
+    );
+
     const scaledCultivationDelta =
       scalePositiveRealmReward(
         rawCultivationDelta,
@@ -247,6 +264,27 @@ export async function cultivate(
         realmRewards.spiritStones,
       );
 
+    const scaledEquipmentCultivationBonus =
+      scalePositiveRealmReward(
+        rawEquipmentCultivationBonus,
+        realmRewards.cultivation,
+      );
+    const scaledTechniqueCultivationBonus =
+      scalePositiveRealmReward(
+        rawTechniqueCultivationBonus,
+        realmRewards.cultivation,
+      );
+    const scaledLegacyPetCultivationBonus =
+      scalePositiveRealmReward(
+        rawLegacyPetCultivationBonus,
+        realmRewards.cultivation,
+      );
+    const scaledCultivationPillBonus =
+      scalePositiveRealmReward(
+        rawCultivationPillBonus,
+        realmRewards.cultivation,
+      );
+
     const realmCultivationBonus = Math.max(
       0,
       scaledCultivationDelta - rawCultivationDelta,
@@ -256,13 +294,41 @@ export async function cultivate(
       scaledStoneDelta - rawStoneDelta,
     );
 
+    const realmAuxCultivationBonus =
+      Math.max(
+        0,
+        scaledEquipmentCultivationBonus -
+          rawEquipmentCultivationBonus,
+      ) +
+      Math.max(
+        0,
+        scaledTechniqueCultivationBonus -
+          rawTechniqueCultivationBonus,
+      ) +
+      Math.max(
+        0,
+        scaledLegacyPetCultivationBonus -
+          rawLegacyPetCultivationBonus,
+      ) +
+      Math.max(
+        0,
+        scaledCultivationPillBonus -
+          rawCultivationPillBonus,
+      );
+
     const savedProfile = result.profile;
     savedProfile.pets ||= { owned: {}, active: null };
     savedProfile.pets.active = originalActivePetId;
 
-    if (realmCultivationBonus > 0) {
-      savedProfile.cultivation += realmCultivationBonus;
-      savedProfile.totalCultivation += realmCultivationBonus;
+    const totalRealmCultivationBonus =
+      realmCultivationBonus +
+      realmAuxCultivationBonus;
+
+    if (totalRealmCultivationBonus > 0) {
+      savedProfile.cultivation +=
+        totalRealmCultivationBonus;
+      savedProfile.totalCultivation +=
+        totalRealmCultivationBonus;
     }
 
     if (realmStoneBonus > 0) {
@@ -271,6 +337,28 @@ export async function cultivate(
 
     result.cultivationDelta = scaledCultivationDelta;
     result.stoneDelta = scaledStoneDelta;
+    result.equipmentCultivationBonus =
+      scaledEquipmentCultivationBonus;
+    result.techniqueCultivationBonus =
+      scaledTechniqueCultivationBonus;
+    result.petCultivationBonus =
+      scaledLegacyPetCultivationBonus;
+    result.cultivationPillBonus =
+      scaledCultivationPillBonus;
+
+    // Linh Thạch trong baseService đã gộp bonus trang bị/công pháp vào
+    // stoneDelta trước khi scale, nên tổng thưởng đã đúng. Scale các field
+    // riêng để UI cũng hiển thị đúng giá trị sau hệ số cảnh giới.
+    result.equipmentStoneBonus =
+      scalePositiveRealmReward(
+        Number(result.equipmentStoneBonus) || 0,
+        realmRewards.spiritStones,
+      );
+    result.techniqueStoneBonus =
+      scalePositiveRealmReward(
+        Number(result.techniqueStoneBonus) || 0,
+        realmRewards.spiritStones,
+      );
 
     const cultivation =
       applyFormationCultivationBonus(
@@ -332,7 +420,11 @@ export async function cultivate(
         realmRewards.cultivation,
       realmStoneMultiplier:
         realmRewards.spiritStones,
-      realmCultivationBonus,
+      realmCultivationBonus:
+        totalRealmCultivationBonus,
+      realmBaseCultivationBonus:
+        realmCultivationBonus,
+      realmAuxCultivationBonus,
       realmStoneBonus,
       extraPetCultivationBonus:
         petCultivationBonus,
