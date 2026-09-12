@@ -23,6 +23,7 @@ const TITLE_RIGHT = '<a:trangtrig3:1546040818261954610>';
 const OWNED_EMOJI = '<a:trangtrig31:1546905996893626440>';
 const LOCKED_EMOJI = '<a:ttlinhthu2:1547478815452954654>';
 const PET_BUTTON_EMOJI_ID = '1547305016694669503';
+const COLLECTION_REWARD = 1_000_000_000;
 
 const RARITIES = [
   'Phàm',
@@ -80,7 +81,7 @@ function rarityCount(profile, rarity) {
   return { owned, total: pets.length };
 }
 
-function progressBar(current, total, size = 16) {
+function progressBar(current, total, size = 10) {
   if (!total) return '░'.repeat(size);
   const filled = Math.max(0, Math.min(size, Math.round((current / total) * size)));
   return `${'█'.repeat(filled)}${'░'.repeat(size - filled)}`;
@@ -94,9 +95,15 @@ function backToPetButton(ownerId) {
     .setStyle(ButtonStyle.Secondary);
 }
 
+function collectionRewardClaimed(profile) {
+  return profile?.pets?.collectionRewardClaimed === true;
+}
+
 export function buildPetCodexEmbed(user, profile) {
   const allPets = getCultivationPetList();
   const owned = getOwnedPets(profile);
+  const complete = allPets.length > 0 && owned.length >= allPets.length;
+  const claimed = collectionRewardClaimed(profile);
   const percentage = allPets.length > 0
     ? Math.round((owned.length / allPets.length) * 100)
     : 0;
@@ -106,15 +113,24 @@ export function buildPetCodexEmbed(user, profile) {
     return `• **${rarity}** · ${count.owned}/${count.total}`;
   });
 
+  const rewardStatus = claimed
+    ? '**Đã nhận thưởng:** 1.000.000.000 Tu Vi'
+    : complete
+      ? '**Đã hoàn thành!** Có thể nhận **1.000.000.000 Tu Vi**.'
+      : `Thu phục đủ **${allPets.length}/${allPets.length}** Linh Thú để nhận **1.000.000.000 Tu Vi**.`;
+
   return style(
     new EmbedBuilder()
-      .setTitle(title('LINH THÚ ĐỒ GIÁM'))
+      .setTitle(title('BỘ SƯU TẬP LINH THÚ'))
       .setDescription([
         '*Vạn thú hữu linh, hữu duyên tương ngộ.*',
         '',
         `**Đạo Hữu:** <@${user.id}>`,
-        `${OWNED_EMOJI} **Đã thu phục:** ${owned.length}/${allPets.length}`,
+        `${OWNED_EMOJI} **Đã thu phục:** ${owned.length} / ${allPets.length}`,
         `\`${progressBar(owned.length, allPets.length)}\` **${percentage}%**`,
+        '',
+        `${LOCKED_EMOJI} **Thưởng hoàn thành**`,
+        rewardStatus,
         '',
         '**Phân loại theo phẩm chất**',
         ...rarityLines,
@@ -125,7 +141,10 @@ export function buildPetCodexEmbed(user, profile) {
 }
 
 export function buildPetCodexRows(ownerId, profile) {
-  return [
+  const allPets = getCultivationPetList();
+  const complete = allPets.length > 0 && getOwnedPets(profile).length >= allPets.length;
+  const claimed = collectionRewardClaimed(profile);
+  const rows = [
     new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId(`tutien_pet_codex_rarity:${ownerId}`)
@@ -143,10 +162,24 @@ export function buildPetCodexRows(ownerId, profile) {
           }),
         ),
     ),
-    new ActionRowBuilder().addComponents(
-      backToPetButton(ownerId),
-    ),
   ];
+
+  const buttons = new ActionRowBuilder();
+
+  if (complete && !claimed) {
+    buttons.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`tutien_pet_collection_reward:${ownerId}`)
+        .setLabel('Nhận Thưởng 1 Tỷ Tu Vi')
+        .setEmoji('1547478815452954654')
+        .setStyle(ButtonStyle.Success),
+    );
+  }
+
+  buttons.addComponents(backToPetButton(ownerId));
+  rows.push(buttons);
+
+  return rows;
 }
 
 export function buildPetCodexRarityEmbed(profile, rarity) {
@@ -199,7 +232,7 @@ export function buildPetCodexRarityRows(ownerId, profile, rarity) {
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`tutien_pet_codex:${ownerId}`)
-        .setLabel('Đồ Giám')
+        .setLabel('Bộ Sưu Tập')
         .setEmoji(PET_BUTTON_EMOJI_ID)
         .setStyle(ButtonStyle.Secondary),
       backToPetButton(ownerId),
@@ -283,7 +316,7 @@ export function buildPetCodexDetailRows(ownerId, rarity) {
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
         .setCustomId(`tutien_pet_codex:${ownerId}`)
-        .setLabel('Đồ Giám')
+        .setLabel('Bộ Sưu Tập')
         .setEmoji(PET_BUTTON_EMOJI_ID)
         .setStyle(ButtonStyle.Secondary),
       backToPetButton(ownerId),
@@ -305,4 +338,8 @@ export function getPetCodexRarityOrder() {
       (CULTIVATION_PET_RARITY_ORDER[a] || 0) -
       (CULTIVATION_PET_RARITY_ORDER[b] || 0),
   );
+}
+
+export function getPetCollectionRewardAmount() {
+  return COLLECTION_REWARD;
 }
