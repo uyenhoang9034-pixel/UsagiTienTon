@@ -4,9 +4,11 @@ import {
 } from '../utils/database.js';
 
 const FORMATION_KEY_PREFIX = 'games:cultivation:formation:';
-const COMPREHEND_COOLDOWN_MS = 10 * 60 * 1000;
-const MAX_FORMATION_LEVEL = 10;
-const MAX_SLOT_LEVEL = 10;
+const COMPREHEND_COOLDOWN_MS = 15 * 60 * 1000;
+export const MAX_FORMATION_LEVEL = 100;
+export const MAX_SLOT_LEVEL = 100;
+export const MAX_EYE_LEVEL = 100;
+export const MAX_HEART_LEVEL = 100;
 
 export const FORMATION_ELEMENTS = {
   metal: { id: 'metal', name: 'Kim', tier: 'basic', emoji: '<a:ttkim:1547830384589545553>' },
@@ -22,10 +24,8 @@ export const FORMATION_ELEMENTS = {
   chaos: { id: 'chaos', name: 'Hỗn Độn', tier: 'rare', emoji: '<a:tthondon:1547842242885066793>' },
 };
 
-export const FORMATION_EYE_ELEMENT_IDS = [
-  'spirit',
-  'chaos',
-];
+export const FORMATION_EYE_ELEMENT_IDS = ['spirit', 'chaos'];
+export const FORMATION_HEART_ELEMENT_ID = 'yin_yang';
 
 export const FORMATION_DEFINITIONS = {
   five_elements: {
@@ -75,8 +75,6 @@ export const FORMATION_DEFINITIONS = {
   },
 };
 
-// Mỗi Trận Đồ cao cấp có một tầng sức mạnh nền riêng.
-// Nhờ vậy phẩm cao luôn mạnh hơn phẩm thấp, nhưng vẫn giữ thiên hướng riêng.
 const FORMATION_TIER_BASE_EFFECTS = {
   five_elements: {
     cultivationBonus: 0,
@@ -133,7 +131,7 @@ const EMPTY_CRYSTALS = Object.fromEntries(
 );
 
 const DEFAULT_STATE = {
-  version: 2,
+  version: 3,
   insight: 0,
   formationEssence: 30,
   lastComprehendAt: null,
@@ -147,18 +145,121 @@ const DEFAULT_STATE = {
   formationEyes: {
     five_elements: { elementId: 'spirit', level: 1 },
   },
+  formationHearts: {
+    five_elements: 1,
+  },
 };
+
+const FORMATION_COST_ANCHORS = [
+  [1, 500],
+  [10, 3000],
+  [20, 12000],
+  [30, 40000],
+  [40, 120000],
+  [50, 300000],
+  [60, 800000],
+  [70, 2000000],
+  [80, 5000000],
+  [90, 12000000],
+  [99, 40000000],
+];
+
+const COMPREHEND_ESSENCE_ANCHORS = [
+  [1, 20, 30],
+  [10, 70, 80],
+  [20, 170, 200],
+  [30, 400, 450],
+  [40, 800, 900],
+  [50, 1600, 1800],
+  [60, 3200, 3500],
+  [70, 6000, 6500],
+  [80, 10000, 11000],
+  [90, 17000, 18000],
+  [100, 29000, 30000],
+];
 
 function stateKey(guildId, userId) {
   return `${FORMATION_KEY_PREFIX}${guildId}:${userId}`;
 }
 
+function clampLevel(value, maxLevel = 100) {
+  return Math.max(1, Math.min(maxLevel, Math.floor(Number(value) || 1)));
+}
+
 function normalizeLevelArray(value, length) {
   const raw = Array.isArray(value) ? value : [];
-  return Array.from({ length }, (_, index) => Math.max(
-    1,
-    Math.min(MAX_SLOT_LEVEL, Math.floor(Number(raw[index]) || 1)),
-  ));
+  return Array.from({ length }, (_, index) => clampLevel(raw[index], MAX_SLOT_LEVEL));
+}
+
+function interpolateAnchors(anchors, level, valueIndex = 1) {
+  const safeLevel = Math.max(1, Math.floor(Number(level) || 1));
+  if (safeLevel <= anchors[0][0]) return anchors[0][valueIndex];
+
+  for (let index = 0; index < anchors.length - 1; index += 1) {
+    const current = anchors[index];
+    const next = anchors[index + 1];
+    if (safeLevel <= next[0]) {
+      const ratio = (safeLevel - current[0]) / (next[0] - current[0]);
+      return Math.round(
+        current[valueIndex] + (next[valueIndex] - current[valueIndex]) * ratio,
+      );
+    }
+  }
+
+  return anchors[anchors.length - 1][valueIndex];
+}
+
+function getResourceStepCost(nextLevel) {
+  if (nextLevel >= 100) return 20;
+  if (nextLevel > 90) return 16;
+  if (nextLevel > 80) return 13;
+  if (nextLevel > 70) return 10;
+  if (nextLevel > 60) return 8;
+  if (nextLevel > 50) return 6;
+  if (nextLevel > 40) return 5;
+  if (nextLevel > 30) return 4;
+  if (nextLevel > 20) return 3;
+  if (nextLevel > 10) return 2;
+  return 1;
+}
+
+function getFragmentStepCost(nextLevel) {
+  if (nextLevel >= 100) return 25;
+  if (nextLevel > 90) return 20;
+  if (nextLevel > 80) return 16;
+  if (nextLevel > 70) return 12;
+  if (nextLevel > 60) return 9;
+  if (nextLevel > 50) return 7;
+  if (nextLevel > 40) return 5;
+  if (nextLevel > 30) return 4;
+  if (nextLevel > 20) return 3;
+  if (nextLevel > 10) return 2;
+  return 1;
+}
+
+export function getFormationUpgradeCost(type, currentLevel) {
+  const level = clampLevel(currentLevel, MAX_FORMATION_LEVEL);
+  const base = interpolateAnchors(FORMATION_COST_ANCHORS, level);
+  const multiplier = {
+    formation: 1,
+    slot: 0.40,
+    eye: 0.70,
+    heart: 0.80,
+  }[type] ?? 1;
+
+  return {
+    essenceCost: Math.max(1, Math.round(base * multiplier)),
+    crystalCost: getResourceStepCost(level + 1),
+    fragmentCost: getFragmentStepCost(level + 1),
+  };
+}
+
+function getComprehendEssenceRange(level) {
+  const safeLevel = clampLevel(level, MAX_FORMATION_LEVEL);
+  return {
+    min: interpolateAnchors(COMPREHEND_ESSENCE_ANCHORS, safeLevel, 1),
+    max: interpolateAnchors(COMPREHEND_ESSENCE_ANCHORS, safeLevel, 2),
+  };
 }
 
 function normalizeState(data) {
@@ -167,7 +268,7 @@ function normalizeState(data) {
     ...(data && typeof data === 'object' ? data : {}),
   };
 
-  state.version = 2;
+  state.version = 3;
   state.insight = Math.max(0, Number(state.insight) || 0);
   state.formationEssence = Math.max(0, Number(state.formationEssence) || 0);
   state.unlockedFormationIds = Array.from(new Set([
@@ -179,36 +280,32 @@ function normalizeState(data) {
     ...DEFAULT_STATE.formationLevels,
     ...(state.formationLevels || {}),
   };
-
   state.layouts = {
     ...DEFAULT_STATE.layouts,
     ...(state.layouts || {}),
   };
-
   state.slotLevels = {
     ...(state.slotLevels || {}),
   };
-
   state.formationFragments = {
     ...(state.formationFragments || {}),
   };
-
   state.elementCrystals = {
     ...EMPTY_CRYSTALS,
     ...(state.elementCrystals || {}),
   };
-
   state.formationEyes = {
     ...DEFAULT_STATE.formationEyes,
     ...(state.formationEyes || {}),
   };
+  state.formationHearts = {
+    ...DEFAULT_STATE.formationHearts,
+    ...(state.formationHearts || {}),
+  };
 
   for (const formation of Object.values(FORMATION_DEFINITIONS)) {
     const id = formation.id;
-    state.formationLevels[id] = Math.max(
-      1,
-      Math.min(MAX_FORMATION_LEVEL, Math.floor(Number(state.formationLevels[id]) || 1)),
-    );
+    state.formationLevels[id] = clampLevel(state.formationLevels[id], MAX_FORMATION_LEVEL);
 
     const layout = state.layouts[id];
     if (!Array.isArray(layout) || layout.length !== formation.slots) {
@@ -219,11 +316,7 @@ function normalizeState(data) {
       );
     }
 
-    state.slotLevels[id] = normalizeLevelArray(
-      state.slotLevels[id],
-      formation.slots,
-    );
-
+    state.slotLevels[id] = normalizeLevelArray(state.slotLevels[id], formation.slots);
     state.formationFragments[id] = Math.max(
       0,
       Math.floor(Number(state.formationFragments[id]) || 0),
@@ -231,9 +324,16 @@ function normalizeState(data) {
 
     const eye = state.formationEyes[id];
     state.formationEyes[id] = {
-      elementId: FORMATION_ELEMENTS[eye?.elementId] ? eye.elementId : 'spirit',
-      level: Math.max(1, Math.min(10, Math.floor(Number(eye?.level) || 1))),
+      elementId: FORMATION_EYE_ELEMENT_IDS.includes(eye?.elementId)
+        ? eye.elementId
+        : 'spirit',
+      level: clampLevel(eye?.level, MAX_EYE_LEVEL),
     };
+
+    state.formationHearts[id] = clampLevel(
+      state.formationHearts[id],
+      MAX_HEART_LEVEL,
+    );
   }
 
   for (const elementId of Object.keys(FORMATION_ELEMENTS)) {
@@ -246,7 +346,6 @@ function normalizeState(data) {
   if (!FORMATION_DEFINITIONS[state.activeFormationId]) {
     state.activeFormationId = 'five_elements';
   }
-
   if (!state.unlockedFormationIds.includes(state.activeFormationId)) {
     state.activeFormationId = state.unlockedFormationIds[0] || 'five_elements';
   }
@@ -257,7 +356,7 @@ function normalizeState(data) {
 export async function getFormationState(client, guildId, userId) {
   const stored = await getDatabaseValue(client, stateKey(guildId, userId), null);
   const state = normalizeState(stored);
-  if (!stored || Number(stored.version) !== 2) {
+  if (!stored || Number(stored.version) !== 3) {
     await setDatabaseValue(client, stateKey(guildId, userId), state);
   }
   return state;
@@ -274,7 +373,7 @@ export function getActiveFormation(state) {
 }
 
 export function getFormationLevel(state, formationId = state?.activeFormationId) {
-  return Math.max(1, Number(state?.formationLevels?.[formationId]) || 1);
+  return clampLevel(state?.formationLevels?.[formationId], MAX_FORMATION_LEVEL);
 }
 
 export function getFormationLayout(state, formationId = state?.activeFormationId) {
@@ -294,8 +393,17 @@ export function getFormationSlotLevels(state, formationId = state?.activeFormati
 export function getFormationEye(state, formationId = state?.activeFormationId) {
   const eye = state?.formationEyes?.[formationId];
   return {
-    elementId: FORMATION_ELEMENTS[eye?.elementId] ? eye.elementId : 'spirit',
-    level: Math.max(1, Math.min(10, Math.floor(Number(eye?.level) || 1))),
+    elementId: FORMATION_EYE_ELEMENT_IDS.includes(eye?.elementId)
+      ? eye.elementId
+      : 'spirit',
+    level: clampLevel(eye?.level, MAX_EYE_LEVEL),
+  };
+}
+
+export function getFormationHeart(state, formationId = state?.activeFormationId) {
+  return {
+    elementId: FORMATION_HEART_ELEMENT_ID,
+    level: clampLevel(state?.formationHearts?.[formationId], MAX_HEART_LEVEL),
   };
 }
 
@@ -305,6 +413,7 @@ export function getFormationResonance(state) {
   const slotLevels = getFormationSlotLevels(state, formation.id);
   const level = getFormationLevel(state, formation.id);
   const eye = getFormationEye(state, formation.id);
+  const heart = getFormationHeart(state, formation.id);
   const exact = formation.pattern.every((elementId, index) => layout[index] === elementId);
   const unique = new Set(layout);
   const lines = [];
@@ -318,10 +427,8 @@ export function getFormationResonance(state) {
     insightBonus: 0,
   };
 
-  const tierEffects =
-    FORMATION_TIER_BASE_EFFECTS[formation.id] ||
-    FORMATION_TIER_BASE_EFFECTS.five_elements;
-
+  const tierEffects = FORMATION_TIER_BASE_EFFECTS[formation.id]
+    || FORMATION_TIER_BASE_EFFECTS.five_elements;
   for (const key of Object.keys(effects)) {
     effects[key] += Number(tierEffects[key]) || 0;
   }
@@ -333,13 +440,15 @@ export function getFormationResonance(state) {
   const avgSlotLevel = slotLevels.length
     ? slotLevels.reduce((sum, value) => sum + value, 0) / slotLevels.length
     : 1;
-  const progressionMultiplier =
-    1 +
-    (level - 1) * 0.03 +
-    Math.max(0, avgSlotLevel - 1) * 0.01;
-  let multiplier =
-    progressionMultiplier +
-    (Number(FORMATION_TIER_EFFICIENCY_BONUS[formation.id]) || 0);
+  const formationLevelBonus =
+    0.03 * Math.min(Math.max(0, level - 1), 9)
+    + 0.004 * Math.max(0, level - 10);
+  const slotLevelBonus =
+    0.01 * Math.min(Math.max(0, avgSlotLevel - 1), 9)
+    + 0.0015 * Math.max(0, avgSlotLevel - 10);
+  const progressionMultiplier = 1 + formationLevelBonus + slotLevelBonus;
+  let multiplier = progressionMultiplier
+    + (Number(FORMATION_TIER_EFFICIENCY_BONUS[formation.id]) || 0);
 
   const pairKey = (a, b) => `${a}>${b}`;
   const activePairs = new Set();
@@ -409,9 +518,16 @@ export function getFormationResonance(state) {
     }
   }
 
-  if (eye.elementId === 'spirit') effects.insightBonus += 0.02 * eye.level;
+  const eyePower =
+    0.02 * Math.min(eye.level, 10)
+    + 0.0028 * Math.max(0, eye.level - 10);
+  if (eye.elementId === 'spirit') {
+    effects.insightBonus += eyePower;
+  }
   if (eye.elementId === 'chaos') {
-    for (const key of Object.keys(effects)) effects[key] *= 1 + 0.02 * eye.level;
+    for (const key of Object.keys(effects)) {
+      effects[key] *= 1 + eyePower;
+    }
   }
 
   if (exact) {
@@ -419,10 +535,15 @@ export function getFormationResonance(state) {
     multiplier += 0.10;
   }
 
+  const heartBonus = heart.level * 0.0015;
+  lines.push('Âm Dương Trận Tâm');
+
   for (const key of Object.keys(effects)) {
     effects[key] *= progressionMultiplier;
+    effects[key] *= 1 + heartBonus;
     effects[key] = Math.max(0, Math.min(0.75, effects[key]));
   }
+  multiplier *= 1 + heartBonus;
 
   return {
     exact,
@@ -431,6 +552,8 @@ export function getFormationResonance(state) {
     effects,
     avgSlotLevel,
     eye,
+    heart,
+    heartBonus,
   };
 }
 
@@ -452,8 +575,11 @@ export async function comprehendFormation(
   }
 
   const resonance = getFormationResonance(state);
+  const activeLevel = getFormationLevel(state, state.activeFormationId);
   const insightBase = 20 + Math.floor(Math.random() * 16);
-  const essenceGain = 6 + Math.floor(Math.random() * 7);
+  const essenceRange = getComprehendEssenceRange(activeLevel);
+  const essenceGain = essenceRange.min
+    + Math.floor(Math.random() * (essenceRange.max - essenceRange.min + 1));
   const safeExtraInsightBonus = Math.max(
     0,
     Math.min(5, Number(extraInsightBonus) || 0),
@@ -462,16 +588,12 @@ export async function comprehendFormation(
     0,
     Math.min(
       5,
-      (Number(resonance.effects.insightBonus) || 0) +
-      safeExtraInsightBonus,
+      (Number(resonance.effects.insightBonus) || 0) + safeExtraInsightBonus,
     ),
   );
   const insightGain = Math.max(
     1,
-    Math.round(
-      insightBase *
-      (1 + totalInsightBonus),
-    ),
+    Math.round(insightBase * (1 + totalInsightBonus)),
   );
   const before = new Set(state.unlockedFormationIds);
 
@@ -491,6 +613,7 @@ export async function comprehendFormation(
       state.layouts[formation.id] ||= [...formation.pattern];
       state.slotLevels[formation.id] ||= Array(formation.slots).fill(1);
       state.formationEyes[formation.id] ||= { elementId: 'spirit', level: 1 };
+      state.formationHearts[formation.id] ||= 1;
     }
   }
 
@@ -515,6 +638,7 @@ export async function comprehendFormation(
     insightBonus: totalInsightBonus,
     extraInsightBonus: safeExtraInsightBonus,
     essenceGain,
+    essenceRange,
     crystalId,
     crystalGain,
     unlockedNow,
@@ -560,7 +684,6 @@ export async function setFormationSlotElement(client, guildId, userId, slotIndex
   if (state.formationEssence < essenceCost) {
     return { ok: false, reason: 'not_enough_essence', state, essenceCost, crystalCost };
   }
-
   if ((state.elementCrystals[elementId] || 0) < crystalCost) {
     return { ok: false, reason: 'not_enough_crystal', state, essenceCost, crystalCost, elementId };
   }
@@ -583,6 +706,7 @@ export async function setFormationSlotElement(client, guildId, userId, slotIndex
 export async function refineFormationSlot(client, guildId, userId, slotIndex) {
   const state = await getFormationState(client, guildId, userId);
   const formation = getActiveFormation(state);
+  const formationLevel = getFormationLevel(state, formation.id);
   const index = Math.floor(Number(slotIndex));
 
   if (index < 0 || index >= formation.slots) {
@@ -595,16 +719,24 @@ export async function refineFormationSlot(client, guildId, userId, slotIndex) {
   const level = levels[index];
 
   if (level >= MAX_SLOT_LEVEL) {
-    return { ok: false, reason: 'max_level', state, level };
+    return { ok: false, reason: 'max_level', state, level, elementId };
+  }
+  if (level >= formationLevel) {
+    return {
+      ok: false,
+      reason: 'formation_level_gate',
+      state,
+      level,
+      elementId,
+      requiredFormationLevel: level + 1,
+    };
   }
 
-  const essenceCost = 10 + level * 10;
-  const crystalCost = Math.max(1, Math.ceil(level / 2));
+  const { essenceCost, crystalCost } = getFormationUpgradeCost('slot', level);
 
   if (state.formationEssence < essenceCost) {
     return { ok: false, reason: 'not_enough_essence', state, essenceCost, crystalCost, elementId };
   }
-
   if ((state.elementCrystals[elementId] || 0) < crystalCost) {
     return { ok: false, reason: 'not_enough_crystal', state, essenceCost, crystalCost, elementId };
   }
@@ -612,11 +744,11 @@ export async function refineFormationSlot(client, guildId, userId, slotIndex) {
   state.formationEssence -= essenceCost;
   state.elementCrystals[elementId] -= crystalCost;
   state.slotLevels[formation.id][index] = level + 1;
-  await saveFormationState(client, guildId, userId, state);
+  const savedState = await saveFormationState(client, guildId, userId, state);
 
   return {
     ok: true,
-    state,
+    state: savedState,
     slotIndex: index,
     level: level + 1,
     elementId,
@@ -631,67 +763,26 @@ export async function setFormationEyeElement(client, guildId, userId, elementId)
   const eye = getFormationEye(state, formation.id);
 
   if (!FORMATION_EYE_ELEMENT_IDS.includes(elementId)) {
-    return {
-      ok: false,
-      reason: 'invalid_eye_element',
-      state,
-    };
+    return { ok: false, reason: 'invalid_eye_element', state };
   }
-
   if (eye.elementId === elementId) {
-    return {
-      ok: true,
-      unchanged: true,
-      state,
-      elementId,
-      level: eye.level,
-    };
+    return { ok: true, unchanged: true, state, elementId, level: eye.level };
   }
 
-  const essenceCost =
-    elementId === 'chaos'
-      ? 60
-      : 30;
-  const crystalCost =
-    elementId === 'chaos'
-      ? 6
-      : 3;
+  const essenceCost = elementId === 'chaos' ? 60 : 30;
+  const crystalCost = elementId === 'chaos' ? 6 : 3;
 
   if (state.formationEssence < essenceCost) {
-    return {
-      ok: false,
-      reason: 'not_enough_essence',
-      state,
-      elementId,
-      essenceCost,
-      crystalCost,
-    };
+    return { ok: false, reason: 'not_enough_essence', state, elementId, essenceCost, crystalCost };
   }
-
   if ((state.elementCrystals[elementId] || 0) < crystalCost) {
-    return {
-      ok: false,
-      reason: 'not_enough_crystal',
-      state,
-      elementId,
-      essenceCost,
-      crystalCost,
-    };
+    return { ok: false, reason: 'not_enough_crystal', state, elementId, essenceCost, crystalCost };
   }
 
   state.formationEssence -= essenceCost;
   state.elementCrystals[elementId] -= crystalCost;
-  state.formationEyes[formation.id] = {
-    elementId,
-    level: eye.level,
-  };
-
-  const savedState = await saveFormationState(
-    client,
-    guildId,
-    userId,
-    state,
-  );
+  state.formationEyes[formation.id] = { elementId, level: eye.level };
+  const savedState = await saveFormationState(client, guildId, userId, state);
 
   return {
     ok: true,
@@ -706,60 +797,84 @@ export async function setFormationEyeElement(client, guildId, userId, elementId)
 export async function refineFormationEye(client, guildId, userId) {
   const state = await getFormationState(client, guildId, userId);
   const formation = getActiveFormation(state);
+  const formationLevel = getFormationLevel(state, formation.id);
   const eye = getFormationEye(state, formation.id);
   const elementId = eye.elementId;
   const level = eye.level;
 
-  if (level >= MAX_SLOT_LEVEL) {
+  if (level >= MAX_EYE_LEVEL) {
+    return { ok: false, reason: 'max_level', state, elementId, level };
+  }
+  if (level >= formationLevel) {
     return {
       ok: false,
-      reason: 'max_level',
+      reason: 'formation_level_gate',
       state,
       elementId,
       level,
+      requiredFormationLevel: level + 1,
     };
   }
 
-  const essenceCost = 15 + level * 15;
-  const crystalCost = 1 + Math.ceil(level / 2);
+  const { essenceCost, crystalCost } = getFormationUpgradeCost('eye', level);
 
   if (state.formationEssence < essenceCost) {
-    return {
-      ok: false,
-      reason: 'not_enough_essence',
-      state,
-      elementId,
-      level,
-      essenceCost,
-      crystalCost,
-    };
+    return { ok: false, reason: 'not_enough_essence', state, elementId, level, essenceCost, crystalCost };
   }
-
   if ((state.elementCrystals[elementId] || 0) < crystalCost) {
-    return {
-      ok: false,
-      reason: 'not_enough_crystal',
-      state,
-      elementId,
-      level,
-      essenceCost,
-      crystalCost,
-    };
+    return { ok: false, reason: 'not_enough_crystal', state, elementId, level, essenceCost, crystalCost };
   }
 
   state.formationEssence -= essenceCost;
   state.elementCrystals[elementId] -= crystalCost;
-  state.formationEyes[formation.id] = {
+  state.formationEyes[formation.id] = { elementId, level: level + 1 };
+  const savedState = await saveFormationState(client, guildId, userId, state);
+
+  return {
+    ok: true,
+    state: savedState,
     elementId,
     level: level + 1,
+    essenceCost,
+    crystalCost,
   };
+}
 
-  const savedState = await saveFormationState(
-    client,
-    guildId,
-    userId,
-    state,
-  );
+export async function refineFormationHeart(client, guildId, userId) {
+  const state = await getFormationState(client, guildId, userId);
+  const formation = getActiveFormation(state);
+  const formationLevel = getFormationLevel(state, formation.id);
+  const heart = getFormationHeart(state, formation.id);
+  const level = heart.level;
+  const elementId = FORMATION_HEART_ELEMENT_ID;
+
+  if (level >= MAX_HEART_LEVEL) {
+    return { ok: false, reason: 'max_level', state, elementId, level };
+  }
+  if (level >= formationLevel) {
+    return {
+      ok: false,
+      reason: 'formation_level_gate',
+      state,
+      elementId,
+      level,
+      requiredFormationLevel: level + 1,
+    };
+  }
+
+  const { essenceCost, crystalCost } = getFormationUpgradeCost('heart', level);
+
+  if (state.formationEssence < essenceCost) {
+    return { ok: false, reason: 'not_enough_essence', state, elementId, level, essenceCost, crystalCost };
+  }
+  if ((state.elementCrystals[elementId] || 0) < crystalCost) {
+    return { ok: false, reason: 'not_enough_crystal', state, elementId, level, essenceCost, crystalCost };
+  }
+
+  state.formationEssence -= essenceCost;
+  state.elementCrystals[elementId] -= crystalCost;
+  state.formationHearts[formation.id] = level + 1;
+  const savedState = await saveFormationState(client, guildId, userId, state);
 
   return {
     ok: true,
@@ -775,12 +890,6 @@ export async function upgradeActiveFormation(client, guildId, userId) {
   const state = await getFormationState(client, guildId, userId);
   const formation = getActiveFormation(state);
   const currentLevel = getFormationLevel(state, formation.id);
-  const essenceCost = 20 + currentLevel * 15;
-  const fragmentCost = currentLevel >= 5 ? 2 : 1;
-  const currentFragments = Math.max(
-    0,
-    Number(state.formationFragments?.[formation.id]) || 0,
-  );
 
   if (currentLevel >= MAX_FORMATION_LEVEL) {
     return {
@@ -793,6 +902,12 @@ export async function upgradeActiveFormation(client, guildId, userId) {
     };
   }
 
+  const { essenceCost, fragmentCost } = getFormationUpgradeCost('formation', currentLevel);
+  const currentFragments = Math.max(
+    0,
+    Number(state.formationFragments?.[formation.id]) || 0,
+  );
+
   if (state.formationEssence < essenceCost) {
     return {
       ok: false,
@@ -803,7 +918,6 @@ export async function upgradeActiveFormation(client, guildId, userId) {
       fragmentCost,
     };
   }
-
   if (currentFragments < fragmentCost) {
     return {
       ok: false,
@@ -816,16 +930,9 @@ export async function upgradeActiveFormation(client, guildId, userId) {
   }
 
   state.formationEssence -= essenceCost;
-  state.formationFragments[formation.id] =
-    currentFragments - fragmentCost;
+  state.formationFragments[formation.id] = currentFragments - fragmentCost;
   state.formationLevels[formation.id] = currentLevel + 1;
-
-  const savedState = await saveFormationState(
-    client,
-    guildId,
-    userId,
-    state,
-  );
+  const savedState = await saveFormationState(client, guildId, userId, state);
 
   return {
     ok: true,
