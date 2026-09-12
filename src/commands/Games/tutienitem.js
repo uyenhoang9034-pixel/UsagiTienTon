@@ -14,6 +14,35 @@ const ERROR_EMOJI =
 const HEADER =
   '<a:trangtrig2:1546040703375904801> **TIÊN LỘ · GM** <a:trangtrig3:1546040818261954610>';
 
+const PET_CHOICES = [
+  ['Thanh Phong Linh Hồ', 'thanh_phong_linh_ho'],
+  ['Tầm Linh Miêu', 'tam_linh_mieu'],
+  ['Nguyệt Quang Linh Thố', 'nguyet_quang_linh_tho'],
+  ['Tầm Bảo Linh Thử', 'tam_bao_linh_thu'],
+  ['Thanh Vũ Linh Tước', 'thanh_vu_linh_tuoc'],
+  ['Hỏa Nhung Linh Thố', 'hoa_nhung_linh_tho'],
+  ['Huyền Giáp Linh Quy', 'huyen_giap_linh_quy'],
+  ['U Minh Huyền Xà', 'u_minh_huyen_xa'],
+  ['Hàn Ngọc Linh Xà', 'han_ngoc_linh_xa'],
+  ['Bạch Giác Linh Lộc', 'bach_giac_linh_loc'],
+  ['Trấn Nhạc Linh Hùng', 'tran_nhac_linh_hung'],
+  ['Kim Vũ Linh Ưng', 'kim_vu_linh_ung'],
+  ['Thái Âm Cửu Vĩ Hồ', 'thai_am_cuu_vi_ho'],
+  ['Xích Viêm Hỏa Điểu', 'xich_viem_hoa_dieu'],
+  ['U Ảnh Linh Miêu', 'u_anh_linh_mieu'],
+  ['Bích Ngọc Tiên Lộc', 'bich_ngoc_tien_loc'],
+  ['Tử Điện Kỳ Lân', 'tu_dien_ky_lan'],
+  ['Thiên Lôi Bạch Hổ', 'thien_loi_bach_ho'],
+  ['Niết Bàn Phượng Hoàng', 'niet_ban_phuong_hoang'],
+  ['Xích Lân Hỏa Mãng', 'xich_lan_hoa_mang'],
+  ['Kim Diễm Toan Nghê', 'kim_diem_toan_nghe'],
+  ['Hậu Thổ Kim Long', 'hau_tho_kim_long'],
+  ['Hư Không Côn Bằng', 'hu_khong_con_bang'],
+  ['Bạch Vũ Phong Lang', 'bach_vu_phong_lang'],
+  ['Thái Cổ Long Tượng', 'thai_co_long_tuong'],
+  ['Thái Hư Tiên Hạc', 'thai_hu_tien_hac'],
+].map(([name, value]) => ({ name, value }));
+
 function hasTutienAdminRole(member) {
   const adminRoleId =
     CULTIVATION_CONFIG.adminRoleId;
@@ -66,6 +95,14 @@ function getItemEmoji(item) {
   );
 }
 
+function normalizeSearch(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
 export default {
   data:
     new SlashCommandBuilder()
@@ -100,23 +137,7 @@ export default {
             .setName('linhthu')
             .setDescription('Linh Thú muốn ban tặng trực tiếp.')
             .setRequired(false)
-            .addChoices(
-              { name: 'Thanh Phong Linh Hồ', value: 'thanh_phong_linh_ho' },
-              { name: 'Xích Viêm Hỏa Điểu', value: 'xich_viem_hoa_dieu' },
-              { name: 'Huyền Giáp Linh Quy', value: 'huyen_giap_linh_quy' },
-              { name: 'Thiên Lôi Bạch Hổ', value: 'thien_loi_bach_ho' },
-              { name: 'Hậu Thổ Kim Long', value: 'hau_tho_kim_long' },
-              { name: 'Tầm Linh Miêu', value: 'tam_linh_mieu' },
-              { name: 'Nguyệt Quang Linh Thố', value: 'nguyet_quang_linh_tho' },
-              { name: 'Hàn Ngọc Linh Xà', value: 'han_ngoc_linh_xa' },
-              { name: 'U Minh Huyền Xà', value: 'u_minh_huyen_xa' },
-              { name: 'Bạch Giác Linh Lộc', value: 'bach_giac_linh_loc' },
-              { name: 'Thái Âm Cửu Vĩ Hồ', value: 'thai_am_cuu_vi_ho' },
-              { name: 'Tử Điện Kỳ Lân', value: 'tu_dien_ky_lan' },
-              { name: 'Niết Bàn Phượng Hoàng', value: 'niet_ban_phuong_hoang' },
-              { name: 'Bạch Vũ Phong Lang', value: 'bach_vu_phong_lang' },
-              { name: 'Hư Không Côn Bằng', value: 'hu_khong_con_bang' },
-            ),
+            .setAutocomplete(true),
       )
       .addStringOption(
         (option) =>
@@ -154,6 +175,25 @@ export default {
       ),
 
   category: 'Games',
+
+  async autocomplete(interaction) {
+    const focused = interaction.options.getFocused(true);
+
+    if (focused.name !== 'linhthu') {
+      return interaction.respond([]);
+    }
+
+    const query = normalizeSearch(focused.value);
+    const choices = PET_CHOICES
+      .filter((choice) =>
+        !query ||
+        normalizeSearch(choice.name).includes(query) ||
+        normalizeSearch(choice.value).includes(query),
+      )
+      .slice(0, 25);
+
+    return interaction.respond(choices);
+  },
 
   async execute(interaction) {
     try {
@@ -389,6 +429,7 @@ export default {
       if (selectedId.startsWith('pet:')) {
         const petId = selectedId.slice(4);
         const {
+          announceThaiHuTienHacAcquisition,
           getCultivationPet,
           ensurePetData,
           ownsPet,
@@ -426,6 +467,13 @@ export default {
             interaction.client,
             profile,
           );
+
+          if (petId === 'thai_hu_tien_hac') {
+            await announceThaiHuTienHacAcquisition(
+              interaction.client,
+              targetUser.id,
+            );
+          }
         }
 
         return interaction.editReply({
