@@ -576,7 +576,11 @@ export async function breakthrough(
       !result.success &&
       petLossReduction > 0
     ) {
-      petLossSaved = Math.max(
+      const actualLoss = Math.max(
+        0,
+        Number(result.loss) || 0,
+      );
+      const requestedPetLossSaved = Math.max(
         0,
         Math.round(
           (Number(result.originalLoss) || 0) *
@@ -584,12 +588,16 @@ export async function breakthrough(
         ),
       );
 
+      petLossSaved = Math.min(
+        actualLoss,
+        requestedPetLossSaved,
+      );
+
       if (petLossSaved > 0) {
         latest.cultivation += petLossSaved;
         result.loss = Math.max(
           0,
-          (Number(result.loss) || 0) -
-            petLossSaved,
+          actualLoss - petLossSaved,
         );
       }
     }
