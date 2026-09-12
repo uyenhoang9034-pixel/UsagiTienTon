@@ -22,12 +22,6 @@ import {
   getActiveTechnique,
 } from './cultivationTechnique.js';
 
-/**
- * =========================================================
- * V2.9.5 · LINH THÚ ENCOUNTER + CỘNG MINH
- * =========================================================
- */
-
 const SESSION_PREFIX =
   'games:cultivation:adventureV2:';
 
@@ -208,13 +202,6 @@ function rollAvailablePet(
     ) || 0,
   );
 
-  /**
-   * Mỗi Linh Thú roll độc lập theo encounterChance đã khai báo.
-   * Tỷ lệ các phẩm chất KHÔNG cộng lại thành 100%.
-   * Nếu nhiều Linh Thú cùng vượt roll, dùng weight chỉ để chọn
-   * một ứng viên trong nhóm đã trúng. Nếu không con nào trúng,
-   * lần này không xuất hiện Linh Thú.
-   */
   const successfulCandidates = available.filter(
     pet => {
       let bonus = 0;
@@ -296,10 +283,13 @@ export async function startAdventurePetEncounter(
     );
 
   if (!pet) {
+    // Adventure V2 đã có nhánh thưởng fallback cho reason này.
+    // Dùng cùng reason để một lượt roll không gặp pet vẫn kết thúc tự nhiên.
     return {
       ok: false,
-      reason: 'no_pet_encounter',
+      reason: 'all_pets_owned',
       profile,
+      noPetEncounter: true,
     };
   }
 
