@@ -330,6 +330,42 @@ export default {
         );
 
       if (hasDashboard) {
+        const profile =
+          await getCultivationProfile(
+            runtimeClient,
+            interaction.guildId,
+            interaction.user.id,
+            {
+              create: true,
+            },
+          );
+
+        try {
+          const dashboardMessage =
+            await interaction.channel.messages.fetch(
+              threadData.dashboardMessageId,
+            );
+
+          await dashboardMessage.edit({
+            embeds: [
+              buildDashboardEmbed(
+                interaction.user,
+                profile,
+              ),
+            ],
+            components:
+              buildDashboardRows(
+                interaction.user.id,
+                interaction.guild,
+              ),
+          });
+        } catch (error) {
+          console.error(
+            '[TU TIEN DASHBOARD REFRESH ERROR]',
+            error,
+          );
+        }
+
         const dailyQuestMessageId =
           await ensureDailyQuestPanel(
             interaction,
@@ -355,7 +391,7 @@ export default {
 
         return replyEphemeral(
           interaction,
-          `🌸 Đạo hữu đã có một giao diện Tiên Lộ đang mở trong chủ đề này. Hãy tiếp tục tu luyện trên giao diện đó, không cần dùng \`/tutien\` thêm lần nữa.`,
+          `🌸 Đạo hữu đã có một giao diện Tiên Lộ đang mở trong chủ đề này. Giao diện đã được làm mới, hãy tiếp tục tu luyện trên panel cũ.`,
         );
       }
 
