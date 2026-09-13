@@ -66,7 +66,7 @@ function resolveTienPhuongEmoji(guild) {
   );
 
   if (!emoji?.id) {
-    return null;
+    return '🏮';
   }
 
   return {
@@ -210,7 +210,6 @@ export function buildShopMainRows(ownerId, guild = null) {
       categoryButton(ownerId, 'pets'),
     ),
     new ActionRowBuilder().addComponents(
-      spiritVeinButton(ownerId),
       shopButton(ownerId, 'dashboard', 'Quay lại Tiên Lộ', shopEmoji),
     ),
   ];
