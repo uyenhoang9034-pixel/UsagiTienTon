@@ -37,6 +37,8 @@ export const CULTIVATION_SHOP_CATEGORIES = {
   },
 };
 
+export const CULTIVATION_SHOP_PURCHASE_QUANTITIES = [1, 10, 100, 1000];
+
 export const CULTIVATION_SHOP_ITEMS = {
   thien_linh_thao: {
     id: 'thien_linh_thao',
@@ -230,6 +232,20 @@ async function withPurchaseLock(key, callback) {
   }
 }
 
+function normalizePurchaseQuantity(shopItem, quantity) {
+  if (shopItem?.kind === 'pet') {
+    return 1;
+  }
+
+  const parsed = Math.floor(Number(quantity) || 1);
+
+  if (!CULTIVATION_SHOP_PURCHASE_QUANTITIES.includes(parsed)) {
+    return 1;
+  }
+
+  return parsed;
+}
+
 export function getCultivationShopItem(itemId) {
   return CULTIVATION_SHOP_ITEMS[itemId] || null;
 }
@@ -265,6 +281,7 @@ export async function buyCultivationShopItem(
   guildId,
   userId,
   itemId,
+  quantity = 1,
 ) {
   const shopItem = getCultivationShopItem(itemId);
 
@@ -275,6 +292,7 @@ export async function buyCultivationShopItem(
     };
   }
 
+  const purchaseQuantity = normalizePurchaseQuantity(shopItem, quantity);
   const lockKey = `${guildId}:${userId}`;
 
   return withPurchaseLock(lockKey, async () => {
@@ -284,7 +302,8 @@ export async function buyCultivationShopItem(
       userId,
     );
 
-    const price = Math.max(0, Number(shopItem.price) || 0);
+    const unitPrice = Math.max(0, Number(shopItem.price) || 0);
+    const price = unitPrice * purchaseQuantity;
 
     if (shopItem.kind === 'pet') {
       const alreadyOwned =
@@ -295,6 +314,9 @@ export async function buyCultivationShopItem(
           ok: false,
           reason: 'already_owned',
           item: shopItem,
+          quantity: 1,
+          unitPrice,
+          price: unitPrice,
           profile,
         };
       }
@@ -305,6 +327,9 @@ export async function buyCultivationShopItem(
         ok: false,
         reason: 'not_enough_stones',
         item: shopItem,
+        quantity: purchaseQuantity,
+        unitPrice,
+        price,
         profile,
       };
     }
@@ -320,6 +345,7 @@ export async function buyCultivationShopItem(
           ok: false,
           reason: 'invalid_target',
           item: shopItem,
+          quantity: purchaseQuantity,
           profile,
         };
       }
@@ -332,7 +358,7 @@ export async function buyCultivationShopItem(
         Math.max(
           0,
           Number(profile.inventory[shopItem.targetId]) || 0,
-        ) + 1;
+        ) + purchaseQuantity;
 
       ownedQuantity = profile.inventory[shopItem.targetId];
     } else if (shopItem.kind === 'formation_essence') {
@@ -343,7 +369,8 @@ export async function buyCultivationShopItem(
       );
 
       formationState.formationEssence =
-        Math.max(0, Number(formationState.formationEssence) || 0) + 1;
+        Math.max(0, Number(formationState.formationEssence) || 0) +
+        purchaseQuantity;
 
       ownedQuantity = formationState.formationEssence;
     } else if (shopItem.kind === 'formation_crystal') {
@@ -358,6 +385,7 @@ export async function buyCultivationShopItem(
           ok: false,
           reason: 'invalid_target',
           item: shopItem,
+          quantity: purchaseQuantity,
           profile,
         };
       }
@@ -373,7 +401,7 @@ export async function buyCultivationShopItem(
         Math.max(
           0,
           Number(formationState.elementCrystals[shopItem.targetId]) || 0,
-        ) + 1;
+        ) + purchaseQuantity;
 
       ownedQuantity =
         formationState.elementCrystals[shopItem.targetId];
@@ -396,6 +424,7 @@ export async function buyCultivationShopItem(
         ok: false,
         reason: 'invalid_kind',
         item: shopItem,
+        quantity: purchaseQuantity,
         profile,
       };
     }
@@ -420,6 +449,8 @@ export async function buyCultivationShopItem(
     return {
       ok: true,
       item: shopItem,
+      quantity: purchaseQuantity,
+      unitPrice,
       price,
       ownedQuantity,
       profile: savedProfile,
