@@ -146,12 +146,14 @@ async function buyItem(
   client,
   ownerId,
   itemId,
+  quantity,
 ) {
   const result = await buyCultivationShopItem(
     client,
     interaction.guildId,
     interaction.user.id,
     itemId,
+    quantity,
   );
 
   return interaction.update({
@@ -181,7 +183,7 @@ export default {
   name: 'tutien_shop',
 
   async execute(interaction, client, args = []) {
-    const [ownerId, action, extra] = args;
+    const [ownerId, action, extra, quantity] = args;
 
     if (!ownerId || !action) {
       return;
@@ -224,6 +226,7 @@ export default {
           client,
           ownerId,
           extra,
+          quantity,
         );
       }
 
