@@ -11,6 +11,7 @@ import {
 
 import {
   CULTIVATION_SHOP_CATEGORIES,
+  CULTIVATION_SHOP_PURCHASE_QUANTITIES,
   getCultivationShopItem,
   getCultivationShopItems,
 } from './cultivationShop.js';
@@ -81,6 +82,22 @@ function shopButton(ownerId, action, label, emoji = null) {
     .setLabel(label)
     .setStyle(ButtonStyle.Secondary);
 
+  if (emoji) {
+    component.setEmoji(emoji);
+  }
+
+  return component;
+}
+
+function purchaseButton(ownerId, item, quantity) {
+  const component = new ButtonBuilder()
+    .setCustomId(
+      `tutien_shop:${ownerId}:buy:${item.id}:${quantity}`,
+    )
+    .setLabel(`Mua ×${quantity}`)
+    .setStyle(ButtonStyle.Success);
+
+  const emoji = parseEmoji(item.emoji);
   if (emoji) {
     component.setEmoji(emoji);
   }
@@ -168,7 +185,7 @@ export function buildShopMainEmbed(user, profile) {
         `${getCultivationShopItem('thai_co_long_tuong')?.emoji || ''} **Linh Thú**`,
         '**Thái Cổ Long Tượng · Thần Thoại**',
         `${SPIRIT_STONE} **2.000.000.000 Linh Thạch**`,
-        '*Không thể gặp hoặc thu phục tự nhiên.*',
+        '*Không thể gặp hoặc thu phục tự nhiên. Mỗi đạo hữu chỉ mua được 1 lần.*',
         '',
         `${SPIRIT_STONE} **Linh Mạch**`,
         '*Linh khí trong động phủ tự kết thành Linh Thạch theo thời gian.*',
@@ -215,7 +232,9 @@ export function buildShopCategoryEmbed(categoryId, profile) {
             )
           : ['*Chưa có hàng hóa trong quầy này.*']),
         '',
-        '*Chọn vật phẩm bên dưới để xem trước rồi mới xác nhận mua.*',
+        categoryId === 'pets'
+          ? '*Linh thú trong Tiên Phường chỉ có thể mua 1 lần cho mỗi đạo hữu.*'
+          : '*Chọn vật phẩm để mua nhanh ×1, ×10, ×100 hoặc ×1000.*',
       ].join('\n')),
   );
 }
@@ -258,17 +277,28 @@ export function buildShopItemEmbed(itemId, profile) {
   const canAfford =
     (Number(profile.spiritStones) || 0) >= item.price;
 
+  const bulkLines = item.kind === 'pet'
+    ? ['*Linh thú khóa cứng ×1 — mỗi đạo hữu chỉ có thể mua một lần.*']
+    : [
+        '**Mua số lượng lớn:**',
+        ...CULTIVATION_SHOP_PURCHASE_QUANTITIES.map(
+          (quantity) => `×${quantity} — ${SPIRIT_STONE} **${number(item.price * quantity)}**`,
+        ),
+      ];
+
   return style(
     new EmbedBuilder()
       .setTitle(title(item.name))
       .setDescription([
         `${item.emoji || ''} **${item.name}**`,
         '',
-        `${SPIRIT_STONE} **Giá:** ${number(item.price)} Linh Thạch`,
+        `${SPIRIT_STONE} **Giá ×1:** ${number(item.price)} Linh Thạch`,
         `${SPIRIT_STONE} **Đang có:** ${number(profile.spiritStones)} Linh Thạch`,
         '',
+        ...bulkLines,
+        '',
         canAfford
-          ? '*Linh Thạch đã đủ, đạo hữu có thể xác nhận giao dịch.*'
+          ? '*Linh Thạch đã đủ cho ít nhất 1 vật phẩm.*'
           : '*Linh Thạch chưa đủ để đổi lấy vật phẩm này.*',
       ].join('\n')),
   );
@@ -286,13 +316,17 @@ export function buildShopItemRows(ownerId, itemId, guild = null) {
     ];
   }
 
+  const quantities = item.kind === 'pet'
+    ? [1]
+    : CULTIVATION_SHOP_PURCHASE_QUANTITIES;
+
   return [
     new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`tutien_shop:${ownerId}:buy:${item.id}`)
-        .setLabel('Mua ×1')
-        .setEmoji(parseEmoji(item.emoji) || SPIRIT_STONE)
-        .setStyle(ButtonStyle.Success),
+      ...quantities.map(
+        (quantity) => purchaseButton(ownerId, item, quantity),
+      ),
+    ),
+    new ActionRowBuilder().addComponents(
       shopButton(
         ownerId,
         `category:${item.category}`,
@@ -306,12 +340,13 @@ export function buildShopItemRows(ownerId, itemId, guild = null) {
 
 export function buildShopPurchaseEmbed(result) {
   const item = result.item;
+  const quantity = Math.max(1, Number(result.quantity) || 1);
 
   if (!result.ok) {
     let text = 'Giao dịch không thể hoàn tất.';
 
     if (result.reason === 'not_enough_stones') {
-      text = `${SPIRIT_STONE} **Linh Thạch không đủ.**\nCần **${number(item?.price)}**, hiện có **${number(result.profile?.spiritStones)}**.`;
+      text = `${SPIRIT_STONE} **Linh Thạch không đủ.**\nMuốn mua **${item?.name || 'vật phẩm'} ×${number(quantity)}** cần **${number(result.price)}**, hiện có **${number(result.profile?.spiritStones)}**.`;
     }
 
     if (result.reason === 'already_owned') {
@@ -329,7 +364,7 @@ export function buildShopPurchaseEmbed(result) {
     new EmbedBuilder()
       .setTitle(title('Giao Dịch Hoàn Thành'))
       .setDescription([
-        `${item.emoji || ''} Đã mua **${item.name} ×1**`,
+        `${item.emoji || ''} Đã mua **${item.name} ×${number(quantity)}**`,
         `${SPIRIT_STONE} Đã tiêu: **${number(result.price)} Linh Thạch**`,
         `${SPIRIT_STONE} Còn lại: **${number(result.profile.spiritStones)} Linh Thạch**`,
         '',
@@ -354,6 +389,12 @@ export function buildShopPurchaseRows(ownerId, result, guild = null) {
 
   return [
     new ActionRowBuilder().addComponents(
+      shopButton(
+        ownerId,
+        `item:${item.id}`,
+        item.kind === 'pet' ? 'Xem linh thú' : 'Mua thêm',
+        parseEmoji(item.emoji),
+      ),
       shopButton(
         ownerId,
         `category:${item.category}`,
