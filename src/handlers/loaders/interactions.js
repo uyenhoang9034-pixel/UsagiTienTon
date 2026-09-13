@@ -20,6 +20,7 @@ const interactionTypes = ['buttons', 'selectMenus'];
 
 const ALLOWED_INTERACTION_PATTERNS = [
   /^buttons\/tutien\.js$/,
+  /^buttons\/tutienCraft\.js$/,
   /^buttons\/tutienDailyQuest\.js$/,
   /^buttons\/tutienFormation\.js$/,
   /^buttons\/tutienFormationHeart\.js$/,
