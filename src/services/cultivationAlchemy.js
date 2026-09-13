@@ -8,431 +8,193 @@ import {
   saveCultivationProfile,
 } from './cultivationService.js';
 
-/**
- * =========================================================
- * CULTIVATION ALCHEMY
- * =========================================================
- */
+export const CULTIVATION_CRAFT_QUANTITIES = [1, 10, 100, 1000];
 
 export const CULTIVATION_ALCHEMY_RECIPES = {
   tu_khi_dan: {
     id: 'tu_khi_dan',
-
-    resultItemId:
-      'tu_khi_dan',
-
-    name:
-      'Tụ Khí Đan',
-
-    ingredientItemId:
-      'thien_linh_thao',
-
+    resultItemId: 'tu_khi_dan',
+    name: 'Tụ Khí Đan',
+    ingredientItemId: 'thien_linh_thao',
     ingredientAmount: 2,
-
     successChance: 0.9,
   },
-
   hoi_nguyen_dan: {
     id: 'hoi_nguyen_dan',
-
-    resultItemId:
-      'hoi_nguyen_dan',
-
-    name:
-      'Hồi Nguyên Đan',
-
-    ingredientItemId:
-      'thien_linh_thao',
-
+    resultItemId: 'hoi_nguyen_dan',
+    name: 'Hồi Nguyên Đan',
+    ingredientItemId: 'thien_linh_thao',
     ingredientAmount: 3,
-
     successChance: 0.8,
   },
-
   pha_canh_dan: {
     id: 'pha_canh_dan',
-
-    resultItemId:
-      'pha_canh_dan',
-
-    name:
-      'Phá Cảnh Đan',
-
-    ingredientItemId:
-      'thien_linh_thao',
-
+    resultItemId: 'pha_canh_dan',
+    name: 'Phá Cảnh Đan',
+    ingredientItemId: 'thien_linh_thao',
     ingredientAmount: 5,
-
     successChance: 0.55,
   },
 };
 
-/**
- * =========================================================
- * RECIPE HELPERS
- * =========================================================
- */
+function normalizeCraftQuantity(quantity) {
+  const parsed = Math.floor(Number(quantity) || 1);
+  return CULTIVATION_CRAFT_QUANTITIES.includes(parsed) ? parsed : 1;
+}
 
-export function getAlchemyRecipe(
-  recipeId,
-) {
-  return (
-    CULTIVATION_ALCHEMY_RECIPES[
-      recipeId
-    ] || null
-  );
+export function getAlchemyRecipe(recipeId) {
+  return CULTIVATION_ALCHEMY_RECIPES[recipeId] || null;
 }
 
 export function getAlchemyRecipes() {
-  return Object.values(
-    CULTIVATION_ALCHEMY_RECIPES,
-  );
+  return Object.values(CULTIVATION_ALCHEMY_RECIPES);
 }
 
-export function getAlchemyIngredientQuantity(
-  profile,
-  recipe,
-) {
-  if (!recipe) {
-    return 0;
-  }
-
+export function getAlchemyIngredientQuantity(profile, recipe) {
+  if (!recipe) return 0;
   return Math.max(
     0,
-    Number(
-      profile.inventory?.[
-        recipe.ingredientItemId
-      ],
-    ) || 0,
+    Number(profile.inventory?.[recipe.ingredientItemId]) || 0,
   );
 }
 
-/**
- * =========================================================
- * STATS
- * =========================================================
- */
-
-function ensureAlchemyStats(
-  profile,
-) {
-  if (
-    !profile.stats ||
-    typeof profile.stats !==
-      'object'
-  ) {
+function ensureAlchemyStats(profile) {
+  if (!profile.stats || typeof profile.stats !== 'object') {
     profile.stats = {};
   }
 
-  profile.stats.alchemyCount =
-    Math.max(
-      0,
-      Number(
-        profile.stats.alchemyCount,
-      ) || 0,
-    );
-
-  profile.stats.alchemySuccess =
-    Math.max(
-      0,
-      Number(
-        profile.stats.alchemySuccess,
-      ) || 0,
-    );
-
-  profile.stats.alchemyFail =
-    Math.max(
-      0,
-      Number(
-        profile.stats.alchemyFail,
-      ) || 0,
-    );
+  profile.stats.alchemyCount = Math.max(
+    0,
+    Number(profile.stats.alchemyCount) || 0,
+  );
+  profile.stats.alchemySuccess = Math.max(
+    0,
+    Number(profile.stats.alchemySuccess) || 0,
+  );
+  profile.stats.alchemyFail = Math.max(
+    0,
+    Number(profile.stats.alchemyFail) || 0,
+  );
 }
 
-/**
- * =========================================================
- * SIMPLE PLAYER LOCK
- * =========================================================
- *
- * Khóa theo:
- *
- * cultivation:guildId:userId
- *
- * để tránh spam nút Luyện Đan cùng lúc.
- */
+const alchemyLocks = new Map();
 
-const alchemyLocks =
-  new Map();
-
-async function withAlchemyLock(
-  key,
-  callback,
-) {
-  while (
-    alchemyLocks.has(
-      key,
-    )
-  ) {
-    await alchemyLocks.get(
-      key,
-    );
+async function withAlchemyLock(key, callback) {
+  while (alchemyLocks.has(key)) {
+    await alchemyLocks.get(key);
   }
 
   let release;
-
-  const lock =
-    new Promise(
-      (resolve) => {
-        release =
-          resolve;
-      },
-    );
-
-  alchemyLocks.set(
-    key,
-    lock,
-  );
+  const lock = new Promise((resolve) => {
+    release = resolve;
+  });
+  alchemyLocks.set(key, lock);
 
   try {
     return await callback();
   } finally {
-    alchemyLocks.delete(
-      key,
-    );
-
+    alchemyLocks.delete(key);
     release();
   }
 }
-
-/**
- * =========================================================
- * BREW PILL
- * =========================================================
- */
 
 export async function brewCultivationPill(
   client,
   guildId,
   userId,
   recipeId,
+  quantity = 1,
 ) {
-  const lockKey =
-    `cultivation:${guildId}:${userId}`;
+  const lockKey = `cultivation:${guildId}:${userId}`;
 
-  return withAlchemyLock(
-    lockKey,
+  return withAlchemyLock(lockKey, async () => {
+    const recipe = getAlchemyRecipe(recipeId);
+    if (!recipe) {
+      return { ok: false, reason: 'invalid_recipe' };
+    }
 
-    async () => {
-      const recipe =
-        getAlchemyRecipe(
-          recipeId,
-        );
+    const craftQuantity = normalizeCraftQuantity(quantity);
+    const profile = await getCultivationProfile(client, guildId, userId);
+    ensureAlchemyStats(profile);
 
-      if (!recipe) {
-        return {
-          ok: false,
+    const ingredient = CULTIVATION_ITEMS[recipe.ingredientItemId];
+    const resultItem = CULTIVATION_ITEMS[recipe.resultItemId];
+    const available = getAlchemyIngredientQuantity(profile, recipe);
+    const requiredMaterial = recipe.ingredientAmount * craftQuantity;
 
-          reason:
-            'invalid_recipe',
-        };
-      }
-
-      const profile =
-        await getCultivationProfile(
-          client,
-          guildId,
-          userId,
-        );
-
-      ensureAlchemyStats(
-        profile,
-      );
-
-      const ingredient =
-        CULTIVATION_ITEMS[
-          recipe
-            .ingredientItemId
-        ];
-
-      const resultItem =
-        CULTIVATION_ITEMS[
-          recipe
-            .resultItemId
-        ];
-
-      const available =
-        getAlchemyIngredientQuantity(
-          profile,
-          recipe,
-        );
-
-      /**
-       * Không đủ nguyên liệu.
-       */
-
-      if (
-        available <
-        recipe.ingredientAmount
-      ) {
-        return {
-          ok: false,
-
-          reason:
-            'not_enough_material',
-
-          recipe,
-
-          ingredient,
-
-          resultItem,
-
-          available,
-
-          profile,
-        };
-      }
-
-      /**
-       * =====================================================
-       * CONSUME MATERIAL
-       * =====================================================
-       *
-       * Bắt đầu luyện là mất nguyên liệu,
-       * bất kể thành công hay thất bại.
-       */
-
-      const removed =
-        removeInventoryItem(
-          profile,
-          recipe.ingredientItemId,
-          recipe.ingredientAmount,
-        );
-
-      if (!removed) {
-        return {
-          ok: false,
-
-          reason:
-            'consume_failed',
-
-          recipe,
-
-          ingredient,
-
-          resultItem,
-
-          available,
-
-          profile,
-        };
-      }
-
-      profile.stats.alchemyCount +=
-        1;
-
-      /**
-       * =====================================================
-       * ROLL
-       * =====================================================
-       */
-
-      const success =
-        Math.random() <
-        recipe.successChance;
-
-      /**
-       * =====================================================
-       * SUCCESS
-       * =====================================================
-       */
-
-      if (success) {
-        /**
-         * Không gọi addInventoryItem().
-         *
-         * Vì addInventoryItem hiện tại của game
-         * có tăng stats.itemsFound.
-         *
-         * Đan luyện ra KHÔNG phải vật phẩm
-         * nhặt được từ Thám Hiểm.
-         */
-
-        if (
-          !profile.inventory ||
-          typeof profile.inventory !==
-            'object'
-        ) {
-          profile.inventory =
-            {};
-        }
-
-        const current =
-          Math.max(
-            0,
-            Number(
-              profile.inventory[
-                recipe.resultItemId
-              ],
-            ) || 0,
-          );
-
-        profile.inventory[
-          recipe.resultItemId
-        ] =
-          current + 1;
-
-        profile.stats.alchemySuccess +=
-          1;
-      } else {
-        /**
-         * ===================================================
-         * FAIL
-         * ===================================================
-         */
-
-        profile.stats.alchemyFail +=
-          1;
-      }
-
-      /**
-       * =====================================================
-       * SAVE
-       * =====================================================
-       */
-
-      const saved =
-        await saveCultivationProfile(
-          client,
-          profile,
-        );
-
+    if (available < requiredMaterial) {
       return {
-        ok: true,
-
-        success,
-
+        ok: false,
+        reason: 'not_enough_material',
         recipe,
-
         ingredient,
-
         resultItem,
-
-        consumed:
-          recipe.ingredientAmount,
-
-        remainingIngredient:
-          saved.inventory?.[
-            recipe.ingredientItemId
-          ] || 0,
-
-        resultQuantity:
-          saved.inventory?.[
-            recipe.resultItemId
-          ] || 0,
-
-        profile:
-          saved,
+        quantity: craftQuantity,
+        requiredMaterial,
+        available,
+        profile,
       };
-    },
-  );
+    }
+
+    const removed = removeInventoryItem(
+      profile,
+      recipe.ingredientItemId,
+      requiredMaterial,
+    );
+
+    if (!removed) {
+      return {
+        ok: false,
+        reason: 'consume_failed',
+        recipe,
+        ingredient,
+        resultItem,
+        quantity: craftQuantity,
+        requiredMaterial,
+        available,
+        profile,
+      };
+    }
+
+    let successCount = 0;
+    for (let index = 0; index < craftQuantity; index += 1) {
+      if (Math.random() < recipe.successChance) {
+        successCount += 1;
+      }
+    }
+
+    const failCount = craftQuantity - successCount;
+    profile.stats.alchemyCount += craftQuantity;
+    profile.stats.alchemySuccess += successCount;
+    profile.stats.alchemyFail += failCount;
+
+    if (successCount > 0) {
+      if (!profile.inventory || typeof profile.inventory !== 'object') {
+        profile.inventory = {};
+      }
+
+      profile.inventory[recipe.resultItemId] =
+        Math.max(0, Number(profile.inventory[recipe.resultItemId]) || 0) +
+        successCount;
+    }
+
+    const saved = await saveCultivationProfile(client, profile);
+
+    return {
+      ok: true,
+      success: successCount > 0,
+      quantity: craftQuantity,
+      successCount,
+      failCount,
+      recipe,
+      ingredient,
+      resultItem,
+      consumed: requiredMaterial,
+      requiredMaterial,
+      remainingIngredient:
+        saved.inventory?.[recipe.ingredientItemId] || 0,
+      resultQuantity: saved.inventory?.[recipe.resultItemId] || 0,
+      profile: saved,
+    };
+  });
 }
