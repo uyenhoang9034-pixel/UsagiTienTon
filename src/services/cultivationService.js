@@ -204,6 +204,7 @@ export function createCultivationProfile(guildId, userId) {
     pets: {
       owned: {},
       active: null,
+      collectionRewardClaimed: false,
     },
     effects: {
       nextCultivationBonus: 0,
@@ -339,6 +340,8 @@ export function normalizeCultivationProfile(raw, guildId, userId) {
     pets: {
       owned: ownedPets,
       active: activePet,
+      collectionRewardClaimed:
+        raw.pets?.collectionRewardClaimed === true,
     },
     effects: {
       ...base.effects,
