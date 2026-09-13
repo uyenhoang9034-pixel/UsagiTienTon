@@ -46,12 +46,26 @@ function percent(value) {
   return `${Math.round((Number(value) || 0) * 100)}%`;
 }
 
+function applyStableShopEmoji(rows) {
+  for (const row of rows || []) {
+    for (const component of row?.components || []) {
+      if (component?.data?.label === 'Tiên Phường') {
+        component.setEmoji('🏮');
+      }
+    }
+  }
+
+  return rows;
+}
+
 export function buildDashboardRows(ownerId, guild = null) {
   const withFormation = appendFormationButton(
     baseUI.buildDashboardRows(ownerId),
     ownerId,
     guild,
   );
+
+  applyStableShopEmoji(withFormation);
 
   return appendSpiritVeinButton(
     withFormation,
