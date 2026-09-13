@@ -10,6 +10,10 @@ import {
 } from './cultivationPet.js';
 
 import {
+  consumeEquippedEquipmentUse,
+} from './cultivationEquipment.js';
+
+import {
   applyFormationCultivationBonus,
   applyFormationSpiritStoneBonus,
   applyFormationStaminaReduction,
@@ -24,30 +28,19 @@ import {
 export * from './cultivationService.js';
 
 async function saveProfile(client, profile) {
-  return baseService.saveCultivationProfile(
-    client,
-    profile,
-  );
+  return baseService.saveCultivationProfile(client, profile);
 }
 
 function getWrapperCultivationPetBonus(profile) {
   const pet = getActivePet(profile);
-
   if (!pet) return 0;
 
   // Thanh Phong Linh Hồ vẫn được base service xử lý đúng +3%.
-  if (pet.id === 'thanh_phong_linh_ho') {
-    return 0;
-  }
+  if (pet.id === 'thanh_phong_linh_ho') return 0;
 
   return Math.max(
     0,
-    Number(
-      getPetEffectValue(
-        profile,
-        'cultivation_bonus',
-      ),
-    ) || 0,
+    Number(getPetEffectValue(profile, 'cultivation_bonus')) || 0,
   );
 }
 
@@ -56,12 +49,7 @@ function getPetStaminaRefund(profile) {
     0.95,
     Math.max(
       0,
-      Number(
-        getPetEffectValue(
-          profile,
-          'stamina_cost_refund',
-        ),
-      ) || 0,
+      Number(getPetEffectValue(profile, 'stamina_cost_refund')) || 0,
     ),
   );
 }
@@ -74,75 +62,44 @@ function rollFractionalAmount(baseAmount, percent) {
   const fraction = raw - whole;
 
   return whole +
-    (fraction > 0 && Math.random() < fraction
-      ? 1
-      : 0);
+    (fraction > 0 && Math.random() < fraction ? 1 : 0);
 }
 
-export async function cultivate(
-  client,
-  guildId,
-  userId,
-) {
-  const formation =
-    await getFormationGameplayBonus(
-      client,
-      guildId,
-      userId,
-    );
+export async function cultivate(client, guildId, userId) {
+  const formation = await getFormationGameplayBonus(
+    client,
+    guildId,
+    userId,
+  );
+  const effects = formation.effects || {};
 
-  const effects =
-    formation.effects || {};
+  const profile = await baseService.getCultivationProfile(
+    client,
+    guildId,
+    userId,
+  );
 
-  const profile =
-    await baseService.getCultivationProfile(
-      client,
-      guildId,
-      userId,
-    );
-
-  const cooldown =
-    baseService.getCultivateCooldownRemaining(
-      profile,
-    );
-
+  const cooldown = baseService.getCultivateCooldownRemaining(profile);
   if (cooldown > 0) {
-    return baseService.cultivate(
-      client,
-      guildId,
-      userId,
-    );
+    return baseService.cultivate(client, guildId, userId);
   }
 
-  const realmRewards =
-    getCultivationRealmRewardMultipliers(
-      profile,
-    );
-
+  const realmRewards = getCultivationRealmRewardMultipliers(profile);
   const activePet = getActivePet(profile);
-  const petCultivationPercent =
-    getWrapperCultivationPetBonus(profile);
-  const petStaminaRefundPercent =
-    getPetStaminaRefund(profile);
+  const petCultivationPercent = getWrapperCultivationPetBonus(profile);
+  const petStaminaRefundPercent = getPetStaminaRefund(profile);
 
-  const baseStaminaCost =
-    CULTIVATION_CONFIG.gameplay
-      .cultivateStaminaCost;
-
-  const stamina =
-    applyFormationStaminaReduction(
-      baseStaminaCost,
-      effects,
-    );
+  const baseStaminaCost = CULTIVATION_CONFIG.gameplay.cultivateStaminaCost;
+  const stamina = applyFormationStaminaReduction(
+    baseStaminaCost,
+    effects,
+  );
 
   const petStaminaRefund =
     petStaminaRefundPercent > 0
       ? Math.min(
           stamina.total,
-          rollFractionalAmount(
-            stamina.total,
-            petStaminaRefundPercent,
-          ),
+          rollFractionalAmount(stamina.total, petStaminaRefundPercent),
         )
       : 0;
 
@@ -159,21 +116,15 @@ export async function cultivate(
       staminaCost: effectiveStaminaCost,
       baseStaminaCost,
       formationStaminaSaved: stamina.saved,
-      formationStaminaReduction:
-        Number(effects.staminaReduction) || 0,
+      formationStaminaReduction: Number(effects.staminaReduction) || 0,
       petStaminaRefund,
       petStaminaRefundPercent,
       activePet,
     };
   }
 
-  const originalStamina =
-    Number(profile.stamina) || 0;
-  const originalActivePetId =
-    profile.pets?.active || null;
-
-  // Hậu Thổ Kim Long trước đây bị hard-code +20% Tu Vi trong base service.
-  // Phiên bản cân bằng mới không còn buff Tu Luyện, nên tạm ẩn pet khỏi base.
+  const originalStamina = Number(profile.stamina) || 0;
+  const originalActivePetId = profile.pets?.active || null;
   const suppressLegacyCultivationPet =
     originalActivePetId === 'hau_tho_kim_long';
 
@@ -185,55 +136,40 @@ export async function cultivate(
       Math.max(0, petStaminaRefund);
 
     if (totalPreCredit > 0 || suppressLegacyCultivationPet) {
-      profile.stamina =
-        originalStamina + totalPreCredit;
+      profile.stamina = originalStamina + totalPreCredit;
 
       if (suppressLegacyCultivationPet) {
         profile.pets ||= { owned: {}, active: null };
         profile.pets.active = null;
       }
 
-      await saveProfile(
-        client,
-        profile,
-      );
-
+      await saveProfile(client, profile);
       preCreditApplied = true;
     }
 
-    const result =
-      await baseService.cultivate(
-        client,
-        guildId,
-        userId,
-      );
+    const result = await baseService.cultivate(
+      client,
+      guildId,
+      userId,
+    );
 
     if (!result.ok) {
       if (preCreditApplied) {
-        const latest =
-          await baseService.getCultivationProfile(
-            client,
-            guildId,
-            userId,
-          );
-
+        const latest = await baseService.getCultivationProfile(
+          client,
+          guildId,
+          userId,
+        );
         latest.stamina = originalStamina;
         latest.pets ||= { owned: {}, active: null };
         latest.pets.active = originalActivePetId;
-
-        await saveProfile(
-          client,
-          latest,
-        );
+        await saveProfile(client, latest);
       }
-
       return result;
     }
 
-    const rawCultivationDelta =
-      Number(result.cultivationDelta) || 0;
-    const rawStoneDelta =
-      Number(result.stoneDelta) || 0;
+    const rawCultivationDelta = Number(result.cultivationDelta) || 0;
+    const rawStoneDelta = Number(result.stoneDelta) || 0;
 
     const rawEquipmentCultivationBonus = Math.max(
       0,
@@ -252,38 +188,30 @@ export async function cultivate(
       Number(result.cultivationPillBonus) || 0,
     );
 
-    const scaledCultivationDelta =
-      scalePositiveRealmReward(
-        rawCultivationDelta,
-        realmRewards.cultivation,
-      );
-
-    const scaledStoneDelta =
-      scalePositiveRealmReward(
-        rawStoneDelta,
-        realmRewards.spiritStones,
-      );
-
-    const scaledEquipmentCultivationBonus =
-      scalePositiveRealmReward(
-        rawEquipmentCultivationBonus,
-        realmRewards.cultivation,
-      );
-    const scaledTechniqueCultivationBonus =
-      scalePositiveRealmReward(
-        rawTechniqueCultivationBonus,
-        realmRewards.cultivation,
-      );
-    const scaledLegacyPetCultivationBonus =
-      scalePositiveRealmReward(
-        rawLegacyPetCultivationBonus,
-        realmRewards.cultivation,
-      );
-    const scaledCultivationPillBonus =
-      scalePositiveRealmReward(
-        rawCultivationPillBonus,
-        realmRewards.cultivation,
-      );
+    const scaledCultivationDelta = scalePositiveRealmReward(
+      rawCultivationDelta,
+      realmRewards.cultivation,
+    );
+    const scaledStoneDelta = scalePositiveRealmReward(
+      rawStoneDelta,
+      realmRewards.spiritStones,
+    );
+    const scaledEquipmentCultivationBonus = scalePositiveRealmReward(
+      rawEquipmentCultivationBonus,
+      realmRewards.cultivation,
+    );
+    const scaledTechniqueCultivationBonus = scalePositiveRealmReward(
+      rawTechniqueCultivationBonus,
+      realmRewards.cultivation,
+    );
+    const scaledLegacyPetCultivationBonus = scalePositiveRealmReward(
+      rawLegacyPetCultivationBonus,
+      realmRewards.cultivation,
+    );
+    const scaledCultivationPillBonus = scalePositiveRealmReward(
+      rawCultivationPillBonus,
+      realmRewards.cultivation,
+    );
 
     const realmCultivationBonus = Math.max(
       0,
@@ -297,23 +225,19 @@ export async function cultivate(
     const realmAuxCultivationBonus =
       Math.max(
         0,
-        scaledEquipmentCultivationBonus -
-          rawEquipmentCultivationBonus,
+        scaledEquipmentCultivationBonus - rawEquipmentCultivationBonus,
       ) +
       Math.max(
         0,
-        scaledTechniqueCultivationBonus -
-          rawTechniqueCultivationBonus,
+        scaledTechniqueCultivationBonus - rawTechniqueCultivationBonus,
       ) +
       Math.max(
         0,
-        scaledLegacyPetCultivationBonus -
-          rawLegacyPetCultivationBonus,
+        scaledLegacyPetCultivationBonus - rawLegacyPetCultivationBonus,
       ) +
       Math.max(
         0,
-        scaledCultivationPillBonus -
-          rawCultivationPillBonus,
+        scaledCultivationPillBonus - rawCultivationPillBonus,
       );
 
     const savedProfile = result.profile;
@@ -321,14 +245,11 @@ export async function cultivate(
     savedProfile.pets.active = originalActivePetId;
 
     const totalRealmCultivationBonus =
-      realmCultivationBonus +
-      realmAuxCultivationBonus;
+      realmCultivationBonus + realmAuxCultivationBonus;
 
     if (totalRealmCultivationBonus > 0) {
-      savedProfile.cultivation +=
-        totalRealmCultivationBonus;
-      savedProfile.totalCultivation +=
-        totalRealmCultivationBonus;
+      savedProfile.cultivation += totalRealmCultivationBonus;
+      savedProfile.totalCultivation += totalRealmCultivationBonus;
     }
 
     if (realmStoneBonus > 0) {
@@ -337,141 +258,108 @@ export async function cultivate(
 
     result.cultivationDelta = scaledCultivationDelta;
     result.stoneDelta = scaledStoneDelta;
-    result.equipmentCultivationBonus =
-      scaledEquipmentCultivationBonus;
-    result.techniqueCultivationBonus =
-      scaledTechniqueCultivationBonus;
-    result.petCultivationBonus =
-      scaledLegacyPetCultivationBonus;
-    result.cultivationPillBonus =
-      scaledCultivationPillBonus;
+    result.equipmentCultivationBonus = scaledEquipmentCultivationBonus;
+    result.techniqueCultivationBonus = scaledTechniqueCultivationBonus;
+    result.petCultivationBonus = scaledLegacyPetCultivationBonus;
+    result.cultivationPillBonus = scaledCultivationPillBonus;
 
-    // Linh Thạch trong baseService đã gộp bonus trang bị/công pháp vào
-    // stoneDelta trước khi scale, nên tổng thưởng đã đúng. Scale các field
-    // riêng để UI cũng hiển thị đúng giá trị sau hệ số cảnh giới.
-    result.equipmentStoneBonus =
-      scalePositiveRealmReward(
-        Number(result.equipmentStoneBonus) || 0,
-        realmRewards.spiritStones,
-      );
-    result.techniqueStoneBonus =
-      scalePositiveRealmReward(
-        Number(result.techniqueStoneBonus) || 0,
-        realmRewards.spiritStones,
-      );
+    result.equipmentStoneBonus = scalePositiveRealmReward(
+      Number(result.equipmentStoneBonus) || 0,
+      realmRewards.spiritStones,
+    );
+    result.techniqueStoneBonus = scalePositiveRealmReward(
+      Number(result.techniqueStoneBonus) || 0,
+      realmRewards.spiritStones,
+    );
 
-    const cultivation =
-      applyFormationCultivationBonus(
-        result.cultivationDelta,
-        effects,
-      );
-
-    const stones =
-      applyFormationSpiritStoneBonus(
-        result.stoneDelta,
-        effects,
-      );
+    const cultivation = applyFormationCultivationBonus(
+      result.cultivationDelta,
+      effects,
+    );
+    const stones = applyFormationSpiritStoneBonus(
+      result.stoneDelta,
+      effects,
+    );
 
     const petCultivationBonus =
-      petCultivationPercent > 0 &&
-      result.cultivationDelta > 0
+      petCultivationPercent > 0 && result.cultivationDelta > 0
         ? Math.max(
             1,
-            Math.round(
-              result.cultivationDelta *
-                petCultivationPercent,
-            ),
+            Math.round(result.cultivationDelta * petCultivationPercent),
           )
         : 0;
 
     if (cultivation.bonus > 0) {
-      savedProfile.cultivation +=
-        cultivation.bonus;
-
-      savedProfile.totalCultivation +=
-        cultivation.bonus;
+      savedProfile.cultivation += cultivation.bonus;
+      savedProfile.totalCultivation += cultivation.bonus;
     }
 
     if (stones.bonus > 0) {
-      savedProfile.spiritStones +=
-        stones.bonus;
+      savedProfile.spiritStones += stones.bonus;
     }
 
     if (petCultivationBonus > 0) {
-      savedProfile.cultivation +=
-        petCultivationBonus;
-
-      savedProfile.totalCultivation +=
-        petCultivationBonus;
+      savedProfile.cultivation += petCultivationBonus;
+      savedProfile.totalCultivation += petCultivationBonus;
     }
 
-    const finalProfile = await saveProfile(
-      client,
-      savedProfile,
-    );
+    let equipmentUse = null;
+    if (Number(result.equipmentCultivationBonus) > 0) {
+      equipmentUse = consumeEquippedEquipmentUse(
+        savedProfile,
+        'cultivation_bonus',
+      );
+    } else if (Number(result.equipmentStoneBonus) > 0) {
+      equipmentUse = consumeEquippedEquipmentUse(
+        savedProfile,
+        'spirit_stone_bonus',
+      );
+    }
+
+    const finalProfile = await saveProfile(client, savedProfile);
 
     return {
       ...result,
       profile: finalProfile,
       activePet,
-      realmRewardBaseMultiplier:
-        realmRewards.base,
-      realmCultivationMultiplier:
-        realmRewards.cultivation,
-      realmStoneMultiplier:
-        realmRewards.spiritStones,
-      realmCultivationBonus:
-        totalRealmCultivationBonus,
-      realmBaseCultivationBonus:
-        realmCultivationBonus,
+      equipmentUse,
+      realmRewardBaseMultiplier: realmRewards.base,
+      realmCultivationMultiplier: realmRewards.cultivation,
+      realmStoneMultiplier: realmRewards.spiritStones,
+      realmCultivationBonus: totalRealmCultivationBonus,
+      realmBaseCultivationBonus: realmCultivationBonus,
       realmAuxCultivationBonus,
       realmStoneBonus,
-      extraPetCultivationBonus:
-        petCultivationBonus,
-      extraPetCultivationPercent:
-        petCultivationPercent,
-      formationCultivationBonus:
-        cultivation.bonus,
-      formationCultivationPercent:
-        Number(effects.cultivationBonus) || 0,
-      formationStoneBonus:
-        stones.bonus,
-      formationStonePercent:
-        Number(effects.spiritStoneBonus) || 0,
+      extraPetCultivationBonus: petCultivationBonus,
+      extraPetCultivationPercent: petCultivationPercent,
+      formationCultivationBonus: cultivation.bonus,
+      formationCultivationPercent: Number(effects.cultivationBonus) || 0,
+      formationStoneBonus: stones.bonus,
+      formationStonePercent: Number(effects.spiritStoneBonus) || 0,
       staminaCost: effectiveStaminaCost,
       baseStaminaCost,
-      formationStaminaSaved:
-        stamina.saved,
-      formationStaminaReduction:
-        Number(effects.staminaReduction) || 0,
+      formationStaminaSaved: stamina.saved,
+      formationStaminaReduction: Number(effects.staminaReduction) || 0,
       petStaminaRefund,
       petStaminaRefundPercent,
-      formationResonanceLines:
-        formation.lines || [],
+      formationResonanceLines: formation.lines || [],
     };
   } catch (error) {
     if (preCreditApplied) {
       try {
-        const latest =
-          await baseService.getCultivationProfile(
-            client,
-            guildId,
-            userId,
-          );
-
+        const latest = await baseService.getCultivationProfile(
+          client,
+          guildId,
+          userId,
+        );
         latest.stamina = originalStamina;
         latest.pets ||= { owned: {}, active: null };
         latest.pets.active = originalActivePetId;
-
-        await saveProfile(
-          client,
-          latest,
-        );
+        await saveProfile(client, latest);
       } catch {
         // Do not hide the original error.
       }
     }
-
     throw error;
   }
 }
@@ -484,66 +372,37 @@ async function guaranteedBreakthrough(
   formationLines,
   activePet,
 ) {
-  const profile =
-    await baseService.getCultivationProfile(
-      client,
-      guildId,
-      userId,
-    );
+  const profile = await baseService.getCultivationProfile(
+    client,
+    guildId,
+    userId,
+  );
 
   if (baseService.isMaxRealm(profile)) {
-    return baseService.breakthrough(
-      client,
-      guildId,
-      userId,
-    );
+    return baseService.breakthrough(client, guildId, userId);
   }
 
-  const required =
-    baseService.getCultivationRequired(
-      profile,
-    );
-
+  const required = baseService.getCultivationRequired(profile);
   if (profile.cultivation < required) {
-    return baseService.breakthrough(
-      client,
-      guildId,
-      userId,
-    );
+    return baseService.breakthrough(client, guildId, userId);
   }
 
-  const baseChance =
-    baseService.getBreakthroughChance(
-      profile,
-    );
-
-  const breakthroughPillBonus =
-    Math.max(
-      0,
-      Number(
-        profile.effects
-          ?.nextBreakthroughBonus,
-      ) || 0,
-    );
-
-  const oldRealm =
-    baseService.getRealmDisplay(
-      profile,
-    );
+  const baseChance = baseService.getBreakthroughChance(profile);
+  const breakthroughPillBonus = Math.max(
+    0,
+    Number(profile.effects?.nextBreakthroughBonus) || 0,
+  );
+  const oldRealm = baseService.getRealmDisplay(profile);
 
   profile.effects ||= {};
   profile.effects.nextBreakthroughBonus = 0;
   profile.cultivation -= required;
 
-  const { CULTIVATION_STAGES } =
-    await import(
-      '../config/cultivationGame.js'
-    );
+  const { CULTIVATION_STAGES } = await import(
+    '../config/cultivationGame.js'
+  );
 
-  if (
-    profile.stageIndex <
-    CULTIVATION_STAGES.length - 1
-  ) {
+  if (profile.stageIndex < CULTIVATION_STAGES.length - 1) {
     profile.stageIndex += 1;
   } else {
     profile.stageIndex = 0;
@@ -551,20 +410,12 @@ async function guaranteedBreakthrough(
   }
 
   profile.stats ||= {};
-  profile.stats.breakthroughSuccess =
-    Math.max(
-      0,
-      Number(
-        profile.stats
-          .breakthroughSuccess,
-      ) || 0,
-    ) + 1;
+  profile.stats.breakthroughSuccess = Math.max(
+    0,
+    Number(profile.stats.breakthroughSuccess) || 0,
+  ) + 1;
 
-  const saved =
-    await saveProfile(
-      client,
-      profile,
-    );
+  const saved = await saveProfile(client, profile);
 
   return {
     ok: true,
@@ -574,78 +425,48 @@ async function guaranteedBreakthrough(
     breakthroughPillBonus,
     techniqueBreakthroughBonus: 0,
     petBreakthroughBonus: 1,
-    formationBreakthroughBonus:
-      formationBonus,
+    formationBreakthroughBonus: formationBonus,
     guaranteedByPet: true,
     activePet,
     oldRealm,
-    newRealm:
-      baseService.getRealmDisplay(
-        saved,
-      ),
+    newRealm: baseService.getRealmDisplay(saved),
     profile: saved,
-    formationResonanceLines:
-      formationLines || [],
+    formationResonanceLines: formationLines || [],
   };
 }
 
-export async function breakthrough(
-  client,
-  guildId,
-  userId,
-) {
-  const formation =
-    await getFormationGameplayBonus(
-      client,
-      guildId,
-      userId,
-    );
+export async function breakthrough(client, guildId, userId) {
+  const formation = await getFormationGameplayBonus(
+    client,
+    guildId,
+    userId,
+  );
 
-  const formationBonus =
-    Math.max(
-      0,
-      Number(
-        formation.effects
-          ?.breakthroughBonus,
-      ) || 0,
-    );
+  const formationBonus = Math.max(
+    0,
+    Number(formation.effects?.breakthroughBonus) || 0,
+  );
 
-  const profile =
-    await baseService.getCultivationProfile(
-      client,
-      guildId,
-      userId,
-    );
+  const profile = await baseService.getCultivationProfile(
+    client,
+    guildId,
+    userId,
+  );
 
   const activePet = getActivePet(profile);
   const petBreakthroughBonus = Math.max(
     0,
-    Number(
-      getPetEffectValue(
-        profile,
-        'breakthrough_bonus',
-      ),
-    ) || 0,
+    Number(getPetEffectValue(profile, 'breakthrough_bonus')) || 0,
   );
   const petLossReduction = Math.min(
     0.95,
     Math.max(
       0,
-      Number(
-        getPetEffectValue(
-          profile,
-          'breakthrough_loss_reduction',
-        ),
-      ) || 0,
+      Number(getPetEffectValue(profile, 'breakthrough_loss_reduction')) || 0,
     ),
   );
 
-  if (
-    getPetEffectValue(
-      profile,
-      'guaranteed_breakthrough',
-    ) > 0
-  ) {
+  if (getPetEffectValue(profile, 'guaranteed_breakthrough') > 0) {
     return guaranteedBreakthrough(
       client,
       guildId,
@@ -656,59 +477,38 @@ export async function breakthrough(
     );
   }
 
-  const originalActivePetId =
-    profile.pets?.active || null;
+  const originalActivePetId = profile.pets?.active || null;
   const originalPillBonus = Math.max(
     0,
-    Number(
-      profile.effects?.nextBreakthroughBonus,
-    ) || 0,
+    Number(profile.effects?.nextBreakthroughBonus) || 0,
   );
 
   profile.effects ||= {};
   profile.pets ||= { owned: {}, active: null };
-
-  // Tạm ẩn Linh Thú để vô hiệu hóa các bonus hard-code cũ trong base service.
   profile.pets.active = null;
   profile.effects.nextBreakthroughBonus =
-    originalPillBonus +
-    formationBonus +
-    petBreakthroughBonus;
+    originalPillBonus + formationBonus + petBreakthroughBonus;
 
-  await saveProfile(
-    client,
-    profile,
-  );
+  await saveProfile(client, profile);
 
   try {
-    const result =
-      await baseService.breakthrough(
-        client,
-        guildId,
-        userId,
-      );
+    const result = await baseService.breakthrough(
+      client,
+      guildId,
+      userId,
+    );
 
     const latest =
       result?.profile ||
-      await baseService.getCultivationProfile(
-        client,
-        guildId,
-        userId,
-      );
+      await baseService.getCultivationProfile(client, guildId, userId);
 
     latest.pets ||= { owned: {}, active: null };
     latest.pets.active = originalActivePetId;
     latest.effects ||= {};
 
     if (!result?.ok) {
-      latest.effects.nextBreakthroughBonus =
-        originalPillBonus;
-
-      const restored = await saveProfile(
-        client,
-        latest,
-      );
-
+      latest.effects.nextBreakthroughBonus = originalPillBonus;
+      const restored = await saveProfile(client, latest);
       return {
         ...result,
         profile: restored,
@@ -719,75 +519,58 @@ export async function breakthrough(
     latest.effects.nextBreakthroughBonus = 0;
 
     let petLossSaved = 0;
-
-    if (
-      !result.success &&
-      petLossReduction > 0
-    ) {
-      const actualLoss = Math.max(
-        0,
-        Number(result.loss) || 0,
-      );
+    if (!result.success && petLossReduction > 0) {
+      const actualLoss = Math.max(0, Number(result.loss) || 0);
       const requestedPetLossSaved = Math.max(
         0,
-        Math.round(
-          (Number(result.originalLoss) || 0) *
-            petLossReduction,
-        ),
+        Math.round((Number(result.originalLoss) || 0) * petLossReduction),
       );
 
-      petLossSaved = Math.min(
-        actualLoss,
-        requestedPetLossSaved,
-      );
-
+      petLossSaved = Math.min(actualLoss, requestedPetLossSaved);
       if (petLossSaved > 0) {
         latest.cultivation += petLossSaved;
-        result.loss = Math.max(
-          0,
-          actualLoss - petLossSaved,
-        );
+        result.loss = Math.max(0, actualLoss - petLossSaved);
       }
     }
 
-    const saved = await saveProfile(
-      client,
-      latest,
-    );
+    let equipmentUse = null;
+    if (
+      !result.success &&
+      Number(result.equipmentLossSaved) > 0 &&
+      !result.talismanProtected
+    ) {
+      equipmentUse = consumeEquippedEquipmentUse(
+        latest,
+        'breakthrough_loss_reduction',
+      );
+    }
+
+    const saved = await saveProfile(client, latest);
 
     return {
       ...result,
       profile: saved,
       activePet,
-      breakthroughPillBonus:
-        originalPillBonus,
+      equipmentUse,
+      breakthroughPillBonus: originalPillBonus,
       petBreakthroughBonus,
       petLossReduction,
       petLossSaved,
-      formationBreakthroughBonus:
-        formationBonus,
-      formationResonanceLines:
-        formation.lines || [],
+      formationBreakthroughBonus: formationBonus,
+      formationResonanceLines: formation.lines || [],
     };
   } catch (error) {
     try {
-      const latest =
-        await baseService.getCultivationProfile(
-          client,
-          guildId,
-          userId,
-        );
-
+      const latest = await baseService.getCultivationProfile(
+        client,
+        guildId,
+        userId,
+      );
       latest.pets ||= { owned: {}, active: null };
       latest.pets.active = originalActivePetId;
       latest.effects ||= {};
-      latest.effects.nextBreakthroughBonus =
-        originalPillBonus;
-
-      await saveProfile(
-        client,
-        latest,
-      );
+      latest.effects.nextBreakthroughBonus = originalPillBonus;
+      await saveProfile(client, latest);
     } catch {
       // Do not hide the original error.
     }
