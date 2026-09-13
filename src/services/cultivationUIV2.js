@@ -17,6 +17,8 @@ import {
 
 export * from './cultivationUI.js';
 
+let cachedTienPhuongEmoji = null;
+
 function appendFormationLines(embed, lines) {
   if (!embed || !Array.isArray(lines) || lines.length === 0) {
     return embed;
@@ -46,11 +48,30 @@ function percent(value) {
   return `${Math.round((Number(value) || 0) * 100)}%`;
 }
 
-function applyStableShopEmoji(rows) {
+function resolveTienPhuongEmoji(guild) {
+  const emoji = guild?.emojis?.cache?.find?.(
+    item => item.name === 'tttienphuong',
+  );
+
+  if (emoji?.id) {
+    cachedTienPhuongEmoji = {
+      id: emoji.id,
+      name: emoji.name,
+      animated: emoji.animated,
+    };
+  }
+
+  return cachedTienPhuongEmoji;
+}
+
+function applyTienPhuongEmoji(rows, guild = null) {
+  const emoji = resolveTienPhuongEmoji(guild);
+  if (!emoji) return rows;
+
   for (const row of rows || []) {
     for (const component of row?.components || []) {
       if (component?.data?.label === 'Tiên Phường') {
-        component.setEmoji('🏮');
+        component.setEmoji(emoji);
       }
     }
   }
@@ -65,7 +86,7 @@ export function buildDashboardRows(ownerId, guild = null) {
     guild,
   );
 
-  applyStableShopEmoji(withFormation);
+  applyTienPhuongEmoji(withFormation, guild);
 
   return appendSpiritVeinButton(
     withFormation,
