@@ -65,7 +65,7 @@ export const CULTIVATION_SHOP_ITEMS = {
     category: 'formation',
     kind: 'formation_essence',
     name: 'Trận Văn',
-    price: 2000,
+    price: 1000,
     emoji: '<a:ttranvan:1547959053114671297>',
   },
 
