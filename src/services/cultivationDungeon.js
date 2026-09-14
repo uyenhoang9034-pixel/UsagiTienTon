@@ -226,7 +226,7 @@ function buildFloorReward(floor) {
   const materialBonus = boss ? 1 : 0;
   return {
     floor: safeFloor, boss, majorBoss,
-    spiritStones: 20_000,
+    spiritStones: Math.round(20_000 * bossMultiplier),
     essence: Math.max(1, Math.round(randomInt(essenceMin, essenceMax) * bossMultiplier)),
     items: {
       thien_linh_thao: baseMaterial + materialBonus,
@@ -234,7 +234,7 @@ function buildFloorReward(floor) {
       vo_danh_kiem_pho: Math.max(1, Math.ceil(baseMaterial / 2)) + materialBonus,
       co_phu: Math.max(1, Math.ceil(baseMaterial / 2)) + materialBonus,
     },
-    formationEssence: 20,
+    formationEssence: Math.round(20 * bossMultiplier),
   };
 }
 
