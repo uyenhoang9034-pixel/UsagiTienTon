@@ -50,7 +50,7 @@ export const DUNGEON_SHOP = {
   huyen_thiet: { id: 'huyen_thiet', name: 'Huyền Thiết', price: 20, type: 'inventory' },
   vo_danh_kiem_pho: { id: 'vo_danh_kiem_pho', name: 'Vô Danh Kiếm Phổ', price: 30, type: 'inventory' },
   co_phu: { id: 'co_phu', name: 'Thượng Cổ Phù', price: 30, type: 'inventory' },
-  tran_van: { id: 'tran_van', name: 'Trận Văn', price: 90, type: 'formation_essence' },
+  tran_van: { id: 'tran_van', name: 'Trận Văn', price: 20, type: 'formation_essence' },
 };
 
 function stateKey(guildId, userId) { return `${DUNGEON_KEY_PREFIX}${guildId}:${userId}`; }
