@@ -78,7 +78,10 @@ export async function addImmortalOrderProgress(client, guildId, userId, metric, 
 }
 
 export async function getImmortalOrderSnapshot(client, guildId, userId) {
-  const state = await getImmortalOrderState(client, guildId, userId);
+  const [state, profile] = await Promise.all([
+    getImmortalOrderState(client, guildId, userId),
+    getCultivationProfile(client, guildId, userId),
+  ]);
   settleCompleted(state);
   await save(client, state);
   const quests = IMMORTAL_ORDER_QUESTS.map(quest => ({
@@ -88,6 +91,7 @@ export async function getImmortalOrderSnapshot(client, guildId, userId) {
   }));
   return {
     state,
+    profile,
     quests,
     completedCount: quests.filter(q => q.completed).length,
     totalCount: quests.length,
