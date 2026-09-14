@@ -4,291 +4,141 @@ import {
   saveCultivationProfile,
 } from './cultivationService.js';
 
-import {
-  Mutex,
-} from '../utils/mutex.js';
+import { Mutex } from '../utils/mutex.js';
 
-const DAILY_QUEST_PREFIX =
-  'games:cultivation:dailyQuest:';
-
-const TIME_ZONE =
-  'Asia/Ho_Chi_Minh';
-
+const DAILY_QUEST_PREFIX = 'games:cultivation:dailyQuest:';
+const TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const QUEST_MIN = 2;
 const QUEST_MAX = 5;
 
-function getQuestKey(
-  guildId,
-  userId,
-) {
+function getQuestKey(guildId, userId) {
   return `${DAILY_QUEST_PREFIX}${guildId}:${userId}`;
 }
 
-function getDateKey(
-  date = new Date(),
-) {
-  const parts =
-    new Intl.DateTimeFormat(
-      'en-US',
-      {
-        timeZone: TIME_ZONE,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      },
-    ).formatToParts(
-      date,
-    );
+function getDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
 
-  const values =
-    Object.fromEntries(
-      parts.map(
-        part => [
-          part.type,
-          part.value,
-        ],
-      ),
-    );
+  const values = Object.fromEntries(
+    parts.map(part => [part.type, part.value]),
+  );
 
   return `${values.year}-${values.month}-${values.day}`;
 }
 
-function randomInt(
-  min,
-  max,
-) {
-  return (
-    Math.floor(
-      Math.random() *
-        (
-          max -
-          min +
-          1
-        ),
-    ) +
-    min
-  );
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function shuffle(
-  items,
-) {
-  const array = [
-    ...items,
-  ];
+function shuffle(items) {
+  const array = [...items];
 
-  for (
-    let i =
-      array.length - 1;
-    i > 0;
-    i -= 1
-  ) {
-    const j =
-      Math.floor(
-        Math.random() *
-          (
-            i + 1
-          ),
-      );
-
-    [
-      array[i],
-      array[j],
-    ] = [
-      array[j],
-      array[i],
-    ];
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
   }
 
   return array;
 }
 
-function safeStat(
-  profile,
-  name,
-) {
-  return Math.max(
-    0,
-    Number(
-      profile?.stats?.[
-        name
-      ],
-    ) || 0,
-  );
+function safeStat(profile, name) {
+  return Math.max(0, Number(profile?.stats?.[name]) || 0);
 }
 
-function getBreakthroughAttempts(
-  profile,
-) {
+function getBreakthroughAttempts(profile) {
   return (
-    safeStat(
-      profile,
-      'breakthroughSuccess',
-    ) +
-    safeStat(
-      profile,
-      'breakthroughFail',
-    )
+    safeStat(profile, 'breakthroughSuccess') +
+    safeStat(profile, 'breakthroughFail')
   );
 }
 
-function buildCounterSnapshot(
-  profile,
-) {
+function buildCounterSnapshot(profile) {
   return {
-    cultivate:
-      safeStat(
-        profile,
-        'cultivateCount',
-      ),
-
-    adventure:
-      safeStat(
-        profile,
-        'adventureCount',
-      ),
-
-    alchemy:
-      safeStat(
-        profile,
-        'alchemyCount',
-      ),
-
-    forge:
-      safeStat(
-        profile,
-        'forgeCount',
-      ),
-
-    use_item:
-      safeStat(
-        profile,
-        'itemsUsed',
-      ),
-
-    breakthrough:
-      getBreakthroughAttempts(
-        profile,
-      ),
+    cultivate: safeStat(profile, 'cultivateCount'),
+    adventure: safeStat(profile, 'adventureCount'),
+    alchemy: safeStat(profile, 'alchemyCount'),
+    forge: safeStat(profile, 'forgeCount'),
+    use_item: safeStat(profile, 'itemsUsed'),
+    breakthrough: getBreakthroughAttempts(profile),
   };
 }
 
-function buildReward(
-  type,
-  target,
-) {
-  if (
-    type === 'cultivate'
-  ) {
+function buildReward(type, target) {
+  if (type === 'cultivate') {
     return {
-      spiritStones:
-        60 +
-        target * 30,
+      spiritStones: 60 + target * 30,
       cultivation: 0,
     };
   }
 
-  if (
-    type === 'adventure'
-  ) {
+  if (type === 'adventure') {
     return {
       spiritStones: 0,
-      cultivation:
-        80 +
-        target * 60,
+      cultivation: 80 + target * 60,
     };
   }
 
-  if (
-    type === 'alchemy'
-  ) {
-    return {
-      spiritStones: 120,
-      cultivation: 60,
-    };
+  if (type === 'alchemy') {
+    return { spiritStones: 120, cultivation: 60 };
   }
 
-  if (
-    type === 'forge'
-  ) {
-    return {
-      spiritStones: 140,
-      cultivation: 60,
-    };
+  if (type === 'forge') {
+    return { spiritStones: 140, cultivation: 60 };
   }
 
-  if (
-    type === 'use_item'
-  ) {
-    return {
-      spiritStones: 90,
-      cultivation: 50,
-    };
+  if (type === 'use_item') {
+    return { spiritStones: 90, cultivation: 50 };
   }
 
-  return {
-    spiritStones: 120,
-    cultivation: 180,
-  };
+  return { spiritStones: 120, cultivation: 180 };
 }
 
 const QUEST_TEMPLATES = [
   {
     type: 'cultivate',
-    name:
-      'Tĩnh Tâm Tu Hành',
+    name: 'Tĩnh Tâm Tu Hành',
     minTarget: 1,
     maxTarget: 3,
   },
-
   {
     type: 'adventure',
-    name:
-      'Du Lịch Tiên Sơn',
+    name: 'Du Lịch Tiên Sơn',
     minTarget: 1,
     maxTarget: 2,
   },
-
   {
     type: 'alchemy',
-    name:
-      'Đan Hỏa Sơ Minh',
+    name: 'Đan Hỏa Sơ Minh',
     minTarget: 1,
     maxTarget: 1,
   },
-
   {
     type: 'forge',
-    name:
-      'Khí Hỏa Tôi Luyện',
+    name: 'Khí Hỏa Tôi Luyện',
     minTarget: 1,
     maxTarget: 1,
   },
-
   {
     type: 'use_item',
-    name:
-      'Dược Khí Nhập Thể',
+    name: 'Dược Khí Nhập Thể',
     minTarget: 1,
     maxTarget: 1,
   },
-
   {
     type: 'breakthrough',
-    name:
-      'Phá Vỡ Bình Cảnh',
+    name: 'Phá Vỡ Bình Cảnh',
     minTarget: 1,
     maxTarget: 1,
   },
 ];
 
-function createEmptyState(
-  guildId,
-  userId,
-  dateKey = getDateKey(),
-) {
+function createEmptyState(guildId, userId, dateKey = getDateKey()) {
   return {
-    version: 1,
+    version: 2,
     guildId,
     userId,
     dateKey,
@@ -296,493 +146,307 @@ function createEmptyState(
     questCount: 0,
     quests: [],
     baseline: null,
-    createdAt:
-      Date.now(),
-    updatedAt:
-      Date.now(),
+    messageId: null,
+    previousMessageId: null,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
   };
 }
 
-function createQuest(
-  template,
-) {
-  const target =
-    randomInt(
-      template.minTarget,
-      template.maxTarget,
-    );
+function normalizeState(raw, guildId, userId, dateKey = getDateKey()) {
+  return {
+    ...createEmptyState(guildId, userId, dateKey),
+    ...(raw && typeof raw === 'object' ? raw : {}),
+    version: 2,
+    guildId,
+    userId,
+    dateKey,
+    quests: Array.isArray(raw?.quests) ? raw.quests : [],
+    messageId: raw?.messageId || null,
+    previousMessageId: raw?.previousMessageId || null,
+  };
+}
+
+function createQuest(template) {
+  const target = randomInt(template.minTarget, template.maxTarget);
 
   return {
-    id:
-      `${template.type}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
-    type:
-      template.type,
-    name:
-      template.name,
+    id: `${template.type}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+    type: template.type,
+    name: template.name,
     target,
     progress: 0,
     completed: false,
     claimed: false,
-    reward:
-      buildReward(
-        template.type,
-        target,
-      ),
+    reward: buildReward(template.type, target),
   };
 }
 
-async function getFreshState(
-  client,
-  guildId,
-  userId,
-) {
-  const key =
-    getQuestKey(
-      guildId,
-      userId,
-    );
-
-  const today =
-    getDateKey();
-
-  const raw =
-    await client.db.get(
-      key,
-      null,
-    );
-
-  if (
-    !raw ||
-    typeof raw !== 'object' ||
-    raw.dateKey !== today
-  ) {
-    const state =
-      createEmptyState(
-        guildId,
-        userId,
-        today,
-      );
-
-    await client.db.set(
-      key,
-      state,
-    );
-
-    return state;
-  }
-
-  return {
-    ...createEmptyState(
-      guildId,
-      userId,
-      today,
-    ),
-    ...raw,
-    guildId,
-    userId,
-    dateKey: today,
-    quests:
-      Array.isArray(
-        raw.quests,
-      )
-        ? raw.quests
-        : [],
-  };
-}
-
-async function saveQuestState(
-  client,
-  state,
-) {
+async function saveQuestState(client, state) {
   const saved = {
     ...state,
-    updatedAt:
-      Date.now(),
+    version: 2,
+    updatedAt: Date.now(),
   };
 
   await client.db.set(
-    getQuestKey(
-      saved.guildId,
-      saved.userId,
-    ),
+    getQuestKey(saved.guildId, saved.userId),
     saved,
   );
 
   return saved;
 }
 
-function applyReward(
-  profile,
-  reward,
-) {
-  const spiritStones =
-    Math.max(
-      0,
-      Math.round(
-        Number(
-          reward?.spiritStones,
-        ) || 0,
-      ),
-    );
+function applyReward(profile, reward) {
+  const spiritStones = Math.max(
+    0,
+    Math.round(Number(reward?.spiritStones) || 0),
+  );
+  const cultivation = Math.max(
+    0,
+    Math.round(Number(reward?.cultivation) || 0),
+  );
 
-  const cultivation =
-    Math.max(
-      0,
-      Math.round(
-        Number(
-          reward?.cultivation,
-        ) || 0,
-      ),
-    );
-
-  if (
-    spiritStones > 0
-  ) {
+  if (spiritStones > 0) {
     profile.spiritStones =
-      Math.max(
-        0,
-        Number(
-          profile.spiritStones,
-        ) || 0,
-      ) +
-      spiritStones;
+      Math.max(0, Number(profile.spiritStones) || 0) + spiritStones;
   }
 
-  if (
-    cultivation > 0
-  ) {
+  if (cultivation > 0) {
     profile.cultivation =
-      Math.max(
-        0,
-        Number(
-          profile.cultivation,
-        ) || 0,
-      ) +
-      cultivation;
-
+      Math.max(0, Number(profile.cultivation) || 0) + cultivation;
     profile.totalCultivation =
-      Math.max(
-        0,
-        Number(
-          profile.totalCultivation,
-        ) || 0,
-      ) +
-      cultivation;
+      Math.max(0, Number(profile.totalCultivation) || 0) + cultivation;
   }
 
-  if (
-    reward?.itemId &&
-    reward?.quantity
-  ) {
-    addInventoryItem(
-      profile,
-      reward.itemId,
-      reward.quantity,
-    );
+  if (reward?.itemId && reward?.quantity) {
+    addInventoryItem(profile, reward.itemId, reward.quantity);
   }
 }
 
-function syncQuestProgress(
-  state,
-  profile,
-) {
-  if (
-    !state.rolled ||
-    !Array.isArray(
-      state.quests,
-    )
-  ) {
-    return {
-      changed: false,
-      rewardsGranted: 0,
-    };
+function syncQuestProgress(state, profile) {
+  if (!state.rolled || !Array.isArray(state.quests)) {
+    return { changed: false, rewardsGranted: 0 };
   }
 
-  const current =
-    buildCounterSnapshot(
-      profile,
-    );
-
-  const baseline =
-    state.baseline || {};
-
+  const current = buildCounterSnapshot(profile);
+  const baseline = state.baseline || {};
   let changed = false;
   let rewardsGranted = 0;
 
-  for (
-    const quest of
-      state.quests
-  ) {
-    const before =
-      Math.max(
-        0,
-        Number(
-          baseline[
-            quest.type
-          ],
-        ) || 0,
-      );
+  for (const quest of state.quests) {
+    const before = Math.max(0, Number(baseline[quest.type]) || 0);
+    const now = Math.max(0, Number(current[quest.type]) || 0);
+    const progress = Math.min(
+      quest.target,
+      Math.max(0, now - before),
+    );
 
-    const now =
-      Math.max(
-        0,
-        Number(
-          current[
-            quest.type
-          ],
-        ) || 0,
-      );
-
-    const progress =
-      Math.min(
-        quest.target,
-        Math.max(
-          0,
-          now - before,
-        ),
-      );
-
-    if (
-      progress !==
-      quest.progress
-    ) {
-      quest.progress =
-        progress;
+    if (progress !== quest.progress) {
+      quest.progress = progress;
       changed = true;
     }
 
-    const completed =
-      progress >=
-      quest.target;
-
-    if (
-      completed !==
-      quest.completed
-    ) {
-      quest.completed =
-        completed;
+    const completed = progress >= quest.target;
+    if (completed !== quest.completed) {
+      quest.completed = completed;
       changed = true;
     }
 
-    if (
-      completed &&
-      !quest.claimed
-    ) {
-      applyReward(
-        profile,
-        quest.reward,
-      );
-
+    // Mỗi nhiệm vụ tự nhận đúng 1 lần ngay khi hoàn thành.
+    // claimed được lưu trong state nên restart/redeploy không cộng lặp.
+    if (completed && !quest.claimed) {
+      applyReward(profile, quest.reward);
       quest.claimed = true;
       rewardsGranted += 1;
       changed = true;
     }
   }
 
+  return { changed, rewardsGranted };
+}
+
+async function finalizeStaleState(client, raw, guildId, userId) {
+  if (!raw?.rolled || !Array.isArray(raw.quests) || raw.quests.length === 0) {
+    return {
+      previousMessageId: raw?.messageId || null,
+      rewardsGranted: 0,
+    };
+  }
+
+  const state = normalizeState(raw, guildId, userId, raw.dateKey || getDateKey());
+  const profile = await getCultivationProfile(client, guildId, userId);
+  const result = syncQuestProgress(state, profile);
+
+  if (result.rewardsGranted > 0) {
+    await saveCultivationProfile(client, profile);
+  }
+
+  // Lưu lần cuối trạng thái ngày cũ trước khi chuyển ngày để claimed không bị mất.
+  if (result.changed) {
+    await client.db.set(getQuestKey(guildId, userId), {
+      ...state,
+      updatedAt: Date.now(),
+    });
+  }
+
   return {
-    changed,
-    rewardsGranted,
+    previousMessageId: state.messageId || null,
+    rewardsGranted: result.rewardsGranted,
   };
+}
+
+async function getFreshState(client, guildId, userId) {
+  const key = getQuestKey(guildId, userId);
+  const today = getDateKey();
+  const raw = await client.db.get(key, null);
+
+  if (!raw || typeof raw !== 'object') {
+    const state = createEmptyState(guildId, userId, today);
+    await client.db.set(key, state);
+    return state;
+  }
+
+  if (raw.dateKey !== today) {
+    const finalized = await finalizeStaleState(
+      client,
+      raw,
+      guildId,
+      userId,
+    );
+
+    const state = {
+      ...createEmptyState(guildId, userId, today),
+      previousMessageId: finalized.previousMessageId,
+    };
+
+    await client.db.set(key, state);
+    return state;
+  }
+
+  return normalizeState(raw, guildId, userId, today);
 }
 
 export async function getDailyQuestState(
   client,
   guildId,
   userId,
-  {
-    sync = true,
-  } = {},
+  { sync = true } = {},
 ) {
   if (!sync) {
-    return getFreshState(
-      client,
-      guildId,
-      userId,
-    );
+    return getFreshState(client, guildId, userId);
   }
 
-  return syncDailyQuests(
-    client,
-    guildId,
-    userId,
-  );
+  return syncDailyQuests(client, guildId, userId);
 }
 
-export async function rollDailyQuests(
-  client,
-  guildId,
-  userId,
-) {
-  const lockKey =
-    `cultivation:${guildId}:${userId}`;
+export async function rollDailyQuests(client, guildId, userId) {
+  const lockKey = `cultivation:${guildId}:${userId}`;
 
-  return Mutex.runExclusive(
-    lockKey,
-    async () => {
-      let state =
-        await getFreshState(
-          client,
-          guildId,
-          userId,
-        );
+  return Mutex.runExclusive(lockKey, async () => {
+    let state = await getFreshState(client, guildId, userId);
 
-      if (
-        state.rolled
-      ) {
-        const profile =
-          await getCultivationProfile(
-            client,
-            guildId,
-            userId,
-          );
+    if (state.rolled) {
+      const profile = await getCultivationProfile(client, guildId, userId);
+      const syncResult = syncQuestProgress(state, profile);
 
-        const syncResult =
-          syncQuestProgress(
-            state,
-            profile,
-          );
-
-        if (
-          syncResult.rewardsGranted >
-          0
-        ) {
-          await saveCultivationProfile(
-            client,
-            profile,
-          );
-        }
-
-        if (
-          syncResult.changed
-        ) {
-          state =
-            await saveQuestState(
-              client,
-              state,
-            );
-        }
-
-        return state;
+      if (syncResult.rewardsGranted > 0) {
+        await saveCultivationProfile(client, profile);
       }
 
-      const profile =
-        await getCultivationProfile(
-          client,
-          guildId,
-          userId,
-        );
-
-      const questCount =
-        randomInt(
-          QUEST_MIN,
-          QUEST_MAX,
-        );
-
-      const selected =
-        shuffle(
-          QUEST_TEMPLATES,
-        ).slice(
-          0,
-          questCount,
-        );
-
-      state = {
-        ...state,
-        rolled: true,
-        questCount,
-        quests:
-          selected.map(
-            createQuest,
-          ),
-        baseline:
-          buildCounterSnapshot(
-            profile,
-          ),
-        rolledAt:
-          Date.now(),
-      };
-
-      return saveQuestState(
-        client,
-        state,
-      );
-    },
-  );
-}
-
-export async function syncDailyQuests(
-  client,
-  guildId,
-  userId,
-) {
-  const lockKey =
-    `cultivation:${guildId}:${userId}`;
-
-  return Mutex.runExclusive(
-    lockKey,
-    async () => {
-      let state =
-        await getFreshState(
-          client,
-          guildId,
-          userId,
-        );
-
-      if (
-        !state.rolled
-      ) {
-        return state;
-      }
-
-      const profile =
-        await getCultivationProfile(
-          client,
-          guildId,
-          userId,
-        );
-
-      const result =
-        syncQuestProgress(
-          state,
-          profile,
-        );
-
-      if (
-        result.rewardsGranted >
-        0
-      ) {
-        await saveCultivationProfile(
-          client,
-          profile,
-        );
-      }
-
-      if (
-        result.changed
-      ) {
-        state =
-          await saveQuestState(
-            client,
-            state,
-          );
+      if (syncResult.changed) {
+        state = await saveQuestState(client, state);
       }
 
       return state;
-    },
-  );
+    }
+
+    const profile = await getCultivationProfile(client, guildId, userId);
+    const questCount = randomInt(QUEST_MIN, QUEST_MAX);
+    const selected = shuffle(QUEST_TEMPLATES).slice(0, questCount);
+
+    state = {
+      ...state,
+      rolled: true,
+      questCount,
+      quests: selected.map(createQuest),
+      baseline: buildCounterSnapshot(profile),
+      rolledAt: Date.now(),
+    };
+
+    return saveQuestState(client, state);
+  });
 }
 
-export function getDailyQuestCompletedCount(
-  state,
+export async function syncDailyQuests(client, guildId, userId) {
+  const lockKey = `cultivation:${guildId}:${userId}`;
+
+  return Mutex.runExclusive(lockKey, async () => {
+    let state = await getFreshState(client, guildId, userId);
+
+    if (!state.rolled) {
+      return state;
+    }
+
+    const profile = await getCultivationProfile(client, guildId, userId);
+    const result = syncQuestProgress(state, profile);
+
+    if (result.rewardsGranted > 0) {
+      await saveCultivationProfile(client, profile);
+    }
+
+    if (result.changed) {
+      state = await saveQuestState(client, state);
+    }
+
+    return state;
+  });
+}
+
+export async function setDailyQuestMessageId(
+  client,
+  guildId,
+  userId,
+  messageId,
 ) {
-  return (
-    state?.quests || []
-  ).filter(
-    quest =>
-      quest.completed,
-  ).length;
+  const lockKey = `cultivation:${guildId}:${userId}`;
+
+  return Mutex.runExclusive(lockKey, async () => {
+    const state = await getFreshState(client, guildId, userId);
+    state.messageId = messageId || null;
+    if (messageId) state.previousMessageId = null;
+    return saveQuestState(client, state);
+  });
+}
+
+export async function clearDailyQuestPreviousMessageId(
+  client,
+  guildId,
+  userId,
+) {
+  const state = await getFreshState(client, guildId, userId);
+  if (!state.previousMessageId) return state;
+  state.previousMessageId = null;
+  return saveQuestState(client, state);
+}
+
+export function getDailyQuestCompletedCount(state) {
+  return (state?.quests || []).filter(quest => quest.completed).length;
+}
+
+export function isDailyQuestComplete(state) {
+  const total = Array.isArray(state?.quests) ? state.quests.length : 0;
+  return Boolean(
+    state?.rolled &&
+    total > 0 &&
+    getDailyQuestCompletedCount(state) >= total
+  );
 }
 
 export function getDailyQuestTimeZone() {
   return TIME_ZONE;
+}
+
+export function getDailyQuestDateKey(date = new Date()) {
+  return getDateKey(date);
 }
