@@ -58,6 +58,25 @@ function getActiveTechniqueId(profile) {
   return profile.techniques?.active || null;
 }
 
+function consumeActiveTechniqueUse(profile, expectedTechniqueId) {
+  const activeId = getActiveTechniqueId(profile);
+
+  if (!activeId || activeId !== expectedTechniqueId) {
+    return null;
+  }
+
+  if (!profile.techniques || typeof profile.techniques !== 'object') {
+    return null;
+  }
+
+  profile.techniques.active = null;
+
+  return {
+    techniqueId: activeId,
+    consumed: 1,
+  };
+}
+
 function getTechniqueCultivationBonus(profile) {
   return getActiveTechniqueId(profile) === 'thanh_van_kiem_quyet' ? 0.08 : 0;
 }
@@ -658,6 +677,7 @@ export async function cultivate(client, guildId, userId) {
       return { ok: false, reason: 'stamina', profile };
     }
 
+    const activeTechniqueId = getActiveTechniqueId(profile);
     const event = weightedPick(CULTIVATION_EVENTS);
     const baseCultivation = randomInt(
       CULTIVATION_CONFIG.gameplay.cultivateBaseMin,
@@ -737,6 +757,25 @@ export async function cultivate(client, guildId, userId) {
       profile.effects.nextCultivationBonus = 0;
     }
 
+    let techniqueUse = null;
+    if (
+      activeTechniqueId === 'thanh_van_kiem_quyet' &&
+      techniqueCultivationPercent > 0
+    ) {
+      techniqueUse = consumeActiveTechniqueUse(
+        profile,
+        activeTechniqueId,
+      );
+    } else if (
+      activeTechniqueId === 'tu_linh_chan_kinh' &&
+      techniqueStoneBonus > 0
+    ) {
+      techniqueUse = consumeActiveTechniqueUse(
+        profile,
+        activeTechniqueId,
+      );
+    }
+
     profile.spiritStones += stoneDelta;
     profile.stamina = Math.max(0, profile.stamina - staminaCost);
     profile.cooldowns.cultivateAt = Date.now() + CULTIVATION_CONFIG.gameplay.cultivateCooldownMs;
@@ -757,6 +796,7 @@ export async function cultivate(client, guildId, userId) {
       equipmentCultivationPercent,
       techniqueCultivationBonus,
       techniqueCultivationPercent,
+      techniqueUse,
       petCultivationBonus,
       petCultivationPercent,
       cultivationPillBonus,
@@ -783,6 +823,7 @@ export async function adventure(client, guildId, userId) {
       return { ok: false, reason: 'cooldown', cooldownRemaining: cooldown, profile };
     }
 
+    const activeTechniqueId = getActiveTechniqueId(profile);
     const petEncounter = rollPetEncounter(profile);
 
     if (petEncounter) {
@@ -865,6 +906,17 @@ export async function adventure(client, guildId, userId) {
       }
     }
 
+    let techniqueUse = null;
+    if (
+      activeTechniqueId === 'tu_linh_chan_kinh' &&
+      techniqueStoneBonus > 0
+    ) {
+      techniqueUse = consumeActiveTechniqueUse(
+        profile,
+        activeTechniqueId,
+      );
+    }
+
     if (adventureTalisman) {
       consumeActiveTalisman(profile);
     }
@@ -882,6 +934,7 @@ export async function adventure(client, guildId, userId) {
       stoneDelta,
       equipmentStoneBonus,
       techniqueStoneBonus,
+      techniqueUse,
       petStoneBonus,
       talismanStoneBonus,
       talismanConsumed: adventureTalisman,
@@ -909,6 +962,7 @@ export async function breakthrough(client, guildId, userId) {
       return { ok: false, reason: 'not_ready', required, profile };
     }
 
+    const activeTechniqueId = getActiveTechniqueId(profile);
     const baseChance = getBreakthroughChance(profile);
     const breakthroughPillBonus = Math.max(0, Number(profile.effects?.nextBreakthroughBonus) || 0);
     const techniqueBreakthroughBonus = getTechniqueBreakthroughBonus(profile);
@@ -921,6 +975,17 @@ export async function breakthrough(client, guildId, userId) {
 
     if (breakthroughPillBonus > 0) {
       profile.effects.nextBreakthroughBonus = 0;
+    }
+
+    let techniqueUse = null;
+    if (
+      activeTechniqueId === 'huyen_nguyen_tam_phap' &&
+      techniqueBreakthroughBonus > 0
+    ) {
+      techniqueUse = consumeActiveTechniqueUse(
+        profile,
+        activeTechniqueId,
+      );
     }
 
     const success = Math.random() < chance;
@@ -945,6 +1010,7 @@ export async function breakthrough(client, guildId, userId) {
         baseChance,
         breakthroughPillBonus,
         techniqueBreakthroughBonus,
+        techniqueUse,
         petBreakthroughBonus,
         oldRealm,
         newRealm: getRealmDisplay(saved),
@@ -997,6 +1063,7 @@ export async function breakthrough(client, guildId, userId) {
       baseChance,
       breakthroughPillBonus,
       techniqueBreakthroughBonus,
+      techniqueUse,
       petBreakthroughBonus,
       originalLoss,
       loss,
