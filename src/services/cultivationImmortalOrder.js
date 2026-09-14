@@ -1,6 +1,7 @@
 import { Mutex } from '../utils/mutex.js';
 import { getDatabaseValue, setDatabaseValue } from '../utils/database.js';
 import { getCultivationProfile, saveCultivationProfile, addInventoryItem } from './cultivationService.js';
+import { getAchievementState } from './cultivationAchievement.js';
 
 const KEY_PREFIX = 'games:cultivation:immortal-order:';
 const DUNGEON_KEY_PREFIX = 'games:cultivation:dungeon:';
@@ -70,7 +71,11 @@ function settleCompleted(state) {
 }
 
 async function syncCoreProgress(client, guildId, userId, state, profile) {
-  const dungeon = await getDatabaseValue(client, dungeonKey(guildId, userId), null);
+  const [dungeon, achievement] = await Promise.all([
+    getDatabaseValue(client, dungeonKey(guildId, userId), null),
+    getAchievementState(client, guildId, userId),
+  ]);
+
   state.metrics.cultivateCount = Math.max(
     num(state.metrics.cultivateCount),
     num(profile?.stats?.cultivateCount),
@@ -83,6 +88,19 @@ async function syncCoreProgress(client, guildId, userId, state, profile) {
     num(state.metrics.dungeonClears),
     num(dungeon?.clears),
   );
+  state.metrics.alchemySuccess = Math.max(
+    num(state.metrics.alchemySuccess),
+    num(profile?.stats?.alchemySuccess),
+  );
+  state.metrics.forgeSuccess = Math.max(
+    num(state.metrics.forgeSuccess),
+    num(profile?.stats?.forgeSuccess),
+  );
+  state.metrics.bossAttacks = Math.max(
+    num(state.metrics.bossAttacks),
+    num(achievement?.stats?.worldBossAttacks),
+  );
+
   return state;
 }
 
