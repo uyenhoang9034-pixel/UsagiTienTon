@@ -235,6 +235,11 @@ export function getWorldBossLeaderboard(state) {
     .sort((a, b) => b.damage - a.damage || a.userId.localeCompare(b.userId));
 }
 
+export function getWorldBossTotalDamage(state) {
+  return getWorldBossLeaderboard(state)
+    .reduce((sum, entry) => sum + entry.damage, 0);
+}
+
 export async function attackWorldBoss(client, guildId, userId) {
   const eventId = getWorldBossDateKey();
   const lockKey = `world-boss:${guildId}:${eventId}`;
@@ -316,11 +321,13 @@ export async function finalizeWorldBoss(client, guildId, eventId, reason = 'esca
     if (state.rewardsFinalized) return state;
 
     const leaderboard = getWorldBossLeaderboard(state);
+    const totalDamage = leaderboard.reduce((sum, entry) => sum + entry.damage, 0);
     const defeated = reason === 'defeated' || number(state.currentHp) <= 0;
 
     state.status = 'ended';
     state.endReason = defeated ? 'defeated' : 'escaped';
     state.endedAt = Date.now();
+    state.totalDamage = totalDamage;
     state.rewardsFinalized = true;
     state.updatedAt = Date.now();
 
@@ -328,8 +335,8 @@ export async function finalizeWorldBoss(client, guildId, eventId, reason = 'esca
       const entry = leaderboard[index];
       const rank = index + 1;
       const reward = rewardForRank(rank);
-      const contributionRate = state.maxHp > 0
-        ? entry.damage / state.maxHp
+      const contributionRate = totalDamage > 0
+        ? entry.damage / totalDamage
         : 0;
 
       const record = {
