@@ -468,37 +468,80 @@ async function runWithFormationAdventureReward(
   );
 
   let normalizedCultivationLoss = rawCultivationLoss;
-  let immortalCultivationLossAdjustment = 0;
-  let immortalLossRootBonus = 0;
-  let immortalLossPetAllBonus = 0;
-  let immortalLossPetCombatBonus = 0;
-  let immortalLossFormationBonus = 0;
+  let cultivationLossAdjustment = 0;
+  let lossRealmScaledBase = rawCultivationLoss;
+  let lossSpiritRootBonus = 0;
+  let lossPetAllBonus = 0;
+  let lossPetCombatBonus = 0;
+  let lossFormationBonus = 0;
 
-  if (immortalAdventureBase && rawCultivationLoss > 0) {
-    const baseLoss = IMMORTAL_ADVENTURE_BASE_CULTIVATION_GAIN;
-    immortalLossRootBonus = Math.round(
-      baseLoss * spiritRootCultivationPercent,
-    );
-    immortalLossPetAllBonus = Math.round(
-      baseLoss * petAllRewardPercent,
-    );
-    immortalLossPetCombatBonus = Math.round(
-      baseLoss * petCombatRewardPercent,
-    );
-    immortalLossFormationBonus = Math.round(
-      baseLoss * adventurePercent,
-    );
+  if (rawCultivationLoss > 0) {
+    if (immortalAdventureBase) {
+      const baseLoss = IMMORTAL_ADVENTURE_BASE_CULTIVATION_GAIN;
 
-    normalizedCultivationLoss = Math.min(
-      beforeCultivation,
-      baseLoss +
-        immortalLossRootBonus +
-        immortalLossPetAllBonus +
-        immortalLossPetCombatBonus +
-        immortalLossFormationBonus,
-    );
+      lossRealmScaledBase = baseLoss;
+      lossSpiritRootBonus = Math.round(
+        baseLoss * spiritRootCultivationPercent,
+      );
+      lossPetAllBonus = Math.round(
+        baseLoss * petAllRewardPercent,
+      );
+      lossPetCombatBonus = Math.round(
+        baseLoss * petCombatRewardPercent,
+      );
+      lossFormationBonus = Math.round(
+        baseLoss * adventurePercent,
+      );
 
-    immortalCultivationLossAdjustment =
+      normalizedCultivationLoss = Math.min(
+        beforeCultivation,
+        baseLoss +
+          lossSpiritRootBonus +
+          lossPetAllBonus +
+          lossPetCombatBonus +
+          lossFormationBonus,
+      );
+    } else {
+      const rawLossWithRoot = Math.max(
+        0,
+        rawCultivationLoss +
+          Math.round(
+            rawCultivationLoss * spiritRootCultivationPercent,
+          ),
+      );
+
+      lossRealmScaledBase = scalePositiveRealmReward(
+        rawLossWithRoot,
+        realmRewards.cultivation,
+      );
+      lossSpiritRootBonus = Math.max(
+        0,
+        lossRealmScaledBase -
+          scalePositiveRealmReward(
+            rawCultivationLoss,
+            realmRewards.cultivation,
+          ),
+      );
+      lossPetAllBonus = Math.round(
+        lossRealmScaledBase * petAllRewardPercent,
+      );
+      lossPetCombatBonus = Math.round(
+        lossRealmScaledBase * petCombatRewardPercent,
+      );
+      lossFormationBonus = Math.round(
+        lossRealmScaledBase * adventurePercent,
+      );
+
+      normalizedCultivationLoss = Math.min(
+        beforeCultivation,
+        lossRealmScaledBase +
+          lossPetAllBonus +
+          lossPetCombatBonus +
+          lossFormationBonus,
+      );
+    }
+
+    cultivationLossAdjustment =
       normalizedCultivationLoss - rawCultivationLoss;
 
     afterProfile.cultivation = Math.max(
@@ -825,7 +868,7 @@ async function runWithFormationAdventureReward(
     realmCultivationBonus > 0 ||
     realmStoneBonus > 0 ||
     immortalCultivationAdjustment !== 0 ||
-    immortalCultivationLossAdjustment !== 0 ||
+    cultivationLossAdjustment !== 0 ||
     protectedCultivation > 0 ||
     petStaminaRefund > 0 ||
     petAdventureStoneBonus > 0 ||
@@ -891,6 +934,12 @@ async function runWithFormationAdventureReward(
       formation.lines || [],
     spiritRootCultivationBonus,
     spiritRootCultivationPercent,
+    adventureCultivationLoss: normalizedCultivationLoss,
+    adventureLossRealmScaledBase: lossRealmScaledBase,
+    adventureLossSpiritRootBonus: lossSpiritRootBonus,
+    adventureLossPetAllBonus: lossPetAllBonus,
+    adventureLossPetCombatBonus: lossPetCombatBonus,
+    adventureLossFormationBonus: lossFormationBonus,
     fixedImmortalAdventureCultivation:
       immortalAdventureBase && rawCultivationGain > 0,
     fixedImmortalAdventureCultivationGain:
@@ -903,10 +952,6 @@ async function runWithFormationAdventureReward(
       immortalAdventureBase && rawCultivationLoss > 0
         ? normalizedCultivationLoss
         : 0,
-    immortalLossRootBonus,
-    immortalLossPetAllBonus,
-    immortalLossPetCombatBonus,
-    immortalLossFormationBonus,
   };
 }
 
