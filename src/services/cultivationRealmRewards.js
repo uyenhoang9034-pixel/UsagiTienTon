@@ -1,3 +1,7 @@
+import {
+  CULTIVATION_REALMS,
+} from '../config/cultivationGame.js';
+
 export const CULTIVATION_REALM_REWARD_MULTIPLIERS = [
   1,
   3,
@@ -14,8 +18,9 @@ export const CULTIVATION_REALM_REWARD_MULTIPLIERS = [
   800000,
 ];
 
-// Tu Vi nhận từ Tu Luyện giữ đường cong gần bản gốc,
-// nhưng giảm nhẹ ở các cảnh giới cao để progression bớt quá nhanh.
+// Tu Vi nhận từ Tu Luyện giữ đường cong gần bản gốc
+// trước Chân Tiên. Từ Chân Tiên trở đi, service V2
+// dùng mốc Tu Vi gốc cố định rồi cộng các bonus phụ.
 const CULTIVATION_TUVI_REALM_MULTIPLIERS = [
   1,
   3,
@@ -31,6 +36,11 @@ const CULTIVATION_TUVI_REALM_MULTIPLIERS = [
   170000,
   600000,
 ];
+
+const CHAN_TIEN_REALM_INDEX = Math.max(
+  0,
+  CULTIVATION_REALMS.indexOf('Chân Tiên'),
+);
 
 function getRealmIndex(profile) {
   const raw = Math.floor(Number(profile?.realmIndex) || 0);
@@ -52,22 +62,31 @@ export function getRealmBaseRewardMultiplier(profile) {
 export function getCultivationRealmRewardMultipliers(profile) {
   const realmIndex = getRealmIndex(profile);
   const base = getRealmBaseRewardMultiplier(profile);
-  const cultivation = CULTIVATION_TUVI_REALM_MULTIPLIERS[realmIndex] || 1;
+  const immortalRealm = realmIndex >= CHAN_TIEN_REALM_INDEX;
+  const cultivation = immortalRealm
+    ? 1
+    : CULTIVATION_TUVI_REALM_MULTIPLIERS[realmIndex] || 1;
 
   return {
     base,
     cultivation,
-    spiritStones: Math.max(1, Math.round(base * 0.30)),
+    spiritStones: immortalRealm
+      ? 1
+      : Math.max(1, Math.round(base * 0.30)),
   };
 }
 
 export function getAdventureRealmRewardMultipliers(profile) {
+  const realmIndex = getRealmIndex(profile);
   const base = getRealmBaseRewardMultiplier(profile);
+  const immortalRealm = realmIndex >= CHAN_TIEN_REALM_INDEX;
 
   return {
     base,
-    cultivation: Math.max(1, Math.round(base * 0.60)),
-    spiritStones: base,
+    cultivation: immortalRealm
+      ? 1
+      : Math.max(1, Math.round(base * 0.60)),
+    spiritStones: immortalRealm ? 1 : base,
   };
 }
 
