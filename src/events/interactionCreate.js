@@ -23,10 +23,7 @@ import {
 import {
   buildDashboardEmbed,
   buildDashboardRows,
-} from '../services/cultivationUI.js';
-import {
-  appendFormationButton,
-} from '../services/cultivationFormationUI.js';
+} from '../services/cultivationUIV2.js';
 
 const activeFormationInteractions = new Set();
 
@@ -299,9 +296,9 @@ async function handleDashboardWithFormation(
         profile,
       ),
     ],
-    components: appendFormationButton(
-      buildDashboardRows(ownerId),
+    components: buildDashboardRows(
       ownerId,
+      interaction.guild,
     ),
   });
 
