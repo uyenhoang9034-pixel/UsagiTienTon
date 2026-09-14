@@ -1,4 +1,7 @@
-import { EmbedBuilder } from 'discord.js';
+import {
+  ActionRowBuilder,
+  EmbedBuilder,
+} from 'discord.js';
 
 import * as baseUI from './cultivationUI.js';
 
@@ -11,6 +14,14 @@ import {
 } from './cultivationSpiritVeinUI.js';
 
 import {
+  getAchievementDashboardButton,
+} from './cultivationAchievementUI.js';
+
+import {
+  getWorldBossDashboardButton,
+} from './cultivationWorldBossUI.js';
+
+import {
   buildFormationBreakthroughLines,
   buildFormationCultivateLines,
 } from './cultivationFormationResultUI.js';
@@ -20,6 +31,12 @@ export * from './cultivationUI.js';
 const TIEN_PHUONG_EMOJI = {
   id: '1548288038898241577',
   name: 'tttienphuong',
+  animated: false,
+};
+
+const LINH_MACH_EMOJI = {
+  id: '1548968111363858484',
+  name: 'ttlinhmach',
   animated: false,
 };
 
@@ -52,11 +69,17 @@ function percent(value) {
   return `${Math.round((Number(value) || 0) * 100)}%`;
 }
 
-function applyTienPhuongEmoji(rows) {
+function applyDashboardEmojis(rows) {
   for (const row of rows || []) {
     for (const component of row?.components || []) {
       if (component?.data?.label === 'Tiên Phường') {
         component.setEmoji(TIEN_PHUONG_EMOJI);
+      }
+
+      // Chỉ nút Linh Mạch ngoài dashboard đổi emoji.
+      // Nội dung và các nút bên trong Linh Mạch vẫn dùng emoji động cũ.
+      if (component?.data?.label === 'Linh Mạch') {
+        component.setEmoji(LINH_MACH_EMOJI);
       }
     }
   }
@@ -64,9 +87,26 @@ function applyTienPhuongEmoji(rows) {
   return rows;
 }
 
+function appendMetaButtons(rows, ownerId) {
+  const cloned = [...rows];
+  let target = cloned.find(row => (row?.components?.length || 0) <= 3 && row !== cloned[0] && row !== cloned[1]);
+
+  if (!target || target.components.length > 3) {
+    target = new ActionRowBuilder();
+    cloned.push(target);
+  }
+
+  if (target.components.length <= 3) {
+    target.addComponents(
+      getAchievementDashboardButton(ownerId),
+      getWorldBossDashboardButton(ownerId),
+    );
+  }
+
+  return cloned;
+}
+
 export function buildDashboardRows(ownerId, guild = null) {
-  // Gắn Linh Mạch vào dashboard trước để nút này luôn nằm trong hàng
-  // chính ngay từ lần render đầu tiên, không phụ thuộc việc đã mở Tiên Phường.
   const withSpiritVein = appendSpiritVeinButton(
     baseUI.buildDashboardRows(ownerId),
     ownerId,
@@ -78,7 +118,12 @@ export function buildDashboardRows(ownerId, guild = null) {
     guild,
   );
 
-  return applyTienPhuongEmoji(withFormation);
+  const withMeta = appendMetaButtons(
+    withFormation,
+    ownerId,
+  );
+
+  return applyDashboardEmojis(withMeta);
 }
 
 export function buildCultivateEmbed(result) {
