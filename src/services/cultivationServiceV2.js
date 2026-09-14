@@ -186,7 +186,7 @@ export async function cultivate(client, guildId, userId) {
       return result;
     }
 
-    const rawCultivationDelta = Number(result.cultivationDelta) || 0;
+    let rawCultivationDelta = Number(result.cultivationDelta) || 0;
     const rawStoneDelta = Number(result.stoneDelta) || 0;
 
     const rawEquipmentCultivationBonus = Math.max(
@@ -219,6 +219,30 @@ export async function cultivate(client, guildId, userId) {
     savedProfile.pets ||= { owned: {}, active: null };
     savedProfile.pets.active = originalActivePetId;
 
+    let cultivationFailureLoss = 0;
+    if (rawCultivationDelta < 0) {
+      const rawLoss = Math.abs(rawCultivationDelta);
+      const targetLoss = immortalCultivationBase
+        ? IMMORTAL_BASE_CULTIVATION_GAIN
+        : scalePositiveRealmReward(
+            rawLoss,
+            realmRewards.cultivation,
+          );
+
+      cultivationFailureLoss = Math.min(
+        originalCultivation,
+        Math.max(0, Math.round(targetLoss)),
+      );
+
+      savedProfile.cultivation = Math.max(
+        0,
+        originalCultivation - cultivationFailureLoss,
+      );
+
+      rawCultivationDelta = -cultivationFailureLoss;
+      result.cultivationDelta = rawCultivationDelta;
+    }
+
     result.stoneDelta = scaledStoneDelta;
     result.equipmentStoneBonus = scalePositiveRealmReward(
       Number(result.equipmentStoneBonus) || 0,
@@ -229,7 +253,7 @@ export async function cultivate(client, guildId, userId) {
       realmRewards.spiritStones,
     );
 
-    if (immortalCultivationBase) {
+    if (immortalCultivationBase && rawCultivationDelta > 0) {
       const baseGain = IMMORTAL_BASE_CULTIVATION_GAIN;
       const rootPercent = Math.max(
         0,
@@ -355,6 +379,7 @@ export async function cultivate(client, guildId, userId) {
         fixedImmortalCultivation: true,
         fixedImmortalCultivationGain: baseGain,
         totalImmortalCultivationGain: totalCultivationGain,
+        cultivationFailureLoss: 0,
       };
     }
 
@@ -491,6 +516,13 @@ export async function cultivate(client, guildId, userId) {
       petStaminaRefund,
       petStaminaRefundPercent,
       formationResonanceLines: formation.lines || [],
+      cultivationFailureLoss,
+      fixedImmortalCultivationLoss:
+        immortalCultivationBase && cultivationFailureLoss > 0,
+      fixedImmortalCultivationLossAmount:
+        immortalCultivationBase && cultivationFailureLoss > 0
+          ? cultivationFailureLoss
+          : 0,
     };
   } catch (error) {
     if (preCreditApplied) {
