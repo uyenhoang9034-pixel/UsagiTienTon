@@ -29,8 +29,6 @@ const WORLD_BOSS_MAX_HP_RATIO = 1.25;
 const WORLD_BOSS_DISPARITY_WEIGHT = 0.35;
 const WORLD_BOSS_STRONGEST_HIT_FLOOR = 8;
 
-// Reset duy nhất ngày 14/09/2026 để bỏ các boss test cũ.
-// Sang ngày khác eventId lại trở về YYYY-MM-DD bình thường.
 const ONE_DAY_RESET_DATE = '2026-09-14';
 const ONE_DAY_RESET_SUFFIX = 'r3';
 
@@ -106,6 +104,11 @@ function number(value) {
 
 function rewardForRank(rank) {
   return WORLD_BOSS_REWARDS[rank] || WORLD_BOSS_REWARDS.other;
+}
+
+export function getWorldBossAttackLimit(state, userId) {
+  const bonus = number(state?.bonusAttacks?.[userId]);
+  return WORLD_BOSS_ATTACK_LIMIT + bonus;
 }
 
 function chooseBossName(eventId) {
@@ -187,10 +190,6 @@ export async function calculateWorldBossCapacity(client, guildId) {
     ? strongestTwoHitPotential / totalTwoHitPotential
     : 0;
 
-  // Base boss đã tăng từ 75% lên 90% tổng sức đánh 2 lượt của server.
-  // Nếu sức mạnh chênh lệch lớn, hệ số còn tăng tối đa tới 125%.
-  // Đồng thời Boss luôn có ít nhất lượng HP tương đương 8 đòn của người mạnh nhất,
-  // để một người không thể tự 2-hit kết thúc sự kiện.
   const effectiveHpRatio = Math.min(
     WORLD_BOSS_MAX_HP_RATIO,
     WORLD_BOSS_HP_RATIO + concentration * WORLD_BOSS_DISPARITY_WEIGHT,
@@ -228,18 +227,22 @@ export async function ensureWorldBoss(client, guildId, now = new Date()) {
   const existing = await client.db.get(key, null);
 
   if (existing && typeof existing === 'object') {
+    existing.bonusAttacks ||= {};
     return existing;
   }
 
   const lockKey = `world-boss-create:${guildId}:${eventId}`;
   return Mutex.runExclusive(lockKey, async () => {
     const recheck = await client.db.get(key, null);
-    if (recheck && typeof recheck === 'object') return recheck;
+    if (recheck && typeof recheck === 'object') {
+      recheck.bonusAttacks ||= {};
+      return recheck;
+    }
 
     const capacity = await calculateWorldBossCapacity(client, guildId);
     const bounds = getDayBounds(now);
     const state = {
-      version: 3,
+      version: 4,
       guildId,
       eventId,
       bossId: `boss_${eventId}`,
@@ -251,6 +254,7 @@ export async function ensureWorldBoss(client, guildId, now = new Date()) {
       status: 'active',
       endReason: null,
       participants: {},
+      bonusAttacks: {},
       eligiblePlayerCount: capacity.players.length,
       totalTwoHitPotential: capacity.totalTwoHitPotential,
       strongestEstimatedHit: capacity.strongestEstimatedHit,
@@ -274,6 +278,39 @@ export async function getWorldBossState(client, guildId, now = new Date()) {
     return finalizeWorldBoss(client, guildId, state.eventId, 'escaped');
   }
   return state;
+}
+
+export async function adjustWorldBossBonusAttacks(client, guildId, userId, delta) {
+  const eventId = getWorldBossDateKey();
+  const lockKey = `world-boss:${guildId}:${eventId}`;
+
+  return Mutex.runExclusive(lockKey, async () => {
+    const state = await getWorldBossState(client, guildId);
+    state.bonusAttacks ||= {};
+
+    const before = number(state.bonusAttacks[userId]);
+    const requested = Math.trunc(Number(delta) || 0);
+    const after = Math.max(0, Math.min(1_000_000_000, before + requested));
+
+    if (after > 0) state.bonusAttacks[userId] = after;
+    else delete state.bonusAttacks[userId];
+
+    state.updatedAt = Date.now();
+    await client.db.set(bossKey(guildId, eventId), state);
+
+    return {
+      state,
+      before,
+      after,
+      changed: after - before,
+      attackLimit: getWorldBossAttackLimit(state, userId),
+      attacksUsed: number(state.participants?.[userId]?.attacks),
+      attacksRemaining: Math.max(
+        0,
+        getWorldBossAttackLimit(state, userId) - number(state.participants?.[userId]?.attacks),
+      ),
+    };
+  });
 }
 
 export function getWorldBossLeaderboard(state) {
@@ -310,8 +347,9 @@ export async function attackWorldBoss(client, guildId, userId) {
       bestHit: 0,
     };
 
-    if (number(contribution.attacks) >= WORLD_BOSS_ATTACK_LIMIT) {
-      return { ok: false, reason: 'limit', state, contribution };
+    const attackLimit = getWorldBossAttackLimit(state, userId);
+    if (number(contribution.attacks) >= attackLimit) {
+      return { ok: false, reason: 'limit', state, contribution, attackLimit };
     }
 
     const estimate = await estimatePlayerDamage(client, guildId, userId);
@@ -358,6 +396,7 @@ export async function attackWorldBoss(client, guildId, userId) {
       damage,
       estimatedDamage: estimate.estimatedDamage,
       contribution: state.participants?.[userId] || contribution,
+      attackLimit,
       defeated,
     };
   });
@@ -393,7 +432,7 @@ export async function finalizeWorldBoss(client, guildId, eventId, reason = 'esca
         : 0;
 
       const record = {
-        version: 1,
+        version: 2,
         guildId,
         eventId,
         userId: entry.userId,
@@ -401,6 +440,7 @@ export async function finalizeWorldBoss(client, guildId, eventId, reason = 'esca
         endReason: state.endReason,
         damage: entry.damage,
         attacks: entry.attacks,
+        attackLimit: getWorldBossAttackLimit(state, entry.userId),
         rank,
         contributionRate,
         reward,
