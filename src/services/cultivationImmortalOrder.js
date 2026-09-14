@@ -3,10 +3,11 @@ import { getDatabaseValue, setDatabaseValue } from '../utils/database.js';
 import { getCultivationProfile, saveCultivationProfile, addInventoryItem } from './cultivationService.js';
 
 const KEY_PREFIX = 'games:cultivation:immortal-order:';
+const DUNGEON_KEY_PREFIX = 'games:cultivation:dungeon:';
 export const IMMORTAL_ORDER_EMOJI = '<:tttienlenh:1549055213048959070>';
 
 export const IMMORTAL_ORDER_QUESTS = [
-  { id: 'cultivate_100', category: 'cultivation', name: 'Nhất Tâm Tu Đạo', description: 'Tu luyện thành công 100 lần', metric: 'cultivateSuccess', target: 100, points: 100 },
+  { id: 'cultivate_100', category: 'cultivation', name: 'Nhất Tâm Tu Đạo', description: 'Tu luyện 100 lần', metric: 'cultivateCount', target: 100, points: 100 },
   { id: 'breakthrough_10', category: 'cultivation', name: 'Nghịch Thiên Cải Mệnh', description: 'Đột phá thành công 10 lần', metric: 'breakthroughSuccess', target: 10, points: 150 },
   { id: 'dungeon_10', category: 'dungeon', name: 'Bí Cảnh Sơ Thám', description: 'Vượt thành công 10 tầng Bí Cảnh', metric: 'dungeonClears', target: 10, points: 50 },
   { id: 'dungeon_50', category: 'dungeon', name: 'Bí Cảnh Chinh Phục', description: 'Vượt thành công 50 tầng Bí Cảnh', metric: 'dungeonClears', target: 50, points: 150 },
@@ -30,6 +31,7 @@ export const IMMORTAL_ORDER_MILESTONES = [
 ];
 
 function key(guildId, userId) { return `${KEY_PREFIX}${guildId}:${userId}`; }
+function dungeonKey(guildId, userId) { return `${DUNGEON_KEY_PREFIX}${guildId}:${userId}`; }
 function num(value) { return Math.max(0, Math.floor(Number(value) || 0)); }
 function normalize(raw, guildId, userId) {
   const source = raw && typeof raw === 'object' ? raw : {};
@@ -67,6 +69,23 @@ function settleCompleted(state) {
   return newlyCompleted;
 }
 
+async function syncCoreProgress(client, guildId, userId, state, profile) {
+  const dungeon = await getDatabaseValue(client, dungeonKey(guildId, userId), null);
+  state.metrics.cultivateCount = Math.max(
+    num(state.metrics.cultivateCount),
+    num(profile?.stats?.cultivateCount),
+  );
+  state.metrics.breakthroughSuccess = Math.max(
+    num(state.metrics.breakthroughSuccess),
+    num(profile?.stats?.breakthroughSuccess),
+  );
+  state.metrics.dungeonClears = Math.max(
+    num(state.metrics.dungeonClears),
+    num(dungeon?.clears),
+  );
+  return state;
+}
+
 export async function addImmortalOrderProgress(client, guildId, userId, metric, amount = 1) {
   return Mutex.runExclusive(`cultivation:immortal-order:${guildId}:${userId}`, async () => {
     const state = await getImmortalOrderState(client, guildId, userId);
@@ -82,6 +101,7 @@ export async function getImmortalOrderSnapshot(client, guildId, userId) {
     getImmortalOrderState(client, guildId, userId),
     getCultivationProfile(client, guildId, userId),
   ]);
+  await syncCoreProgress(client, guildId, userId, state, profile);
   settleCompleted(state);
   await save(client, state);
   const quests = IMMORTAL_ORDER_QUESTS.map(quest => ({
@@ -104,6 +124,8 @@ export async function claimImmortalOrderMilestone(client, guildId, userId, miles
     const milestone = IMMORTAL_ORDER_MILESTONES.find(entry => entry.points === num(milestonePoints));
     if (!milestone) return { ok: false, reason: 'unknown_milestone' };
     const state = await getImmortalOrderState(client, guildId, userId);
+    const profile = await getCultivationProfile(client, guildId, userId);
+    await syncCoreProgress(client, guildId, userId, state, profile);
     settleCompleted(state);
     if (state.claimedMilestones[String(milestone.points)]) return { ok: false, reason: 'already_claimed', milestone };
     if (state.points < milestone.points) return { ok: false, reason: 'not_reached', milestone };
@@ -112,7 +134,6 @@ export async function claimImmortalOrderMilestone(client, guildId, userId, miles
     state.claimedMilestones[String(milestone.points)] = Date.now();
     await save(client, state);
 
-    const profile = await getCultivationProfile(client, guildId, userId);
     profile.spiritStones = num(profile.spiritStones) + milestone.spiritStones;
     for (const [itemId, quantity] of Object.entries(milestone.items || {})) addInventoryItem(profile, itemId, quantity);
     await saveCultivationProfile(client, profile);
