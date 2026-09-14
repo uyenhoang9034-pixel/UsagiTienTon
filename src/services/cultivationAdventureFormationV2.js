@@ -1,6 +1,7 @@
 import {
   CULTIVATION_CONFIG,
   CULTIVATION_ITEMS,
+  CULTIVATION_REALMS,
 } from '../config/cultivationGame.js';
 
 import * as adventure from './cultivationAdventureV2.js';
@@ -33,6 +34,12 @@ import {
 export * from './cultivationAdventureV2.js';
 
 const ADVENTURE_FRAGMENT_DROP_CHANCE = 0.10;
+const CHAN_TIEN_REALM_INDEX = Math.max(
+  0,
+  CULTIVATION_REALMS.indexOf('Chân Tiên'),
+);
+const IMMORTAL_ADVENTURE_BASE_CULTIVATION_GAIN = 200_000;
+
 const MATERIAL_ITEM_IDS = [
   'thien_linh_thao',
   'huyen_thiet',
@@ -332,6 +339,9 @@ async function runWithFormationAdventureReward(
       userId,
     );
 
+  const immortalAdventureBase =
+    Number(beforeProfile.realmIndex) >= CHAN_TIEN_REALM_INDEX;
+
   const realmRewards =
     getAdventureRealmRewardMultipliers(
       beforeProfile,
@@ -442,10 +452,45 @@ async function runWithFormationAdventureReward(
     safeNumber(afterProfile.spiritStones) - beforeStones,
   );
 
+  const spiritRootCultivationPercent = Math.max(
+    0,
+    safeNumber(beforeProfile.spiritRoot?.cultivateBonus),
+  );
+
+  let spiritRootCultivationBonus = 0;
+  let immortalCultivationAdjustment = 0;
+  let normalizedCultivationGain = rawCultivationGain;
+
+  if (immortalAdventureBase && rawCultivationGain > 0) {
+    const baseGain = IMMORTAL_ADVENTURE_BASE_CULTIVATION_GAIN;
+    spiritRootCultivationBonus = Math.round(
+      baseGain * spiritRootCultivationPercent,
+    );
+    normalizedCultivationGain =
+      baseGain + spiritRootCultivationBonus;
+    immortalCultivationAdjustment =
+      normalizedCultivationGain - rawCultivationGain;
+
+    afterProfile.cultivation = Math.max(
+      0,
+      safeNumber(afterProfile.cultivation) + immortalCultivationAdjustment,
+    );
+    afterProfile.totalCultivation = Math.max(
+      0,
+      safeNumber(afterProfile.totalCultivation) + immortalCultivationAdjustment,
+    );
+
+    result.cultivationDelta = normalizedCultivationGain;
+  }
+
+  const effectiveCultivationMultiplier = immortalAdventureBase
+    ? 1
+    : realmRewards.cultivation;
+
   const cultivationGain =
     scalePositiveRealmReward(
-      rawCultivationGain,
-      realmRewards.cultivation,
+      normalizedCultivationGain,
+      effectiveCultivationMultiplier,
     );
 
   const stoneGain =
@@ -456,7 +501,7 @@ async function runWithFormationAdventureReward(
 
   const realmCultivationBonus = Math.max(
     0,
-    cultivationGain - rawCultivationGain,
+    cultivationGain - normalizedCultivationGain,
   );
 
   const realmStoneBonus = Math.max(
@@ -542,6 +587,11 @@ async function runWithFormationAdventureReward(
     safeNumber(formation.effects?.spiritStoneBonus),
   );
 
+  const cultivationBonusBase =
+    immortalAdventureBase && cultivationGain > 0
+      ? IMMORTAL_ADVENTURE_BASE_CULTIVATION_GAIN
+      : cultivationGain;
+
   const petAdventureStoneBonus =
     stoneGain > 0 &&
     petAdventureStonePercent > 0
@@ -554,12 +604,12 @@ async function runWithFormationAdventureReward(
       : 0;
 
   const petAllCultivationBonus =
-    cultivationGain > 0 &&
+    cultivationBonusBase > 0 &&
     petAllRewardPercent > 0
       ? Math.max(
           1,
           Math.round(
-            cultivationGain * petAllRewardPercent,
+            cultivationBonusBase * petAllRewardPercent,
           ),
         )
       : 0;
@@ -628,10 +678,10 @@ async function runWithFormationAdventureReward(
       : 0;
 
   const petCombatCultivationBonus =
-    cultivationGain > 0 && petCombatRewardPercent > 0
+    cultivationBonusBase > 0 && petCombatRewardPercent > 0
       ? Math.max(
           1,
-          Math.round(cultivationGain * petCombatRewardPercent),
+          Math.round(cultivationBonusBase * petCombatRewardPercent),
         )
       : 0;
 
@@ -664,12 +714,12 @@ async function runWithFormationAdventureReward(
   }
 
   const formationAdventureBonus =
-    cultivationGain > 0 &&
+    cultivationBonusBase > 0 &&
     adventurePercent > 0
       ? Math.max(
           1,
           Math.round(
-            cultivationGain * adventurePercent,
+            cultivationBonusBase * adventurePercent,
           ),
         )
       : 0;
@@ -719,6 +769,7 @@ async function runWithFormationAdventureReward(
   const needsSave =
     realmCultivationBonus > 0 ||
     realmStoneBonus > 0 ||
+    immortalCultivationAdjustment !== 0 ||
     protectedCultivation > 0 ||
     petStaminaRefund > 0 ||
     petAdventureStoneBonus > 0 ||
@@ -747,7 +798,7 @@ async function runWithFormationAdventureReward(
     realmRewardBaseMultiplier:
       realmRewards.base,
     realmCultivationMultiplier:
-      realmRewards.cultivation,
+      effectiveCultivationMultiplier,
     realmStoneMultiplier:
       realmRewards.spiritStones,
     realmCultivationBonus,
@@ -777,6 +828,14 @@ async function runWithFormationAdventureReward(
     formationFragmentDrop,
     formationResonanceLines:
       formation.lines || [],
+    spiritRootCultivationBonus,
+    spiritRootCultivationPercent,
+    fixedImmortalAdventureCultivation:
+      immortalAdventureBase && rawCultivationGain > 0,
+    fixedImmortalAdventureCultivationGain:
+      immortalAdventureBase && rawCultivationGain > 0
+        ? IMMORTAL_ADVENTURE_BASE_CULTIVATION_GAIN
+        : 0,
   };
 }
 
