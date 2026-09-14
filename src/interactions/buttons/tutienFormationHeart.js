@@ -11,6 +11,10 @@ import {
 } from '../../services/cultivationFormation.js';
 
 import {
+  addImmortalOrderProgress,
+} from '../../services/cultivationImmortalOrder.js';
+
+import {
   buildFormationHeartEmbed,
   buildFormationHeartRows,
 } from '../../services/cultivationFormationHeartUI.js';
@@ -71,6 +75,22 @@ async function runRefine(interaction, client, guildId, userId) {
       guildId,
       userId,
     );
+  }
+
+  if (result?.ok) {
+    const spent = Math.max(
+      0,
+      Math.floor(Number(result.essenceCost) || 0),
+    );
+    if (spent > 0) {
+      await addImmortalOrderProgress(
+        client,
+        guildId,
+        userId,
+        'formationEssenceSpent',
+        spent,
+      );
+    }
   }
 
   return result;
