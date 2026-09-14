@@ -35,7 +35,6 @@ import {
 } from '../../services/cultivationFormationTribulationUI.js';
 
 import {
-  appendFormationButton,
   buildFormationArrangeEmbed,
   buildFormationBackRows,
   buildFormationDiagramsEmbed,
@@ -73,7 +72,7 @@ import {
 import {
   buildDashboardEmbed,
   buildDashboardRows,
-} from '../../services/cultivationUI.js';
+} from '../../services/cultivationUIV2.js';
 
 async function replyEphemeral(interaction, content) {
   const payload = {
@@ -141,14 +140,9 @@ async function showDashboard(interaction, client, ownerId) {
     interaction.user.id,
   );
 
-  const rows = appendFormationButton(
-    buildDashboardRows(ownerId),
-    ownerId,
-  );
-
   return interaction.update({
     embeds: [buildDashboardEmbed(interaction.user, profile)],
-    components: rows,
+    components: buildDashboardRows(ownerId, interaction.guild),
   });
 }
 
