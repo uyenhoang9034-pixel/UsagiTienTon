@@ -46,7 +46,7 @@ function hasTutienAdminRole(member) {
 }
 
 function clampItemQuantity(value) {
-  return Math.max(1, Math.min(99, Math.floor(Number(value) || 1)));
+  return Math.max(1, Math.min(999, Math.floor(Number(value) || 1)));
 }
 
 function clampLargeQuantity(value) {
@@ -163,7 +163,7 @@ export default {
         (option) =>
           option
             .setName('soluong')
-            .setDescription('Số lượng cấp/thu hồi. Trận Đồ và Linh Thú luôn là 1.')
+            .setDescription('Số lượng cấp/thu hồi. Vật phẩm tối đa 999; Trận Đồ và Linh Thú luôn là 1.')
             .setMinValue(1)
             .setMaxValue(1000000000),
       )
