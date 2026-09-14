@@ -23,6 +23,10 @@ import {
   getActivePet,
 } from './cultivationPet.js';
 
+import {
+  addImmortalOrderProgress,
+} from './cultivationImmortalOrder.js';
+
 const DUNGEON_KEY_PREFIX = 'games:cultivation:dungeon:';
 
 export const DUNGEON_DAILY_ATTEMPTS = 3;
@@ -304,6 +308,7 @@ export async function challengeDungeonFloor(client, guildId, userId, { isAdmin =
     else state.activeRun = { ...state.activeRun, floor: floor + 1, hp: hpAfter };
     await saveDungeonState(client, state);
     await applyFloorReward(client, guildId, userId, profile, reward);
+    await addImmortalOrderProgress(client, guildId, userId, 'dungeonClears', 1);
     return { ok: true, success: true, exhausted, floor, nextFloor: floor + 1, hpBefore, hpAfter, hpLoss, rawHpLoss, baseChance, successChance, pet: petInfo.pet, petBonus: petInfo.bonus, formation, reward, state, isAdmin };
   });
 }
