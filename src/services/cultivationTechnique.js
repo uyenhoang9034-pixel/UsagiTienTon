@@ -10,128 +10,58 @@ import {
 
 export const CULTIVATION_TECHNIQUES = {
   thanh_van_kiem_quyet: {
-    id:
-      'thanh_van_kiem_quyet',
-
-    name:
-      'Thanh Vân Kiếm Quyết',
-
-    emoji:
-      '<a:ttbikip:1547448442022797342>',
-
-    description:
-      'Kiếm tâm nhất niệm, thanh vân tự khai.',
-
-    materialId:
-      'vo_danh_kiem_pho',
-
-    materialName:
-      'Vô Danh Kiếm Phổ',
-
-    materialAmount:
-      1,
-
-    effect:
-      '+8% Tu Vi khi Tu Luyện',
-
-    effectType:
-      'cultivation_bonus',
-
-    effectValue:
-      0.08,
+    id: 'thanh_van_kiem_quyet',
+    name: 'Thanh Vân Kiếm Quyết',
+    emoji: '<a:ttbikip:1547448442022797342>',
+    description: 'Kiếm tâm nhất niệm, thanh vân tự khai.',
+    materialId: 'vo_danh_kiem_pho',
+    materialName: 'Vô Danh Kiếm Phổ',
+    materialAmount: 1,
+    effect: '+8% Tu Vi khi Tu Luyện · mỗi lần vận dụng tiêu hao 1 Vô Danh Kiếm Phổ',
+    effectType: 'cultivation_bonus',
+    effectValue: 0.08,
   },
 
   huyen_nguyen_tam_phap: {
-    id:
-      'huyen_nguyen_tam_phap',
-
-    name:
-      'Huyền Nguyên Tâm Pháp',
-
-    emoji:
-      '<a:ttbikip:1547448442022797342>',
-
-    description:
-      'Tâm định khí hòa, đạo cơ tự nhiên viên mãn.',
-
-    materialId:
-      'vo_danh_kiem_pho',
-
-    materialName:
-      'Vô Danh Kiếm Phổ',
-
-    materialAmount:
-      1,
-
-    effect:
-      '+5% Tỷ Lệ Đột Phá',
-
-    effectType:
-      'breakthrough_bonus',
-
-    effectValue:
-      0.05,
+    id: 'huyen_nguyen_tam_phap',
+    name: 'Huyền Nguyên Tâm Pháp',
+    emoji: '<a:ttbikip:1547448442022797342>',
+    description: 'Tâm định khí hòa, đạo cơ tự nhiên viên mãn.',
+    materialId: 'vo_danh_kiem_pho',
+    materialName: 'Vô Danh Kiếm Phổ',
+    materialAmount: 1,
+    effect: '+5% Tỷ Lệ Đột Phá · mỗi lần vận dụng tiêu hao 1 Vô Danh Kiếm Phổ',
+    effectType: 'breakthrough_bonus',
+    effectValue: 0.05,
   },
 
   tu_linh_chan_kinh: {
-    id:
-      'tu_linh_chan_kinh',
-
-    name:
-      'Tụ Linh Chân Kinh',
-
-    emoji:
-      '<a:ttbikip:1547448442022797342>',
-
-    description:
-      'Tụ thiên địa linh vận, hóa vạn khí thành tài.',
-
-    materialId:
-      'vo_danh_kiem_pho',
-
-    materialName:
-      'Vô Danh Kiếm Phổ',
-
-    materialAmount:
-      1,
-
-    effect:
-      '+8% Linh Thạch nhận được',
-
-    effectType:
-      'spirit_stone_bonus',
-
-    effectValue:
-      0.08,
+    id: 'tu_linh_chan_kinh',
+    name: 'Tụ Linh Chân Kinh',
+    emoji: '<a:ttbikip:1547448442022797342>',
+    description: 'Tụ thiên địa linh vận, hóa vạn khí thành tài.',
+    materialId: 'vo_danh_kiem_pho',
+    materialName: 'Vô Danh Kiếm Phổ',
+    materialAmount: 1,
+    effect: '+8% Linh Thạch nhận được · mỗi lần vận dụng tiêu hao 1 Vô Danh Kiếm Phổ',
+    effectType: 'spirit_stone_bonus',
+    effectValue: 0.08,
   },
 };
 
-export function getTechnique(
-  techniqueId,
-) {
-  return (
-    CULTIVATION_TECHNIQUES[
-      techniqueId
-    ] || null
-  );
+export function getTechnique(techniqueId) {
+  return CULTIVATION_TECHNIQUES[techniqueId] || null;
 }
 
 export function getTechniqueList() {
-  return Object.values(
-    CULTIVATION_TECHNIQUES,
-  );
+  return Object.values(CULTIVATION_TECHNIQUES);
 }
 
-export function ensureTechniqueData(
-  profile,
-) {
+export function ensureTechniqueData(profile) {
   if (
     !profile.techniques ||
-    typeof profile.techniques !==
-      'object' ||
-    Array.isArray(
-      profile.techniques,
-    )
+    typeof profile.techniques !== 'object' ||
+    Array.isArray(profile.techniques)
   ) {
     profile.techniques = {
       learned: {},
@@ -141,102 +71,50 @@ export function ensureTechniqueData(
 
   if (
     !profile.techniques.learned ||
-    typeof profile.techniques
-      .learned !==
-      'object' ||
-    Array.isArray(
-      profile.techniques
-        .learned,
-    )
+    typeof profile.techniques.learned !== 'object' ||
+    Array.isArray(profile.techniques.learned)
   ) {
-    profile.techniques.learned =
-      {};
+    profile.techniques.learned = {};
   }
 
-  if (
-    typeof profile.techniques
-      .active !==
-      'string'
-  ) {
-    profile.techniques.active =
-      null;
+  if (typeof profile.techniques.active !== 'string') {
+    profile.techniques.active = null;
   }
 
   return profile;
 }
 
-export function getLearnedTechniques(
-  profile,
-) {
-  ensureTechniqueData(
-    profile,
-  );
+export function getLearnedTechniques(profile) {
+  ensureTechniqueData(profile);
 
-  return getTechniqueList()
-    .filter(
-      (technique) =>
-        profile.techniques
-          .learned[
-            technique.id
-          ] === true,
-    );
-}
-
-export function getActiveTechnique(
-  profile,
-) {
-  ensureTechniqueData(
-    profile,
-  );
-
-  const activeId =
-    profile.techniques.active;
-
-  if (!activeId) {
-    return null;
-  }
-
-  return (
-    getTechnique(
-      activeId,
-    ) || null
+  return getTechniqueList().filter(
+    technique => profile.techniques.learned[technique.id] === true,
   );
 }
 
-export function getTechniqueBonus(
-  profile,
-  effectType,
-) {
-  const technique =
-    getActiveTechnique(
-      profile,
-    );
+export function getActiveTechnique(profile) {
+  ensureTechniqueData(profile);
 
-  if (
-    !technique ||
-    technique.effectType !==
-      effectType
-  ) {
+  const activeId = profile.techniques.active;
+  if (!activeId) return null;
+
+  return getTechnique(activeId) || null;
+}
+
+export function getTechniqueBonus(profile, effectType) {
+  const technique = getActiveTechnique(profile);
+
+  if (!technique || technique.effectType !== effectType) {
     return 0;
   }
 
-  return Math.max(
-    0,
-    Number(
-      technique.effectValue,
-    ) || 0,
-  );
+  return Math.max(0, Number(technique.effectValue) || 0);
 }
 
-export function getTechniqueMaterialQuantity(
-  profile,
-) {
+export function getTechniqueMaterialQuantity(profile) {
   return Math.max(
     0,
-    Number(
-      profile.inventory
-        ?.vo_danh_kiem_pho,
-    ) || 0,
+    Number(profile.inventory?.vo_danh_kiem_pho) || 0,
   );
 }
 
@@ -246,155 +124,90 @@ export async function learnCultivationTechnique(
   userId,
   techniqueId,
 ) {
-  const lockKey =
-    `cultivation:${guildId}:${userId}`;
+  const lockKey = `cultivation:${guildId}:${userId}`;
 
-  return Mutex.runExclusive(
-    lockKey,
+  return Mutex.runExclusive(lockKey, async () => {
+    const technique = getTechnique(techniqueId);
 
-    async () => {
-      const technique =
-        getTechnique(
-          techniqueId,
-        );
+    if (!technique) {
+      return { ok: false, reason: 'invalid_technique' };
+    }
 
-      if (!technique) {
-        return {
-          ok: false,
-          reason:
-            'invalid_technique',
-        };
-      }
+    const profile = await getCultivationProfile(
+      client,
+      guildId,
+      userId,
+    );
 
-      const profile =
-        await getCultivationProfile(
-          client,
-          guildId,
-          userId,
-        );
+    ensureTechniqueData(profile);
 
-      ensureTechniqueData(
-        profile,
-      );
-
-      if (
-        profile.techniques
-          .learned[
-            technique.id
-          ] === true
-      ) {
-        return {
-          ok: false,
-          reason:
-            'already_learned',
-          technique,
-          profile,
-        };
-      }
-
-      const available =
-        getTechniqueMaterialQuantity(
-          profile,
-        );
-
-      if (
-        available <
-        technique.materialAmount
-      ) {
-        return {
-          ok: false,
-          reason:
-            'not_enough_material',
-          technique,
-          available,
-
-          required:
-            technique
-              .materialAmount,
-
-          profile,
-        };
-      }
-
-      const removed =
-        removeInventoryItem(
-          profile,
-          technique.materialId,
-          technique.materialAmount,
-        );
-
-      if (!removed) {
-        return {
-          ok: false,
-          reason:
-            'consume_failed',
-          technique,
-          available,
-          profile,
-        };
-      }
-
-      profile.techniques
-        .learned[
-          technique.id
-        ] = true;
-
-      let autoActivated =
-        false;
-
-      if (
-        !profile.techniques.active
-      ) {
-        profile.techniques.active =
-          technique.id;
-
-        autoActivated =
-          true;
-      }
-
-      if (
-        !profile.stats ||
-        typeof profile.stats !==
-          'object'
-      ) {
-        profile.stats = {};
-      }
-
-      profile.stats
-        .techniquesLearned =
-        Math.max(
-          0,
-          Number(
-            profile.stats
-              .techniquesLearned,
-          ) || 0,
-        ) + 1;
-
-      const saved =
-        await saveCultivationProfile(
-          client,
-          profile,
-        );
-
+    if (profile.techniques.learned[technique.id] === true) {
       return {
-        ok: true,
+        ok: false,
+        reason: 'already_learned',
         technique,
-
-        consumed:
-          technique.materialAmount,
-
-        remaining:
-          saved.inventory
-            ?.vo_danh_kiem_pho ||
-          0,
-
-        autoActivated,
-
-        profile:
-          saved,
+        profile,
       };
-    },
-  );
+    }
+
+    const available = getTechniqueMaterialQuantity(profile);
+
+    if (available < technique.materialAmount) {
+      return {
+        ok: false,
+        reason: 'not_enough_material',
+        technique,
+        available,
+        required: technique.materialAmount,
+        profile,
+      };
+    }
+
+    const removed = removeInventoryItem(
+      profile,
+      technique.materialId,
+      technique.materialAmount,
+    );
+
+    if (!removed) {
+      return {
+        ok: false,
+        reason: 'consume_failed',
+        technique,
+        available,
+        profile,
+      };
+    }
+
+    profile.techniques.learned[technique.id] = true;
+
+    // Cuốn bí kíp dùng để lĩnh ngộ cũng chuẩn bị luôn 1 lượt vận dụng đầu tiên.
+    let autoActivated = false;
+    if (!profile.techniques.active) {
+      profile.techniques.active = technique.id;
+      autoActivated = true;
+    }
+
+    if (!profile.stats || typeof profile.stats !== 'object') {
+      profile.stats = {};
+    }
+
+    profile.stats.techniquesLearned = Math.max(
+      0,
+      Number(profile.stats.techniquesLearned) || 0,
+    ) + 1;
+
+    const saved = await saveCultivationProfile(client, profile);
+
+    return {
+      ok: true,
+      technique,
+      consumed: technique.materialAmount,
+      remaining: saved.inventory?.vo_danh_kiem_pho || 0,
+      autoActivated,
+      profile: saved,
+    };
+  });
 }
 
 export async function activateCultivationTechnique(
@@ -403,88 +216,83 @@ export async function activateCultivationTechnique(
   userId,
   techniqueId,
 ) {
-  const lockKey =
-    `cultivation:${guildId}:${userId}`;
+  const lockKey = `cultivation:${guildId}:${userId}`;
 
-  return Mutex.runExclusive(
-    lockKey,
+  return Mutex.runExclusive(lockKey, async () => {
+    const technique = getTechnique(techniqueId);
 
-    async () => {
-      const technique =
-        getTechnique(
-          techniqueId,
-        );
+    if (!technique) {
+      return { ok: false, reason: 'invalid_technique' };
+    }
 
-      if (!technique) {
-        return {
-          ok: false,
-          reason:
-            'invalid_technique',
-        };
-      }
+    const profile = await getCultivationProfile(
+      client,
+      guildId,
+      userId,
+    );
 
-      const profile =
-        await getCultivationProfile(
-          client,
-          guildId,
-          userId,
-        );
+    ensureTechniqueData(profile);
 
-      ensureTechniqueData(
+    if (profile.techniques.learned[technique.id] !== true) {
+      return {
+        ok: false,
+        reason: 'not_learned',
+        technique,
         profile,
-      );
+      };
+    }
 
-      if (
-        profile.techniques
-          .learned[
-            technique.id
-          ] !== true
-      ) {
-        return {
-          ok: false,
-          reason:
-            'not_learned',
-          technique,
-          profile,
-        };
-      }
-
-      if (
-        profile.techniques
-          .active ===
-        technique.id
-      ) {
-        return {
-          ok: true,
-
-          alreadyActive:
-            true,
-
-          technique,
-          profile,
-        };
-      }
-
-      profile.techniques.active =
-        technique.id;
-
-      const saved =
-        await saveCultivationProfile(
-          client,
-          profile,
-        );
-
+    // Nếu đã chuẩn bị đúng công pháp này thì không trừ thêm lần nữa.
+    if (profile.techniques.active === technique.id) {
       return {
         ok: true,
-
-        alreadyActive:
-          false,
-
+        alreadyActive: true,
         technique,
-
-        profile:
-          saved,
+        consumed: 0,
+        remaining: getTechniqueMaterialQuantity(profile),
+        profile,
       };
-    },
-  );
+    }
+
+    const available = getTechniqueMaterialQuantity(profile);
+    if (available < technique.materialAmount) {
+      return {
+        ok: false,
+        reason: 'not_enough_material',
+        technique,
+        available,
+        required: technique.materialAmount,
+        profile,
+      };
+    }
+
+    const removed = removeInventoryItem(
+      profile,
+      technique.materialId,
+      technique.materialAmount,
+    );
+
+    if (!removed) {
+      return {
+        ok: false,
+        reason: 'consume_failed',
+        technique,
+        available,
+        profile,
+      };
+    }
+
+    profile.techniques.active = technique.id;
+
+    const saved = await saveCultivationProfile(client, profile);
+
+    return {
+      ok: true,
+      alreadyActive: false,
+      technique,
+      consumed: technique.materialAmount,
+      remaining: saved.inventory?.vo_danh_kiem_pho || 0,
+      profile: saved,
+    };
+  });
 }
