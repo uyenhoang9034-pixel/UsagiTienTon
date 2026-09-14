@@ -396,11 +396,18 @@ async function runWithFormationAdventureReward(
     ),
   );
 
-  const adventureAlwaysPositive =
-    getPetEffectValue(
-      beforeProfile,
-      'adventure_always_positive',
-    ) > 0;
+  const adventureProtectionChance = Math.min(
+    1,
+    Math.max(
+      0,
+      safeNumber(
+        getPetEffectValue(
+          beforeProfile,
+          'adventure_always_positive',
+        ),
+      ),
+    ),
+  );
 
   const formation =
     await getFormationGameplayBonus(
@@ -427,14 +434,90 @@ async function runWithFormationAdventureReward(
       userId,
     );
 
+  const adventurePercent = Math.max(
+    0,
+    safeNumber(formation.effects?.adventureBonus),
+  );
+
+  const stonePercent = Math.max(
+    0,
+    safeNumber(formation.effects?.spiritStoneBonus),
+  );
+
+  const spiritRootCultivationPercent = Math.max(
+    0,
+    safeNumber(beforeProfile.spiritRoot?.cultivateBonus),
+  );
+
+  const petCombatRewardPercent =
+    result.type === 'combat'
+      ? Math.max(
+          0,
+          safeNumber(
+            getPetEffectValue(
+              beforeProfile,
+              'combat_reward_bonus',
+            ),
+          ),
+        )
+      : 0;
+
+  const rawCultivationLoss = Math.max(
+    0,
+    beforeCultivation - safeNumber(afterProfile.cultivation),
+  );
+
+  let normalizedCultivationLoss = rawCultivationLoss;
+  let immortalCultivationLossAdjustment = 0;
+  let immortalLossRootBonus = 0;
+  let immortalLossPetAllBonus = 0;
+  let immortalLossPetCombatBonus = 0;
+  let immortalLossFormationBonus = 0;
+
+  if (immortalAdventureBase && rawCultivationLoss > 0) {
+    const baseLoss = IMMORTAL_ADVENTURE_BASE_CULTIVATION_GAIN;
+    immortalLossRootBonus = Math.round(
+      baseLoss * spiritRootCultivationPercent,
+    );
+    immortalLossPetAllBonus = Math.round(
+      baseLoss * petAllRewardPercent,
+    );
+    immortalLossPetCombatBonus = Math.round(
+      baseLoss * petCombatRewardPercent,
+    );
+    immortalLossFormationBonus = Math.round(
+      baseLoss * adventurePercent,
+    );
+
+    normalizedCultivationLoss = Math.min(
+      beforeCultivation,
+      baseLoss +
+        immortalLossRootBonus +
+        immortalLossPetAllBonus +
+        immortalLossPetCombatBonus +
+        immortalLossFormationBonus,
+    );
+
+    immortalCultivationLossAdjustment =
+      normalizedCultivationLoss - rawCultivationLoss;
+
+    afterProfile.cultivation = Math.max(
+      0,
+      beforeCultivation - normalizedCultivationLoss,
+    );
+    result.cultivationDelta = -normalizedCultivationLoss;
+  }
+
   let protectedCultivation = 0;
+  let adventureProtectionTriggered = false;
 
   if (
-    adventureAlwaysPositive &&
-    safeNumber(afterProfile.cultivation) < beforeCultivation
+    normalizedCultivationLoss > 0 &&
+    adventureProtectionChance > 0 &&
+    Math.random() < adventureProtectionChance
   ) {
-    protectedCultivation =
-      beforeCultivation - safeNumber(afterProfile.cultivation);
+    protectedCultivation = normalizedCultivationLoss;
+    adventureProtectionTriggered = true;
     afterProfile.cultivation = beforeCultivation;
 
     if ((Number(result.cultivationDelta) || 0) < 0) {
@@ -450,11 +533,6 @@ async function runWithFormationAdventureReward(
   const rawStoneGain = Math.max(
     0,
     safeNumber(afterProfile.spiritStones) - beforeStones,
-  );
-
-  const spiritRootCultivationPercent = Math.max(
-    0,
-    safeNumber(beforeProfile.spiritRoot?.cultivateBonus),
   );
 
   let spiritRootCultivationBonus = 0;
@@ -577,16 +655,6 @@ async function runWithFormationAdventureReward(
       },
     );
 
-  const adventurePercent = Math.max(
-    0,
-    safeNumber(formation.effects?.adventureBonus),
-  );
-
-  const stonePercent = Math.max(
-    0,
-    safeNumber(formation.effects?.spiritStoneBonus),
-  );
-
   const cultivationBonusBase =
     immortalAdventureBase && cultivationGain > 0
       ? IMMORTAL_ADVENTURE_BASE_CULTIVATION_GAIN
@@ -664,19 +732,6 @@ async function runWithFormationAdventureReward(
     }
   }
 
-  const petCombatRewardPercent =
-    result.type === 'combat' && result.success
-      ? Math.max(
-          0,
-          safeNumber(
-            getPetEffectValue(
-              beforeProfile,
-              'combat_reward_bonus',
-            ),
-          ),
-        )
-      : 0;
-
   const petCombatCultivationBonus =
     cultivationBonusBase > 0 && petCombatRewardPercent > 0
       ? Math.max(
@@ -695,7 +750,7 @@ async function runWithFormationAdventureReward(
 
   const petCombatItemBonuses = {};
 
-  if (petCombatRewardPercent > 0) {
+  if (petCombatRewardPercent > 0 && result.success) {
     for (const [itemId, quantity] of Object.entries(inventoryGains)) {
       const bonusQuantity = rollFractionalQuantity(
         quantity,
@@ -745,7 +800,7 @@ async function runWithFormationAdventureReward(
     afterProfile.totalCultivation += petAllCultivationBonus;
   }
 
-  if (petCombatCultivationBonus > 0) {
+  if (petCombatCultivationBonus > 0 && result.success) {
     afterProfile.cultivation += petCombatCultivationBonus;
     afterProfile.totalCultivation += petCombatCultivationBonus;
   }
@@ -758,7 +813,7 @@ async function runWithFormationAdventureReward(
     afterProfile.spiritStones += petAllStoneBonus;
   }
 
-  if (petCombatStoneBonus > 0) {
+  if (petCombatStoneBonus > 0 && result.success) {
     afterProfile.spiritStones += petCombatStoneBonus;
   }
 
@@ -770,6 +825,7 @@ async function runWithFormationAdventureReward(
     realmCultivationBonus > 0 ||
     realmStoneBonus > 0 ||
     immortalCultivationAdjustment !== 0 ||
+    immortalCultivationLossAdjustment !== 0 ||
     protectedCultivation > 0 ||
     petStaminaRefund > 0 ||
     petAdventureStoneBonus > 0 ||
@@ -777,8 +833,8 @@ async function runWithFormationAdventureReward(
     petAllStoneBonus > 0 ||
     Object.keys(petAllItemBonuses).length > 0 ||
     Boolean(petMaterialFindBonus) ||
-    petCombatCultivationBonus > 0 ||
-    petCombatStoneBonus > 0 ||
+    (petCombatCultivationBonus > 0 && result.success) ||
+    (petCombatStoneBonus > 0 && result.success) ||
     Object.keys(petCombatItemBonuses).length > 0 ||
     formationAdventureBonus > 0 ||
     formationStoneBonus > 0;
@@ -804,7 +860,10 @@ async function runWithFormationAdventureReward(
     realmCultivationBonus,
     realmStoneBonus,
     protectedCultivation,
-    adventureAlwaysPositive,
+    adventureAlwaysPositive:
+      adventureProtectionChance >= 1,
+    adventureProtectionChance,
+    adventureProtectionTriggered,
     petStaminaRefund,
     petStaminaRefundPercent,
     petAdventureStoneBonus,
@@ -816,8 +875,10 @@ async function runWithFormationAdventureReward(
     petMaterialFindPercent,
     petMaterialFindBonus,
     petCombatRewardPercent,
-    petCombatCultivationBonus,
-    petCombatStoneBonus,
+    petCombatCultivationBonus:
+      result.success ? petCombatCultivationBonus : 0,
+    petCombatStoneBonus:
+      result.success ? petCombatStoneBonus : 0,
     petCombatItemBonuses,
     formationAdventureBonus,
     formationAdventurePercent:
@@ -836,6 +897,16 @@ async function runWithFormationAdventureReward(
       immortalAdventureBase && rawCultivationGain > 0
         ? IMMORTAL_ADVENTURE_BASE_CULTIVATION_GAIN
         : 0,
+    fixedImmortalAdventureLoss:
+      immortalAdventureBase && rawCultivationLoss > 0,
+    fixedImmortalAdventureLossAmount:
+      immortalAdventureBase && rawCultivationLoss > 0
+        ? normalizedCultivationLoss
+        : 0,
+    immortalLossRootBonus,
+    immortalLossPetAllBonus,
+    immortalLossPetCombatBonus,
+    immortalLossFormationBonus,
   };
 }
 
