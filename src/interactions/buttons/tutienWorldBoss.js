@@ -11,6 +11,10 @@ import {
 } from '../../services/cultivationWorldBossUI.js';
 
 import {
+  deliverPendingWorldBossRewardsForGuild,
+} from '../../services/cultivationWorldBossScheduler.js';
+
+import {
   getCultivationProfile,
 } from '../../services/cultivationService.js';
 
@@ -74,10 +78,28 @@ export default {
         interaction.guildId,
       );
 
-      return interaction.update({
+      await interaction.update({
         embeds: [buildWorldBossEmbed(interaction.user, state, notice)],
         components: buildWorldBossRows(ownerId, state),
       });
+
+      // Boss chết do chính cú đánh này: phát thông báo thưởng ngay,
+      // không chờ scheduler 60 giây. Nếu gửi lỗi, scheduler vẫn retry sau.
+      if (result.ok && result.defeated && interaction.guild) {
+        try {
+          await deliverPendingWorldBossRewardsForGuild(
+            runtimeClient,
+            interaction.guild,
+          );
+        } catch (error) {
+          console.warn(
+            '[WORLD BOSS REWARD DELIVERY ERROR]',
+            error,
+          );
+        }
+      }
+
+      return;
     }
 
     const state = await getWorldBossState(
