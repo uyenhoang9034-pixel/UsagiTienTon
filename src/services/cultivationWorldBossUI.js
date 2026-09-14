@@ -8,6 +8,7 @@ import {
 import { CULTIVATION_CONFIG } from '../config/cultivationGame.js';
 import {
   WORLD_BOSS_ATTACK_LIMIT,
+  getWorldBossAttackLimit,
   getWorldBossLeaderboard,
   getWorldBossTotalDamage,
 } from './cultivationWorldBoss.js';
@@ -64,6 +65,7 @@ export function buildWorldBossEmbed(user, state, notice = null) {
     attacks: 0,
     bestHit: 0,
   };
+  const attackLimit = getWorldBossAttackLimit(state, user.id);
   const board = getWorldBossLeaderboard(state);
   const rank = board.findIndex(item => item.userId === user.id) + 1;
   const hpRatio = state.maxHp > 0 ? state.currentHp / state.maxHp : 0;
@@ -87,7 +89,7 @@ export function buildWorldBossEmbed(user, state, notice = null) {
     '',
     `${FIGHT} **Thành tích của đạo hữu**`,
     `Sát thương: **${number(entry.damage)}**`,
-    `Lượt khiêu chiến: **${number(entry.attacks)} / ${WORLD_BOSS_ATTACK_LIMIT}**`,
+    `Lượt khiêu chiến: **${number(entry.attacks)} / ${number(attackLimit)}**`,
     `Xếp hạng đóng góp: **${rank > 0 ? `#${rank}` : 'Chưa xếp hạng'}**`,
     `Tỷ lệ đóng góp: **${percent(contributionRate)}**`,
     '',
@@ -113,10 +115,11 @@ export function buildWorldBossEmbed(user, state, notice = null) {
 
 export function buildWorldBossRows(ownerId, state) {
   const attacks = Number(state.participants?.[ownerId]?.attacks) || 0;
+  const attackLimit = getWorldBossAttackLimit(state, ownerId);
   const canAttack =
     state.status === 'active' &&
     state.currentHp > 0 &&
-    attacks < WORLD_BOSS_ATTACK_LIMIT;
+    attacks < attackLimit;
 
   return [
     new ActionRowBuilder().addComponents(
@@ -159,7 +162,7 @@ export function buildWorldBossRewardMessage(record) {
     `${FIGHT} Thành tích của đạo hữu`,
     '',
     `Tổng sát thương: ${number(record.damage)}`,
-    `Lượt khiêu chiến: ${number(record.attacks)} / ${WORLD_BOSS_ATTACK_LIMIT}`,
+    `Lượt khiêu chiến: ${number(record.attacks)} / ${number(record.attackLimit || WORLD_BOSS_ATTACK_LIMIT)}`,
     `Xếp hạng đóng góp: #${record.rank}`,
     `Tỷ lệ đóng góp: ${percent(record.contributionRate)}`,
     '',
