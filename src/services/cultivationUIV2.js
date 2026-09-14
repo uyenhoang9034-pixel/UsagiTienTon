@@ -17,7 +17,11 @@ import {
 
 export * from './cultivationUI.js';
 
-let cachedTienPhuongEmoji = null;
+const TIEN_PHUONG_EMOJI = {
+  id: '1548288038898241577',
+  name: 'tttienphuong',
+  animated: false,
+};
 
 function appendFormationLines(embed, lines) {
   if (!embed || !Array.isArray(lines) || lines.length === 0) {
@@ -48,30 +52,11 @@ function percent(value) {
   return `${Math.round((Number(value) || 0) * 100)}%`;
 }
 
-function resolveTienPhuongEmoji(guild) {
-  const emoji = guild?.emojis?.cache?.find?.(
-    item => item.name === 'tttienphuong',
-  );
-
-  if (emoji?.id) {
-    cachedTienPhuongEmoji = {
-      id: emoji.id,
-      name: emoji.name,
-      animated: emoji.animated,
-    };
-  }
-
-  return cachedTienPhuongEmoji;
-}
-
-function applyTienPhuongEmoji(rows, guild = null) {
-  const emoji = resolveTienPhuongEmoji(guild);
-  if (!emoji) return rows;
-
+function applyTienPhuongEmoji(rows) {
   for (const row of rows || []) {
     for (const component of row?.components || []) {
       if (component?.data?.label === 'Tiên Phường') {
-        component.setEmoji(emoji);
+        component.setEmoji(TIEN_PHUONG_EMOJI);
       }
     }
   }
@@ -80,18 +65,20 @@ function applyTienPhuongEmoji(rows, guild = null) {
 }
 
 export function buildDashboardRows(ownerId, guild = null) {
-  const withFormation = appendFormationButton(
+  // Gắn Linh Mạch vào dashboard trước để nút này luôn nằm trong hàng
+  // chính ngay từ lần render đầu tiên, không phụ thuộc việc đã mở Tiên Phường.
+  const withSpiritVein = appendSpiritVeinButton(
     baseUI.buildDashboardRows(ownerId),
+    ownerId,
+  );
+
+  const withFormation = appendFormationButton(
+    withSpiritVein,
     ownerId,
     guild,
   );
 
-  applyTienPhuongEmoji(withFormation, guild);
-
-  return appendSpiritVeinButton(
-    withFormation,
-    ownerId,
-  );
+  return applyTienPhuongEmoji(withFormation);
 }
 
 export function buildCultivateEmbed(result) {
