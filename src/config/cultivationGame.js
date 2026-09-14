@@ -98,7 +98,27 @@ export const CULTIVATION_CONFIG = {
 };
 
 export const CULTIVATION_REALMS = [
-  'Luyện Khí', 'Trúc Cơ', 'Kim Đan', 'Nguyên Anh', 'Hóa Thần', 'Luyện Hư', 'Hợp Thể', 'Đại Thừa', 'Độ Kiếp', 'Chân Tiên', 'Kim Tiên', 'Thái Ất Kim Tiên', 'Đại La Kim Tiên',
+  'Luyện Khí',
+  'Trúc Cơ',
+  'Kim Đan',
+  'Nguyên Anh',
+  'Hóa Thần',
+  'Luyện Hư',
+  'Hợp Thể',
+  'Đại Thừa',
+  'Độ Kiếp',
+  'Chân Tiên',
+  'Kim Tiên',
+  'Thái Ất Kim Tiên',
+  'Đại La Kim Tiên',
+  'Hỗn Nguyên Kim Tiên',
+  'Hỗn Nguyên Đại La Kim Tiên',
+  'Thánh Nhân',
+  'Thiên Đạo Thánh Nhân',
+  'Đại Đạo Thánh Nhân',
+  'Hỗn Độn Chí Tôn',
+  'Vô Cực Đạo Tôn',
+  'Đạo Tổ',
 ];
 
 export const CULTIVATION_STAGES = ['Sơ Kỳ', 'Trung Kỳ', 'Hậu Kỳ', 'Viên Mãn'];
