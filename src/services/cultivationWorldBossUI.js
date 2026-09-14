@@ -20,7 +20,7 @@ const RAGE = '<a:trangtrig29:1546385117478527016>';
 const ARMOR = '<a:ttmagiap:1548969902495375390>';
 const KILL = '<a:trangtrig31:1546905996893626440>';
 const CHEST = '<a:ttruongco:1547493008914653245>';
-const BOARD = '<a:trangtrig2:1546040703375904801>';
+const BOARD = '<:tttienbang:1547301799273435177>';
 const SEPARATOR = '⋆༺𓆩☠︎︎𓆪༻⋆';
 
 function parseEmoji(value) {
