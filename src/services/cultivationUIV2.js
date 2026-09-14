@@ -26,6 +26,10 @@ import {
 } from './cultivationDungeonUI.js';
 
 import {
+  getImmortalOrderDashboardButton,
+} from './cultivationImmortalOrderUI.js';
+
+import {
   buildFormationBreakthroughLines,
   buildFormationCultivateLines,
 } from './cultivationFormationResultUI.js';
@@ -45,166 +49,66 @@ const LINH_MACH_EMOJI = {
 };
 
 function appendFormationLines(embed, lines) {
-  if (!embed || !Array.isArray(lines) || lines.length === 0) {
-    return embed;
-  }
-
+  if (!embed || !Array.isArray(lines) || lines.length === 0) return embed;
   const data = embed.toJSON();
   const description = data.description || '';
-
-  return new EmbedBuilder(data).setDescription(
-    [
-      description,
-      '',
-      ...lines,
-    ]
-      .filter(line => line !== null && line !== undefined)
-      .join('\n'),
-  );
+  return new EmbedBuilder(data).setDescription([description, '', ...lines].filter(line => line !== null && line !== undefined).join('\n'));
 }
 
 function number(value) {
-  return new Intl.NumberFormat('vi-VN').format(
-    Math.max(0, Math.round(Number(value) || 0)),
-  );
+  return new Intl.NumberFormat('vi-VN').format(Math.max(0, Math.round(Number(value) || 0)));
 }
 
-function percent(value) {
-  return `${Math.round((Number(value) || 0) * 100)}%`;
-}
+function percent(value) { return `${Math.round((Number(value) || 0) * 100)}%`; }
 
 function applyDashboardEmojis(rows) {
   for (const row of rows || []) {
     for (const component of row?.components || []) {
-      if (component?.data?.label === 'Tiên Phường') {
-        component.setEmoji(TIEN_PHUONG_EMOJI);
-      }
-
-      // Chỉ nút Linh Mạch ngoài dashboard đổi emoji.
-      // Nội dung và các nút bên trong Linh Mạch vẫn dùng emoji động cũ.
-      if (component?.data?.label === 'Linh Mạch') {
-        component.setEmoji(LINH_MACH_EMOJI);
-      }
+      if (component?.data?.label === 'Tiên Phường') component.setEmoji(TIEN_PHUONG_EMOJI);
+      if (component?.data?.label === 'Linh Mạch') component.setEmoji(LINH_MACH_EMOJI);
     }
   }
-
   return rows;
 }
 
 function appendMetaButtons(rows, ownerId) {
   const cloned = [...rows];
-  let target = cloned.find(row => (row?.components?.length || 0) <= 2 && row !== cloned[0] && row !== cloned[1]);
-
-  if (!target || target.components.length > 2) {
+  let target = cloned.find(row => (row?.components?.length || 0) <= 1 && row !== cloned[0] && row !== cloned[1]);
+  if (!target || target.components.length > 1) {
     target = new ActionRowBuilder();
     cloned.push(target);
   }
-
-  if (target.components.length <= 2) {
-    target.addComponents(
-      getAchievementDashboardButton(ownerId),
-      getWorldBossDashboardButton(ownerId),
-      getDungeonDashboardButton(ownerId),
-    );
-  }
-
+  target.addComponents(
+    getAchievementDashboardButton(ownerId),
+    getWorldBossDashboardButton(ownerId),
+    getDungeonDashboardButton(ownerId),
+    getImmortalOrderDashboardButton(ownerId),
+  );
   return cloned;
 }
 
 export function buildDashboardRows(ownerId, guild = null) {
-  const withSpiritVein = appendSpiritVeinButton(
-    baseUI.buildDashboardRows(ownerId),
-    ownerId,
-  );
-
-  const withFormation = appendFormationButton(
-    withSpiritVein,
-    ownerId,
-    guild,
-  );
-
-  const withMeta = appendMetaButtons(
-    withFormation,
-    ownerId,
-  );
-
+  const withSpiritVein = appendSpiritVeinButton(baseUI.buildDashboardRows(ownerId), ownerId);
+  const withFormation = appendFormationButton(withSpiritVein, ownerId, guild);
+  const withMeta = appendMetaButtons(withFormation, ownerId);
   return applyDashboardEmojis(withMeta);
 }
 
 export function buildCultivateEmbed(result) {
   const embed = baseUI.buildCultivateEmbed(result);
-
-  if (!result?.ok) {
-    return embed;
-  }
-
-  const lines = [
-    ...buildFormationCultivateLines(result),
-  ];
-
-  if (
-    result.extraPetCultivationBonus > 0 &&
-    result.activePet
-  ) {
-    lines.push(
-      `${result.activePet.emoji} ${result.activePet.name}: **+${number(result.extraPetCultivationBonus)} Tu Vi**`,
-    );
-  }
-
-  if (
-    result.petStaminaRefund > 0 &&
-    result.activePet
-  ) {
-    lines.push(
-      `${result.activePet.emoji} ${result.activePet.name}: **Bù lại ${number(result.petStaminaRefund)} Thể Lực**`,
-    );
-  }
-
-  return appendFormationLines(
-    embed,
-    lines,
-  );
+  if (!result?.ok) return embed;
+  const lines = [...buildFormationCultivateLines(result)];
+  if (result.extraPetCultivationBonus > 0 && result.activePet) lines.push(`${result.activePet.emoji} ${result.activePet.name}: **+${number(result.extraPetCultivationBonus)} Tu Vi**`);
+  if (result.petStaminaRefund > 0 && result.activePet) lines.push(`${result.activePet.emoji} ${result.activePet.name}: **Bù lại ${number(result.petStaminaRefund)} Thể Lực**`);
+  return appendFormationLines(embed, lines);
 }
 
 export function buildBreakthroughEmbed(result) {
   const embed = baseUI.buildBreakthroughEmbed(result);
-
-  if (!result?.ok) {
-    return embed;
-  }
-
-  const lines = [
-    ...buildFormationBreakthroughLines(result),
-  ];
-
-  if (
-    result.guaranteedByPet &&
-    result.activePet
-  ) {
-    lines.push(
-      `${result.activePet.emoji} ${result.activePet.name}: **Đột Phá chắc chắn thành công 100%**`,
-    );
-  } else if (
-    (Number(result.petBreakthroughBonus) || 0) > 0 &&
-    result.activePet
-  ) {
-    lines.push(
-      `${result.activePet.emoji} ${result.activePet.name}: **+${percent(result.petBreakthroughBonus)} tỷ lệ Đột Phá**`,
-    );
-  }
-
-  if (
-    !result.success &&
-    (Number(result.petLossSaved) || 0) > 0 &&
-    result.activePet
-  ) {
-    lines.push(
-      `${result.activePet.emoji} ${result.activePet.name}: **Bù lại ${number(result.petLossSaved)} Tu Vi tổn thất**`,
-    );
-  }
-
-  return appendFormationLines(
-    embed,
-    lines,
-  );
+  if (!result?.ok) return embed;
+  const lines = [...buildFormationBreakthroughLines(result)];
+  if (result.guaranteedByPet && result.activePet) lines.push(`${result.activePet.emoji} ${result.activePet.name}: **Đột Phá chắc chắn thành công 100%**`);
+  else if ((Number(result.petBreakthroughBonus) || 0) > 0 && result.activePet) lines.push(`${result.activePet.emoji} ${result.activePet.name}: **+${percent(result.petBreakthroughBonus)} tỷ lệ Đột Phá**`);
+  if (!result.success && (Number(result.petLossSaved) || 0) > 0 && result.activePet) lines.push(`${result.activePet.emoji} ${result.activePet.name}: **Bù lại ${number(result.petLossSaved)} Tu Vi tổn thất**`);
+  return appendFormationLines(embed, lines);
 }
