@@ -18,6 +18,10 @@ import {
   recordWorldBossAchievementStats,
 } from './cultivationAchievement.js';
 
+import {
+  addImmortalOrderProgress,
+} from './cultivationImmortalOrder.js';
+
 const WORLD_BOSS_PREFIX = 'games:cultivation:worldBoss:';
 const WORLD_BOSS_REWARD_PREFIX = 'games:cultivation:worldBossReward:';
 const THREAD_PREFIX = 'games:cultivation:thread:';
@@ -383,6 +387,9 @@ export async function attackWorldBoss(client, guildId, userId) {
         bestHit: damage,
       },
     );
+
+    await addImmortalOrderProgress(client, guildId, userId, 'bossAttacks', 1);
+    await addImmortalOrderProgress(client, guildId, userId, 'bossDamage', damage);
 
     let defeated = false;
     if (state.currentHp <= 0) {
