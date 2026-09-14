@@ -22,6 +22,10 @@ import {
 } from './cultivationWorldBossUI.js';
 
 import {
+  getDungeonDashboardButton,
+} from './cultivationDungeonUI.js';
+
+import {
   buildFormationBreakthroughLines,
   buildFormationCultivateLines,
 } from './cultivationFormationResultUI.js';
@@ -89,17 +93,18 @@ function applyDashboardEmojis(rows) {
 
 function appendMetaButtons(rows, ownerId) {
   const cloned = [...rows];
-  let target = cloned.find(row => (row?.components?.length || 0) <= 3 && row !== cloned[0] && row !== cloned[1]);
+  let target = cloned.find(row => (row?.components?.length || 0) <= 2 && row !== cloned[0] && row !== cloned[1]);
 
-  if (!target || target.components.length > 3) {
+  if (!target || target.components.length > 2) {
     target = new ActionRowBuilder();
     cloned.push(target);
   }
 
-  if (target.components.length <= 3) {
+  if (target.components.length <= 2) {
     target.addComponents(
       getAchievementDashboardButton(ownerId),
       getWorldBossDashboardButton(ownerId),
+      getDungeonDashboardButton(ownerId),
     );
   }
 
