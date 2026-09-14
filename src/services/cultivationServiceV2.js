@@ -1,5 +1,6 @@
 import {
   CULTIVATION_CONFIG,
+  CULTIVATION_REALMS,
 } from '../config/cultivationGame.js';
 
 import * as baseService from './cultivationService.js';
@@ -26,6 +27,12 @@ import {
 } from './cultivationRealmRewards.js';
 
 export * from './cultivationService.js';
+
+const CHAN_TIEN_REALM_INDEX = Math.max(
+  0,
+  CULTIVATION_REALMS.indexOf('Chân Tiên'),
+);
+const IMMORTAL_FIXED_CULTIVATION_GAIN = 5_000_000;
 
 async function saveProfile(client, profile) {
   return baseService.saveCultivationProfile(client, profile);
@@ -83,6 +90,17 @@ export async function cultivate(client, guildId, userId) {
   if (cooldown > 0) {
     return baseService.cultivate(client, guildId, userId);
   }
+
+  const fixedImmortalCultivation =
+    Number(profile.realmIndex) >= CHAN_TIEN_REALM_INDEX;
+  const originalCultivation = Math.max(
+    0,
+    Number(profile.cultivation) || 0,
+  );
+  const originalTotalCultivation = Math.max(
+    0,
+    Number(profile.totalCultivation) || 0,
+  );
 
   const realmRewards = getCultivationRealmRewardMultipliers(profile);
   const activePet = getActivePet(profile);
@@ -188,13 +206,97 @@ export async function cultivate(client, guildId, userId) {
       Number(result.cultivationPillBonus) || 0,
     );
 
-    const scaledCultivationDelta = scalePositiveRealmReward(
-      rawCultivationDelta,
-      realmRewards.cultivation,
-    );
     const scaledStoneDelta = scalePositiveRealmReward(
       rawStoneDelta,
       realmRewards.spiritStones,
+    );
+    const realmStoneBonus = Math.max(
+      0,
+      scaledStoneDelta - rawStoneDelta,
+    );
+
+    const savedProfile = result.profile;
+    savedProfile.pets ||= { owned: {}, active: null };
+    savedProfile.pets.active = originalActivePetId;
+
+    result.stoneDelta = scaledStoneDelta;
+    result.equipmentStoneBonus = scalePositiveRealmReward(
+      Number(result.equipmentStoneBonus) || 0,
+      realmRewards.spiritStones,
+    );
+    result.techniqueStoneBonus = scalePositiveRealmReward(
+      Number(result.techniqueStoneBonus) || 0,
+      realmRewards.spiritStones,
+    );
+
+    if (fixedImmortalCultivation) {
+      savedProfile.cultivation =
+        originalCultivation + IMMORTAL_FIXED_CULTIVATION_GAIN;
+      savedProfile.totalCultivation =
+        originalTotalCultivation + IMMORTAL_FIXED_CULTIVATION_GAIN;
+
+      if (realmStoneBonus > 0) {
+        savedProfile.spiritStones += realmStoneBonus;
+      }
+
+      const stones = applyFormationSpiritStoneBonus(
+        result.stoneDelta,
+        effects,
+      );
+
+      if (stones.bonus > 0) {
+        savedProfile.spiritStones += stones.bonus;
+      }
+
+      result.cultivationDelta = IMMORTAL_FIXED_CULTIVATION_GAIN;
+      result.equipmentCultivationBonus = 0;
+      result.techniqueCultivationBonus = 0;
+      result.petCultivationBonus = 0;
+      result.cultivationPillBonus = 0;
+
+      let equipmentUse = null;
+      if (Number(result.equipmentStoneBonus) > 0) {
+        equipmentUse = consumeEquippedEquipmentUse(
+          savedProfile,
+          'spirit_stone_bonus',
+        );
+      }
+
+      const finalProfile = await saveProfile(client, savedProfile);
+
+      return {
+        ...result,
+        profile: finalProfile,
+        activePet,
+        equipmentUse,
+        realmRewardBaseMultiplier: realmRewards.base,
+        realmCultivationMultiplier: 1,
+        realmStoneMultiplier: realmRewards.spiritStones,
+        realmCultivationBonus: 0,
+        realmBaseCultivationBonus: 0,
+        realmAuxCultivationBonus: 0,
+        realmStoneBonus,
+        extraPetCultivationBonus: 0,
+        extraPetCultivationPercent: 0,
+        formationCultivationBonus: 0,
+        formationCultivationPercent: 0,
+        formationStoneBonus: stones.bonus,
+        formationStonePercent: Number(effects.spiritStoneBonus) || 0,
+        staminaCost: effectiveStaminaCost,
+        baseStaminaCost,
+        formationStaminaSaved: stamina.saved,
+        formationStaminaReduction: Number(effects.staminaReduction) || 0,
+        petStaminaRefund,
+        petStaminaRefundPercent,
+        formationResonanceLines: formation.lines || [],
+        fixedImmortalCultivation: true,
+        fixedImmortalCultivationGain: IMMORTAL_FIXED_CULTIVATION_GAIN,
+      };
+    }
+
+    const scaledCultivationDelta = scalePositiveRealmReward(
+      rawCultivationDelta,
+      realmRewards.cultivation,
     );
     const scaledEquipmentCultivationBonus = scalePositiveRealmReward(
       rawEquipmentCultivationBonus,
@@ -217,10 +319,6 @@ export async function cultivate(client, guildId, userId) {
       0,
       scaledCultivationDelta - rawCultivationDelta,
     );
-    const realmStoneBonus = Math.max(
-      0,
-      scaledStoneDelta - rawStoneDelta,
-    );
 
     const realmAuxCultivationBonus =
       Math.max(
@@ -240,10 +338,6 @@ export async function cultivate(client, guildId, userId) {
         scaledCultivationPillBonus - rawCultivationPillBonus,
       );
 
-    const savedProfile = result.profile;
-    savedProfile.pets ||= { owned: {}, active: null };
-    savedProfile.pets.active = originalActivePetId;
-
     const totalRealmCultivationBonus =
       realmCultivationBonus + realmAuxCultivationBonus;
 
@@ -257,20 +351,10 @@ export async function cultivate(client, guildId, userId) {
     }
 
     result.cultivationDelta = scaledCultivationDelta;
-    result.stoneDelta = scaledStoneDelta;
     result.equipmentCultivationBonus = scaledEquipmentCultivationBonus;
     result.techniqueCultivationBonus = scaledTechniqueCultivationBonus;
     result.petCultivationBonus = scaledLegacyPetCultivationBonus;
     result.cultivationPillBonus = scaledCultivationPillBonus;
-
-    result.equipmentStoneBonus = scalePositiveRealmReward(
-      Number(result.equipmentStoneBonus) || 0,
-      realmRewards.spiritStones,
-    );
-    result.techniqueStoneBonus = scalePositiveRealmReward(
-      Number(result.techniqueStoneBonus) || 0,
-      realmRewards.spiritStones,
-    );
 
     const cultivation = applyFormationCultivationBonus(
       result.cultivationDelta,
