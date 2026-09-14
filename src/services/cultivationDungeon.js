@@ -78,8 +78,9 @@ function normalizeState(raw, guildId, userId) {
     ? { floor: Math.max(1, Math.floor(Number(source.activeRun.floor) || 1)), hp: clamp(Math.round(Number(source.activeRun.hp) || 0), 0, DUNGEON_MAX_HP), startedAt: Number(source.activeRun.startedAt) || Date.now() }
     : null;
   return {
-    version: 1, guildId, userId, dayKey: day,
-    attemptsUsed: sameDay ? clamp(Math.floor(Number(source.attemptsUsed) || 0), 0, DUNGEON_DAILY_ATTEMPTS) : 0,
+    version: 2, guildId, userId, dayKey: day,
+    attemptsUsed: sameDay ? clamp(Math.floor(Number(source.attemptsUsed) || 0), 0, 1_000_000_000) : 0,
+    bonusAttempts: sameDay ? clamp(Math.floor(Number(source.bonusAttempts) || 0), 0, 1_000_000_000) : 0,
     highestFloor: Math.max(0, Math.floor(Number(source.highestFloor) || 0)),
     essence: Math.max(0, Math.floor(Number(source.essence) || 0)),
     clears: Math.max(0, Math.floor(Number(source.clears) || 0)),
@@ -100,8 +101,43 @@ export async function getDungeonState(client, guildId, userId) {
   const key = stateKey(guildId, userId);
   const raw = await getDatabaseValue(client, key, null);
   const state = normalizeState(raw, guildId, userId);
-  if (!raw || raw.dayKey !== state.dayKey || Number(raw.version) !== 1) await saveDungeonState(client, state);
+  if (!raw || raw.dayKey !== state.dayKey || Number(raw.version) !== 2) await saveDungeonState(client, state);
   return state;
+}
+
+export function getDungeonAttemptLimit(state) {
+  return DUNGEON_DAILY_ATTEMPTS + Math.max(0, Math.floor(Number(state?.bonusAttempts) || 0));
+}
+
+export async function adjustDungeonBonusAttempts(client, guildId, userId, delta) {
+  return Mutex.runExclusive(`cultivation:dungeon:gm-attempts:${guildId}:${userId}`, async () => {
+    const state = await getDungeonState(client, guildId, userId);
+    const before = Math.max(0, Math.floor(Number(state.bonusAttempts) || 0));
+    const requested = Math.trunc(Number(delta) || 0);
+    const after = clamp(before + requested, 0, 1_000_000_000);
+    state.bonusAttempts = after;
+    const saved = await saveDungeonState(client, state);
+    return {
+      state: saved,
+      before,
+      after,
+      changed: after - before,
+      attemptLimit: getDungeonAttemptLimit(saved),
+      attemptsRemaining: Math.max(0, getDungeonAttemptLimit(saved) - saved.attemptsUsed),
+    };
+  });
+}
+
+export async function adjustDungeonEssence(client, guildId, userId, delta) {
+  return Mutex.runExclusive(`cultivation:dungeon:gm-essence:${guildId}:${userId}`, async () => {
+    const state = await getDungeonState(client, guildId, userId);
+    const before = Math.max(0, Math.floor(Number(state.essence) || 0));
+    const requested = Math.trunc(Number(delta) || 0);
+    const after = clamp(before + requested, 0, 1_000_000_000);
+    state.essence = after;
+    const saved = await saveDungeonState(client, state);
+    return { state: saved, before, after, changed: after - before };
+  });
 }
 
 function getPetSuccessBonus(profile) {
@@ -143,8 +179,6 @@ function getBaseSuccessChance(profile, floor) {
   const recommendedStep = getFloorRecommendedStep(safeFloor);
   const difference = playerStep - recommendedStep;
 
-  // Bí Cảnh chủ động giữ xác suất thấp hơn: người mạnh chỉ nhận tối đa +4% lợi thế cảnh giới.
-  // Càng đi sâu tỷ lệ càng giảm, Thủ Hộ Giả mỗi 5 tầng bị trừ thêm.
   const realmAdjustment = difference >= 0
     ? Math.min(4, difference)
     : Math.max(-20, difference * 4);
@@ -160,8 +194,6 @@ function getRawHpLoss(floor, success) {
   const depthBonus = Math.min(12, Math.floor((safeFloor - 1) / 10) * 2);
   const guardian = safeFloor % 5 === 0;
 
-  // Tầng thường: 12–16% trước Trận Pháp.
-  // Thủ Hộ Giả: 20–28% trước Trận Pháp. Tầng sâu tiếp tục tăng nhẹ.
   const normalLoss = guardian
     ? 20 + depthBonus + randomInt(0, 8)
     : 12 + depthBonus + randomInt(0, 4);
@@ -223,15 +255,21 @@ export async function getDungeonSnapshot(client, guildId, userId, { isAdmin = fa
   const floor = state.activeRun?.floor || state.highestFloor + 1;
   const baseChance = getBaseSuccessChance(profile, floor);
   const successChance = Math.min(100, baseChance + petInfo.bonus);
-  return { state, profile, formation, pet: petInfo.pet, petBonus: petInfo.bonus, floor, baseChance, successChance, isAdmin,
-    attemptsRemaining: isAdmin ? Infinity : Math.max(0, DUNGEON_DAILY_ATTEMPTS - state.attemptsUsed) };
+  const attemptLimit = getDungeonAttemptLimit(state);
+  return {
+    state, profile, formation, pet: petInfo.pet, petBonus: petInfo.bonus, floor, baseChance, successChance, isAdmin,
+    attemptLimit,
+    bonusAttempts: state.bonusAttempts,
+    attemptsRemaining: isAdmin ? Infinity : Math.max(0, attemptLimit - state.attemptsUsed),
+  };
 }
 
 export async function startDungeonRun(client, guildId, userId, { isAdmin = false } = {}) {
   return Mutex.runExclusive(`cultivation:dungeon:start:${guildId}:${userId}`, async () => {
     const state = await getDungeonState(client, guildId, userId);
     if (state.activeRun) return { ok: true, resumed: true, ...(await getDungeonSnapshot(client, guildId, userId, { isAdmin })) };
-    if (!isAdmin && state.attemptsUsed >= DUNGEON_DAILY_ATTEMPTS) return { ok: false, reason: 'daily_limit', ...(await getDungeonSnapshot(client, guildId, userId, { isAdmin })) };
+    const attemptLimit = getDungeonAttemptLimit(state);
+    if (!isAdmin && state.attemptsUsed >= attemptLimit) return { ok: false, reason: 'daily_limit', ...(await getDungeonSnapshot(client, guildId, userId, { isAdmin })) };
     if (!isAdmin) state.attemptsUsed += 1;
     state.activeRun = { floor: state.highestFloor + 1, hp: DUNGEON_MAX_HP, startedAt: Date.now() };
     await saveDungeonState(client, state);
