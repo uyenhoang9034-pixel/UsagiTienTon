@@ -206,6 +206,31 @@ export async function cultivate(client, guildId, userId) {
       Number(result.cultivationPillBonus) || 0,
     );
 
+    const equipmentPercent = Math.max(
+      0,
+      Number(result.equipmentCultivationPercent) || 0,
+    );
+    const techniquePercent = Math.max(
+      0,
+      Number(result.techniqueCultivationPercent) || 0,
+    );
+    const legacyPetPercent = Math.max(
+      0,
+      Number(result.petCultivationPercent) || 0,
+    );
+    const pillPercent = Math.max(
+      0,
+      Number(result.cultivationPillPercent) || 0,
+    );
+    const formationPercent = Math.max(
+      0,
+      Number(effects.cultivationBonus) || 0,
+    );
+    const rootPercent = Math.max(
+      0,
+      Number(profile.spiritRoot?.cultivateBonus) || 0,
+    );
+
     const scaledStoneDelta = scalePositiveRealmReward(
       rawStoneDelta,
       realmRewards.spiritStones,
@@ -220,18 +245,93 @@ export async function cultivate(client, guildId, userId) {
     savedProfile.pets.active = originalActivePetId;
 
     let cultivationFailureLoss = 0;
+    let failureRootBonus = 0;
+    let failureEquipmentBonus = 0;
+    let failureTechniqueBonus = 0;
+    let failureLegacyPetBonus = 0;
+    let failurePillBonus = 0;
+    let failureFormationBonus = 0;
+    let failureExtraPetBonus = 0;
+
     if (rawCultivationDelta < 0) {
       const rawLoss = Math.abs(rawCultivationDelta);
-      const targetLoss = immortalCultivationBase
-        ? IMMORTAL_BASE_CULTIVATION_GAIN
-        : scalePositiveRealmReward(
-            rawLoss,
-            realmRewards.cultivation,
-          );
+
+      if (immortalCultivationBase) {
+        const baseLoss = IMMORTAL_BASE_CULTIVATION_GAIN;
+        failureRootBonus = Math.round(baseLoss * rootPercent);
+        failureEquipmentBonus = Math.round(baseLoss * equipmentPercent);
+        failureTechniqueBonus = Math.round(baseLoss * techniquePercent);
+        failureLegacyPetBonus = Math.round(baseLoss * legacyPetPercent);
+        failurePillBonus = Math.round(baseLoss * pillPercent);
+        failureFormationBonus = Math.round(baseLoss * formationPercent);
+        failureExtraPetBonus = Math.round(
+          baseLoss * petCultivationPercent,
+        );
+
+        cultivationFailureLoss =
+          baseLoss +
+          failureRootBonus +
+          failureEquipmentBonus +
+          failureTechniqueBonus +
+          failureLegacyPetBonus +
+          failurePillBonus +
+          failureFormationBonus +
+          failureExtraPetBonus;
+      } else {
+        const scaledBaseLoss = scalePositiveRealmReward(
+          rawLoss,
+          realmRewards.cultivation,
+        );
+
+        const rawEquipmentLossBonus = Math.round(
+          rawLoss * equipmentPercent,
+        );
+        const rawTechniqueLossBonus = Math.round(
+          rawLoss * techniquePercent,
+        );
+        const rawLegacyPetLossBonus = Math.round(
+          rawLoss * legacyPetPercent,
+        );
+        const rawPillLossBonus = Math.round(
+          rawLoss * pillPercent,
+        );
+
+        failureEquipmentBonus = scalePositiveRealmReward(
+          rawEquipmentLossBonus,
+          realmRewards.cultivation,
+        );
+        failureTechniqueBonus = scalePositiveRealmReward(
+          rawTechniqueLossBonus,
+          realmRewards.cultivation,
+        );
+        failureLegacyPetBonus = scalePositiveRealmReward(
+          rawLegacyPetLossBonus,
+          realmRewards.cultivation,
+        );
+        failurePillBonus = scalePositiveRealmReward(
+          rawPillLossBonus,
+          realmRewards.cultivation,
+        );
+        failureFormationBonus = Math.round(
+          scaledBaseLoss * formationPercent,
+        );
+        failureExtraPetBonus = Math.round(
+          scaledBaseLoss * petCultivationPercent,
+        );
+
+        cultivationFailureLoss =
+          scaledBaseLoss +
+          failureEquipmentBonus +
+          failureTechniqueBonus +
+          failureLegacyPetBonus +
+          failurePillBonus +
+          failureFormationBonus +
+          failureExtraPetBonus;
+      }
 
       cultivationFailureLoss = Math.min(
         originalCultivation,
-        Math.max(0, Math.round(targetLoss)),
+        Math.max(0, Math.round(cultivationFailureLoss)),
       );
 
       savedProfile.cultivation = Math.max(
@@ -241,6 +341,10 @@ export async function cultivate(client, guildId, userId) {
 
       rawCultivationDelta = -cultivationFailureLoss;
       result.cultivationDelta = rawCultivationDelta;
+      result.equipmentCultivationBonus = 0;
+      result.techniqueCultivationBonus = 0;
+      result.petCultivationBonus = 0;
+      result.cultivationPillBonus = 0;
     }
 
     result.stoneDelta = scaledStoneDelta;
@@ -255,30 +359,6 @@ export async function cultivate(client, guildId, userId) {
 
     if (immortalCultivationBase && rawCultivationDelta > 0) {
       const baseGain = IMMORTAL_BASE_CULTIVATION_GAIN;
-      const rootPercent = Math.max(
-        0,
-        Number(profile.spiritRoot?.cultivateBonus) || 0,
-      );
-      const equipmentPercent = Math.max(
-        0,
-        Number(result.equipmentCultivationPercent) || 0,
-      );
-      const techniquePercent = Math.max(
-        0,
-        Number(result.techniqueCultivationPercent) || 0,
-      );
-      const legacyPetPercent = Math.max(
-        0,
-        Number(result.petCultivationPercent) || 0,
-      );
-      const pillPercent = Math.max(
-        0,
-        Number(result.cultivationPillPercent) || 0,
-      );
-      const formationPercent = Math.max(
-        0,
-        Number(effects.cultivationBonus) || 0,
-      );
 
       const rootBonus = Math.round(baseGain * rootPercent);
       const equipmentCultivationBonus = Math.round(
@@ -430,7 +510,7 @@ export async function cultivate(client, guildId, userId) {
     const totalRealmCultivationBonus =
       realmCultivationBonus + realmAuxCultivationBonus;
 
-    if (totalRealmCultivationBonus > 0) {
+    if (rawCultivationDelta > 0 && totalRealmCultivationBonus > 0) {
       savedProfile.cultivation += totalRealmCultivationBonus;
       savedProfile.totalCultivation += totalRealmCultivationBonus;
     }
@@ -462,7 +542,7 @@ export async function cultivate(client, guildId, userId) {
           )
         : 0;
 
-    if (cultivation.bonus > 0) {
+    if (cultivation.bonus > 0 && result.cultivationDelta > 0) {
       savedProfile.cultivation += cultivation.bonus;
       savedProfile.totalCultivation += cultivation.bonus;
     }
@@ -499,13 +579,17 @@ export async function cultivate(client, guildId, userId) {
       realmRewardBaseMultiplier: realmRewards.base,
       realmCultivationMultiplier: realmRewards.cultivation,
       realmStoneMultiplier: realmRewards.spiritStones,
-      realmCultivationBonus: totalRealmCultivationBonus,
-      realmBaseCultivationBonus: realmCultivationBonus,
-      realmAuxCultivationBonus,
+      realmCultivationBonus:
+        rawCultivationDelta > 0 ? totalRealmCultivationBonus : 0,
+      realmBaseCultivationBonus:
+        rawCultivationDelta > 0 ? realmCultivationBonus : 0,
+      realmAuxCultivationBonus:
+        rawCultivationDelta > 0 ? realmAuxCultivationBonus : 0,
       realmStoneBonus,
       extraPetCultivationBonus: petCultivationBonus,
       extraPetCultivationPercent: petCultivationPercent,
-      formationCultivationBonus: cultivation.bonus,
+      formationCultivationBonus:
+        result.cultivationDelta > 0 ? cultivation.bonus : 0,
       formationCultivationPercent: Number(effects.cultivationBonus) || 0,
       formationStoneBonus: stones.bonus,
       formationStonePercent: Number(effects.spiritStoneBonus) || 0,
@@ -517,6 +601,13 @@ export async function cultivate(client, guildId, userId) {
       petStaminaRefundPercent,
       formationResonanceLines: formation.lines || [],
       cultivationFailureLoss,
+      failureRootBonus,
+      failureEquipmentBonus,
+      failureTechniqueBonus,
+      failureLegacyPetBonus,
+      failurePillBonus,
+      failureFormationBonus,
+      failureExtraPetBonus,
       fixedImmortalCultivationLoss:
         immortalCultivationBase && cultivationFailureLoss > 0,
       fixedImmortalCultivationLossAmount:
