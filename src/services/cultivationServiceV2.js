@@ -32,7 +32,7 @@ const CHAN_TIEN_REALM_INDEX = Math.max(
   0,
   CULTIVATION_REALMS.indexOf('Chân Tiên'),
 );
-const IMMORTAL_FIXED_CULTIVATION_GAIN = 5_000_000;
+const IMMORTAL_BASE_CULTIVATION_GAIN = 200_000;
 
 async function saveProfile(client, profile) {
   return baseService.saveCultivationProfile(client, profile);
@@ -91,7 +91,7 @@ export async function cultivate(client, guildId, userId) {
     return baseService.cultivate(client, guildId, userId);
   }
 
-  const fixedImmortalCultivation =
+  const immortalCultivationBase =
     Number(profile.realmIndex) >= CHAN_TIEN_REALM_INDEX;
   const originalCultivation = Math.max(
     0,
@@ -229,11 +229,67 @@ export async function cultivate(client, guildId, userId) {
       realmRewards.spiritStones,
     );
 
-    if (fixedImmortalCultivation) {
+    if (immortalCultivationBase) {
+      const baseGain = IMMORTAL_BASE_CULTIVATION_GAIN;
+      const rootPercent = Math.max(
+        0,
+        Number(profile.spiritRoot?.cultivateBonus) || 0,
+      );
+      const equipmentPercent = Math.max(
+        0,
+        Number(result.equipmentCultivationPercent) || 0,
+      );
+      const techniquePercent = Math.max(
+        0,
+        Number(result.techniqueCultivationPercent) || 0,
+      );
+      const legacyPetPercent = Math.max(
+        0,
+        Number(result.petCultivationPercent) || 0,
+      );
+      const pillPercent = Math.max(
+        0,
+        Number(result.cultivationPillPercent) || 0,
+      );
+      const formationPercent = Math.max(
+        0,
+        Number(effects.cultivationBonus) || 0,
+      );
+
+      const rootBonus = Math.round(baseGain * rootPercent);
+      const equipmentCultivationBonus = Math.round(
+        baseGain * equipmentPercent,
+      );
+      const techniqueCultivationBonus = Math.round(
+        baseGain * techniquePercent,
+      );
+      const legacyPetCultivationBonus = Math.round(
+        baseGain * legacyPetPercent,
+      );
+      const cultivationPillBonus = Math.round(
+        baseGain * pillPercent,
+      );
+      const formationCultivationBonus = Math.round(
+        baseGain * formationPercent,
+      );
+      const extraPetCultivationBonus = Math.round(
+        baseGain * petCultivationPercent,
+      );
+
+      const totalCultivationGain =
+        baseGain +
+        rootBonus +
+        equipmentCultivationBonus +
+        techniqueCultivationBonus +
+        legacyPetCultivationBonus +
+        cultivationPillBonus +
+        formationCultivationBonus +
+        extraPetCultivationBonus;
+
       savedProfile.cultivation =
-        originalCultivation + IMMORTAL_FIXED_CULTIVATION_GAIN;
+        originalCultivation + totalCultivationGain;
       savedProfile.totalCultivation =
-        originalTotalCultivation + IMMORTAL_FIXED_CULTIVATION_GAIN;
+        originalTotalCultivation + totalCultivationGain;
 
       if (realmStoneBonus > 0) {
         savedProfile.spiritStones += realmStoneBonus;
@@ -248,14 +304,19 @@ export async function cultivate(client, guildId, userId) {
         savedProfile.spiritStones += stones.bonus;
       }
 
-      result.cultivationDelta = IMMORTAL_FIXED_CULTIVATION_GAIN;
-      result.equipmentCultivationBonus = 0;
-      result.techniqueCultivationBonus = 0;
-      result.petCultivationBonus = 0;
-      result.cultivationPillBonus = 0;
+      result.cultivationDelta = baseGain + rootBonus;
+      result.equipmentCultivationBonus = equipmentCultivationBonus;
+      result.techniqueCultivationBonus = techniqueCultivationBonus;
+      result.petCultivationBonus = legacyPetCultivationBonus;
+      result.cultivationPillBonus = cultivationPillBonus;
 
       let equipmentUse = null;
-      if (Number(result.equipmentStoneBonus) > 0) {
+      if (equipmentCultivationBonus > 0) {
+        equipmentUse = consumeEquippedEquipmentUse(
+          savedProfile,
+          'cultivation_bonus',
+        );
+      } else if (Number(result.equipmentStoneBonus) > 0) {
         equipmentUse = consumeEquippedEquipmentUse(
           savedProfile,
           'spirit_stone_bonus',
@@ -276,10 +337,12 @@ export async function cultivate(client, guildId, userId) {
         realmBaseCultivationBonus: 0,
         realmAuxCultivationBonus: 0,
         realmStoneBonus,
-        extraPetCultivationBonus: 0,
-        extraPetCultivationPercent: 0,
-        formationCultivationBonus: 0,
-        formationCultivationPercent: 0,
+        spiritRootCultivationBonus: rootBonus,
+        spiritRootCultivationPercent: rootPercent,
+        extraPetCultivationBonus,
+        extraPetCultivationPercent: petCultivationPercent,
+        formationCultivationBonus,
+        formationCultivationPercent: formationPercent,
         formationStoneBonus: stones.bonus,
         formationStonePercent: Number(effects.spiritStoneBonus) || 0,
         staminaCost: effectiveStaminaCost,
@@ -290,7 +353,8 @@ export async function cultivate(client, guildId, userId) {
         petStaminaRefundPercent,
         formationResonanceLines: formation.lines || [],
         fixedImmortalCultivation: true,
-        fixedImmortalCultivationGain: IMMORTAL_FIXED_CULTIVATION_GAIN,
+        fixedImmortalCultivationGain: baseGain,
+        totalImmortalCultivationGain: totalCultivationGain,
       };
     }
 
