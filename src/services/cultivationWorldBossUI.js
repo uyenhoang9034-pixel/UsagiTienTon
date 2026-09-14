@@ -9,6 +9,7 @@ import { CULTIVATION_CONFIG } from '../config/cultivationGame.js';
 import {
   WORLD_BOSS_ATTACK_LIMIT,
   getWorldBossLeaderboard,
+  getWorldBossTotalDamage,
 } from './cultivationWorldBoss.js';
 
 const TITLE_LEFT = '<a:trangtrig2:1546040703375904801>';
@@ -66,7 +67,8 @@ export function buildWorldBossEmbed(user, state, notice = null) {
   const board = getWorldBossLeaderboard(state);
   const rank = board.findIndex(item => item.userId === user.id) + 1;
   const hpRatio = state.maxHp > 0 ? state.currentHp / state.maxHp : 0;
-  const contributionRate = state.maxHp > 0 ? entry.damage / state.maxHp : 0;
+  const totalDamage = getWorldBossTotalDamage(state);
+  const contributionRate = totalDamage > 0 ? entry.damage / totalDamage : 0;
   const ended = state.status !== 'active';
 
   const topLines = board.slice(0, 5).map((item, index) =>
