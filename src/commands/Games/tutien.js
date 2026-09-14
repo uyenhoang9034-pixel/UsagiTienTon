@@ -23,12 +23,12 @@ import {
 
 import {
   getDailyQuestCompletedCount,
-  getDailyQuestState,
+  rollDailyQuests,
+  setDailyQuestMessageId,
 } from '../../services/cultivationDailyQuest.js';
 
 import {
   buildDailyQuestEmbed,
-  buildDailyQuestIntroEmbed,
   buildDailyQuestRows,
 } from '../../services/cultivationDailyQuestUI.js';
 
@@ -136,14 +136,13 @@ async function ensureDailyQuestPanel(
     threadData?.dailyQuestMessageId ||
     null;
 
+  // Nhật Nhiệm bây giờ được tự động tạo mỗi ngày.
+  // /tutien chỉ đồng bộ đúng bộ nhiệm vụ hiện tại, không còn panel "Nhận Nhiệm Vụ".
   const questState =
-    await getDailyQuestState(
+    await rollDailyQuests(
       runtimeClient,
       interaction.guildId,
       interaction.user.id,
-      {
-        sync: true,
-      },
     );
 
   const total =
@@ -166,8 +165,29 @@ async function ensureDailyQuestPanel(
       existingId,
     );
 
+    await setDailyQuestMessageId(
+      runtimeClient,
+      interaction.guildId,
+      interaction.user.id,
+      null,
+    );
+
     return null;
   }
+
+  const payload = {
+    embeds: [
+      buildDailyQuestEmbed(
+        interaction.user,
+        questState,
+      ),
+    ],
+    components:
+      buildDailyQuestRows(
+        interaction.user.id,
+        questState,
+      ),
+  };
 
   if (
     await hasExistingMessage(
@@ -175,27 +195,38 @@ async function ensureDailyQuestPanel(
       existingId,
     )
   ) {
-    return existingId;
+    try {
+      const message =
+        await interaction.channel.messages.fetch(
+          existingId,
+        );
+
+      await message.edit(payload);
+
+      await setDailyQuestMessageId(
+        runtimeClient,
+        interaction.guildId,
+        interaction.user.id,
+        existingId,
+      );
+
+      return existingId;
+    } catch {
+      // Nếu panel cũ biến mất giữa lúc kiểm tra và edit, gửi panel mới bên dưới.
+    }
   }
 
   const message =
-    await interaction.channel.send({
-      embeds: [
-        questState.rolled
-          ? buildDailyQuestEmbed(
-              interaction.user,
-              questState,
-            )
-          : buildDailyQuestIntroEmbed(
-              interaction.user,
-            ),
-      ],
-      components:
-        buildDailyQuestRows(
-          interaction.user.id,
-          questState,
-        ),
-    });
+    await interaction.channel.send(
+      payload,
+    );
+
+  await setDailyQuestMessageId(
+    runtimeClient,
+    interaction.guildId,
+    interaction.user.id,
+    message.id,
+  );
 
   return message.id;
 }
