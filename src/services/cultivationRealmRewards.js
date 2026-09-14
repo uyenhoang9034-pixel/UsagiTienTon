@@ -58,6 +58,13 @@ const CHAN_TIEN_REALM_INDEX = Math.max(
   CULTIVATION_REALMS.indexOf('Chân Tiên'),
 );
 
+// Từ Chân Tiên trở đi Tu Vi dương được chuẩn hóa quanh base 200.000.
+// Linh Thạch cũng cần nằm cùng mặt bằng thay vì rơi về x1.
+// Hai hệ số dưới đây giữ độ ngẫu nhiên của reward gốc nhưng đưa trung bình
+// về khoảng 200.000 trước các bonus Công Pháp / Pháp Khí / Linh Thú / Trận Pháp.
+const IMMORTAL_CULTIVATE_STONE_MULTIPLIER = 11500;
+const IMMORTAL_ADVENTURE_STONE_MULTIPLIER = 3300;
+
 function getRealmIndex(profile) {
   const raw = Math.floor(Number(profile?.realmIndex) || 0);
   return Math.max(
@@ -86,9 +93,13 @@ export function getCultivationRealmRewardMultipliers(profile) {
   return {
     base,
     cultivation,
+
+    // Trước Chân Tiên: Linh Thạch đi cùng đúng đường cong Tu Vi.
+    // Từ Chân Tiên: Tu Vi dùng base cố định 200k, nên Linh Thạch dùng
+    // hệ số cân bằng riêng để reward trung bình cũng quanh cùng mặt bằng.
     spiritStones: immortalRealm
-      ? 1
-      : Math.max(1, Math.round(base * 0.30)),
+      ? IMMORTAL_CULTIVATE_STONE_MULTIPLIER
+      : cultivation,
   };
 }
 
@@ -96,13 +107,20 @@ export function getAdventureRealmRewardMultipliers(profile) {
   const realmIndex = getRealmIndex(profile);
   const base = getRealmBaseRewardMultiplier(profile);
   const immortalRealm = realmIndex >= CHAN_TIEN_REALM_INDEX;
+  const cultivation = immortalRealm
+    ? 1
+    : Math.max(1, Math.round(base * 0.60));
 
   return {
     base,
-    cultivation: immortalRealm
-      ? 1
-      : Math.max(1, Math.round(base * 0.60)),
-    spiritStones: immortalRealm ? 1 : base,
+    cultivation,
+
+    // Thám Hiểm cũng dùng cùng tốc độ tăng theo Tu Vi trước Chân Tiên.
+    // Từ Chân Tiên trở đi reward gốc của Thám Hiểm lớn hơn Tu Luyện,
+    // nên dùng hệ số 3300 để trung bình vẫn quanh base 200k.
+    spiritStones: immortalRealm
+      ? IMMORTAL_ADVENTURE_STONE_MULTIPLIER
+      : cultivation,
   };
 }
 
