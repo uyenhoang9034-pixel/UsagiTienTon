@@ -16,6 +16,10 @@ import {
 } from '../../services/cultivationFormation.js';
 
 import {
+  addImmortalOrderProgress,
+} from '../../services/cultivationImmortalOrder.js';
+
+import {
   getFormationGameplayBonus,
 } from '../../services/cultivationFormationGameplay.js';
 
@@ -110,6 +114,19 @@ async function rejectWrongPlayer(interaction, ownerId) {
   return true;
 }
 
+async function recordFormationEssenceSpent(client, guildId, userId, result) {
+  if (!result?.ok) return;
+  const spent = Math.max(0, Math.floor(Number(result.essenceCost) || 0));
+  if (spent <= 0) return;
+  await addImmortalOrderProgress(
+    client,
+    guildId,
+    userId,
+    'formationEssenceSpent',
+    spent,
+  );
+}
+
 async function showMain(interaction, client, ownerId) {
   const [state, profile] = await Promise.all([
     getFormationState(
@@ -195,6 +212,7 @@ async function runRefine(
     );
   }
 
+  await recordFormationEssenceSpent(client, guildId, userId, result);
   return result;
 }
 
@@ -244,6 +262,7 @@ async function runEyeRefine(
     );
   }
 
+  await recordFormationEssenceSpent(client, guildId, userId, result);
   return {
     ...result,
     eyeAction: 'refine',
@@ -295,6 +314,7 @@ async function runUpgrade(
     );
   }
 
+  await recordFormationEssenceSpent(client, guildId, userId, result);
   return result;
 }
 
