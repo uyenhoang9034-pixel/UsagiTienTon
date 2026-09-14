@@ -95,7 +95,7 @@ export const ACHIEVEMENT_DEFINITIONS = [
 
   def('journey_010', 'journey', 'Bách Xích Can Đầu', 10, 500000, 30, 'achievementCompleted'),
   def('journey_025', 'journey', 'Danh Chấn Tiên Đồ', 25, 2000000, 70, 'achievementCompleted', 'Danh Chấn Tiên Đồ'),
-  def('journey_040', 'journey', 'Tiên Đồ Viên Mãn', 40, 20000000, 200, 'achievementCompleted', 'Tiên Đồ Chí Tôn'),
+  def('journey_038', 'journey', 'Tiên Đồ Viên Mãn', 38, 20000000, 200, 'achievementCompleted', 'Tiên Đồ Chí Tôn'),
 ];
 
 function stateKey(guildId, userId) {
@@ -346,7 +346,6 @@ export async function claimAchievement(client, guildId, userId, achievementId) {
 
     const savedProfile = await saveCultivationProfile(client, snapshot.profile);
 
-    // Nếu save profile thất bại theo cơ chế DB hiện tại, rollback flag claim.
     if (!savedProfile) {
       snapshot.state.claimed[achievement.id] = false;
       await saveState(client, snapshot.state);
