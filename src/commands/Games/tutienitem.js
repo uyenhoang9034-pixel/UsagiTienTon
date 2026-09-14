@@ -112,7 +112,7 @@ export default {
         (option) =>
           option
             .setName('item')
-            .setDescription('Vật phẩm, Linh Thạch hoặc Trận Pháp.')
+            .setDescription('Vật phẩm, tài nguyên hoặc lượt đặc biệt do GM cấp.')
             .setRequired(false)
             .addChoices(
               { name: 'Tụ Khí Đan', value: 'tu_khi_dan' },
@@ -124,6 +124,9 @@ export default {
               { name: 'Vô Danh Kiếm Phổ', value: 'vo_danh_kiem_pho' },
               { name: 'Linh Thạch', value: 'currency:spirit_stones' },
               { name: 'Trận Văn', value: 'formation_essence' },
+              { name: 'Bí Cảnh Tinh Hoa', value: 'dungeon:essence' },
+              { name: 'Lượt Bí Cảnh Hôm Nay', value: 'dungeon:attempts' },
+              { name: 'Lượt Boss Thế Giới Hôm Nay', value: 'world_boss:attacks' },
               { name: 'Trận Đồ · Tiểu Ngũ Hành Trận', value: 'formation:five_elements' },
               { name: 'Trận Đồ · Phong Lôi Dẫn Thiên Trận', value: 'formation:wind_lightning' },
               { name: 'Trận Đồ · Huyền Băng Tỏa Linh Trận', value: 'formation:frozen_spirit' },
@@ -163,7 +166,7 @@ export default {
         (option) =>
           option
             .setName('soluong')
-            .setDescription('Số lượng cấp/thu hồi. Vật phẩm tối đa 999; Trận Đồ và Linh Thú luôn là 1.')
+            .setDescription('Số lượng cấp/thu hồi. Vật phẩm và lượt tối đa 999.')
             .setMinValue(1)
             .setMaxValue(1000000000),
       )
@@ -329,6 +332,74 @@ export default {
             `${userEmoji} Đạo Hữu: <@${targetUser.id}>`,
             `<a:tttrankho:1547820098465824809> ${actionVerb(action)} Trận Văn: **${revoke ? '-' : '+'}${formatNumber(changed)}**`,
             `<a:tttrankho:1547820098465824809> Hiện có: **${formatNumber(saved.formationEssence)}**`,
+          ].join('\n'),
+        });
+      }
+
+      if (selectedId === 'dungeon:essence') {
+        const quantity = clampLargeQuantity(requestedQuantity);
+        const { adjustDungeonEssence } = await import('../../services/cultivationDungeon.js');
+        const result = await adjustDungeonEssence(
+          interaction.client,
+          interaction.guildId,
+          targetUser.id,
+          revoke ? -quantity : quantity,
+        );
+        const changed = Math.abs(result.changed);
+
+        return interaction.editReply({
+          content: [
+            HEADER,
+            '',
+            `${userEmoji} Đạo Hữu: <@${targetUser.id}>`,
+            `<a:ttbicanhtinhhoa:1549001027259465738> ${actionVerb(action)} Bí Cảnh Tinh Hoa: **${revoke ? '-' : '+'}${formatNumber(changed)}**`,
+            `<a:ttbicanhtinhhoa:1549001027259465738> Hiện có: **${formatNumber(result.after)}**`,
+          ].join('\n'),
+        });
+      }
+
+      if (selectedId === 'dungeon:attempts') {
+        const quantity = clampItemQuantity(requestedQuantity);
+        const { adjustDungeonBonusAttempts } = await import('../../services/cultivationDungeon.js');
+        const result = await adjustDungeonBonusAttempts(
+          interaction.client,
+          interaction.guildId,
+          targetUser.id,
+          revoke ? -quantity : quantity,
+        );
+        const changed = Math.abs(result.changed);
+
+        return interaction.editReply({
+          content: [
+            HEADER,
+            '',
+            `${userEmoji} Đạo Hữu: <@${targetUser.id}>`,
+            `<:ttbicanh:1548997554677485608> ${actionVerb(action)} lượt Bí Cảnh hôm nay: **${revoke ? '-' : '+'}${formatNumber(changed)}**`,
+            `<:ttbicanh:1548997554677485608> Giới hạn hôm nay: **${formatNumber(result.attemptLimit)} lượt**`,
+            `<:ttbicanh:1548997554677485608> Còn lại: **${formatNumber(result.attemptsRemaining)} lượt**`,
+          ].join('\n'),
+        });
+      }
+
+      if (selectedId === 'world_boss:attacks') {
+        const quantity = clampItemQuantity(requestedQuantity);
+        const { adjustWorldBossBonusAttacks } = await import('../../services/cultivationWorldBoss.js');
+        const result = await adjustWorldBossBonusAttacks(
+          interaction.client,
+          interaction.guildId,
+          targetUser.id,
+          revoke ? -quantity : quantity,
+        );
+        const changed = Math.abs(result.changed);
+
+        return interaction.editReply({
+          content: [
+            HEADER,
+            '',
+            `${userEmoji} Đạo Hữu: <@${targetUser.id}>`,
+            `<a:ttbossthegioi:1548967721440387102> ${actionVerb(action)} lượt Boss Thế Giới hôm nay: **${revoke ? '-' : '+'}${formatNumber(changed)}**`,
+            `<a:ttbossthegioi:1548967721440387102> Giới hạn hôm nay: **${formatNumber(result.attackLimit)} lượt**`,
+            `<a:ttbossthegioi:1548967721440387102> Còn lại: **${formatNumber(result.attacksRemaining)} lượt**`,
           ].join('\n'),
         });
       }
