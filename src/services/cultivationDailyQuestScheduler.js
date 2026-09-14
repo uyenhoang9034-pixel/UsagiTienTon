@@ -13,6 +13,10 @@ import {
   buildDailyQuestRows,
 } from './cultivationDailyQuestUI.js';
 
+import {
+  getAchievementSnapshot,
+} from './cultivationAchievement.js';
+
 const THREAD_PREFIX = 'games:cultivation:thread:';
 const CHECK_INTERVAL_MS = 60_000;
 
@@ -44,6 +48,27 @@ async function deleteMessage(thread, messageId) {
   return message.delete()
     .then(() => true)
     .catch(() => false);
+}
+
+function getThreadKey(guildId, userId) {
+  return `${THREAD_PREFIX}${guildId}:${userId}`;
+}
+
+async function setThreadDailyQuestMessageId(
+  client,
+  guildId,
+  userId,
+  messageId,
+) {
+  const key = getThreadKey(guildId, userId);
+  const saved = await client.db.get(key, null);
+  if (!saved) return;
+
+  await client.db.set(key, {
+    ...saved,
+    dailyQuestMessageId: messageId || null,
+    updatedAt: Date.now(),
+  });
 }
 
 async function getThreadEntries(client, guild) {
@@ -94,6 +119,12 @@ async function processPlayer(client, guild, entry) {
       guild.id,
       entry.userId,
     );
+    await setThreadDailyQuestMessageId(
+      client,
+      guild.id,
+      entry.userId,
+      null,
+    );
   }
 
   state = await syncDailyQuests(
@@ -102,11 +133,24 @@ async function processPlayer(client, guild, entry) {
     entry.userId,
   );
 
+  // Đồng thời ghi nhận mốc Linh Thạch cao nhất cho Thành Tựu.
+  await getAchievementSnapshot(
+    client,
+    guild.id,
+    entry.userId,
+  ).catch(() => null);
+
   // Hoàn thành toàn bộ: thưởng đã được sync/claim tự động, panel tự xóa.
   if (isDailyQuestComplete(state)) {
     if (state.messageId) {
       await deleteMessage(thread, state.messageId);
       await setDailyQuestMessageId(
+        client,
+        guild.id,
+        entry.userId,
+        null,
+      );
+      await setThreadDailyQuestMessageId(
         client,
         guild.id,
         entry.userId,
@@ -134,6 +178,12 @@ async function processPlayer(client, guild, entry) {
 
   if (message) {
     await message.edit(payload).catch(() => null);
+    await setThreadDailyQuestMessageId(
+      client,
+      guild.id,
+      entry.userId,
+      message.id,
+    );
     return;
   }
 
@@ -146,6 +196,12 @@ async function processPlayer(client, guild, entry) {
 
   if (message?.id) {
     await setDailyQuestMessageId(
+      client,
+      guild.id,
+      entry.userId,
+      message.id,
+    );
+    await setThreadDailyQuestMessageId(
       client,
       guild.id,
       entry.userId,
