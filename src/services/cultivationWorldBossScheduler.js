@@ -50,20 +50,31 @@ async function settleExpiredBosses(client, guildId) {
   }
 }
 
-async function deliverPendingReward(client, guild, record) {
+export async function deliverPendingWorldBossReward(client, guild, record) {
   const threadData = await getCultivationThreadData(
     client,
     guild.id,
     record.userId,
   );
 
-  if (!threadData?.threadId) return;
+  if (!threadData?.threadId) {
+    logger.warn(
+      `[WORLD BOSS] Không tìm thấy thread của ${record.userId} để gửi thưởng ${record.eventId}.`,
+    );
+    return false;
+  }
 
   const thread = await guild.channels
     .fetch(threadData.threadId)
     .catch(() => null);
 
-  if (!thread?.isThread?.()) return;
+  if (!thread?.isThread?.()) {
+    logger.warn(
+      `[WORLD BOSS] Thread ${threadData.threadId} của ${record.userId} không tồn tại hoặc không còn là thread.`,
+    );
+    return false;
+  }
+
   await reopenThread(thread);
 
   if (record.messageId) {
@@ -71,7 +82,7 @@ async function deliverPendingReward(client, guild, record) {
       .fetch(record.messageId)
       .catch(() => null);
 
-    if (existing) return;
+    if (existing) return true;
   }
 
   const message = await thread
@@ -83,10 +94,24 @@ async function deliverPendingReward(client, guild, record) {
       return null;
     });
 
-  if (message?.id) {
-    record.messageId = message.id;
-    await saveWorldBossReward(client, record);
+  if (!message?.id) return false;
+
+  record.messageId = message.id;
+  await saveWorldBossReward(client, record);
+  return true;
+}
+
+export async function deliverPendingWorldBossRewardsForGuild(client, guild) {
+  const pending = await listPendingWorldBossRewards(client, guild.id);
+  let sent = 0;
+
+  for (const record of pending) {
+    if (await deliverPendingWorldBossReward(client, guild, record)) {
+      sent += 1;
+    }
   }
+
+  return sent;
 }
 
 export async function runCultivationWorldBossCycle(client) {
@@ -99,11 +124,7 @@ export async function runCultivationWorldBossCycle(client) {
         await settleExpiredBosses(client, guild.id);
         await ensureWorldBoss(client, guild.id);
         await getWorldBossState(client, guild.id);
-
-        const pending = await listPendingWorldBossRewards(client, guild.id);
-        for (const record of pending) {
-          await deliverPendingReward(client, guild, record);
-        }
+        await deliverPendingWorldBossRewardsForGuild(client, guild);
       } catch (error) {
         logger.warn(
           `[WORLD BOSS] Lỗi vòng đời guild ${guild.id}: ${error?.message || error}`,
