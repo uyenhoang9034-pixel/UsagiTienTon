@@ -24,14 +24,15 @@ const THREAD_PREFIX = 'games:cultivation:thread:';
 const TIME_ZONE = 'Asia/Ho_Chi_Minh';
 
 export const WORLD_BOSS_ATTACK_LIMIT = 2;
-export const WORLD_BOSS_HP_RATIO = 0.75;
-const WORLD_BOSS_MAX_HP_RATIO = 0.98;
-const WORLD_BOSS_DISPARITY_WEIGHT = 0.30;
+export const WORLD_BOSS_HP_RATIO = 0.90;
+const WORLD_BOSS_MAX_HP_RATIO = 1.25;
+const WORLD_BOSS_DISPARITY_WEIGHT = 0.35;
+const WORLD_BOSS_STRONGEST_HIT_FLOOR = 8;
 
-// Reset duy nhất ngày 14/09/2026 để bỏ boss test cũ.
+// Reset duy nhất ngày 14/09/2026 để bỏ các boss test cũ.
 // Sang ngày khác eventId lại trở về YYYY-MM-DD bình thường.
 const ONE_DAY_RESET_DATE = '2026-09-14';
-const ONE_DAY_RESET_SUFFIX = 'r2';
+const ONE_DAY_RESET_SUFFIX = 'r3';
 
 export const WORLD_BOSS_REWARDS = {
   1: 2_500_000,
@@ -175,34 +176,46 @@ export async function calculateWorldBossCapacity(client, guildId) {
     0,
   );
 
-  const strongestTwoHitPotential = players.reduce(
-    (max, player) => Math.max(
-      max,
-      player.estimatedDamage * WORLD_BOSS_ATTACK_LIMIT,
-    ),
+  const strongestEstimatedHit = players.reduce(
+    (max, player) => Math.max(max, player.estimatedDamage),
     0,
   );
+
+  const strongestTwoHitPotential = strongestEstimatedHit * WORLD_BOSS_ATTACK_LIMIT;
 
   const concentration = totalTwoHitPotential > 0
     ? strongestTwoHitPotential / totalTwoHitPotential
     : 0;
 
-  // Bình thường vẫn gần 75%. Nếu một người chiếm phần lớn sức mạnh server,
-  // HP tự tăng dần tới tối đa 98% tổng tiềm năng để tránh 1 người 2-hit chết Boss.
+  // Base boss đã tăng từ 75% lên 90% tổng sức đánh 2 lượt của server.
+  // Nếu sức mạnh chênh lệch lớn, hệ số còn tăng tối đa tới 125%.
+  // Đồng thời Boss luôn có ít nhất lượng HP tương đương 8 đòn của người mạnh nhất,
+  // để một người không thể tự 2-hit kết thúc sự kiện.
   const effectiveHpRatio = Math.min(
     WORLD_BOSS_MAX_HP_RATIO,
     WORLD_BOSS_HP_RATIO + concentration * WORLD_BOSS_DISPARITY_WEIGHT,
   );
 
+  const serverScaledHp = Math.round(
+    totalTwoHitPotential * effectiveHpRatio,
+  );
+
+  const strongestPlayerFloorHp = Math.round(
+    strongestEstimatedHit * WORLD_BOSS_STRONGEST_HIT_FLOOR,
+  );
+
   const maxHp = Math.max(
     1_000_000,
-    Math.round(totalTwoHitPotential * effectiveHpRatio),
+    serverScaledHp,
+    strongestPlayerFloorHp,
   );
 
   return {
     players,
     totalTwoHitPotential,
+    strongestEstimatedHit,
     strongestTwoHitPotential,
+    strongestPlayerFloorHp,
     concentration,
     effectiveHpRatio,
     maxHp,
@@ -226,7 +239,7 @@ export async function ensureWorldBoss(client, guildId, now = new Date()) {
     const capacity = await calculateWorldBossCapacity(client, guildId);
     const bounds = getDayBounds(now);
     const state = {
-      version: 2,
+      version: 3,
       guildId,
       eventId,
       bossId: `boss_${eventId}`,
@@ -240,7 +253,9 @@ export async function ensureWorldBoss(client, guildId, now = new Date()) {
       participants: {},
       eligiblePlayerCount: capacity.players.length,
       totalTwoHitPotential: capacity.totalTwoHitPotential,
+      strongestEstimatedHit: capacity.strongestEstimatedHit,
       strongestTwoHitPotential: capacity.strongestTwoHitPotential,
+      strongestPlayerFloorHp: capacity.strongestPlayerFloorHp,
       powerConcentration: capacity.concentration,
       hpRatio: capacity.effectiveHpRatio,
       rewardsFinalized: false,
