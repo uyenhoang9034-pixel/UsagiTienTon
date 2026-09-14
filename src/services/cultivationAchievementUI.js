@@ -18,7 +18,6 @@ const INCOMPLETE = '<:hachiware6:1546024926119596123>';
 const CHEST = '<a:ttruongco:1547493008914653245>';
 const TITLE_POINT = '<a:trangtrig45:1547239010190237819>';
 const JOURNEY = '<a:ttnhiemvu:1547682200961556510>';
-const STONE = '<a:ttlinhthach:1547448522125869126>';
 const SEPARATOR = '⋆༺𓆩☠︎︎𓆪༻⋆';
 
 function parseEmoji(value) {
@@ -53,6 +52,43 @@ function progressBar(current, target, size = 10) {
 
 function title(text) {
   return `${TITLE_LEFT} **${text}** ${TITLE_RIGHT}`;
+}
+
+function getRequirementText(item) {
+  switch (item.metric) {
+    case 'cultivateCount':
+      return `Tu Luyện **${number(item.target)} lần**.`;
+    case 'breakthroughSuccess':
+      return `Đột Phá thành công **${number(item.target)} lần**.`;
+    case 'adventureCount':
+      return `Hoàn thành Thám Hiểm **${number(item.target)} lần**.`;
+    case 'alchemySuccess':
+      return `Luyện Đan thành công **${number(item.target)} lần**.`;
+    case 'forgeSuccess':
+      return `Luyện Khí thành công **${number(item.target)} lần**.`;
+    case 'petOwnedCount':
+      return `Sở hữu **${number(item.target)} Linh Thú khác nhau**.`;
+    case 'petCollectionComplete':
+      return 'Thu phục **toàn bộ Linh Thú** trong Bộ Sưu Tập.';
+    case 'formationMaxLevel':
+      return `Nâng một Trận Đồ đạt **Lv.${number(item.target)}**.`;
+    case 'formationAllPartsMax':
+      return 'Đưa **Trận Đồ + toàn bộ Trận Vị + Trận Nhãn + Trận Tâm** của cùng một trận lên **Lv.100**.';
+    case 'highestSpiritStones':
+      return `Từng sở hữu ít nhất **${number(item.target)} Linh Thạch** cùng lúc.`;
+    case 'worldBossAttacks':
+      return `Khiêu chiến Thế Giới Boss **${number(item.target)} lượt**.`;
+    case 'worldBossKills':
+      return `Tham gia **${number(item.target)} lần trảm sát Yêu Vương**.`;
+    case 'worldBossBestHit':
+      return `Gây ít nhất **${number(item.target)} sát thương trong một đòn** lên Yêu Vương.`;
+    case 'worldBossTop1':
+      return `Đạt **Top 1 đóng góp** trong Thế Giới Boss **${number(item.target)} lần**.`;
+    case 'achievementCompleted':
+      return `Hoàn thành **${number(item.target)} thành tựu** khác.`;
+    default:
+      return `Đạt tiến độ **${number(item.target)}**.`;
+  }
 }
 
 function categorySelector(ownerId, selected = null) {
@@ -138,6 +174,7 @@ export function buildAchievementCategoryEmbed(user, snapshot, category, notice =
 
     return [
       `${status} **${item.name}**${claimed}`,
+      `◈ Yêu cầu: ${getRequirementText(item)}`,
       `\`${progressBar(item.current, item.target)} ${number(Math.min(item.current, item.target))} / ${number(item.target)}\``,
       `${CHEST} ${number(item.reward)} Linh Thạch · ${TITLE_POINT} ${number(item.points)} điểm${titleLine}`,
     ].join('\n');
