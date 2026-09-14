@@ -44,10 +44,10 @@ export default {
         (option) =>
           option
             .setName('tuvi')
-            .setDescription('Số Tu Vi muốn cộng thêm.')
+            .setDescription('Số Tu Vi muốn cộng thêm, tối đa 10 tỷ.')
             .setRequired(true)
             .setMinValue(1)
-            .setMaxValue(1000000000),
+            .setMaxValue(10000000000),
       ),
 
   category: 'Games',
