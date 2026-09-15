@@ -89,6 +89,16 @@ export async function getCaveSnapshot(client, guildId, userId) {
   return snapshot(profile, state);
 }
 
+export async function getCaveAlchemyBonus(client, guildId, userId) {
+  const state = await getState(client, guildId, userId);
+  return Math.min(0.10, Math.max(0, Number(state.buildings?.alchemy) || 0) * 0.01);
+}
+
+export async function getCaveForgeBonus(client, guildId, userId) {
+  const state = await getState(client, guildId, userId);
+  return Math.min(0.10, Math.max(0, Number(state.buildings?.forge) || 0) * 0.01);
+}
+
 // Linh Thú Viên khuếch đại phần trăm trợ lực của Linh Thú theo phép nhân.
 // Ví dụ pet +20%, Linh Thú Viên +5% hiệu quả => 20% * 1.05 = 21%.
 // Không dùng helper này cho flag nhị phân như guaranteed_breakthrough/adventure_always_positive.
