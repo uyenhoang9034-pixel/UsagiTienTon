@@ -118,7 +118,8 @@ export async function collectCave(client, guildId, userId) {
     if (!amount) return { ok: false, reason: 'nothing_to_collect', ...snapshot(profile, state), collected: 0 };
     addInventoryItem(profile, 'thien_linh_thao', amount);
     state.storedHerbs = 0;
-    state.herbProgress = 0;
+    // Giữ lại phần sản lượng lẻ đã tích lũy. Thu hoạch chỉ lấy số Linh Thảo hoàn chỉnh.
+    state.herbProgress = Math.max(0, Number(state.herbProgress) || 0);
     state.lastUpdatedAt = Date.now();
     const [saved] = await Promise.all([saveCultivationProfile(client, profile), client.db.set(key(guildId, userId), state)]);
     return { ok: true, collected: amount, ...snapshot(saved, state) };
