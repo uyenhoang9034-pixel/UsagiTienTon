@@ -3,6 +3,8 @@ import { CULTIVATION_CONFIG } from '../../config/cultivationGame.js';
 import {
   faceNextTribulationBolt,
   getHeavenlyTribulationPreview,
+  getHeavenlyTribulationSession,
+  requiresHeavenlyTribulation,
   startHeavenlyTribulation,
 } from '../../services/cultivationHeavenlyTribulation.js';
 import {
@@ -18,6 +20,51 @@ async function ephemeral(interaction, content) {
   return interaction.reply(payload);
 }
 
+function isCultivationChannel(interaction) {
+  if (!CULTIVATION_CONFIG.channelId) return true;
+  return interaction.channelId === CULTIVATION_CONFIG.channelId || interaction.channel?.parentId === CULTIVATION_CONFIG.channelId;
+}
+
+async function handleSmartBreakthrough(interaction, client, ownerId) {
+  const service = await import('../../services/cultivationServiceV2.js');
+  const profile = await service.getCultivationProfile(
+    client,
+    interaction.guildId,
+    interaction.user.id,
+  );
+
+  const activeSession = await getHeavenlyTribulationSession(
+    client,
+    interaction.guildId,
+    interaction.user.id,
+  );
+
+  if (activeSession || requiresHeavenlyTribulation(profile)) {
+    const data = await getHeavenlyTribulationPreview(
+      client,
+      interaction.guildId,
+      interaction.user.id,
+    );
+
+    return interaction.update({
+      embeds: [buildTribulationPreviewEmbed(data)],
+      components: buildTribulationPreviewRows(ownerId, data),
+    });
+  }
+
+  const ui = await import('../../services/cultivationUIV2.js');
+  const result = await service.breakthrough(
+    client,
+    interaction.guildId,
+    interaction.user.id,
+  );
+
+  return interaction.update({
+    embeds: [ui.buildBreakthroughEmbed(result)],
+    components: [ui.buildBackRow(ownerId, 'breakthrough')],
+  });
+}
+
 export default {
   name: 'tutien_tribulation',
 
@@ -28,11 +75,15 @@ export default {
     if (interaction.user.id !== ownerId) {
       return ephemeral(interaction, 'Đây là Thiên Kiếp của một đạo hữu khác.');
     }
-    if (CULTIVATION_CONFIG.channelId && interaction.channelId !== CULTIVATION_CONFIG.channelId) {
-      return ephemeral(interaction, `Tiên Lộ chỉ mở tại <#${CULTIVATION_CONFIG.channelId}>.`);
+    if (!isCultivationChannel(interaction)) {
+      return ephemeral(interaction, `Tiên Lộ chỉ mở bên trong <#${CULTIVATION_CONFIG.channelId}>.`);
     }
 
     try {
+      if (action === 'smart') {
+        return handleSmartBreakthrough(interaction, client, ownerId);
+      }
+
       if (action === 'start') {
         const data = await startHeavenlyTribulation(client, interaction.guildId, interaction.user.id);
         return interaction.update({
