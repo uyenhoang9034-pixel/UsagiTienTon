@@ -9,7 +9,7 @@ import { CULTIVATION_CONFIG } from '../config/cultivationGame.js';
 const E = {
   start: '<a:trangtrig2:1546040703375904801>',
   end: '<a:trangtrig3:1546040818261954610>',
-  lightning: '⚡',
+  lightning: '<a:ttthienloi:1547489755724382249>',
   hp: '<a:ttsinhmenh:1548969011163959337>',
   danger: '<a:ttnguyhiem:1547495450385317928>',
   win: '<a:ttchienthang:1547493833724403722>',
@@ -20,6 +20,8 @@ const E = {
   realm: '<a:ttcanhgioi:1547448784924180500>',
   cultivation: '<a:tttuvi:1547448737377427550>',
 };
+
+const THIEN_LOI_BUTTON_EMOJI_ID = '1547489755724382249';
 
 function number(value) {
   return new Intl.NumberFormat('vi-VN').format(Math.max(0, Math.round(Number(value) || 0)));
@@ -163,7 +165,11 @@ export function buildTribulationResultEmbed(result) {
 }
 
 function lightningButton(customId, label, style = ButtonStyle.Primary) {
-  return new ButtonBuilder().setCustomId(customId).setLabel(label).setStyle(style).setEmoji('⚡');
+  return new ButtonBuilder()
+    .setCustomId(customId)
+    .setLabel(label)
+    .setStyle(style)
+    .setEmoji({ id: THIEN_LOI_BUTTON_EMOJI_ID, animated: true });
 }
 
 export function buildTribulationPreviewRows(ownerId, data) {
