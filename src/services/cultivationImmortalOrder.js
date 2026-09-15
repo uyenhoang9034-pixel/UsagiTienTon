@@ -9,16 +9,22 @@ export const IMMORTAL_ORDER_EMOJI = '<:tttienlenh:1549055213048959070>';
 
 export const IMMORTAL_ORDER_QUESTS = [
   { id: 'cultivate_100', category: 'cultivation', name: 'Nhất Tâm Tu Đạo', description: 'Tu luyện 100 lần', metric: 'cultivateCount', target: 100, points: 100 },
+  { id: 'cultivate_500', category: 'cultivation', name: 'Đạo Tâm Bất Diệt', description: 'Tu luyện 500 lần', metric: 'cultivateCount', target: 500, points: 250 },
   { id: 'breakthrough_10', category: 'cultivation', name: 'Nghịch Thiên Cải Mệnh', description: 'Đột phá thành công 10 lần', metric: 'breakthroughSuccess', target: 10, points: 150 },
+  { id: 'breakthrough_30', category: 'cultivation', name: 'Phá Cảnh Vô Song', description: 'Đột phá thành công 30 lần', metric: 'breakthroughSuccess', target: 30, points: 250 },
   { id: 'dungeon_10', category: 'dungeon', name: 'Bí Cảnh Sơ Thám', description: 'Vượt thành công 10 tầng Bí Cảnh', metric: 'dungeonClears', target: 10, points: 50 },
   { id: 'dungeon_50', category: 'dungeon', name: 'Bí Cảnh Chinh Phục', description: 'Vượt thành công 50 tầng Bí Cảnh', metric: 'dungeonClears', target: 50, points: 150 },
   { id: 'dungeon_100', category: 'dungeon', name: 'Vạn Cảnh Quy Phục', description: 'Vượt thành công 100 tầng Bí Cảnh', metric: 'dungeonClears', target: 100, points: 300 },
   { id: 'boss_attack_10', category: 'boss', name: 'Trảm Ma Thập Chiến', description: 'Khiêu chiến Boss Thế Giới 10 lần', metric: 'bossAttacks', target: 10, points: 100 },
+  { id: 'boss_attack_50', category: 'boss', name: 'Trảm Ma Bách Luyện', description: 'Khiêu chiến Boss Thế Giới 50 lần', metric: 'bossAttacks', target: 50, points: 250 },
   { id: 'boss_damage_100m', category: 'boss', name: 'Tru Ma Đại Nghiệp', description: 'Gây tổng 100.000.000 sát thương Boss Thế Giới', metric: 'bossDamage', target: 100_000_000, points: 250 },
   { id: 'alchemy_30', category: 'craft', name: 'Đan Đạo Sơ Thành', description: 'Luyện đan thành công 30 lần', metric: 'alchemySuccess', target: 30, points: 100 },
+  { id: 'alchemy_100', category: 'craft', name: 'Đan Đạo Tông Sư', description: 'Luyện đan thành công 100 lần', metric: 'alchemySuccess', target: 100, points: 200 },
   { id: 'forge_30', category: 'craft', name: 'Luyện Khí Đại Sư', description: 'Luyện khí thành công 30 lần', metric: 'forgeSuccess', target: 30, points: 100 },
+  { id: 'forge_100', category: 'craft', name: 'Luyện Khí Tông Sư', description: 'Luyện khí thành công 100 lần', metric: 'forgeSuccess', target: 100, points: 200 },
   { id: 'formation_spend_500', category: 'formation', name: 'Trận Đạo Nhập Môn', description: 'Tiêu tổng cộng 500 Trận Văn', metric: 'formationEssenceSpent', target: 500, points: 100 },
   { id: 'formation_spend_2000', category: 'formation', name: 'Trận Đạo Đại Thành', description: 'Tiêu tổng cộng 2.000 Trận Văn', metric: 'formationEssenceSpent', target: 2000, points: 250 },
+  { id: 'formation_spend_5000', category: 'formation', name: 'Trận Đạo Tông Sư', description: 'Tiêu tổng cộng 5.000 Trận Văn', metric: 'formationEssenceSpent', target: 5000, points: 300 },
 ];
 
 export const IMMORTAL_ORDER_MILESTONES = [
@@ -76,31 +82,12 @@ async function syncCoreProgress(client, guildId, userId, state, profile) {
     getAchievementState(client, guildId, userId),
   ]);
 
-  state.metrics.cultivateCount = Math.max(
-    num(state.metrics.cultivateCount),
-    num(profile?.stats?.cultivateCount),
-  );
-  state.metrics.breakthroughSuccess = Math.max(
-    num(state.metrics.breakthroughSuccess),
-    num(profile?.stats?.breakthroughSuccess),
-  );
-  state.metrics.dungeonClears = Math.max(
-    num(state.metrics.dungeonClears),
-    num(dungeon?.clears),
-  );
-  state.metrics.alchemySuccess = Math.max(
-    num(state.metrics.alchemySuccess),
-    num(profile?.stats?.alchemySuccess),
-  );
-  state.metrics.forgeSuccess = Math.max(
-    num(state.metrics.forgeSuccess),
-    num(profile?.stats?.forgeSuccess),
-  );
-  state.metrics.bossAttacks = Math.max(
-    num(state.metrics.bossAttacks),
-    num(achievement?.stats?.worldBossAttacks),
-  );
-
+  state.metrics.cultivateCount = Math.max(num(state.metrics.cultivateCount), num(profile?.stats?.cultivateCount));
+  state.metrics.breakthroughSuccess = Math.max(num(state.metrics.breakthroughSuccess), num(profile?.stats?.breakthroughSuccess));
+  state.metrics.dungeonClears = Math.max(num(state.metrics.dungeonClears), num(dungeon?.clears));
+  state.metrics.alchemySuccess = Math.max(num(state.metrics.alchemySuccess), num(profile?.stats?.alchemySuccess));
+  state.metrics.forgeSuccess = Math.max(num(state.metrics.forgeSuccess), num(profile?.stats?.forgeSuccess));
+  state.metrics.bossAttacks = Math.max(num(state.metrics.bossAttacks), num(achievement?.stats?.worldBossAttacks));
   return state;
 }
 
@@ -148,7 +135,7 @@ export async function claimImmortalOrderMilestone(client, guildId, userId, miles
     if (state.claimedMilestones[String(milestone.points)]) return { ok: false, reason: 'already_claimed', milestone };
     if (state.points < milestone.points) return { ok: false, reason: 'not_reached', milestone };
 
-    // Persist claim marker before delivering reward to make repeated button presses idempotent.
+    // Ghi dấu trước khi phát thưởng để thao tác bấm lặp không thể nhận trùng.
     state.claimedMilestones[String(milestone.points)] = Date.now();
     await save(client, state);
 
