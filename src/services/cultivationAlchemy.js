@@ -7,6 +7,7 @@ import {
   removeInventoryItem,
   saveCultivationProfile,
 } from './cultivationService.js';
+import { getCaveSnapshot } from './cultivationCave.js';
 
 export const CULTIVATION_CRAFT_QUANTITIES = [1, 10, 100, 1000];
 
@@ -117,6 +118,13 @@ export async function brewCultivationPill(
     const profile = await getCultivationProfile(client, guildId, userId);
     ensureAlchemyStats(profile);
 
+    const cave = await getCaveSnapshot(client, guildId, userId);
+    const caveAlchemyBonus = Math.max(0, Number(cave?.alchemyBonus) || 0);
+    const effectiveSuccessChance = Math.min(
+      1,
+      Math.max(0, Number(recipe.successChance) || 0) + caveAlchemyBonus,
+    );
+
     const ingredient = CULTIVATION_ITEMS[recipe.ingredientItemId];
     const resultItem = CULTIVATION_ITEMS[recipe.resultItemId];
     const available = getAlchemyIngredientQuantity(profile, recipe);
@@ -133,6 +141,8 @@ export async function brewCultivationPill(
         requiredMaterial,
         available,
         profile,
+        caveAlchemyBonus,
+        effectiveSuccessChance,
       };
     }
 
@@ -153,12 +163,14 @@ export async function brewCultivationPill(
         requiredMaterial,
         available,
         profile,
+        caveAlchemyBonus,
+        effectiveSuccessChance,
       };
     }
 
     let successCount = 0;
     for (let index = 0; index < craftQuantity; index += 1) {
-      if (Math.random() < recipe.successChance) {
+      if (Math.random() < effectiveSuccessChance) {
         successCount += 1;
       }
     }
@@ -191,6 +203,8 @@ export async function brewCultivationPill(
       resultItem,
       consumed: requiredMaterial,
       requiredMaterial,
+      caveAlchemyBonus,
+      effectiveSuccessChance,
       remainingIngredient:
         saved.inventory?.[recipe.ingredientItemId] || 0,
       resultQuantity: saved.inventory?.[recipe.resultItemId] || 0,
