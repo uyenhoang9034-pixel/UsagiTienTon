@@ -71,6 +71,17 @@ function applyDashboardEmojis(rows) {
   return rows;
 }
 
+function routeBreakthroughThroughTribulation(rows, ownerId) {
+  for (const row of rows || []) {
+    for (const component of row?.components || []) {
+      if (component?.data?.label === 'Đột Phá') {
+        component.setCustomId(`tutien_tribulation:${ownerId}:smart`);
+      }
+    }
+  }
+  return rows;
+}
+
 function appendMetaButtons(rows, ownerId) {
   const cloned = [...rows];
   let target = cloned.find(row => (row?.components?.length || 0) <= 1 && row !== cloned[0] && row !== cloned[1]);
@@ -91,7 +102,8 @@ export function buildDashboardRows(ownerId, guild = null) {
   const withSpiritVein = appendSpiritVeinButton(baseUI.buildDashboardRows(ownerId), ownerId);
   const withFormation = appendFormationButton(withSpiritVein, ownerId, guild);
   const withMeta = appendMetaButtons(withFormation, ownerId);
-  return applyDashboardEmojis(withMeta);
+  const routed = routeBreakthroughThroughTribulation(withMeta, ownerId);
+  return applyDashboardEmojis(routed);
 }
 
 export function buildCultivateEmbed(result) {
