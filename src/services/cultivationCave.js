@@ -89,6 +89,28 @@ export async function getCaveSnapshot(client, guildId, userId) {
   return snapshot(profile, state);
 }
 
+// Linh Thú Viên khuếch đại phần trăm trợ lực của Linh Thú theo phép nhân.
+// Ví dụ pet +20%, Linh Thú Viên +5% hiệu quả => 20% * 1.05 = 21%.
+// Không dùng helper này cho flag nhị phân như guaranteed_breakthrough/adventure_always_positive.
+export async function getCavePetBonus(client, guildId, userId) {
+  const state = await getState(client, guildId, userId);
+  return Math.min(0.10, Math.max(0, Number(state.buildings?.pet) || 0) * 0.01);
+}
+
+export function amplifyPetEffect(effectValue, cavePetBonus, { cap = null } = {}) {
+  const base = Math.max(0, Number(effectValue) || 0);
+  if (base <= 0) return 0;
+
+  const bonus = Math.min(0.10, Math.max(0, Number(cavePetBonus) || 0));
+  let amplified = base * (1 + bonus);
+
+  if (Number.isFinite(Number(cap))) {
+    amplified = Math.min(Math.max(0, Number(cap)), amplified);
+  }
+
+  return amplified;
+}
+
 export async function collectCave(client, guildId, userId) {
   return Mutex.runExclusive(`cultivation:${guildId}:${userId}`, async () => {
     const [profile, state] = await Promise.all([getCultivationProfile(client, guildId, userId), getState(client, guildId, userId)]);
