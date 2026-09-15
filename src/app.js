@@ -5,6 +5,7 @@ import {
   Collection,
   GatewayIntentBits,
   Partials,
+  Routes,
 } from 'discord.js';
 
 import { REST } from '@discordjs/rest';
@@ -67,29 +68,73 @@ class UsagiTienTonBot extends Client {
     initializeMusic(this);
   }
 
+  async diagnoseDiscordIdentity() {
+    if (!this.config.bot.token) {
+      throw new Error('DISCORD_TOKEN/TOKEN is missing.');
+    }
+
+    startupLog('Checking Discord bot token and application identity...');
+
+    try {
+      const botUser = await this.rest.get(Routes.user('@me'));
+      const configuredClientId = String(this.config.bot.clientId || '').trim();
+      const actualBotId = String(botUser?.id || '').trim();
+      const botName = botUser?.username || 'unknown';
+
+      startupLog(`Discord REST authentication OK ✅ | Bot: ${botName} | Bot ID: ${actualBotId}`);
+
+      if (!actualBotId) {
+        throw new Error('Discord /users/@me returned no bot ID.');
+      }
+
+      if (!configuredClientId) {
+        logger.warn(`CLIENT_ID is missing. Expected CLIENT_ID=${actualBotId}`);
+      } else if (configuredClientId !== actualBotId) {
+        throw new Error(
+          `CLIENT_ID mismatch: Railway CLIENT_ID=${configuredClientId}, but DISCORD_TOKEN belongs to bot ID=${actualBotId}.`,
+        );
+      } else {
+        startupLog('CLIENT_ID matches the authenticated bot token ✅');
+      }
+    } catch (error) {
+      const status = Number(error?.status ?? error?.statusCode ?? error?.rawError?.status ?? 0);
+      const code = error?.code ?? error?.rawError?.code ?? 'unknown';
+      const message = String(error?.message ?? 'Unknown Discord REST error');
+
+      logger.error(
+        `Discord identity check failed | HTTP ${status || 'unknown'} | code ${code} | ${message}`,
+      );
+      throw error;
+    }
+  }
+
   async loginWithRetry() {
     const maxAttempts = 8;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
+        startupLog(`Connecting to Discord Gateway... attempt ${attempt}/${maxAttempts}`);
         await this.login(this.config.bot.token);
+        startupLog('Discord Gateway login successful ✅');
         return;
       } catch (error) {
         const status = Number(error?.status ?? error?.statusCode ?? error?.rawError?.status ?? 0);
+        const code = error?.code ?? error?.rawError?.code ?? 'unknown';
         const message = String(error?.message ?? 'Unknown Discord login error');
         const isServerError = status >= 500 && status <= 599;
         const looksLikeServerError = /internal server error|bad gateway|service unavailable|gateway timeout/i.test(message);
         const retryable = isServerError || looksLikeServerError;
+
+        logger.error(
+          `Discord Gateway attempt ${attempt} failed | HTTP ${status || 'unknown'} | code ${code} | ${message}`,
+        );
 
         if (!retryable || attempt === maxAttempts) {
           throw error;
         }
 
         const delayMs = Math.min(5000 * attempt, 30000);
-        logger.warn(
-          `Discord Gateway temporarily unavailable (${message}). ` +
-          `Retry ${attempt}/${maxAttempts} in ${Math.round(delayMs / 1000)}s...`,
-        );
+        logger.warn(`Temporary Discord Gateway failure. Retrying in ${Math.round(delayMs / 1000)}s...`);
         await sleep(delayMs);
       }
     }
@@ -107,8 +152,10 @@ class UsagiTienTonBot extends Client {
       await loadCommands(this);
       await this.loadHandlers();
 
-      // Discord can occasionally return HTTP 5xx while fetching /gateway/bot.
-      // Retry only temporary server-side failures; invalid tokens/config errors still fail fast.
+      // Verify the token and CLIENT_ID independently of the Gateway.
+      // This never prints the token itself.
+      await this.diagnoseDiscordIdentity();
+
       await this.loginWithRetry();
 
       initRiffyAfterReady(this);
