@@ -7,6 +7,7 @@ import {
   removeInventoryItem,
   saveCultivationProfile,
 } from './cultivationService.js';
+import { getCaveSnapshot } from './cultivationCave.js';
 
 export const CULTIVATION_FORGE_QUANTITIES = [1, 10, 100, 1000];
 
@@ -194,6 +195,13 @@ export async function forgeEquipment(
     const profile = await getCultivationProfile(client, guildId, userId);
     ensureEquipmentData(profile);
 
+    const cave = await getCaveSnapshot(client, guildId, userId);
+    const caveForgeBonus = Math.max(0, Number(cave?.forgeBonus) || 0);
+    const effectiveSuccessChance = Math.min(
+      1,
+      Math.max(0, Number(equipment.successChance) || 0) + caveForgeBonus,
+    );
+
     const available = getOreQuantity(profile);
     const requiredMaterial = equipment.ingredientAmount * forgeQuantity;
 
@@ -206,6 +214,8 @@ export async function forgeEquipment(
         requiredMaterial,
         available,
         profile,
+        caveForgeBonus,
+        effectiveSuccessChance,
       };
     }
 
@@ -224,12 +234,14 @@ export async function forgeEquipment(
         requiredMaterial,
         available,
         profile,
+        caveForgeBonus,
+        effectiveSuccessChance,
       };
     }
 
     let successCount = 0;
     for (let index = 0; index < forgeQuantity; index += 1) {
-      if (Math.random() < equipment.successChance) {
+      if (Math.random() < effectiveSuccessChance) {
         successCount += 1;
       }
     }
@@ -256,6 +268,8 @@ export async function forgeEquipment(
       equipment,
       consumed: requiredMaterial,
       requiredMaterial,
+      caveForgeBonus,
+      effectiveSuccessChance,
       remainingOre: saved.inventory?.huyen_thiet || 0,
       ownedQuantity: saved.equipment?.owned?.[equipment.id] || 0,
       profile: saved,
