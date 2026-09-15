@@ -27,17 +27,12 @@ import {
   registerCommands as registerSlashCommands,
 } from './handlers/loaders/commandLoader.js';
 
-/**
- * =========================================================
- * MUSIC / RIFFY
- * =========================================================
- */
-
 import {
   initializeMusic,
   initRiffyAfterReady,
 } from './services/music/riffySetup.js';
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 class UsagiTienTonBot extends Client {
   constructor() {
@@ -47,19 +42,10 @@ class UsagiTienTonBot extends Client {
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.GuildMessageReactions,
-
-        /**
-         * MUSIC / VOICE
-         *
-         * Bắt buộc để Discord gửi VoiceStateUpdate
-         * cho hệ thống Music / Lavalink / Riffy.
-         */
         GatewayIntentBits.GuildVoiceStates,
-
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
       ],
-
       partials: [
         Partials.Message,
         Partials.Channel,
@@ -69,325 +55,141 @@ class UsagiTienTonBot extends Client {
     });
 
     this.config = config;
-
     this.commands = new Collection();
     this.events = new Collection();
     this.buttons = new Collection();
     this.selectMenus = new Collection();
     this.modals = new Collection();
     this.cooldowns = new Collection();
-
     this.db = null;
 
-    this.rest = new REST({
-      version: '10',
-    }).setToken(
-      config.bot.token,
-    );
-
-    /**
-     * =====================================================
-     * MUSIC / LAVALINK
-     * =====================================================
-     *
-     * Tạo:
-     *
-     * client.riffy
-     *
-     * và đăng ký player handlers trước khi bot login.
-     */
+    this.rest = new REST({ version: '10' }).setToken(config.bot.token);
     initializeMusic(this);
   }
 
+  async loginWithRetry() {
+    const maxAttempts = 8;
 
-  /**
-   * =======================================================
-   * START BOT
-   * =======================================================
-   */
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        await this.login(this.config.bot.token);
+        return;
+      } catch (error) {
+        const status = Number(error?.status ?? error?.statusCode ?? error?.rawError?.status ?? 0);
+        const message = String(error?.message ?? 'Unknown Discord login error');
+        const isServerError = status >= 500 && status <= 599;
+        const looksLikeServerError = /internal server error|bad gateway|service unavailable|gateway timeout/i.test(message);
+        const retryable = isServerError || looksLikeServerError;
+
+        if (!retryable || attempt === maxAttempts) {
+          throw error;
+        }
+
+        const delayMs = Math.min(5000 * attempt, 30000);
+        logger.warn(
+          `Discord Gateway temporarily unavailable (${message}). ` +
+          `Retry ${attempt}/${maxAttempts} in ${Math.round(delayMs / 1000)}s...`,
+        );
+        await sleep(delayMs);
+      }
+    }
+  }
 
   async start() {
     try {
-      startupLog(
-        'Starting Usagi Tiên Tôn...',
-      );
+      startupLog('Starting Usagi Tiên Tôn...');
 
-
-      /**
-       * ===================================================
-       * DATABASE
-       * ===================================================
-       */
-
-      const dbInstance =
-        await initializeDatabase();
-
-      this.db =
-        dbInstance.db;
-
-
-      /**
-       * ===================================================
-       * WEB SERVER
-       * ===================================================
-       */
+      const dbInstance = await initializeDatabase();
+      this.db = dbInstance.db;
 
       this.startWebServer();
 
-
-      /**
-       * ===================================================
-       * COMMANDS
-       * ===================================================
-       */
-
-      await loadCommands(
-        this,
-      );
-
-
-      /**
-       * ===================================================
-       * EVENTS / INTERACTIONS
-       * ===================================================
-       */
-
+      await loadCommands(this);
       await this.loadHandlers();
 
+      // Discord can occasionally return HTTP 5xx while fetching /gateway/bot.
+      // Retry only temporary server-side failures; invalid tokens/config errors still fail fast.
+      await this.loginWithRetry();
 
-      /**
-       * ===================================================
-       * DISCORD LOGIN
-       * ===================================================
-       */
-
-      await this.login(
-        this.config.bot.token,
-      );
-
-
-      /**
-       * ===================================================
-       * RIFFY AFTER READY
-       * ===================================================
-       *
-       * Phải chạy sau login vì lúc này:
-       *
-       * this.user.id
-       *
-       * mới tồn tại.
-       */
-
-      initRiffyAfterReady(
-        this,
-      );
-
-
-      /**
-       * ===================================================
-       * SLASH COMMANDS
-       * ===================================================
-       */
-
+      initRiffyAfterReady(this);
       await this.registerCommands();
-
 
       startupLog(
         `ONLINE ✅ | ${this.commands.size} commands | ${this.buttons.size} buttons | ${this.selectMenus.size} menus`,
       );
     } catch (error) {
-      logger.error(
-        'Failed to start Usagi Tiên Tôn:',
-        error,
-      );
-
+      logger.error('Failed to start Usagi Tiên Tôn:', error);
       process.exit(1);
     }
   }
 
-
-  /**
-   * =======================================================
-   * WEB SERVER
-   * =======================================================
-   */
-
   startWebServer() {
-    const app =
-      express();
+    const app = express();
+    const port = Number(
+      this.config.api?.port ||
+      process.env.PORT ||
+      3000,
+    );
+    const host = process.env.WEB_HOST || '0.0.0.0';
 
-    const port =
-      Number(
-        this.config.api?.port ||
-        process.env.PORT ||
-        3000,
-      );
-
-    const host =
-      process.env.WEB_HOST ||
-      '0.0.0.0';
-
-
-    app.get(
-      '/',
-      (_req, res) =>
-        res
-          .status(200)
-          .json({
-            bot:
-              'UsagiTienTon',
-
-            status:
-              'online',
-
-            uptime:
-              process.uptime(),
-          }),
+    app.get('/', (_req, res) =>
+      res.status(200).json({
+        bot: 'UsagiTienTon',
+        status: 'online',
+        uptime: process.uptime(),
+      }),
     );
 
-
-    app.get(
-      '/health',
-      (_req, res) =>
-        res
-          .status(200)
-          .json({
-            status:
-              'healthy',
-
-            discordReady:
-              this.isReady(),
-
-            uptime:
-              process.uptime(),
-
-            /**
-             * Cho phép nhìn nhanh xem
-             * Riffy đã được khởi tạo chưa.
-             */
-            musicReady:
-              Boolean(
-                this.riffy,
-              ),
-          }),
+    app.get('/health', (_req, res) =>
+      res.status(200).json({
+        status: 'healthy',
+        discordReady: this.isReady(),
+        uptime: process.uptime(),
+        musicReady: Boolean(this.riffy),
+      }),
     );
 
+    this.webServer = app.listen(port, host, () => {
+      startupLog(`Web server listening on ${host}:${port}`);
+    });
 
-    this.webServer =
-      app.listen(
-        port,
-        host,
-        () => {
-          startupLog(
-            `Web server listening on ${host}:${port}`,
-          );
-        },
-      );
-
-
-    this.webServer.on(
-      'error',
-      (error) => {
-        logger.error(
-          'Web server error:',
-          error,
-        );
-      },
-    );
+    this.webServer.on('error', (error) => {
+      logger.error('Web server error:', error);
+    });
   }
-
-
-  /**
-   * =======================================================
-   * LOAD HANDLERS
-   * =======================================================
-   */
 
   async loadHandlers() {
-    const events =
-      (
-        await import(
-          './handlers/loaders/events.js'
-        )
-      ).default;
+    const events = (
+      await import('./handlers/loaders/events.js')
+    ).default;
 
-    const interactions =
-      (
-        await import(
-          './handlers/loaders/interactions.js'
-        )
-      ).default;
+    const interactions = (
+      await import('./handlers/loaders/interactions.js')
+    ).default;
 
-
-    await events(
-      this,
-    );
-
-    await interactions(
-      this,
-    );
+    await events(this);
+    await interactions(this);
   }
-
-
-  /**
-   * =======================================================
-   * REGISTER COMMANDS
-   * =======================================================
-   */
 
   async registerCommands() {
     try {
-      await registerSlashCommands(
-        this,
-        {
-          clientId:
-            this.config.bot.clientId,
-        },
-      );
+      await registerSlashCommands(this, {
+        clientId: this.config.bot.clientId,
+      });
     } catch (error) {
-      logger.error(
-        'Slash command registration error:',
-        error,
-      );
+      logger.error('Slash command registration error:', error);
     }
   }
 
-
-  /**
-   * =======================================================
-   * SHUTDOWN
-   * =======================================================
-   */
-
-  async shutdown(
-    reason = 'UNKNOWN',
-  ) {
-    shutdownLog(
-      `Usagi Tiên Tôn shutting down (${reason})...`,
-    );
+  async shutdown(reason = 'UNKNOWN') {
+    shutdownLog(`Usagi Tiên Tôn shutting down (${reason})...`);
 
     try {
-      if (
-        this.webServer
-      ) {
-        await new Promise(
-          (resolve) =>
-            this.webServer.close(
-              resolve,
-            ),
-        );
+      if (this.webServer) {
+        await new Promise((resolve) => this.webServer.close(resolve));
       }
 
-
-      /**
-       * Nếu Music đang tồn tại,
-       * Discord client destroy sẽ đóng
-       * kết nối gateway.
-       */
-
-      if (
-        this.isReady()
-      ) {
+      if (this.isReady()) {
         this.destroy();
       }
     } finally {
@@ -396,66 +198,17 @@ class UsagiTienTonBot extends Client {
   }
 }
 
+const bot = new UsagiTienTonBot();
 
-/**
- * =========================================================
- * CREATE BOT
- * =========================================================
- */
+process.on('SIGTERM', () => bot.shutdown('SIGTERM'));
+process.on('SIGINT', () => bot.shutdown('SIGINT'));
 
-const bot =
-  new UsagiTienTonBot();
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught exception:', error);
+});
 
-
-/**
- * =========================================================
- * PROCESS SIGNALS
- * =========================================================
- */
-
-process.on(
-  'SIGTERM',
-  () =>
-    bot.shutdown(
-      'SIGTERM',
-    ),
-);
-
-process.on(
-  'SIGINT',
-  () =>
-    bot.shutdown(
-      'SIGINT',
-    ),
-);
-
-
-process.on(
-  'uncaughtException',
-  (error) => {
-    logger.error(
-      'Uncaught exception:',
-      error,
-    );
-  },
-);
-
-
-process.on(
-  'unhandledRejection',
-  (error) => {
-    logger.error(
-      'Unhandled rejection:',
-      error,
-    );
-  },
-);
-
-
-/**
- * =========================================================
- * START
- * =========================================================
- */
+process.on('unhandledRejection', (error) => {
+  logger.error('Unhandled rejection:', error);
+});
 
 bot.start();
