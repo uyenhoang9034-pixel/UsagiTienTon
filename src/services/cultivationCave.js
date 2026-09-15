@@ -89,16 +89,6 @@ export async function getCaveSnapshot(client, guildId, userId) {
   return snapshot(profile, state);
 }
 
-export async function getCaveAlchemyBonus(client, guildId, userId) {
-  const state = await getState(client, guildId, userId);
-  return Math.min(0.10, Math.max(0, Number(state.buildings?.alchemy) || 0) * 0.01);
-}
-
-export async function getCaveForgeBonus(client, guildId, userId) {
-  const state = await getState(client, guildId, userId);
-  return Math.min(0.10, Math.max(0, Number(state.buildings?.forge) || 0) * 0.01);
-}
-
 // Linh Thú Viên khuếch đại phần trăm trợ lực của Linh Thú theo phép nhân.
 // Ví dụ pet +20%, Linh Thú Viên +5% hiệu quả => 20% * 1.05 = 21%.
 // Không dùng helper này cho flag nhị phân như guaranteed_breakthrough/adventure_always_positive.
@@ -128,7 +118,7 @@ export async function collectCave(client, guildId, userId) {
     if (!amount) return { ok: false, reason: 'nothing_to_collect', ...snapshot(profile, state), collected: 0 };
     addInventoryItem(profile, 'thien_linh_thao', amount);
     state.storedHerbs = 0;
-    // Giữ lại phần sản lượng lẻ đã tích lũy; thu hoạch chỉ lấy số Linh Thảo hoàn chỉnh.
+    state.herbProgress = 0;
     state.lastUpdatedAt = Date.now();
     const [saved] = await Promise.all([saveCultivationProfile(client, profile), client.db.set(key(guildId, userId), state)]);
     return { ok: true, collected: amount, ...snapshot(saved, state) };

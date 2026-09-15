@@ -1,12 +1,34 @@
 import { Mutex } from '../utils/mutex.js';
-import { getDatabaseValue, setDatabaseValue } from '../utils/database.js';
-import { addInventoryItem, getCultivationProfile, saveCultivationProfile } from './cultivationService.js';
-import { FORMATION_DEFINITIONS, getActiveFormation, getFormationLevel, getFormationState, saveFormationState } from './cultivationFormation.js';
-import { getActivePet } from './cultivationPet.js';
-import { addImmortalOrderProgress } from './cultivationImmortalOrder.js';
-import { amplifyPetEffect, getCavePetBonus } from './cultivationCave.js';
+
+import {
+  getDatabaseValue,
+  setDatabaseValue,
+} from '../utils/database.js';
+
+import {
+  addInventoryItem,
+  getCultivationProfile,
+  saveCultivationProfile,
+} from './cultivationService.js';
+
+import {
+  FORMATION_DEFINITIONS,
+  getActiveFormation,
+  getFormationLevel,
+  getFormationState,
+  saveFormationState,
+} from './cultivationFormation.js';
+
+import {
+  getActivePet,
+} from './cultivationPet.js';
+
+import {
+  addImmortalOrderProgress,
+} from './cultivationImmortalOrder.js';
 
 const DUNGEON_KEY_PREFIX = 'games:cultivation:dungeon:';
+
 export const DUNGEON_DAILY_ATTEMPTS = 3;
 export const DUNGEON_MAX_HP = 100;
 
@@ -37,14 +59,19 @@ export const DUNGEON_SHOP = {
 
 function stateKey(guildId, userId) { return `${DUNGEON_KEY_PREFIX}${guildId}:${userId}`; }
 function guildPrefix(guildId) { return `${DUNGEON_KEY_PREFIX}${guildId}:`; }
+
 function todayKey() {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
 }
+
 function randomInt(min, max) {
   const low = Math.ceil(Math.min(min, max));
   const high = Math.floor(Math.max(min, max));
   return Math.floor(Math.random() * (high - low + 1)) + low;
 }
+
 function clamp(value, min, max) { return Math.max(min, Math.min(max, Number(value) || 0)); }
 
 function normalizeState(raw, guildId, userId) {
@@ -94,7 +121,14 @@ export async function adjustDungeonBonusAttempts(client, guildId, userId, delta)
     const after = clamp(before + requested, 0, 1_000_000_000);
     state.bonusAttempts = after;
     const saved = await saveDungeonState(client, state);
-    return { state: saved, before, after, changed: after - before, attemptLimit: getDungeonAttemptLimit(saved), attemptsRemaining: Math.max(0, getDungeonAttemptLimit(saved) - saved.attemptsUsed) };
+    return {
+      state: saved,
+      before,
+      after,
+      changed: after - before,
+      attemptLimit: getDungeonAttemptLimit(saved),
+      attemptsRemaining: Math.max(0, getDungeonAttemptLimit(saved) - saved.attemptsUsed),
+    };
   });
 }
 
@@ -110,12 +144,10 @@ export async function adjustDungeonEssence(client, guildId, userId, delta) {
   });
 }
 
-async function getPetSuccessBonus(client, guildId, userId, profile) {
+function getPetSuccessBonus(profile) {
   const pet = getActivePet(profile);
-  if (!pet) return { pet: null, baseBonus: 0, cavePetBonus: 0, bonus: 0 };
-  const baseBonus = DUNGEON_PET_SUCCESS_BONUS[pet.rarity] || 0;
-  const cavePetBonus = await getCavePetBonus(client, guildId, userId);
-  return { pet, baseBonus, cavePetBonus, bonus: amplifyPetEffect(baseBonus, cavePetBonus, { cap: 100 }) };
+  if (!pet) return { pet: null, bonus: 0 };
+  return { pet, bonus: DUNGEON_PET_SUCCESS_BONUS[pet.rarity] || 0 };
 }
 
 function getFormationLevelBand(level) {
@@ -137,27 +169,48 @@ async function getFormationProtection(client, guildId, userId) {
   return { state, formation: active, level, gradeBonus, levelBonus, reduction: gradeBonus + levelBonus };
 }
 
-function getPlayerPowerStep(profile) { return Math.max(0, Math.floor(Number(profile?.realmIndex) || 0) * 4 + Math.floor(Number(profile?.stageIndex) || 0)); }
-function getFloorRecommendedStep(floor) { return Math.max(0, Math.floor((Math.max(1, floor) - 1) / 5)); }
+function getPlayerPowerStep(profile) {
+  return Math.max(0, Math.floor(Number(profile?.realmIndex) || 0) * 4 + Math.floor(Number(profile?.stageIndex) || 0));
+}
+
+function getFloorRecommendedStep(floor) {
+  return Math.max(0, Math.floor((Math.max(1, floor) - 1) / 5));
+}
+
 function getBaseSuccessChance(profile, floor) {
   const safeFloor = Math.max(1, Math.floor(Number(floor) || 1));
-  const difference = getPlayerPowerStep(profile) - getFloorRecommendedStep(safeFloor);
-  const realmAdjustment = difference >= 0 ? Math.min(4, difference) : Math.max(-20, difference * 4);
+  const playerStep = getPlayerPowerStep(profile);
+  const recommendedStep = getFloorRecommendedStep(safeFloor);
+  const difference = playerStep - recommendedStep;
+
+  const realmAdjustment = difference >= 0
+    ? Math.min(4, difference)
+    : Math.max(-20, difference * 4);
   const depthPenalty = Math.min(35, Math.floor((safeFloor - 1) / 2) * 2);
   const guardianPenalty = safeFloor % 5 === 0 ? 8 : 0;
-  return clamp(Math.round(78 + realmAdjustment - depthPenalty - guardianPenalty), 20, 82);
+  const chance = 78 + realmAdjustment - depthPenalty - guardianPenalty;
+
+  return clamp(Math.round(chance), 20, 82);
 }
 
 function getRawHpLoss(floor, success) {
   const safeFloor = Math.max(1, Math.floor(Number(floor) || 1));
   const depthBonus = Math.min(12, Math.floor((safeFloor - 1) / 10) * 2);
-  const normalLoss = safeFloor % 5 === 0 ? 20 + depthBonus + randomInt(0, 8) : 12 + depthBonus + randomInt(0, 4);
-  return success ? normalLoss : Math.round(normalLoss * 1.5);
+  const guardian = safeFloor % 5 === 0;
+
+  const normalLoss = guardian
+    ? 20 + depthBonus + randomInt(0, 8)
+    : 12 + depthBonus + randomInt(0, 4);
+
+  if (success) return normalLoss;
+  return Math.round(normalLoss * 1.5);
 }
+
 function applyFormationProtection(rawLoss, reductionPercent) {
   const reduced = Math.round(Math.max(0, rawLoss) * (1 - clamp(reductionPercent, 0, 100) / 100));
   return Math.max(2, reduced);
 }
+
 function getEssenceRange(floor) {
   const safeFloor = Math.max(1, Math.floor(Number(floor) || 1));
   const band = Math.ceil(safeFloor / 10);
@@ -199,15 +252,18 @@ async function applyFloorReward(client, guildId, userId, profile, reward) {
 }
 
 export async function getDungeonSnapshot(client, guildId, userId, { isAdmin = false } = {}) {
-  const [state, profile, formation] = await Promise.all([getDungeonState(client, guildId, userId), getCultivationProfile(client, guildId, userId), getFormationProtection(client, guildId, userId)]);
-  const petInfo = await getPetSuccessBonus(client, guildId, userId, profile);
+  const [state, profile, formation] = await Promise.all([
+    getDungeonState(client, guildId, userId), getCultivationProfile(client, guildId, userId), getFormationProtection(client, guildId, userId),
+  ]);
+  const petInfo = getPetSuccessBonus(profile);
   const floor = state.activeRun?.floor || state.highestFloor + 1;
   const baseChance = getBaseSuccessChance(profile, floor);
   const successChance = Math.min(100, baseChance + petInfo.bonus);
   const attemptLimit = getDungeonAttemptLimit(state);
   return {
-    state, profile, formation, pet: petInfo.pet, petBonus: petInfo.bonus, petBaseBonus: petInfo.baseBonus, cavePetBonus: petInfo.cavePetBonus,
-    floor, baseChance, successChance, isAdmin, attemptLimit, bonusAttempts: state.bonusAttempts,
+    state, profile, formation, pet: petInfo.pet, petBonus: petInfo.bonus, floor, baseChance, successChance, isAdmin,
+    attemptLimit,
+    bonusAttempts: state.bonusAttempts,
     attemptsRemaining: isAdmin ? Infinity : Math.max(0, attemptLimit - state.attemptsUsed),
   };
 }
@@ -230,7 +286,7 @@ export async function challengeDungeonFloor(client, guildId, userId, { isAdmin =
     const state = await getDungeonState(client, guildId, userId);
     if (!state.activeRun) return { ok: false, reason: 'no_active_run', ...(await getDungeonSnapshot(client, guildId, userId, { isAdmin })) };
     const [profile, formation] = await Promise.all([getCultivationProfile(client, guildId, userId), getFormationProtection(client, guildId, userId)]);
-    const petInfo = await getPetSuccessBonus(client, guildId, userId, profile);
+    const petInfo = getPetSuccessBonus(profile);
     const floor = state.activeRun.floor;
     const baseChance = getBaseSuccessChance(profile, floor);
     const successChance = Math.min(100, baseChance + petInfo.bonus);
@@ -239,35 +295,29 @@ export async function challengeDungeonFloor(client, guildId, userId, { isAdmin =
     const hpLoss = applyFormationProtection(rawHpLoss, formation.reduction);
     const hpBefore = state.activeRun.hp;
     const hpAfter = Math.max(0, hpBefore - hpLoss);
-    const petFields = { pet: petInfo.pet, petBonus: petInfo.bonus, petBaseBonus: petInfo.baseBonus, cavePetBonus: petInfo.cavePetBonus };
 
     if (!success) {
-      state.failures += 1;
-      state.activeRun = null;
-      await saveDungeonState(client, state);
-      return { ok: true, success: false, floor, hpBefore, hpAfter, hpLoss, rawHpLoss, baseChance, successChance, ...petFields, formation, state, isAdmin };
+      state.failures += 1; state.activeRun = null; await saveDungeonState(client, state);
+      return { ok: true, success: false, floor, hpBefore, hpAfter, hpLoss, rawHpLoss, baseChance, successChance, pet: petInfo.pet, petBonus: petInfo.bonus, formation, state, isAdmin };
     }
 
     const reward = buildFloorReward(floor);
-    state.highestFloor = Math.max(state.highestFloor, floor);
-    state.clears += 1;
-    state.essence += reward.essence;
+    state.highestFloor = Math.max(state.highestFloor, floor); state.clears += 1; state.essence += reward.essence;
     const exhausted = hpAfter <= 0;
-    state.activeRun = exhausted ? null : { ...state.activeRun, floor: floor + 1, hp: hpAfter };
+    if (exhausted) state.activeRun = null;
+    else state.activeRun = { ...state.activeRun, floor: floor + 1, hp: hpAfter };
     await saveDungeonState(client, state);
     await applyFloorReward(client, guildId, userId, profile, reward);
     await addImmortalOrderProgress(client, guildId, userId, 'dungeonClears', 1);
-    return { ok: true, success: true, exhausted, floor, nextFloor: floor + 1, hpBefore, hpAfter, hpLoss, rawHpLoss, baseChance, successChance, ...petFields, formation, reward, state, isAdmin };
+    return { ok: true, success: true, exhausted, floor, nextFloor: floor + 1, hpBefore, hpAfter, hpLoss, rawHpLoss, baseChance, successChance, pet: petInfo.pet, petBonus: petInfo.bonus, formation, reward, state, isAdmin };
   });
 }
 
 export async function leaveDungeonRun(client, guildId, userId, { isAdmin = false } = {}) {
   return Mutex.runExclusive(`cultivation:dungeon:leave:${guildId}:${userId}`, async () => {
     const state = await getDungeonState(client, guildId, userId);
-    const floor = state.activeRun?.floor || null;
-    const hp = state.activeRun?.hp ?? null;
-    state.activeRun = null;
-    await saveDungeonState(client, state);
+    const floor = state.activeRun?.floor || null; const hp = state.activeRun?.hp ?? null;
+    state.activeRun = null; await saveDungeonState(client, state);
     return { ok: true, floor, hp, ...(await getDungeonSnapshot(client, guildId, userId, { isAdmin })) };
   });
 }
@@ -278,16 +328,13 @@ export async function buyDungeonShopItem(client, guildId, userId, itemId, { isAd
     if (!entry) return { ok: false, reason: 'unknown_item', ...(await getDungeonSnapshot(client, guildId, userId, { isAdmin })) };
     const state = await getDungeonState(client, guildId, userId);
     if (state.essence < entry.price) return { ok: false, reason: 'not_enough_essence', item: entry, ...(await getDungeonSnapshot(client, guildId, userId, { isAdmin })) };
-    state.essence -= entry.price;
-    await saveDungeonState(client, state);
+    state.essence -= entry.price; await saveDungeonState(client, state);
     if (entry.type === 'formation_essence') {
       const formationState = await getFormationState(client, guildId, userId);
       formationState.formationEssence = Math.max(0, Number(formationState.formationEssence) || 0) + 1;
       await saveFormationState(client, guildId, userId, formationState);
     } else {
-      const profile = await getCultivationProfile(client, guildId, userId);
-      addInventoryItem(profile, entry.id, 1);
-      await saveCultivationProfile(client, profile);
+      const profile = await getCultivationProfile(client, guildId, userId); addInventoryItem(profile, entry.id, 1); await saveCultivationProfile(client, profile);
     }
     return { ok: true, item: entry, ...(await getDungeonSnapshot(client, guildId, userId, { isAdmin })) };
   });
@@ -298,10 +345,8 @@ export async function getDungeonLeaderboard(client, guildId, limit = 10) {
   const keys = typeof client?.db?.list === 'function' ? await client.db.list(prefix) : [];
   const entries = [];
   for (const key of keys || []) {
-    const userId = String(key).slice(prefix.length);
-    if (!userId) continue;
-    const raw = await getDatabaseValue(client, key, null);
-    if (!raw) continue;
+    const userId = String(key).slice(prefix.length); if (!userId) continue;
+    const raw = await getDatabaseValue(client, key, null); if (!raw) continue;
     const state = normalizeState(raw, guildId, userId);
     entries.push({ userId, highestFloor: state.highestFloor, clears: state.clears, essence: state.essence });
   }
