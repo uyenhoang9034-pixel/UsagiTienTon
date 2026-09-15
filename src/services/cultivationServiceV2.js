@@ -11,6 +11,11 @@ import {
 } from './cultivationPet.js';
 
 import {
+  amplifyPetEffect,
+  getCavePetBonus,
+} from './cultivationCave.js';
+
+import {
   consumeEquippedEquipmentUse,
 } from './cultivationEquipment.js';
 
@@ -42,7 +47,7 @@ function getWrapperCultivationPetBonus(profile) {
   const pet = getActivePet(profile);
   if (!pet) return 0;
 
-  // Thanh Phong Linh Hồ vẫn được base service xử lý đúng +3%.
+  // Thanh Phong Linh Hồ vẫn do base service xử lý để tránh cộng hai lần.
   if (pet.id === 'thanh_phong_linh_ho') return 0;
 
   return Math.max(
@@ -91,6 +96,7 @@ export async function cultivate(client, guildId, userId) {
     return baseService.cultivate(client, guildId, userId);
   }
 
+  const cavePetBonus = await getCavePetBonus(client, guildId, userId);
   const immortalCultivationBase =
     Number(profile.realmIndex) >= CHAN_TIEN_REALM_INDEX;
   const originalCultivation = Math.max(
@@ -104,8 +110,15 @@ export async function cultivate(client, guildId, userId) {
 
   const realmRewards = getCultivationRealmRewardMultipliers(profile);
   const activePet = getActivePet(profile);
-  const petCultivationPercent = getWrapperCultivationPetBonus(profile);
-  const petStaminaRefundPercent = getPetStaminaRefund(profile);
+  const petCultivationPercent = amplifyPetEffect(
+    getWrapperCultivationPetBonus(profile),
+    cavePetBonus,
+  );
+  const petStaminaRefundPercent = amplifyPetEffect(
+    getPetStaminaRefund(profile),
+    cavePetBonus,
+    { cap: 0.95 },
+  );
 
   const baseStaminaCost = CULTIVATION_CONFIG.gameplay.cultivateStaminaCost;
   const stamina = applyFormationStaminaReduction(
@@ -137,6 +150,7 @@ export async function cultivate(client, guildId, userId) {
       formationStaminaReduction: Number(effects.staminaReduction) || 0,
       petStaminaRefund,
       petStaminaRefundPercent,
+      cavePetBonus,
       activePet,
     };
   }
@@ -197,7 +211,7 @@ export async function cultivate(client, guildId, userId) {
       0,
       Number(result.techniqueCultivationBonus) || 0,
     );
-    const rawLegacyPetCultivationBonus = Math.max(
+    const baseLegacyPetCultivationBonus = Math.max(
       0,
       Number(result.petCultivationBonus) || 0,
     );
@@ -214,10 +228,21 @@ export async function cultivate(client, guildId, userId) {
       0,
       Number(result.techniqueCultivationPercent) || 0,
     );
-    const legacyPetPercent = Math.max(
+    const baseLegacyPetPercent = Math.max(
       0,
       Number(result.petCultivationPercent) || 0,
     );
+    const legacyPetPercent = amplifyPetEffect(
+      baseLegacyPetPercent,
+      cavePetBonus,
+    );
+    const rawLegacyPetCultivationBonus =
+      baseLegacyPetPercent > 0 && baseLegacyPetCultivationBonus > 0
+        ? Math.round(
+            baseLegacyPetCultivationBonus *
+            (legacyPetPercent / baseLegacyPetPercent),
+          )
+        : baseLegacyPetCultivationBonus;
     const pillPercent = Math.max(
       0,
       Number(result.cultivationPillPercent) || 0,
@@ -455,6 +480,7 @@ export async function cultivate(client, guildId, userId) {
         formationStaminaReduction: Number(effects.staminaReduction) || 0,
         petStaminaRefund,
         petStaminaRefundPercent,
+        cavePetBonus,
         formationResonanceLines: formation.lines || [],
         fixedImmortalCultivation: true,
         fixedImmortalCultivationGain: baseGain,
@@ -599,6 +625,7 @@ export async function cultivate(client, guildId, userId) {
       formationStaminaReduction: Number(effects.staminaReduction) || 0,
       petStaminaRefund,
       petStaminaRefundPercent,
+      cavePetBonus,
       formationResonanceLines: formation.lines || [],
       cultivationFailureLoss,
       failureRootBonus,
@@ -725,18 +752,19 @@ export async function breakthrough(client, guildId, userId) {
   );
 
   const activePet = getActivePet(profile);
-  const petBreakthroughBonus = Math.max(
-    0,
-    Number(getPetEffectValue(profile, 'breakthrough_bonus')) || 0,
+  const cavePetBonus = await getCavePetBonus(client, guildId, userId);
+  const petBreakthroughBonus = amplifyPetEffect(
+    getPetEffectValue(profile, 'breakthrough_bonus'),
+    cavePetBonus,
+    { cap: 1 },
   );
-  const petLossReduction = Math.min(
-    0.95,
-    Math.max(
-      0,
-      Number(getPetEffectValue(profile, 'breakthrough_loss_reduction')) || 0,
-    ),
+  const petLossReduction = amplifyPetEffect(
+    getPetEffectValue(profile, 'breakthrough_loss_reduction'),
+    cavePetBonus,
+    { cap: 0.95 },
   );
 
+  // Flag tuyệt đối không được Linh Thú Viên khuếch đại.
   if (getPetEffectValue(profile, 'guaranteed_breakthrough') > 0) {
     return guaranteedBreakthrough(
       client,
@@ -827,6 +855,7 @@ export async function breakthrough(client, guildId, userId) {
       petBreakthroughBonus,
       petLossReduction,
       petLossSaved,
+      cavePetBonus,
       formationBreakthroughBonus: formationBonus,
       formationResonanceLines: formation.lines || [],
     };
