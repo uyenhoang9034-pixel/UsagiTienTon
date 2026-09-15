@@ -30,6 +30,10 @@ import {
 } from './cultivationImmortalOrderUI.js';
 
 import {
+  getCaveDashboardButton,
+} from './cultivationCaveUI.js';
+
+import {
   buildFormationBreakthroughLines,
   buildFormationCultivateLines,
 } from './cultivationFormationResultUI.js';
@@ -84,17 +88,25 @@ function routeBreakthroughThroughTribulation(rows, ownerId) {
 
 function appendMetaButtons(rows, ownerId) {
   const cloned = [...rows];
-  let target = cloned.find(row => (row?.components?.length || 0) <= 1 && row !== cloned[0] && row !== cloned[1]);
-  if (!target || target.components.length > 1) {
+  let target = cloned.find(row => (row?.components?.length || 0) === 0);
+  if (!target) {
     target = new ActionRowBuilder();
     cloned.push(target);
   }
-  target.addComponents(
+  const buttons = [
     getAchievementDashboardButton(ownerId),
     getWorldBossDashboardButton(ownerId),
     getDungeonDashboardButton(ownerId),
     getImmortalOrderDashboardButton(ownerId),
-  );
+    getCaveDashboardButton(ownerId),
+  ];
+  for (const btn of buttons) {
+    if ((target.components?.length || 0) >= 5) {
+      target = new ActionRowBuilder();
+      cloned.push(target);
+    }
+    target.addComponents(btn);
+  }
   return cloned;
 }
 
