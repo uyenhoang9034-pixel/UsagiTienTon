@@ -10,6 +10,7 @@ import {
   saveCultivationProfile,
 } from './cultivationService.js';
 import { getActivePet } from './cultivationPet.js';
+import { amplifyPetEffect, getCavePetBonus } from './cultivationCave.js';
 import {
   getActiveFormation,
   getFormationLevel,
@@ -37,17 +38,9 @@ const FORMATION_GRADE = {
   chaos_unity: 5,
 };
 
-function key(guildId, userId) {
-  return `${KEY_PREFIX}${guildId}:${userId}`;
-}
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, Number(value) || 0));
-}
-
-function randomInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
+function key(guildId, userId) { return `${KEY_PREFIX}${guildId}:${userId}`; }
+function clamp(value, min, max) { return Math.max(min, Math.min(max, Number(value) || 0)); }
+function randomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 
 function formationLevelBonus(level) {
   const safe = clamp(Math.floor(Number(level) || 1), 1, 100);
@@ -60,19 +53,21 @@ function formationLevelBonus(level) {
 
 async function getSupport(client, guildId, userId, profile) {
   const pet = getActivePet(profile);
-  const petBonus = pet ? PET_BONUS[pet.rarity] || 0 : 0;
+  const petBaseBonus = pet ? PET_BONUS[pet.rarity] || 0 : 0;
+  const cavePetBonus = pet ? await getCavePetBonus(client, guildId, userId) : 0;
+  const petBonus = amplifyPetEffect(petBaseBonus, cavePetBonus, { cap: 100 });
 
   try {
     const state = await getFormationState(client, guildId, userId);
     const formation = getActiveFormation(state);
     if (!formation) {
-      return { pet, petBonus, formation: null, formationLevel: 0, damageReduction: 0 };
+      return { pet, petBaseBonus, cavePetBonus, petBonus, formation: null, formationLevel: 0, damageReduction: 0 };
     }
     const level = getFormationLevel(state, formation.id);
     const damageReduction = (FORMATION_GRADE[formation.id] || 1) + formationLevelBonus(level);
-    return { pet, petBonus, formation, formationLevel: level, damageReduction };
+    return { pet, petBaseBonus, cavePetBonus, petBonus, formation, formationLevel: level, damageReduction };
   } catch {
-    return { pet, petBonus, formation: null, formationLevel: 0, damageReduction: 0 };
+    return { pet, petBaseBonus, cavePetBonus, petBonus, formation: null, formationLevel: 0, damageReduction: 0 };
   }
 }
 
@@ -124,25 +119,13 @@ export async function getHeavenlyTribulationPreview(client, guildId, userId) {
   if (session) {
     const nextBolt = session.clearedBolts + 1;
     const baseChance = baseResistChance(profile, nextBolt);
-    return {
-      ok: true,
-      active: true,
-      profile,
-      session,
-      support,
-      baseChance,
-      chance: Math.min(100, baseChance + support.petBonus),
-    };
+    return { ok: true, active: true, profile, session, support, baseChance, chance: Math.min(100, baseChance + support.petBonus) };
   }
 
-  if (!requiresHeavenlyTribulation(profile)) {
-    return { ok: false, reason: 'not_required', profile, session: null, support };
-  }
+  if (!requiresHeavenlyTribulation(profile)) return { ok: false, reason: 'not_required', profile, session: null, support };
 
   const required = getCultivationRequired(profile);
-  if (profile.cultivation < required) {
-    return { ok: false, reason: 'not_ready', required, profile, session: null, support };
-  }
+  if (profile.cultivation < required) return { ok: false, reason: 'not_ready', required, profile, session: null, support };
 
   const totalBolts = totalBoltsFor(profile);
   const baseChance = baseResistChance(profile, 1);
@@ -150,13 +133,7 @@ export async function getHeavenlyTribulationPreview(client, guildId, userId) {
     ok: true,
     active: false,
     profile,
-    session: {
-      totalBolts,
-      clearedBolts: 0,
-      hp: TRIBULATION_MAX_HP,
-      required,
-      oldRealm: getRealmDisplay(profile),
-    },
+    session: { totalBolts, clearedBolts: 0, hp: TRIBULATION_MAX_HP, required, oldRealm: getRealmDisplay(profile) },
     support,
     baseChance,
     chance: Math.min(100, baseChance + support.petBonus),
@@ -169,25 +146,14 @@ export async function startHeavenlyTribulation(client, guildId, userId) {
     if (existing) return getHeavenlyTribulationPreview(client, guildId, userId);
 
     const profile = await getCultivationProfile(client, guildId, userId);
-    if (!requiresHeavenlyTribulation(profile)) {
-      return { ok: false, reason: 'not_required', profile };
-    }
+    if (!requiresHeavenlyTribulation(profile)) return { ok: false, reason: 'not_required', profile };
     const required = getCultivationRequired(profile);
-    if (profile.cultivation < required) {
-      return { ok: false, reason: 'not_ready', required, profile };
-    }
+    if (profile.cultivation < required) return { ok: false, reason: 'not_ready', required, profile };
 
     const session = {
-      version: 1,
-      active: true,
-      realmIndex: profile.realmIndex,
-      stageIndex: profile.stageIndex,
-      required,
-      oldRealm: getRealmDisplay(profile),
-      totalBolts: totalBoltsFor(profile),
-      clearedBolts: 0,
-      hp: TRIBULATION_MAX_HP,
-      startedAt: Date.now(),
+      version: 1, active: true, realmIndex: profile.realmIndex, stageIndex: profile.stageIndex,
+      required, oldRealm: getRealmDisplay(profile), totalBolts: totalBoltsFor(profile), clearedBolts: 0,
+      hp: TRIBULATION_MAX_HP, startedAt: Date.now(),
     };
     await saveSession(client, guildId, userId, session);
     return getHeavenlyTribulationPreview(client, guildId, userId);
@@ -196,19 +162,12 @@ export async function startHeavenlyTribulation(client, guildId, userId) {
 
 function buildReward(profile) {
   const realmOffset = Math.max(0, Number(profile.realmIndex) - CHAN_TIEN_INDEX);
-  return {
-    spiritStones: 500_000 + realmOffset * 100_000,
-    thienLinhThao: 5 + Math.floor(realmOffset / 3),
-    coPhu: 2 + Math.floor(realmOffset / 5),
-  };
+  return { spiritStones: 500_000 + realmOffset * 100_000, thienLinhThao: 5 + Math.floor(realmOffset / 3), coPhu: 2 + Math.floor(realmOffset / 5) };
 }
 
 function advanceRealm(profile) {
   if (profile.stageIndex < CULTIVATION_STAGES.length - 1) profile.stageIndex += 1;
-  else {
-    profile.stageIndex = 0;
-    profile.realmIndex += 1;
-  }
+  else { profile.stageIndex = 0; profile.realmIndex += 1; }
 }
 
 export async function faceNextTribulationBolt(client, guildId, userId) {
@@ -237,32 +196,16 @@ export async function faceNextTribulationBolt(client, guildId, userId) {
     session.hp = Math.max(0, session.hp - damage);
 
     if (session.hp <= 0) {
-      const loss = Math.min(
-        profile.cultivation,
-        Math.max(1, Math.round(session.required * 0.10)),
-      );
+      const loss = Math.min(profile.cultivation, Math.max(1, Math.round(session.required * 0.10)));
       profile.cultivation = Math.max(0, profile.cultivation - loss);
       profile.stats ||= {};
       profile.stats.breakthroughFail = Math.max(0, Number(profile.stats.breakthroughFail) || 0) + 1;
       const savedProfile = await saveCultivationProfile(client, profile);
       await saveSession(client, guildId, userId, null);
       return {
-        ok: true,
-        completed: true,
-        success: false,
-        resisted,
-        bolt,
-        totalBolts: session.totalBolts,
-        hpBefore,
-        hpAfter: 0,
-        rawDamage,
-        damage,
-        chance,
-        baseChance,
-        support,
-        loss,
-        profile: savedProfile,
-        oldRealm: session.oldRealm,
+        ok: true, completed: true, success: false, resisted, bolt, totalBolts: session.totalBolts,
+        hpBefore, hpAfter: 0, rawDamage, damage, chance, baseChance, support, loss,
+        profile: savedProfile, oldRealm: session.oldRealm,
       };
     }
 
@@ -280,45 +223,18 @@ export async function faceNextTribulationBolt(client, guildId, userId) {
       const savedProfile = await saveCultivationProfile(client, profile);
       await saveSession(client, guildId, userId, null);
       return {
-        ok: true,
-        completed: true,
-        success: true,
-        resisted,
-        bolt,
-        totalBolts: session.totalBolts,
-        hpBefore,
-        hpAfter: session.hp,
-        rawDamage,
-        damage,
-        chance,
-        baseChance,
-        support,
-        reward,
-        oldRealm,
-        newRealm: getRealmDisplay(savedProfile),
-        profile: savedProfile,
+        ok: true, completed: true, success: true, resisted, bolt, totalBolts: session.totalBolts,
+        hpBefore, hpAfter: session.hp, rawDamage, damage, chance, baseChance, support, reward,
+        oldRealm, newRealm: getRealmDisplay(savedProfile), profile: savedProfile,
       };
     }
 
     await saveSession(client, guildId, userId, session);
     const nextBaseChance = baseResistChance(profile, session.clearedBolts + 1);
     return {
-      ok: true,
-      completed: false,
-      success: true,
-      resisted,
-      bolt,
-      totalBolts: session.totalBolts,
-      hpBefore,
-      hpAfter: session.hp,
-      rawDamage,
-      damage,
-      chance,
-      baseChance,
-      nextChance: Math.min(100, nextBaseChance + support.petBonus),
-      support,
-      session,
-      profile,
+      ok: true, completed: false, success: true, resisted, bolt, totalBolts: session.totalBolts,
+      hpBefore, hpAfter: session.hp, rawDamage, damage, chance, baseChance,
+      nextChance: Math.min(100, nextBaseChance + support.petBonus), support, session, profile,
     };
   });
 }
