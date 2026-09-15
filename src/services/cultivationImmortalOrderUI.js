@@ -5,11 +5,25 @@ const G2 = '<a:trangtrig2:1546040703375904801>';
 const G3 = '<a:trangtrig3:1546040818261954610>';
 const ORDER_EMOJI = { id: '1549055213048959070', name: 'tttienlenh', animated: false };
 const CHEST_EMOJI = { id: '1547493008914653245', name: 'ttruongco', animated: true };
+const ITEM_NAMES = {
+  thien_linh_thao: 'Thiên Linh Thảo',
+  huyen_thiet: 'Huyền Thiết',
+  vo_danh_kiem_pho: 'Vô Danh Kiếm Phổ',
+  co_phu: 'Thượng Cổ Phù',
+};
+
 function n(v) { return new Intl.NumberFormat('vi-VN').format(Math.max(0, Number(v) || 0)); }
 function bar(value, max, size = 10) {
   const ratio = max > 0 ? Math.max(0, Math.min(1, value / max)) : 1;
   const filled = Math.round(ratio * size);
   return `${'█'.repeat(filled)}${'░'.repeat(size - filled)}`;
+}
+function rewardText(milestone) {
+  const rewards = [`${n(milestone.spiritStones)} Linh Thạch`];
+  for (const [itemId, quantity] of Object.entries(milestone.items || {})) {
+    rewards.push(`${ITEM_NAMES[itemId] || itemId} ×${n(quantity)}`);
+  }
+  return rewards.join(' · ');
 }
 
 export function getImmortalOrderDashboardButton(ownerId) {
@@ -18,7 +32,7 @@ export function getImmortalOrderDashboardButton(ownerId) {
 
 export function buildImmortalOrderMainEmbed(user, snapshot, notice = null) {
   const next = snapshot.nextMilestone;
-  const max = next?.points || IMMORTAL_ORDER_MILESTONES.at(-1).points;
+  const max = next?.points || IMMORTAL_ORDER_MILESTONES[IMMORTAL_ORDER_MILESTONES.length - 1].points;
   return new EmbedBuilder()
     .setColor(0xf5a9c7)
     .setTitle(`${G2} 𝓣𝓲𝓮̂𝓷 𝓛𝓮̣̂𝓷𝓱 · 仙令 ${G3}`)
@@ -36,8 +50,14 @@ export function buildImmortalOrderMainEmbed(user, snapshot, notice = null) {
 }
 
 export function buildImmortalOrderQuestEmbed(user, snapshot) {
-  const lines = snapshot.quests.map(q => `${q.completed ? '✅' : '▫️'} **${q.name}** · +${n(q.points)} điểm\n└ ${q.description} — **${n(q.progress)} / ${n(q.target)}**`);
-  return new EmbedBuilder().setColor(0xf5a9c7).setTitle(`${G2} 𝓝𝓱𝓲𝓮̣̂𝓶 𝓥𝓾̣ · 仙令 ${G3}`).setDescription([`${IMMORTAL_ORDER_EMOJI} ${user}`, '', ...lines].join('\n'));
+  const lines = snapshot.quests.map(q => {
+    const status = q.completed ? '✅' : '▫️';
+    return `${status} **${q.name}** · +${n(q.points)} điểm\n└ ${q.description} — **${n(q.progress)} / ${n(q.target)}**`;
+  });
+  return new EmbedBuilder()
+    .setColor(0xf5a9c7)
+    .setTitle(`${G2} 𝓝𝓱𝓲𝓮̣̂𝓶 𝓥𝓾̣ · 仙令 ${G3}`)
+    .setDescription([`${IMMORTAL_ORDER_EMOJI} ${user} · **${snapshot.completedCount}/${snapshot.totalCount} hoàn thành**`, '', ...lines].join('\n'));
 }
 
 export function buildImmortalOrderRewardEmbed(user, snapshot, notice = null) {
@@ -45,9 +65,12 @@ export function buildImmortalOrderRewardEmbed(user, snapshot, notice = null) {
     const claimed = Boolean(snapshot.state.claimedMilestones[String(m.points)]);
     const ready = snapshot.state.points >= m.points;
     const status = claimed ? '✅ Đã nhận' : ready ? '🎁 Có thể nhận' : '🔒 Chưa đạt';
-    return `**${n(m.points)} điểm** — ${status}\n└ ${n(m.spiritStones)} Linh Thạch`;
+    return `**${n(m.points)} điểm** — ${status}\n└ ${rewardText(m)}`;
   });
-  return new EmbedBuilder().setColor(0xf5a9c7).setTitle(`${G2} 𝓟𝓱𝓪̂̀𝓷 𝓣𝓱𝓾̛𝓸̛̉𝓷𝓰 · 仙令 ${G3}`).setDescription([`${IMMORTAL_ORDER_EMOJI} ${user} · **${n(snapshot.state.points)} điểm**`, notice || '', '', ...lines].filter(Boolean).join('\n'));
+  return new EmbedBuilder()
+    .setColor(0xf5a9c7)
+    .setTitle(`${G2} 𝓟𝓱𝓪̂̀𝓷 𝓣𝓱𝓾̛𝓸̛̉𝓷𝓰 · 仙令 ${G3}`)
+    .setDescription([`${IMMORTAL_ORDER_EMOJI} ${user} · **${n(snapshot.state.points)} điểm**`, notice || '', '', ...lines].filter(Boolean).join('\n'));
 }
 
 export function buildImmortalOrderMainRows(ownerId) {
@@ -63,7 +86,13 @@ export function buildImmortalOrderSubRows(ownerId, snapshot, view = 'quests') {
   if (view === 'rewards') {
     const claimable = IMMORTAL_ORDER_MILESTONES.filter(m => snapshot.state.points >= m.points && !snapshot.state.claimedMilestones[String(m.points)]);
     for (let i = 0; i < claimable.length; i += 5) {
-      rows.push(new ActionRowBuilder().addComponents(...claimable.slice(i, i + 5).map(m => new ButtonBuilder().setCustomId(`tutien_immortal_order:${ownerId}:claim:${m.points}`).setLabel(`Nhận ${n(m.points)}`).setEmoji(CHEST_EMOJI).setStyle(ButtonStyle.Success))));
+      rows.push(new ActionRowBuilder().addComponents(...claimable.slice(i, i + 5).map(m =>
+        new ButtonBuilder()
+          .setCustomId(`tutien_immortal_order:${ownerId}:claim:${m.points}`)
+          .setLabel(`Nhận ${n(m.points)}`)
+          .setEmoji(CHEST_EMOJI)
+          .setStyle(ButtonStyle.Success),
+      )));
     }
   }
   rows.push(new ActionRowBuilder().addComponents(
