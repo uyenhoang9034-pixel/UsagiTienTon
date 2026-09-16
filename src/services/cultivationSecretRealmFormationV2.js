@@ -17,6 +17,11 @@ import {
 } from './cultivationPet.js';
 
 import {
+  amplifySafePetEffect,
+  getSafeCavePetBonus,
+} from './cultivationCavePetBonus.js';
+
+import {
   getFormationGameplayBonus,
 } from './cultivationFormationGameplay.js';
 
@@ -30,6 +35,14 @@ const SECRET_REALM_PREFIX = 'games:cultivation:secretRealm:';
 
 function safeNumber(value) {
   return Number(value) || 0;
+}
+
+function amplifiedPetValue(profile, effectType, cavePetBonus, cap = null) {
+  return amplifySafePetEffect(
+    Math.max(0, safeNumber(getPetEffectValue(profile, effectType))),
+    cavePetBonus,
+    { cap },
+  );
 }
 
 function randomInt(min, max) {
@@ -141,14 +154,18 @@ export async function getSecretRealmCombatInfo(
     guildId,
     userId,
   );
+  const cavePetBonus = await getSafeCavePetBonus(client, guildId, userId);
   const activePet = getActivePet(profile);
-  const petCombatBonus = Math.max(
-    0,
-    safeNumber(getPetEffectValue(profile, 'combat_success_bonus')),
+  const petCombatBonus = amplifiedPetValue(
+    profile,
+    'combat_success_bonus',
+    cavePetBonus,
+    1,
   );
-  const petCombatRewardBonus = Math.max(
-    0,
-    safeNumber(getPetEffectValue(profile, 'combat_reward_bonus')),
+  const petCombatRewardBonus = amplifiedPetValue(
+    profile,
+    'combat_reward_bonus',
+    cavePetBonus,
   );
   const baseWinChance = Math.max(
     0,
@@ -175,6 +192,7 @@ export async function getSecretRealmCombatInfo(
     realmMinimumWinChance,
     petCombatBonus,
     petCombatRewardBonus,
+    cavePetBonus,
   };
 }
 
@@ -198,14 +216,18 @@ async function fightSecretRealmWithPetBonus(
     guildId,
     userId,
   );
+  const cavePetBonus = await getSafeCavePetBonus(client, guildId, userId);
 
-  const petCombatBonus = Math.max(
-    0,
-    safeNumber(getPetEffectValue(profile, 'combat_success_bonus')),
+  const petCombatBonus = amplifiedPetValue(
+    profile,
+    'combat_success_bonus',
+    cavePetBonus,
+    1,
   );
-  const petCombatRewardBonus = Math.max(
-    0,
-    safeNumber(getPetEffectValue(profile, 'combat_reward_bonus')),
+  const petCombatRewardBonus = amplifiedPetValue(
+    profile,
+    'combat_reward_bonus',
+    cavePetBonus,
   );
 
   const session = combat.session;
@@ -302,6 +324,7 @@ async function fightSecretRealmWithPetBonus(
       realmMinimumWinChance,
       petCombatBonus,
       petCombatRewardBonus,
+      cavePetBonus,
       floorCultivation: cultivation,
       floorStones: stones,
       droppedItem,
@@ -384,6 +407,7 @@ async function fightSecretRealmWithPetBonus(
     realmMinimumWinChance,
     petCombatBonus,
     petCombatRewardBonus,
+    cavePetBonus,
   };
 }
 
@@ -406,15 +430,13 @@ async function applyPetFailureProtection(
     guildId,
     userId,
   );
+  const cavePetBonus = await getSafeCavePetBonus(client, guildId, userId);
 
-  const keepPercent = Math.min(
+  const keepPercent = amplifiedPetValue(
+    profile,
+    'secret_realm_loot_keep_percent',
+    cavePetBonus,
     1,
-    Math.max(
-      0,
-      safeNumber(
-        getPetEffectValue(profile, 'secret_realm_loot_keep_percent'),
-      ),
-    ),
   );
 
   if (keepPercent <= 0) {
@@ -422,6 +444,7 @@ async function applyPetFailureProtection(
       ...result,
       activePet: getActivePet(profile),
       petLootKeepPercent: 0,
+      cavePetBonus,
     };
   }
 
@@ -478,6 +501,7 @@ async function applyPetFailureProtection(
     profile: saved,
     activePet: getActivePet(saved),
     petLootKeepPercent: keepPercent,
+    cavePetBonus,
     petExtraKeptLoot: {
       cultivation: extraCultivation,
       stones: extraStones,
@@ -495,9 +519,10 @@ async function applyFormationAndPetLootBonus(
 ) {
   if (!result?.ok) return result;
 
-  const [formation, profile] = await Promise.all([
+  const [formation, profile, cavePetBonus] = await Promise.all([
     getFormationGameplayBonus(client, guildId, userId),
     getCultivationProfile(client, guildId, userId),
+    getSafeCavePetBonus(client, guildId, userId),
   ]);
 
   const adventurePercent = Math.max(
@@ -508,11 +533,10 @@ async function applyFormationAndPetLootBonus(
     0,
     safeNumber(formation.effects?.spiritStoneBonus),
   );
-  const petSecretRewardPercent = Math.max(
-    0,
-    safeNumber(
-      getPetEffectValue(profile, 'secret_realm_all_reward_bonus'),
-    ),
+  const petSecretRewardPercent = amplifiedPetValue(
+    profile,
+    'secret_realm_all_reward_bonus',
+    cavePetBonus,
   );
 
   const formationAdventureBonus = calculateBonus(
@@ -577,6 +601,7 @@ async function applyFormationAndPetLootBonus(
     petSecretCultivationBonus: petCultivationBonus,
     petSecretStoneBonus: petStoneBonus,
     petSecretItemBonuses: petItemBonuses,
+    cavePetBonus,
   };
 }
 
