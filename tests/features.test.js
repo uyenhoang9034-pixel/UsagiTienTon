@@ -31,7 +31,10 @@ const EXPECTED_COMMANDS = [
   'queue',
   'tutien',
   'tutienitem',
+  'tutienmode',
   'tutientest',
+  'tutientranphap',
+  'tutientuvi',
 ];
 
 function createMockClient() {
