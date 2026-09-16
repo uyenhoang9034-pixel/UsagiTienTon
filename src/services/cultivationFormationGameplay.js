@@ -9,7 +9,7 @@ import {
   getFormationSpiritSynergy,
 } from './cultivationFormationSpirit.js';
 import {
-  amplifyCavePetEffect,
+  amplifySafePetEffect,
   getSafeCavePetBonus,
 } from './cultivationCavePetBonus.js';
 
@@ -62,32 +62,32 @@ function mergeEffects(baseEffects = {}, extraEffects = {}) {
 
 function amplifySpiritSynergyEffects(effects = {}, cavePetBonus = 0) {
   return normalizeEffects({
-    cultivationBonus: amplifyCavePetEffect(
+    cultivationBonus: amplifySafePetEffect(
       effects.cultivationBonus,
       cavePetBonus,
       { cap: 0.75 },
     ),
-    adventureBonus: amplifyCavePetEffect(
+    adventureBonus: amplifySafePetEffect(
       effects.adventureBonus,
       cavePetBonus,
       { cap: 0.75 },
     ),
-    staminaReduction: amplifyCavePetEffect(
+    staminaReduction: amplifySafePetEffect(
       effects.staminaReduction,
       cavePetBonus,
       { cap: 0.75 },
     ),
-    breakthroughBonus: amplifyCavePetEffect(
+    breakthroughBonus: amplifySafePetEffect(
       effects.breakthroughBonus,
       cavePetBonus,
       { cap: 0.75 },
     ),
-    spiritStoneBonus: amplifyCavePetEffect(
+    spiritStoneBonus: amplifySafePetEffect(
       effects.spiritStoneBonus,
       cavePetBonus,
       { cap: 0.75 },
     ),
-    insightBonus: amplifyCavePetEffect(
+    insightBonus: amplifySafePetEffect(
       effects.insightBonus,
       cavePetBonus,
       { cap: 0.75 },
