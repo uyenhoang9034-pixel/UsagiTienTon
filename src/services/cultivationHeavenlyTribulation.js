@@ -11,9 +11,9 @@ import {
 } from './cultivationService.js';
 import { getActivePet } from './cultivationPet.js';
 import {
-  amplifyPetEffect,
-  getCavePetBonus,
-} from './cultivationCave.js';
+  amplifySafePetEffect,
+  getSafeCavePetBonus,
+} from './cultivationCavePetBonus.js';
 import {
   getActiveFormation,
   getFormationLevel,
@@ -69,15 +69,8 @@ async function getSupport(client, guildId, userId, profile) {
   // Linh Thú Viên chỉ khuếch đại trợ lực dạng số của Linh Thú.
   // Ví dụ Tiên Phẩm +20 điểm, Linh Thú Viên Lv.10 (+10% hiệu quả)
   // => +22 điểm. Không tác động các flag tuyệt đối.
-  let cavePetBonus = 0;
-  try {
-    cavePetBonus = await getCavePetBonus(client, guildId, userId);
-  } catch {
-    // Động Phủ không được phép làm hỏng Thiên Kiếp nếu dữ liệu Cave lỗi.
-    cavePetBonus = 0;
-  }
-
-  const petBonus = amplifyPetEffect(basePetBonus, cavePetBonus, { cap: 100 });
+  const cavePetBonus = await getSafeCavePetBonus(client, guildId, userId);
+  const petBonus = amplifySafePetEffect(basePetBonus, cavePetBonus, { cap: 100 });
 
   try {
     const state = await getFormationState(client, guildId, userId);
