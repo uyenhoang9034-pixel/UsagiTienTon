@@ -8,6 +8,10 @@ import {
 import {
   getFormationSpiritSynergy,
 } from './cultivationFormationSpirit.js';
+import {
+  amplifyCavePetEffect,
+  getSafeCavePetBonus,
+} from './cultivationCavePetBonus.js';
 
 const EMPTY_EFFECTS = Object.freeze({
   cultivationBonus: 0,
@@ -56,6 +60,41 @@ function mergeEffects(baseEffects = {}, extraEffects = {}) {
   });
 }
 
+function amplifySpiritSynergyEffects(effects = {}, cavePetBonus = 0) {
+  return normalizeEffects({
+    cultivationBonus: amplifyCavePetEffect(
+      effects.cultivationBonus,
+      cavePetBonus,
+      { cap: 0.75 },
+    ),
+    adventureBonus: amplifyCavePetEffect(
+      effects.adventureBonus,
+      cavePetBonus,
+      { cap: 0.75 },
+    ),
+    staminaReduction: amplifyCavePetEffect(
+      effects.staminaReduction,
+      cavePetBonus,
+      { cap: 0.75 },
+    ),
+    breakthroughBonus: amplifyCavePetEffect(
+      effects.breakthroughBonus,
+      cavePetBonus,
+      { cap: 0.75 },
+    ),
+    spiritStoneBonus: amplifyCavePetEffect(
+      effects.spiritStoneBonus,
+      cavePetBonus,
+      { cap: 0.75 },
+    ),
+    insightBonus: amplifyCavePetEffect(
+      effects.insightBonus,
+      cavePetBonus,
+      { cap: 0.75 },
+    ),
+  });
+}
+
 function rollFractionalAmount(value) {
   const raw = Math.max(0, Number(value) || 0);
   const whole = Math.floor(raw);
@@ -77,6 +116,7 @@ export async function getFormationGameplayBonus(client, guildId, userId) {
     const resonance = getFormationResonance(state);
     let spiritSynergy = null;
     let spiritError = null;
+    let cavePetBonus = 0;
 
     try {
       const profile = await getCultivationProfile(
@@ -88,6 +128,24 @@ export async function getFormationGameplayBonus(client, guildId, userId) {
         profile,
         state,
       );
+
+      if (spiritSynergy?.active) {
+        cavePetBonus = await getSafeCavePetBonus(
+          client,
+          guildId,
+          userId,
+        );
+
+        spiritSynergy = {
+          ...spiritSynergy,
+          baseEffects: { ...spiritSynergy.effects },
+          effects: amplifySpiritSynergyEffects(
+            spiritSynergy.effects,
+            cavePetBonus,
+          ),
+          cavePetBonus,
+        };
+      }
     } catch (error) {
       spiritError = error;
     }
@@ -111,6 +169,7 @@ export async function getFormationGameplayBonus(client, guildId, userId) {
       effects,
       spiritSynergy,
       spiritError,
+      cavePetBonus,
     };
   } catch (error) {
     // Formation bonuses must never make the base cultivation game unusable.
@@ -121,6 +180,7 @@ export async function getFormationGameplayBonus(client, guildId, userId) {
       effects: { ...EMPTY_EFFECTS },
       spiritSynergy: null,
       spiritError: null,
+      cavePetBonus: 0,
       error,
     };
   }
