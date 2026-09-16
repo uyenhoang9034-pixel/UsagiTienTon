@@ -1,5 +1,9 @@
 import { Mutex } from '../utils/mutex.js';
 import { CULTIVATION_CONFIG } from '../config/cultivationGame.js';
+import {
+  amplifySafePetEffect,
+  getSafeCavePetBonus,
+} from './cultivationCavePetBonus.js';
 
 const PROFILE_PREFIX = 'games:cultivation:profile:';
 const STAMINA_REGEN_MS = 60_000;
@@ -92,11 +96,27 @@ export async function regenerateCultivationStamina(
       raw.pets?.active === NGUYET_QUANG_LINH_THO_ID &&
       raw.pets?.owned?.[NGUYET_QUANG_LINH_THO_ID] === true;
 
+    let petRecoveryRate = NGUYET_QUANG_STAMINA_BONUS;
+
+    if (hasNguyetQuangLinhTho) {
+      const cavePetBonus = await getSafeCavePetBonus(
+        client,
+        guildId,
+        userId,
+      );
+
+      petRecoveryRate = amplifySafePetEffect(
+        NGUYET_QUANG_STAMINA_BONUS,
+        cavePetBonus,
+        { cap: 1 },
+      );
+    }
+
     const petRecoveryBonus =
       hasNguyetQuangLinhTho
         ? rollFractionalBonus(
             recovered,
-            NGUYET_QUANG_STAMINA_BONUS,
+            petRecoveryRate,
           )
         : 0;
 
