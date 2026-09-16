@@ -15,6 +15,11 @@ import {
 } from './cultivationPet.js';
 
 import {
+  amplifySafePetEffect,
+  getSafeCavePetBonus,
+} from './cultivationCavePetBonus.js';
+
+import {
   getEquippedEquipment,
 } from './cultivationEquipment.js';
 
@@ -154,6 +159,7 @@ function weightedPick(pets) {
 
 function rollAvailablePet(
   profile,
+  cavePetBonus = 0,
 ) {
   const owned =
     new Set(
@@ -182,24 +188,22 @@ function rollAvailablePet(
     return null;
   }
 
-  const mythicEncounterBonus = Math.max(
-    0,
-    Number(
-      getPetEffectValue(
-        profile,
-        'mythic_pet_encounter_bonus',
-      ),
-    ) || 0,
+  const mythicEncounterBonus = amplifySafePetEffect(
+    getPetEffectValue(
+      profile,
+      'mythic_pet_encounter_bonus',
+    ),
+    cavePetBonus,
+    { cap: 1 },
   );
 
-  const immortalEncounterBonus = Math.max(
-    0,
-    Number(
-      getPetEffectValue(
-        profile,
-        'immortal_pet_encounter_bonus',
-      ),
-    ) || 0,
+  const immortalEncounterBonus = amplifySafePetEffect(
+    getPetEffectValue(
+      profile,
+      'immortal_pet_encounter_bonus',
+    ),
+    cavePetBonus,
+    { cap: 1 },
   );
 
   const successfulCandidates = available.filter(
@@ -277,9 +281,16 @@ export async function startAdventurePetEncounter(
     };
   }
 
+  const cavePetBonus = await getSafeCavePetBonus(
+    client,
+    guildId,
+    userId,
+  );
+
   const pet =
     rollAvailablePet(
       profile,
+      cavePetBonus,
     );
 
   if (!pet) {
@@ -290,6 +301,7 @@ export async function startAdventurePetEncounter(
       reason: 'all_pets_owned',
       profile,
       noPetEncounter: true,
+      cavePetBonus,
     };
   }
 
@@ -315,6 +327,7 @@ export async function startAdventurePetEncounter(
     type: 'pet_encounter_unknown',
     petId: pet.id,
     profile,
+    cavePetBonus,
   };
 }
 
