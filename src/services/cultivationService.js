@@ -113,7 +113,7 @@ function getPetCultivationBonus(profile) {
 function getPetAdventureStoneBonus(profile) {
   const petId = getActivePetId(profile);
   if (petId === 'hau_tho_kim_long') return 0.50;
-  if (petId === 'xich_viem_hoa_dieu') return 0.30;
+  if (petId === 'xich_viem_hoa_dieu') return 0.20;
   return 0;
 }
 
@@ -127,7 +127,7 @@ function getPetBreakthroughLossReduction(profile) {
 function getPetBreakthroughBonus(profile) {
   const petId = getActivePetId(profile);
   if (petId === 'hau_tho_kim_long') return 0.50;
-  if (petId === 'thien_loi_bach_ho') return 0.20;
+  if (petId === 'thien_loi_bach_ho') return 0.50;
   return 0;
 }
 
