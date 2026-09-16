@@ -1,0 +1,57 @@
+import { getDatabaseValue } from '../utils/database.js';
+
+const CAVE_KEY_PREFIX = 'games:cultivation:cave:';
+const MAX_CAVE_PET_BONUS = 0.10;
+
+function caveKey(guildId, userId) {
+  return `${CAVE_KEY_PREFIX}${guildId}:${userId}`;
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, Number(value) || 0));
+}
+
+/**
+ * Đọc riêng bonus Linh Thú Viên mà không import cultivationCave.js.
+ * File này cố ý không phụ thuộc cultivationService/cultivationPet để các hệ thống
+ * gameplay có thể dùng mà không tạo vòng import với Động Phủ.
+ *
+ * Động Phủ mặc định bắt đầu Lv.1, nên dữ liệu Cave chưa tồn tại vẫn tương đương +1%.
+ * Nếu DB tạm lỗi, fallback 0 để gameplay gốc tiếp tục hoạt động an toàn.
+ */
+export async function getSafeCavePetBonus(client, guildId, userId) {
+  try {
+    const raw = await getDatabaseValue(
+      client,
+      caveKey(guildId, userId),
+      null,
+    );
+
+    const level = raw && typeof raw === 'object'
+      ? clamp(Math.floor(Number(raw?.buildings?.pet) || 1), 1, 10)
+      : 1;
+
+    return clamp(level * 0.01, 0, MAX_CAVE_PET_BONUS);
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Chỉ khuếch đại hiệu ứng dạng số/%.
+ * Không dùng cho các flag tuyệt đối như guaranteed_breakthrough hoặc
+ * adventure_always_positive.
+ */
+export function amplifySafePetEffect(effectValue, cavePetBonus, { cap = null } = {}) {
+  const base = Math.max(0, Number(effectValue) || 0);
+  if (base <= 0) return 0;
+
+  const bonus = clamp(cavePetBonus, 0, MAX_CAVE_PET_BONUS);
+  let amplified = base * (1 + bonus);
+
+  if (Number.isFinite(Number(cap))) {
+    amplified = Math.min(Math.max(0, Number(cap)), amplified);
+  }
+
+  return amplified;
+}
