@@ -21,6 +21,7 @@ import {
 
 import {
   getFormationGameplayBonus,
+  getFormationPetProgressionBonus,
 } from '../../services/cultivationFormationGameplay.js';
 
 import {
@@ -70,7 +71,6 @@ import {
 
 import {
   getActivePet,
-  getPetEffectValue,
 } from '../../services/cultivationPet.js';
 
 import {
@@ -421,6 +421,13 @@ export default {
           ),
         ]);
 
+        const petProgression = await getFormationPetProgressionBonus(
+          client,
+          guildId,
+          userId,
+          profile,
+        );
+
         const spiritInsightBonus =
           formationBonus?.spiritSynergy?.active
             ? Math.max(
@@ -431,12 +438,7 @@ export default {
 
         const petInsightBonus = Math.max(
           0,
-          Number(
-            getPetEffectValue(
-              profile,
-              'formation_insight_bonus',
-            ),
-          ) || 0,
+          Number(petProgression.insightBonus) || 0,
         );
 
         const result = await comprehendFormation(
@@ -452,24 +454,14 @@ export default {
         if (result?.ok) {
           const essencePercent = Math.max(
             0,
-            Number(
-              getPetEffectValue(
-                profile,
-                'formation_essence_bonus',
-              ),
-            ) || 0,
+            Number(petProgression.essenceBonus) || 0,
           );
 
           const specialCrystalChance = Math.min(
             1,
             Math.max(
               0,
-              Number(
-                getPetEffectValue(
-                  profile,
-                  'special_crystal_drop_chance',
-                ),
-              ) || 0,
+              Number(petProgression.specialCrystalDropChance) || 0,
             ),
           );
 
@@ -532,6 +524,11 @@ export default {
           result.activePet = getActivePet(profile);
           result.spiritInsightBonus = spiritInsightBonus;
           result.petInsightBonus = petInsightBonus;
+          result.basePetInsightBonus = petProgression.baseInsightBonus;
+          result.basePetEssencePercent = petProgression.baseEssenceBonus;
+          result.baseSpecialCrystalDropChance =
+            petProgression.baseSpecialCrystalDropChance;
+          result.cavePetBonus = petProgression.cavePetBonus;
           result.extraInsightBonus =
             spiritInsightBonus + petInsightBonus;
         }
