@@ -24,6 +24,11 @@ import {
 } from './cultivationPet.js';
 
 import {
+  amplifySafePetEffect,
+  getSafeCavePetBonus,
+} from './cultivationCavePetBonus.js';
+
+import {
   addImmortalOrderProgress,
 } from './cultivationImmortalOrder.js';
 
@@ -151,18 +156,9 @@ async function getPetSuccessBonus(client, guildId, userId, profile) {
   const baseBonus = DUNGEON_PET_SUCCESS_BONUS[pet.rarity] || 0;
   if (baseBonus <= 0) return { pet, baseBonus: 0, cavePetBonus: 0, bonus: 0 };
 
-  try {
-    // Dynamic import is intentional: Cave depends on cultivationService, while Dungeon also
-    // depends on cultivationService. Loading Cave only when this bonus is needed avoids
-    // recreating the startup/circular-import problem from the earlier integration.
-    const { amplifyPetEffect, getCavePetBonus } = await import('./cultivationCave.js');
-    const cavePetBonus = await getCavePetBonus(client, guildId, userId);
-    const bonus = amplifyPetEffect(baseBonus, cavePetBonus, { cap: 100 });
-    return { pet, baseBonus, cavePetBonus, bonus };
-  } catch {
-    // Cave support must never make Bí Cảnh unusable. Fall back to the original pet bonus.
-    return { pet, baseBonus, cavePetBonus: 0, bonus: baseBonus };
-  }
+  const cavePetBonus = await getSafeCavePetBonus(client, guildId, userId);
+  const bonus = amplifySafePetEffect(baseBonus, cavePetBonus, { cap: 100 });
+  return { pet, baseBonus, cavePetBonus, bonus };
 }
 
 function getFormationLevelBand(level) {
