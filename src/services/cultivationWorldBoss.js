@@ -10,6 +10,11 @@ import {
 } from './cultivationPet.js';
 
 import {
+  amplifySafePetEffect,
+  getSafeCavePetBonus,
+} from './cultivationCavePetBonus.js';
+
+import {
   getFormationResonance,
   getFormationState,
 } from './cultivationFormation.js';
@@ -156,7 +161,9 @@ async function estimatePlayerDamage(client, guildId, userId) {
   const rootBonus = Math.max(0, Number(profile.spiritRoot?.cultivateBonus) || 0);
   const equipmentBonus = profile.equipment?.equipped === 'thanh_phong_kiem' ? 0.05 : 0;
   const techniqueBonus = profile.techniques?.active === 'thanh_van_kiem_quyet' ? 0.08 : 0;
-  const petBonus = Math.max(0, getPetEffectValue(profile, 'cultivation_bonus'));
+  const basePetBonus = Math.max(0, getPetEffectValue(profile, 'cultivation_bonus'));
+  const cavePetBonus = await getSafeCavePetBonus(client, guildId, userId);
+  const petBonus = amplifySafePetEffect(basePetBonus, cavePetBonus);
   const formationBonus = Math.max(0, Number(resonance?.effects?.cultivationBonus) || 0);
   const bonusPercent =
     rootBonus + equipmentBonus + techniqueBonus + petBonus + formationBonus;
