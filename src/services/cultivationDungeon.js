@@ -144,10 +144,25 @@ export async function adjustDungeonEssence(client, guildId, userId, delta) {
   });
 }
 
-function getPetSuccessBonus(profile) {
+async function getPetSuccessBonus(client, guildId, userId, profile) {
   const pet = getActivePet(profile);
-  if (!pet) return { pet: null, bonus: 0 };
-  return { pet, bonus: DUNGEON_PET_SUCCESS_BONUS[pet.rarity] || 0 };
+  if (!pet) return { pet: null, baseBonus: 0, cavePetBonus: 0, bonus: 0 };
+
+  const baseBonus = DUNGEON_PET_SUCCESS_BONUS[pet.rarity] || 0;
+  if (baseBonus <= 0) return { pet, baseBonus: 0, cavePetBonus: 0, bonus: 0 };
+
+  try {
+    // Dynamic import is intentional: Cave depends on cultivationService, while Dungeon also
+    // depends on cultivationService. Loading Cave only when this bonus is needed avoids
+    // recreating the startup/circular-import problem from the earlier integration.
+    const { amplifyPetEffect, getCavePetBonus } = await import('./cultivationCave.js');
+    const cavePetBonus = await getCavePetBonus(client, guildId, userId);
+    const bonus = amplifyPetEffect(baseBonus, cavePetBonus, { cap: 100 });
+    return { pet, baseBonus, cavePetBonus, bonus };
+  } catch {
+    // Cave support must never make Bí Cảnh unusable. Fall back to the original pet bonus.
+    return { pet, baseBonus, cavePetBonus: 0, bonus: baseBonus };
+  }
 }
 
 function getFormationLevelBand(level) {
@@ -255,13 +270,18 @@ export async function getDungeonSnapshot(client, guildId, userId, { isAdmin = fa
   const [state, profile, formation] = await Promise.all([
     getDungeonState(client, guildId, userId), getCultivationProfile(client, guildId, userId), getFormationProtection(client, guildId, userId),
   ]);
-  const petInfo = getPetSuccessBonus(profile);
+  const petInfo = await getPetSuccessBonus(client, guildId, userId, profile);
   const floor = state.activeRun?.floor || state.highestFloor + 1;
   const baseChance = getBaseSuccessChance(profile, floor);
   const successChance = Math.min(100, baseChance + petInfo.bonus);
   const attemptLimit = getDungeonAttemptLimit(state);
   return {
-    state, profile, formation, pet: petInfo.pet, petBonus: petInfo.bonus, floor, baseChance, successChance, isAdmin,
+    state, profile, formation,
+    pet: petInfo.pet,
+    petBonus: petInfo.bonus,
+    petBaseBonus: petInfo.baseBonus,
+    cavePetBonus: petInfo.cavePetBonus,
+    floor, baseChance, successChance, isAdmin,
     attemptLimit,
     bonusAttempts: state.bonusAttempts,
     attemptsRemaining: isAdmin ? Infinity : Math.max(0, attemptLimit - state.attemptsUsed),
@@ -286,7 +306,7 @@ export async function challengeDungeonFloor(client, guildId, userId, { isAdmin =
     const state = await getDungeonState(client, guildId, userId);
     if (!state.activeRun) return { ok: false, reason: 'no_active_run', ...(await getDungeonSnapshot(client, guildId, userId, { isAdmin })) };
     const [profile, formation] = await Promise.all([getCultivationProfile(client, guildId, userId), getFormationProtection(client, guildId, userId)]);
-    const petInfo = getPetSuccessBonus(profile);
+    const petInfo = await getPetSuccessBonus(client, guildId, userId, profile);
     const floor = state.activeRun.floor;
     const baseChance = getBaseSuccessChance(profile, floor);
     const successChance = Math.min(100, baseChance + petInfo.bonus);
@@ -295,10 +315,16 @@ export async function challengeDungeonFloor(client, guildId, userId, { isAdmin =
     const hpLoss = applyFormationProtection(rawHpLoss, formation.reduction);
     const hpBefore = state.activeRun.hp;
     const hpAfter = Math.max(0, hpBefore - hpLoss);
+    const petFields = {
+      pet: petInfo.pet,
+      petBonus: petInfo.bonus,
+      petBaseBonus: petInfo.baseBonus,
+      cavePetBonus: petInfo.cavePetBonus,
+    };
 
     if (!success) {
       state.failures += 1; state.activeRun = null; await saveDungeonState(client, state);
-      return { ok: true, success: false, floor, hpBefore, hpAfter, hpLoss, rawHpLoss, baseChance, successChance, pet: petInfo.pet, petBonus: petInfo.bonus, formation, state, isAdmin };
+      return { ok: true, success: false, floor, hpBefore, hpAfter, hpLoss, rawHpLoss, baseChance, successChance, ...petFields, formation, state, isAdmin };
     }
 
     const reward = buildFloorReward(floor);
@@ -309,7 +335,7 @@ export async function challengeDungeonFloor(client, guildId, userId, { isAdmin =
     await saveDungeonState(client, state);
     await applyFloorReward(client, guildId, userId, profile, reward);
     await addImmortalOrderProgress(client, guildId, userId, 'dungeonClears', 1);
-    return { ok: true, success: true, exhausted, floor, nextFloor: floor + 1, hpBefore, hpAfter, hpLoss, rawHpLoss, baseChance, successChance, pet: petInfo.pet, petBonus: petInfo.bonus, formation, reward, state, isAdmin };
+    return { ok: true, success: true, exhausted, floor, nextFloor: floor + 1, hpBefore, hpAfter, hpLoss, rawHpLoss, baseChance, successChance, ...petFields, formation, reward, state, isAdmin };
   });
 }
 
