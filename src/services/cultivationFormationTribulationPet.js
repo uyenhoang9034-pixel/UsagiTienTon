@@ -26,6 +26,11 @@ import {
   getPetEffectValue,
 } from './cultivationPet.js';
 
+import {
+  amplifySafePetEffect,
+  getSafeCavePetBonus,
+} from './cultivationCavePetBonus.js';
+
 export * from './cultivationFormationTribulation.js';
 
 const TRIBULATION_KEY_PREFIX =
@@ -88,6 +93,7 @@ function unlockEligibleFormations(state) {
     state.layouts[formation.id] ||= [...formation.pattern];
     state.slotLevels[formation.id] ||= Array(formation.slots).fill(1);
     state.formationFragments[formation.id] ||= 0;
+    state.formationEyes ||= {};
     state.formationEyes[formation.id] ||= {
       elementId: 'spirit',
       level: 1,
@@ -123,24 +129,27 @@ export async function getFormationTribulationPreview(
       userId,
     );
 
-  const petSuccessBonus = Math.max(
-    0,
-    Number(
-      getPetEffectValue(
-        profile,
-        'formation_tribulation_success_bonus',
-      ),
-    ) || 0,
+  const cavePetBonus = await getSafeCavePetBonus(
+    client,
+    guildId,
+    userId,
   );
 
-  const petRewardBonus = Math.max(
-    0,
-    Number(
-      getPetEffectValue(
-        profile,
-        'formation_tribulation_reward_bonus',
-      ),
-    ) || 0,
+  const petSuccessBonus = amplifySafePetEffect(
+    getPetEffectValue(
+      profile,
+      'formation_tribulation_success_bonus',
+    ),
+    cavePetBonus,
+    { cap: 1 },
+  );
+
+  const petRewardBonus = amplifySafePetEffect(
+    getPetEffectValue(
+      profile,
+      'formation_tribulation_reward_bonus',
+    ),
+    cavePetBonus,
   );
 
   return {
@@ -154,6 +163,7 @@ export async function getFormationTribulationPreview(
       ) + petSuccessBonus,
     ),
     activePet: getActivePet(profile),
+    cavePetBonus,
     petTribulationSuccessBonus: petSuccessBonus,
     petTribulationRewardBonus: petRewardBonus,
   };
@@ -361,6 +371,7 @@ export async function attemptFormationTribulation(
       status: nextStatus,
       cooldownMs: FORMATION_TRIBULATION_COOLDOWN_MS,
       activePet: preview.activePet,
+      cavePetBonus: preview.cavePetBonus,
       petTribulationSuccessBonus:
         preview.petTribulationSuccessBonus,
       petTribulationRewardBonus:
