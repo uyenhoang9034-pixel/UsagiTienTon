@@ -49,7 +49,9 @@ export function amplifySafePetEffect(effectValue, cavePetBonus, { cap = null } =
   const bonus = clamp(cavePetBonus, 0, MAX_CAVE_PET_BONUS);
   let amplified = base * (1 + bonus);
 
-  if (Number.isFinite(Number(cap))) {
+  // null/undefined nghĩa là không giới hạn. Tránh Number(null) === 0
+  // vô tình triệt tiêu các reward multiplier không có cap.
+  if (cap !== null && cap !== undefined && Number.isFinite(Number(cap))) {
     amplified = Math.min(Math.max(0, Number(cap)), amplified);
   }
 
