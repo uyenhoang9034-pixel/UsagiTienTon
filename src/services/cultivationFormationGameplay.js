@@ -6,6 +6,9 @@ import {
   getCultivationProfile,
 } from './cultivationService.js';
 import {
+  getPetEffectValue,
+} from './cultivationPet.js';
+import {
   getFormationSpiritSynergy,
 } from './cultivationFormationSpirit.js';
 import {
@@ -104,6 +107,62 @@ function rollFractionalAmount(value) {
     (fraction > 0 && Math.random() < fraction
       ? 1
       : 0);
+}
+
+export async function getFormationPetProgressionBonus(client, guildId, userId, profile = null) {
+  try {
+    const resolvedProfile = profile || await getCultivationProfile(
+      client,
+      guildId,
+      userId,
+    );
+    const cavePetBonus = await getSafeCavePetBonus(
+      client,
+      guildId,
+      userId,
+    );
+
+    const baseInsightBonus = Math.max(
+      0,
+      Number(getPetEffectValue(resolvedProfile, 'formation_insight_bonus')) || 0,
+    );
+    const baseEssenceBonus = Math.max(
+      0,
+      Number(getPetEffectValue(resolvedProfile, 'formation_essence_bonus')) || 0,
+    );
+    const baseSpecialCrystalDropChance = Math.max(
+      0,
+      Math.min(
+        1,
+        Number(getPetEffectValue(resolvedProfile, 'special_crystal_drop_chance')) || 0,
+      ),
+    );
+
+    return {
+      cavePetBonus,
+      baseInsightBonus,
+      insightBonus: amplifySafePetEffect(baseInsightBonus, cavePetBonus),
+      baseEssenceBonus,
+      essenceBonus: amplifySafePetEffect(baseEssenceBonus, cavePetBonus),
+      baseSpecialCrystalDropChance,
+      specialCrystalDropChance: amplifySafePetEffect(
+        baseSpecialCrystalDropChance,
+        cavePetBonus,
+        { cap: 1 },
+      ),
+    };
+  } catch (error) {
+    return {
+      cavePetBonus: 0,
+      baseInsightBonus: 0,
+      insightBonus: 0,
+      baseEssenceBonus: 0,
+      essenceBonus: 0,
+      baseSpecialCrystalDropChance: 0,
+      specialCrystalDropChance: 0,
+      error,
+    };
+  }
 }
 
 export async function getFormationGameplayBonus(client, guildId, userId) {
