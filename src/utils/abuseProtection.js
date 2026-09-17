@@ -38,6 +38,27 @@ const RISKY_COMMAND_NAMES = new Set([
 ]);
 
 const blockedAttemptStore = new Map();
+const BLOCKED_ATTEMPT_CLEANUP_INTERVAL_MS = 5 * 60_000;
+
+function cleanupExpiredBlockedAttempts() {
+  const now = Date.now();
+
+  for (const [key, entry] of blockedAttemptStore) {
+    const windowMs = Number(entry?.windowMs) > 0
+      ? entry.windowMs
+      : DEFAULT_ANOMALY_POLICY.windowMs;
+
+    if (!entry || now - entry.windowStart > windowMs) {
+      blockedAttemptStore.delete(key);
+    }
+  }
+}
+
+const blockedAttemptCleanupTimer = setInterval(
+  cleanupExpiredBlockedAttempts,
+  BLOCKED_ATTEMPT_CLEANUP_INTERVAL_MS
+);
+blockedAttemptCleanupTimer.unref?.();
 
 function normalizeCommandCategory(command) {
   return String(command?.category || '').trim().toLowerCase();
@@ -86,11 +107,13 @@ function recordBlockedAttempt(key, commandName, interaction, command, remainingM
     blockedAttemptStore.set(key, {
       count: 1,
       windowStart: now,
-      thresholdReachedAt: null
+      thresholdReachedAt: null,
+      windowMs: anomalyPolicy.windowMs
     });
     return;
   }
 
+  current.windowMs = anomalyPolicy.windowMs;
   current.count += 1;
 
   if (current.count >= anomalyPolicy.threshold && !current.thresholdReachedAt) {
