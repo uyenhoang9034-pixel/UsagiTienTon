@@ -2,10 +2,30 @@
 
 import { logger } from './logger.js';
 
+const CLEANUP_INTERVAL_MS = 5 * 60_000;
+
 class MemoryStorage {
     constructor() {
         this.data = new Map();
         this.expirationTimes = new Map();
+
+        // TTL trước đây chỉ được dọn khi đúng key được đọc/list lại.
+        // Cleanup định kỳ giúp các key không còn được truy cập cũng được giải phóng.
+        this.cleanupTimer = setInterval(() => {
+            this.cleanupExpired();
+        }, CLEANUP_INTERVAL_MS);
+        this.cleanupTimer.unref?.();
+    }
+
+    cleanupExpired() {
+        const now = Date.now();
+
+        for (const [key, expirationTime] of this.expirationTimes) {
+            if (now > expirationTime) {
+                this.data.delete(key);
+                this.expirationTimes.delete(key);
+            }
+        }
     }
 
     async get(key, defaultValue = null) {
@@ -28,6 +48,10 @@ class MemoryStorage {
         
         if (ttl && ttl > 0) {
             this.expirationTimes.set(key, Date.now() + (ttl * 1000));
+        } else {
+            // Nếu cùng key trước đó có TTL rồi được ghi lại thành persistent,
+            // phải bỏ expiration cũ để tránh xóa nhầm dữ liệu mới.
+            this.expirationTimes.delete(key);
         }
         
         return true;
