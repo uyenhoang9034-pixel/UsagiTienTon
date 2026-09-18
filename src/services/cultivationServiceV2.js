@@ -696,6 +696,7 @@ async function guaranteedBreakthrough(
   formationBonus,
   formationLines,
   activePet,
+  breakthroughRequired = 0,
 ) {
   const profile = await baseService.getCultivationProfile(
     client,
@@ -740,6 +741,15 @@ async function guaranteedBreakthrough(
     Number(profile.stats.breakthroughSuccess) || 0,
   ) + 1;
 
+  const heavenlyBreakthroughRewardPercent = getHeavenlyModifier(guildId, 'breakthrough_reward');
+  const heavenlyBreakthroughReward = heavenlyBreakthroughRewardPercent > 0
+    ? Math.max(1, Math.round(Math.max(1, breakthroughRequired) * heavenlyBreakthroughRewardPercent))
+    : 0;
+  if (heavenlyBreakthroughReward > 0) {
+    profile.cultivation += heavenlyBreakthroughReward;
+    profile.totalCultivation = Math.max(0, Number(profile.totalCultivation) || 0) + heavenlyBreakthroughReward;
+  }
+
   const saved = await saveProfile(client, profile);
 
   return {
@@ -753,6 +763,8 @@ async function guaranteedBreakthrough(
     formationBreakthroughBonus: formationBonus,
     guaranteedByPet: true,
     activePet,
+    heavenlyBreakthroughRewardPercent,
+    heavenlyBreakthroughReward,
     oldRealm,
     newRealm: baseService.getRealmDisplay(saved),
     profile: saved,
@@ -779,6 +791,7 @@ export async function breakthrough(client, guildId, userId) {
   );
 
   const activePet = getActivePet(profile);
+  const breakthroughRequired = Math.max(0, Number(baseService.getCultivationRequired(profile)) || 0);
   const cavePetBonus = await getSafeCavePetBonus(client, guildId, userId);
   const petBreakthroughBonus = amplifySafePetEffect(
     getPetEffectValue(profile, 'breakthrough_bonus'),
@@ -800,6 +813,7 @@ export async function breakthrough(client, guildId, userId) {
       formationBonus,
       formation.lines || [],
       activePet,
+      breakthroughRequired,
     );
   }
 
@@ -874,7 +888,7 @@ export async function breakthrough(client, guildId, userId) {
     let heavenlyBreakthroughReward = 0;
     const heavenlyBreakthroughRewardPercent = getHeavenlyModifier(guildId, 'breakthrough_reward');
     if (result.success && heavenlyBreakthroughRewardPercent > 0) {
-      const rewardBase = Math.max(1, Number(result.required) || Number(result.originalRequired) || 0);
+      const rewardBase = Math.max(1, breakthroughRequired);
       heavenlyBreakthroughReward = Math.max(1, Math.round(rewardBase * heavenlyBreakthroughRewardPercent));
       latest.cultivation += heavenlyBreakthroughReward;
       latest.totalCultivation = Math.max(0, Number(latest.totalCultivation) || 0) + heavenlyBreakthroughReward;
