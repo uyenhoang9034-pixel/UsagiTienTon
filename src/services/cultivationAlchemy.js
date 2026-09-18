@@ -122,6 +122,8 @@ export async function brewCultivationPill(
     const cave = await getCaveSnapshot(client, guildId, userId);
     const caveAlchemyBonus = Math.max(0, Number(cave?.alchemyBonus) || 0);
     const heavenlyAlchemyBonus = getHeavenlyModifier(guildId, 'alchemy_success');
+    const heavenlyAlchemyReward = getHeavenlyModifier(guildId, 'alchemy_reward');
+    const heavenlyAlchemyQuality = getHeavenlyModifier(guildId, 'alchemy_quality');
     const effectiveSuccessChance = Math.min(
       1,
       Math.max(0, Number(recipe.successChance) || 0) + caveAlchemyBonus + heavenlyAlchemyBonus,
@@ -179,6 +181,19 @@ export async function brewCultivationPill(
       }
     }
 
+    let heavenlyBonusCount = 0;
+    if (successCount > 0 && heavenlyAlchemyReward > 0) {
+      heavenlyBonusCount += Math.floor(successCount * heavenlyAlchemyReward);
+      const fractional = (successCount * heavenlyAlchemyReward) % 1;
+      if (Math.random() < fractional) heavenlyBonusCount += 1;
+    }
+    let heavenlyQualityBonusCount = 0;
+    if (successCount > 0 && heavenlyAlchemyQuality > 0) {
+      for (let index = 0; index < successCount; index += 1) {
+        if (Math.random() < heavenlyAlchemyQuality) heavenlyQualityBonusCount += 1;
+      }
+    }
+    const totalResultCount = successCount + heavenlyBonusCount + heavenlyQualityBonusCount;
     const failCount = craftQuantity - successCount;
     profile.stats.alchemyCount += craftQuantity;
     profile.stats.alchemySuccess += successCount;
@@ -191,7 +206,7 @@ export async function brewCultivationPill(
 
       profile.inventory[recipe.resultItemId] =
         Math.max(0, Number(profile.inventory[recipe.resultItemId]) || 0) +
-        successCount;
+        totalResultCount;
     }
 
     const saved = await saveCultivationProfile(client, profile);
@@ -201,6 +216,9 @@ export async function brewCultivationPill(
       success: successCount > 0,
       quantity: craftQuantity,
       successCount,
+      heavenlyBonusCount,
+      heavenlyQualityBonusCount,
+      totalResultCount,
       failCount,
       recipe,
       ingredient,
@@ -209,6 +227,8 @@ export async function brewCultivationPill(
       requiredMaterial,
       caveAlchemyBonus,
       heavenlyAlchemyBonus,
+      heavenlyAlchemyReward,
+      heavenlyAlchemyQuality,
       effectiveSuccessChance,
       remainingIngredient:
         saved.inventory?.[recipe.ingredientItemId] || 0,
