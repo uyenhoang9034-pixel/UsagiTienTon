@@ -143,6 +143,42 @@ async function handleHeavenlySecret(interaction, ownerId, guildId) {
   });
 }
 
+async function loadBounty() {
+  const [service, ui] = await Promise.all([
+    import('../../services/cultivationBounty.js'),
+    import('../../services/cultivationBountyUI.js'),
+  ]);
+  return { service, ui };
+}
+
+async function handleBounty(interaction, client, ownerId, guildId, userId) {
+  const { service, ui } = await loadBounty();
+  const board = await ensureFunction(service, 'getBountyBoard', 'cultivationBounty.js')(client, guildId, userId);
+  return interaction.update({
+    embeds: [ensureFunction(ui, 'buildBountyEmbed', 'cultivationBountyUI.js')(interaction.user, board)],
+    components: ensureFunction(ui, 'buildBountyRows', 'cultivationBountyUI.js')(ownerId, board),
+  });
+}
+
+async function handleBountyTarget(interaction, client, ownerId, guildId, userId, slot) {
+  const { service, ui } = await loadBounty();
+  const result = await ensureFunction(service, 'getBountyTarget', 'cultivationBounty.js')(client, guildId, userId, slot);
+  if (!result.ok || !result.target) return handleBounty(interaction, client, ownerId, guildId, userId);
+  return interaction.update({
+    embeds: [ensureFunction(ui, 'buildBountyTargetEmbed', 'cultivationBountyUI.js')(interaction.user, result)],
+    components: ensureFunction(ui, 'buildBountyTargetRows', 'cultivationBountyUI.js')(ownerId, result.target),
+  });
+}
+
+async function handleBountyFight(interaction, client, ownerId, guildId, userId, slot) {
+  const { service, ui } = await loadBounty();
+  const result = await ensureFunction(service, 'fightBounty', 'cultivationBounty.js')(client, guildId, userId, slot);
+  return interaction.update({
+    embeds: [ensureFunction(ui, 'buildBountyResultEmbed', 'cultivationBountyUI.js')(result)],
+    components: ensureFunction(ui, 'buildBountyResultRows', 'cultivationBountyUI.js')(ownerId),
+  });
+}
+
 async function handleCultivate(interaction, client, ownerId, guildId, userId) {
   const { service, ui } = await loadCore();
   const result = await ensureFunction(service, 'cultivate', 'cultivationService.js')(
@@ -1077,6 +1113,12 @@ async function dispatchAction(interaction, client, ownerId, action, extra) {
       return handleDashboard(interaction, client, ownerId, guildId, userId);
     case 'heavenly_secret':
       return handleHeavenlySecret(interaction, ownerId, guildId);
+    case 'bounty':
+      return handleBounty(interaction, client, ownerId, guildId, userId);
+    case 'bounty_target':
+      return handleBountyTarget(interaction, client, ownerId, guildId, userId, extra);
+    case 'bounty_fight':
+      return handleBountyFight(interaction, client, ownerId, guildId, userId, extra);
     case 'cultivate':
       return handleCultivate(interaction, client, ownerId, guildId, userId);
     case 'breakthrough':
