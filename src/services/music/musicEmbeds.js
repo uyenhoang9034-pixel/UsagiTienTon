@@ -110,7 +110,7 @@ export function buildNowPlayingEmbed(track, player, guildData) {
     const artist = track?.info?.author || 'Unknown';
     const queueLength = player?.queue?.length || 0;
 
-    return createEmbed({
+    const embed = createEmbed({
         title: `${EMOJI_TITLE_LEFT} 𝓤𝓼𝓪𝓰𝓲 𝓜𝓾𝓼𝓲𝓬 ${EMOJI_TITLE_RIGHT}`,
         description: [
             `### ♪ ${title}`,
@@ -124,9 +124,15 @@ export function buildNowPlayingEmbed(track, player, guildData) {
             `${EMOJI_INFO} **Hàng chờ:** ${queueLength} bài`,
         ].join(String.fromCharCode(10)),
         color: 0xffb7d5,
-        thumbnail: getTrackArtwork(track),
         footer: player?.paused ? 'Paused' : 'Playing',
     });
+
+    const artwork = getTrackArtwork(track);
+    if (artwork) {
+        embed.setThumbnail(artwork);
+    }
+
+    return embed;
 }
 export function buildQueueEmbed(queue, currentTrack, page = 0) {
     const totalTracks = queue?.length || 0;
