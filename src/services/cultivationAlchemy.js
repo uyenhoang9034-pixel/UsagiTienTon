@@ -8,6 +8,7 @@ import {
   saveCultivationProfile,
 } from './cultivationService.js';
 import { getCaveSnapshot } from './cultivationCave.js';
+import { getHeavenlyModifier } from './cultivationHeavenlySecret.js';
 
 export const CULTIVATION_CRAFT_QUANTITIES = [1, 10, 100, 1000];
 
@@ -120,9 +121,10 @@ export async function brewCultivationPill(
 
     const cave = await getCaveSnapshot(client, guildId, userId);
     const caveAlchemyBonus = Math.max(0, Number(cave?.alchemyBonus) || 0);
+    const heavenlyAlchemyBonus = getHeavenlyModifier(guildId, 'alchemy_success');
     const effectiveSuccessChance = Math.min(
       1,
-      Math.max(0, Number(recipe.successChance) || 0) + caveAlchemyBonus,
+      Math.max(0, Number(recipe.successChance) || 0) + caveAlchemyBonus + heavenlyAlchemyBonus,
     );
 
     const ingredient = CULTIVATION_ITEMS[recipe.ingredientItemId];
@@ -142,6 +144,7 @@ export async function brewCultivationPill(
         available,
         profile,
         caveAlchemyBonus,
+        heavenlyAlchemyBonus,
         effectiveSuccessChance,
       };
     }
@@ -164,6 +167,7 @@ export async function brewCultivationPill(
         available,
         profile,
         caveAlchemyBonus,
+        heavenlyAlchemyBonus,
         effectiveSuccessChance,
       };
     }
@@ -204,6 +208,7 @@ export async function brewCultivationPill(
       consumed: requiredMaterial,
       requiredMaterial,
       caveAlchemyBonus,
+      heavenlyAlchemyBonus,
       effectiveSuccessChance,
       remainingIngredient:
         saved.inventory?.[recipe.ingredientItemId] || 0,
