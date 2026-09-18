@@ -372,7 +372,7 @@ export async function attackWorldBoss(client, guildId, userId) {
 
     const variance = 0.90 + Math.random() * 0.20;
     const heavenlyBossDamage = getHeavenlyModifier(guildId, 'boss_damage');
-    const rawDamage = Math.max(1, Math.round(estimate.estimatedDamage * variance * (1 + heavenlyBossDamage)));
+    const rawDamage = Math.max(1, Math.round(estimate.estimatedDamage * variance * Math.max(0.10, 1 - heavenlyBossDamage)));
     const damage = Math.min(number(state.currentHp), rawDamage);
 
     contribution.damage = number(contribution.damage) + damage;
