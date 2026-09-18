@@ -59,7 +59,30 @@ export function getHeavenlySecret(guildId, now = new Date()) {
     if (roll < cursor) { omenKey = key; break; }
   }
   const pool = HEAVENLY_SECRETS.filter(x => x.omen === omenKey);
-  const secret = pool[seededNumber(seed + ':secret') % pool.length];
+  let secret = pool[seededNumber(seed + ':secret') % pool.length];
+
+  // Tránh cùng một Thiên Cơ xuất hiện hai ngày liên tiếp trong cùng server.
+  // Không cần lưu DB: ngày trước cũng được tính từ seed cố định nên restart bot không làm đổi kết quả.
+  const previousDate = new Date(now);
+  previousDate.setUTCDate(previousDate.getUTCDate() - 1);
+  const previousDay = vnDateKey(previousDate);
+  const previousSeed = `${guildId || 'global'}:${previousDay}:usagi-heavenly-secret-v1`;
+  const previousRoll = seededNumber(previousSeed + ':omen') % 100;
+  let previousCursor = 0;
+  let previousOmenKey = 'neutral';
+  for (const [key, omen] of Object.entries(HEAVENLY_OMENS)) {
+    previousCursor += omen.weight;
+    if (previousRoll < previousCursor) { previousOmenKey = key; break; }
+  }
+  const previousPool = HEAVENLY_SECRETS.filter(x => x.omen === previousOmenKey);
+  const previousSecret = previousPool[seededNumber(previousSeed + ':secret') % previousPool.length];
+
+  if (secret?.id === previousSecret?.id && pool.length > 1) {
+    const currentIndex = pool.findIndex(x => x.id === secret.id);
+    const offset = 1 + (seededNumber(seed + ':no-repeat') % (pool.length - 1));
+    secret = pool[(currentIndex + offset) % pool.length];
+  }
+
   return { ...secret, omenData: HEAVENLY_OMENS[secret.omen], dateKey: day };
 }
 
