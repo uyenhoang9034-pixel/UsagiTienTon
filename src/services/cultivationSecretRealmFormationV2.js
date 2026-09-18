@@ -29,6 +29,8 @@ import {
   rollFormationFragmentDrop,
 } from './cultivationFormationRewards.js';
 
+import { getHeavenlyModifier } from './cultivationHeavenlySecret.js';
+
 export * from './cultivationSecretRealm.js';
 
 const SECRET_REALM_PREFIX = 'games:cultivation:secretRealm:';
@@ -167,9 +169,10 @@ export async function getSecretRealmCombatInfo(
     'combat_reward_bonus',
     cavePetBonus,
   );
+  const heavenlyDifficulty = getHeavenlyModifier(guildId, 'secret_realm_difficulty');
   const baseWinChance = Math.max(
     0,
-    Math.min(1, safeNumber(result.winChance)),
+    Math.min(1, safeNumber(result.winChance) - heavenlyDifficulty),
   );
   const realmMinimumWinChance = getRealmFloorMinimumWinChance(
     profile,
@@ -237,11 +240,12 @@ async function fightSecretRealmWithPetBonus(
     profile,
     floor,
   );
+  const heavenlyDifficulty = getHeavenlyModifier(guildId, 'secret_realm_difficulty');
   const finalWinChance = Math.min(
     1,
     Math.max(
       realmMinimumWinChance,
-      Math.max(0, Number(combat.winChance) || 0) + petCombatBonus,
+      Math.max(0, Number(combat.winChance) || 0) + petCombatBonus - heavenlyDifficulty,
     ),
   );
 
@@ -261,7 +265,9 @@ async function fightSecretRealmWithPetBonus(
       monster.stonesMin,
       monster.stonesMax,
     );
-    const rewardMultiplier = 1 + petCombatRewardBonus;
+    const heavenlySecretReward = getHeavenlyModifier(guildId, 'secret_realm_essence');
+    const heavenlyDropReward = getHeavenlyModifier(guildId, 'secret_realm_drop');
+    const rewardMultiplier = 1 + petCombatRewardBonus + heavenlySecretReward;
     const cultivation = Math.max(
       0,
       Math.round(baseCultivation * rewardMultiplier),
@@ -289,6 +295,7 @@ async function fightSecretRealmWithPetBonus(
           petCombatRewardBonus,
         );
         droppedItem.quantity += bonusQuantity;
+        if (heavenlyDropReward > 0) droppedItem.quantity += rollFractionalQuantity(droppedItem.quantity, heavenlyDropReward);
         session.loot.items[droppedItem.itemId] =
           Math.max(
             0,
@@ -324,6 +331,9 @@ async function fightSecretRealmWithPetBonus(
       realmMinimumWinChance,
       petCombatBonus,
       petCombatRewardBonus,
+      heavenlyDifficulty,
+      heavenlySecretReward,
+      heavenlyDropReward,
       cavePetBonus,
       floorCultivation: cultivation,
       floorStones: stones,
