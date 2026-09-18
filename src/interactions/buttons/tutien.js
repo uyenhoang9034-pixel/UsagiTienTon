@@ -160,19 +160,21 @@ async function handleBounty(interaction, client, ownerId, guildId, userId) {
   });
 }
 
-async function handleBountyTarget(interaction, client, ownerId, guildId, userId, slot) {
+async function handleBountyTarget(interaction, client, ownerId, guildId, userId, packed) {
+  const [slot, boardDate] = String(packed || '').split('~');
   const { service, ui } = await loadBounty();
-  const result = await ensureFunction(service, 'getBountyTarget', 'cultivationBounty.js')(client, guildId, userId, slot);
+  const result = await ensureFunction(service, 'getBountyTarget', 'cultivationBounty.js')(client, guildId, userId, slot, boardDate);
   if (!result.ok || !result.target) return handleBounty(interaction, client, ownerId, guildId, userId);
   return interaction.update({
     embeds: [ensureFunction(ui, 'buildBountyTargetEmbed', 'cultivationBountyUI.js')(interaction.user, result)],
-    components: ensureFunction(ui, 'buildBountyTargetRows', 'cultivationBountyUI.js')(ownerId, result.target),
+    components: ensureFunction(ui, 'buildBountyTargetRows', 'cultivationBountyUI.js')(ownerId, result.target, result.date),
   });
 }
 
-async function handleBountyFight(interaction, client, ownerId, guildId, userId, slot) {
+async function handleBountyFight(interaction, client, ownerId, guildId, userId, packed) {
+  const [slot, boardDate] = String(packed || '').split('~');
   const { service, ui } = await loadBounty();
-  const result = await ensureFunction(service, 'fightBounty', 'cultivationBounty.js')(client, guildId, userId, slot);
+  const result = await ensureFunction(service, 'fightBounty', 'cultivationBounty.js')(client, guildId, userId, slot, boardDate);
   return interaction.update({
     embeds: [ensureFunction(ui, 'buildBountyResultEmbed', 'cultivationBountyUI.js')(result)],
     components: ensureFunction(ui, 'buildBountyResultRows', 'cultivationBountyUI.js')(ownerId),
