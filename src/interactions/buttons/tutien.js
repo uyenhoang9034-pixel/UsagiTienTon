@@ -135,6 +135,14 @@ async function handleDashboard(interaction, client, ownerId, guildId, userId) {
   });
 }
 
+async function handleHeavenlySecret(interaction, ownerId, guildId) {
+  const ui = await import('../../services/cultivationHeavenlySecretUI.js');
+  return interaction.update({
+    embeds: [ensureFunction(ui, 'buildHeavenlySecretEmbed', 'cultivationHeavenlySecretUI.js')(guildId)],
+    components: ensureFunction(ui, 'buildHeavenlySecretRows', 'cultivationHeavenlySecretUI.js')(ownerId),
+  });
+}
+
 async function handleCultivate(interaction, client, ownerId, guildId, userId) {
   const { service, ui } = await loadCore();
   const result = await ensureFunction(service, 'cultivate', 'cultivationService.js')(
@@ -1067,6 +1075,8 @@ async function dispatchAction(interaction, client, ownerId, action, extra) {
   switch (action) {
     case 'dashboard':
       return handleDashboard(interaction, client, ownerId, guildId, userId);
+    case 'heavenly_secret':
+      return handleHeavenlySecret(interaction, ownerId, guildId);
     case 'cultivate':
       return handleCultivate(interaction, client, ownerId, guildId, userId);
     case 'breakthrough':
