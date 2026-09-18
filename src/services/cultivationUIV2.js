@@ -92,11 +92,6 @@ function routeBreakthroughThroughTribulation(rows, ownerId) {
 
 function appendMetaButtons(rows, ownerId) {
   const cloned = [...rows];
-  let target = cloned.find(row => (row?.components?.length || 0) === 0);
-  if (!target) {
-    target = new ActionRowBuilder();
-    cloned.push(target);
-  }
   const buttons = [
     getAchievementDashboardButton(ownerId),
     getWorldBossDashboardButton(ownerId),
@@ -105,14 +100,18 @@ function appendMetaButtons(rows, ownerId) {
     getCaveDashboardButton(ownerId),
     getHeavenlySecretDashboardButton(ownerId),
   ];
+
   for (const btn of buttons) {
-    if ((target.components?.length || 0) >= 5) {
+    let target = cloned.find(row => (row?.components?.length || 0) < 5);
+    if (!target) {
+      if (cloned.length >= 5) break;
       target = new ActionRowBuilder();
       cloned.push(target);
     }
     target.addComponents(btn);
   }
-  return cloned.slice(0, 5);
+
+  return cloned;
 }
 
 export function buildDashboardRows(ownerId, guild = null) {
