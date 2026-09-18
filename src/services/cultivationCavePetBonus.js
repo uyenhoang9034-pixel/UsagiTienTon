@@ -3,6 +3,8 @@ import { getDatabaseValue } from '../utils/database.js';
 const CAVE_KEY_PREFIX = 'games:cultivation:cave:';
 const MAX_CAVE_PET_BONUS = 0.10;
 
+import { getHeavenlyModifier } from './cultivationHeavenlySecret.js';
+
 function caveKey(guildId, userId) {
   return `${CAVE_KEY_PREFIX}${guildId}:${userId}`;
 }
@@ -31,7 +33,10 @@ export async function getSafeCavePetBonus(client, guildId, userId) {
       ? clamp(Math.floor(Number(raw?.buildings?.pet) || 1), 1, 10)
       : 1;
 
-    return clamp(level * 0.01, 0, MAX_CAVE_PET_BONUS);
+    const base = clamp(level * 0.01, 0, MAX_CAVE_PET_BONUS);
+    const caveEffect = getHeavenlyModifier(guildId, 'cave_effect');
+    const petEffect = getHeavenlyModifier(guildId, 'pet_effect');
+    return Math.max(0, base * (1 + caveEffect) * (1 + petEffect));
   } catch {
     return 0;
   }
