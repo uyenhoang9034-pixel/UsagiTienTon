@@ -285,8 +285,6 @@ async function runWithFormationAdventureReward(fn, client, guildId, userId, ...a
   const cultivationGain = scalePositiveRealmReward(normalizedCultivationGain, effectiveCultivationMultiplier);
   const stoneGain = scalePositiveRealmReward(rawStoneGain, realmRewards.spiritStones);
   const heavenlyAdventureReward = getHeavenlyModifier(guildId, 'adventure_reward');
-  const heavenlyCultivationBonus = cultivationGain > 0 ? Math.max(0, Math.round(cultivationBonusBase * heavenlyAdventureReward)) : 0;
-  const heavenlyStoneBonus = stoneGain > 0 ? Math.max(0, Math.round(stoneGain * heavenlyAdventureReward)) : 0;
   const realmCultivationBonus = Math.max(0, cultivationGain - normalizedCultivationGain);
   const realmStoneBonus = Math.max(0, stoneGain - rawStoneGain);
 
@@ -321,6 +319,10 @@ async function runWithFormationAdventureReward(fn, client, guildId, userId, ...a
   const cultivationBonusBase = immortalAdventureBase && cultivationGain > 0
     ? IMMORTAL_ADVENTURE_BASE_CULTIVATION_GAIN
     : cultivationGain;
+  const heavenlyCultivationBonus = cultivationBonusBase > 0
+    ? Math.max(0, Math.round(cultivationBonusBase * heavenlyAdventureReward)) : 0;
+  const heavenlyStoneBonus = stoneGain > 0
+    ? Math.max(0, Math.round(stoneGain * heavenlyAdventureReward)) : 0;
 
   const petAdventureStoneBonus = stoneGain > 0 && petAdventureStonePercent > 0
     ? Math.max(1, Math.round(stoneGain * petAdventureStonePercent)) : 0;
