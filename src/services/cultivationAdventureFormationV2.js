@@ -187,6 +187,8 @@ async function runWithFormationAdventureReward(fn, client, guildId, userId, ...a
   const petAdventureStonePercent = amplifiedPetValue(beforeProfile, 'adventure_stone_bonus', cavePetBonus);
   const petAllRewardPercent = amplifiedPetValue(beforeProfile, 'adventure_all_reward_bonus', cavePetBonus);
   const petMaterialFindPercent = amplifiedPetValue(beforeProfile, 'adventure_material_find_bonus', cavePetBonus, 1);
+  const heavenlyAdventureRare = getHeavenlyModifier(guildId, 'adventure_rare');
+  const heavenlyAdventureDifficulty = getHeavenlyModifier(guildId, 'adventure_difficulty');
   const petStaminaRefundPercent = amplifiedPetValue(beforeProfile, 'stamina_cost_refund', cavePetBonus, 0.95);
 
   // Đây là flag/bảo hộ đặc biệt, cố ý KHÔNG khuếch đại bởi Linh Thú Viên.
@@ -197,6 +199,11 @@ async function runWithFormationAdventureReward(fn, client, guildId, userId, ...a
 
   const formation = await getFormationGameplayBonus(client, guildId, userId);
   const result = await fn(client, guildId, userId, ...args);
+  if (result?.ok && heavenlyAdventureDifficulty > 0 && result.success === true && Math.random() < heavenlyAdventureDifficulty) {
+    result.heavenlyDangerTriggered = true;
+    result.success = false;
+    result.type = result.type || 'heavenly_danger';
+  }
   if (!result?.ok) return result;
 
   const afterProfile = await getCultivationProfile(client, guildId, userId);
@@ -345,7 +352,7 @@ async function runWithFormationAdventureReward(fn, client, guildId, userId, ...a
   let petMaterialFindBonus = null;
   if (
     petMaterialFindPercent > 0 && MATERIAL_ITEM_IDS.length > 0 &&
-    Math.random() < petMaterialFindPercent
+    Math.random() < Math.min(1, petMaterialFindPercent + heavenlyAdventureRare)
   ) {
     const itemId = randomItem(MATERIAL_ITEM_IDS);
     if (itemId) {
@@ -433,6 +440,8 @@ async function runWithFormationAdventureReward(fn, client, guildId, userId, ...a
     petAllStoneBonus,
     petAllItemBonuses,
     petMaterialFindPercent,
+    heavenlyAdventureRare,
+    heavenlyAdventureDifficulty,
     petMaterialFindBonus,
     petCombatRewardPercent,
     petCombatCultivationBonus: result.success ? petCombatCultivationBonus : 0,
