@@ -5,6 +5,7 @@ import {
   removeInventoryItem,
   saveCultivationProfile,
 } from './cultivationService.js';
+import { getHeavenlyModifier } from './cultivationHeavenlySecret.js';
 
 const PREFIX = 'games:cultivation:cave:';
 const HOUR_MS = 60 * 60 * 1000;
@@ -42,13 +43,13 @@ function caveName(total) {
   return 'Tiểu Động Phủ';
 }
 function gatheringBonus(state) { return state.buildings.gathering * 0.02; }
-function herbPerDay(state) { return state.buildings.field * (1 + gatheringBonus(state)); }
+function herbPerDay(state, caveEffect = 0) { return state.buildings.field * (1 + gatheringBonus(state) * (1 + caveEffect)); }
 function herbCapacity(state) { return Math.max(2, state.buildings.field * 2); }
 
-function accrue(raw, now = Date.now()) {
+function accrue(raw, now = Date.now(), caveEffect = 0) {
   const state = normalize(raw, now);
   const elapsed = Math.max(0, now - state.lastUpdatedAt);
-  const produced = (elapsed / (24 * HOUR_MS)) * herbPerDay(state) + state.herbProgress;
+  const produced = (elapsed / (24 * HOUR_MS)) * herbPerDay(state, caveEffect) + state.herbProgress;
   const whole = Math.floor(produced);
   state.herbProgress = produced - whole;
   state.storedHerbs = Math.min(herbCapacity(state), state.storedHerbs + whole);
@@ -59,7 +60,8 @@ function accrue(raw, now = Date.now()) {
 
 async function getState(client, guildId, userId) {
   const raw = await client.db.get(key(guildId, userId));
-  const state = accrue(raw);
+  const caveEffect = getHeavenlyModifier(guildId, 'cave_effect');
+  const state = accrue(raw, Date.now(), caveEffect);
   await client.db.set(key(guildId, userId), state);
   return state;
 }
@@ -72,21 +74,22 @@ function upgradeCost(id, nextLevel) {
   };
 }
 
-function snapshot(profile, state) {
+function snapshot(profile, state, caveEffect = 0) {
   const total = totalLevel(state);
+  const multiplier = 1 + Math.max(0, Number(caveEffect) || 0);
   return {
     profile, state, totalLevel: total, caveName: caveName(total),
-    herbPerDay: herbPerDay(state), herbCapacity: herbCapacity(state),
-    gatheringBonus: gatheringBonus(state),
-    alchemyBonus: state.buildings.alchemy * 0.01,
-    forgeBonus: state.buildings.forge * 0.01,
-    petBonus: state.buildings.pet * 0.01,
+    herbPerDay: herbPerDay(state, caveEffect), herbCapacity: herbCapacity(state),
+    gatheringBonus: gatheringBonus(state) * multiplier,
+    alchemyBonus: state.buildings.alchemy * 0.01 * multiplier,
+    forgeBonus: state.buildings.forge * 0.01 * multiplier,
+    petBonus: state.buildings.pet * 0.01 * multiplier,
   };
 }
 
 export async function getCaveSnapshot(client, guildId, userId) {
   const [profile, state] = await Promise.all([getCultivationProfile(client, guildId, userId), getState(client, guildId, userId)]);
-  return snapshot(profile, state);
+  return snapshot(profile, state, getHeavenlyModifier(guildId, 'cave_effect'));
 }
 
 // Linh Thú Viên khuếch đại phần trăm trợ lực của Linh Thú theo phép nhân.
