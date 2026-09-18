@@ -168,7 +168,20 @@ export function getLavalinkNodes() {
   const fromFile = loadNodesFromFile();
 
   if (fromFile?.length) {
-    return fromFile;
+    // Prefer the nodes that have been more responsive for this bot.
+    // Keep Serenetia as a fallback instead of selecting it first.
+    const priority = new Map([
+      ['Jirayu', 0],
+      ['MilloHost', 1],
+      ['TriniumHost', 2],
+      ['Serenetia', 3],
+    ]);
+
+    return [...fromFile].sort(
+      (a, b) =>
+        (priority.get(a.name) ?? 99) -
+        (priority.get(b.name) ?? 99),
+    );
   }
 
   return [buildNodeFromSingleEnv()];
