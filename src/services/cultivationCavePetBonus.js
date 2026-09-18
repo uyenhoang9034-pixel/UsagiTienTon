@@ -36,7 +36,10 @@ export async function getSafeCavePetBonus(client, guildId, userId) {
     const base = clamp(level * 0.01, 0, MAX_CAVE_PET_BONUS);
     const caveEffect = getHeavenlyModifier(guildId, 'cave_effect');
     const petEffect = getHeavenlyModifier(guildId, 'pet_effect');
-    return Math.max(0, base * (1 + caveEffect) * (1 + petEffect));
+    const scaledCaveBonus = Math.max(0, base * (1 + caveEffect));
+    // Trả về tổng hệ số khuếch đại để amplifySafePetEffect có thể áp:
+    // petBase × (1 + caveBonus) × (1 + Heavenly pet effect).
+    return Math.max(0, (1 + scaledCaveBonus) * (1 + petEffect) - 1);
   } catch {
     return 0;
   }
@@ -51,7 +54,7 @@ export function amplifySafePetEffect(effectValue, cavePetBonus, { cap = null } =
   const base = Math.max(0, Number(effectValue) || 0);
   if (base <= 0) return 0;
 
-  const bonus = clamp(cavePetBonus, 0, MAX_CAVE_PET_BONUS);
+  const bonus = Math.max(0, Number(cavePetBonus) || 0);
   let amplified = base * (1 + bonus);
 
   // null/undefined nghĩa là không giới hạn. Tránh Number(null) === 0
