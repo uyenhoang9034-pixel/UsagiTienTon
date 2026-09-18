@@ -44,7 +44,47 @@ export function formatDuration(ms) {
 }
 
 function getTrackArtwork(track) {
-    return track?.info?.artworkUrl || track?.info?.thumbnail || null;
+    const info = track?.info || {};
+    const directArtwork =
+        info.artworkUrl ||
+        info.artworkURL ||
+        info.thumbnail ||
+        info.thumbnailUrl ||
+        info.thumbnailURL;
+
+    if (directArtwork) {
+        return directArtwork;
+    }
+
+    const identifier =
+        info.identifier ||
+        info.videoId ||
+        info.videoID;
+
+    const sourceName =
+        String(info.sourceName || '').toLowerCase();
+
+    if (
+        identifier &&
+        (sourceName.includes('youtube') ||
+            /(?:youtube\.com|youtu\.be)/i.test(info.uri || ''))
+    ) {
+        return `https://i.ytimg.com/vi/${identifier}/hqdefault.jpg`;
+    }
+
+    const uri =
+        String(info.uri || info.url || '');
+
+    const youtubeMatch =
+        uri.match(
+            /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([A-Za-z0-9_-]{6,})/i,
+        );
+
+    if (youtubeMatch?.[1]) {
+        return `https://i.ytimg.com/vi/${youtubeMatch[1]}/hqdefault.jpg`;
+    }
+
+    return null;
 }
 
 function getLoopLabel(loop) {
