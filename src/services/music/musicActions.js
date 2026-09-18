@@ -276,6 +276,9 @@ export async function joinVoiceChannel(client, interaction) {
 export async function playQuery(client, interaction, query) {
   const cleanQuery = String(query || '').trim();
 
+  const isExplicitPlaylist =
+    /(?:[?&]list=|youtube\.com\/playlist)/i.test(cleanQuery);
+
   if (!cleanQuery) {
     throw new TitanBotError(
       'Empty query',
@@ -310,7 +313,10 @@ export async function playQuery(client, interaction, query) {
     );
   }
 
-  if (loadType === 'PLAYLIST' || loadType === 'PLAYLIST_LOADED') {
+  if (
+    (loadType === 'PLAYLIST' || loadType === 'PLAYLIST_LOADED') &&
+    isExplicitPlaylist
+  ) {
     let added = 0;
     let skipped = 0;
 
@@ -349,7 +355,9 @@ export async function playQuery(client, interaction, query) {
     loadType === 'TRACK_LOADED' ||
     loadType === 'SEARCH_RESULT' ||
     loadType === 'SEARCH' ||
-    loadType === 'TRACK'
+    loadType === 'TRACK' ||
+    ((loadType === 'PLAYLIST' || loadType === 'PLAYLIST_LOADED') &&
+      !isExplicitPlaylist)
   ) {
     const track = tracks[0];
 
