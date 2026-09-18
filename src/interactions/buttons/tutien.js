@@ -164,7 +164,16 @@ async function handleBountyTarget(interaction, client, ownerId, guildId, userId,
   const [slot, boardDate] = String(packed || '').split('~');
   const { service, ui } = await loadBounty();
   const result = await ensureFunction(service, 'getBountyTarget', 'cultivationBounty.js')(client, guildId, userId, slot, boardDate);
-  if (!result.ok || !result.target) return handleBounty(interaction, client, ownerId, guildId, userId);
+  if (!result.ok || !result.target) {
+    if (result.reason === 'expired_board') {
+      const freshBoard = await ensureFunction(service, 'getBountyBoard', 'cultivationBounty.js')(client, guildId, userId);
+      return interaction.update({
+        embeds: [ensureFunction(ui, 'buildBountyEmbed', 'cultivationBountyUI.js')(interaction.user, freshBoard)],
+        components: ensureFunction(ui, 'buildBountyRows', 'cultivationBountyUI.js')(ownerId, freshBoard),
+      });
+    }
+    return handleBounty(interaction, client, ownerId, guildId, userId);
+  }
   return interaction.update({
     embeds: [ensureFunction(ui, 'buildBountyTargetEmbed', 'cultivationBountyUI.js')(interaction.user, result)],
     components: ensureFunction(ui, 'buildBountyTargetRows', 'cultivationBountyUI.js')(ownerId, result.target, result.date),
