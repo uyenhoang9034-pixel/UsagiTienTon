@@ -160,6 +160,17 @@ async function handleBounty(interaction, client, ownerId, guildId, userId) {
   });
 }
 
+async function handleBountyReset(interaction, client, ownerId, guildId, userId) {
+  const hasAdminRole = interaction.member?.roles?.cache?.has(CULTIVATION_CONFIG.adminRoleId);
+  if (!hasAdminRole) return replyEphemeral(interaction, 'Chỉ BQL mới có thể reset Truy Nã để test.');
+  const { service, ui } = await loadBounty();
+  const board = await ensureFunction(service, 'resetBountyToday', 'cultivationBounty.js')(client, guildId, userId);
+  return interaction.update({
+    embeds: [ensureFunction(ui, 'buildBountyEmbed', 'cultivationBountyUI.js')(interaction.user, board)],
+    components: ensureFunction(ui, 'buildBountyRows', 'cultivationBountyUI.js')(ownerId, board),
+  });
+}
+
 async function handleBountyTarget(interaction, client, ownerId, guildId, userId, packed) {
   const [slot, boardDate] = String(packed || '').split('~');
   const { service, ui } = await loadBounty();
@@ -1126,6 +1137,8 @@ async function dispatchAction(interaction, client, ownerId, action, extra) {
       return handleHeavenlySecret(interaction, ownerId, guildId);
     case 'bounty':
       return handleBounty(interaction, client, ownerId, guildId, userId);
+    case 'bounty_reset':
+      return handleBountyReset(interaction, client, ownerId, guildId, userId);
     case 'bounty_target':
       return handleBountyTarget(interaction, client, ownerId, guildId, userId, extra);
     case 'bounty_fight':
