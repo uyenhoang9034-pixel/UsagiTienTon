@@ -112,7 +112,7 @@ function appendMetaButtons(rows, ownerId) {
     }
     target.addComponents(btn);
   }
-  return cloned;
+  return cloned.slice(0, 5);
 }
 
 export function buildDashboardRows(ownerId, guild = null) {
