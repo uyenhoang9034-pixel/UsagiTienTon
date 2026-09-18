@@ -11,6 +11,8 @@ import {
   Mutex,
 } from '../utils/mutex.js';
 
+import { getHeavenlyModifier } from './cultivationHeavenlySecret.js';
+
 const SPIRIT_VEIN_PREFIX = 'games:cultivation:spiritVein:';
 const HOUR_MS = 60 * 60 * 1000;
 const MAX_LEVEL = 10;
@@ -53,12 +55,12 @@ function normalizeState(raw, now = Date.now()) {
   };
 }
 
-function accrueState(rawState, now = Date.now()) {
+function accrueState(rawState, now = Date.now(), productionBonus = 0) {
   const state = normalizeState(rawState, now);
   const config = SPIRIT_VEIN_LEVELS[state.level];
   const elapsedMs = Math.max(0, now - state.lastUpdatedAt);
   const generated = Math.floor(
-    (elapsedMs / HOUR_MS) * config.productionPerHour,
+    (elapsedMs / HOUR_MS) * config.productionPerHour * (1 + Math.max(-0.95, Number(productionBonus) || 0)),
   );
 
   return {
@@ -87,8 +89,8 @@ async function saveState(client, guildId, userId, state) {
   return normalized;
 }
 
-function buildSnapshot(profile, rawState, now = Date.now()) {
-  const state = accrueState(rawState, now);
+function buildSnapshot(profile, rawState, now = Date.now(), productionBonus = 0) {
+  const state = accrueState(rawState, now, productionBonus);
   const config = SPIRIT_VEIN_LEVELS[state.level];
   const next = SPIRIT_VEIN_LEVELS[state.level + 1] || null;
   const fillRatio = config.capacity > 0
@@ -121,12 +123,13 @@ function buildSnapshot(profile, rawState, now = Date.now()) {
 }
 
 export async function getSpiritVeinSnapshot(client, guildId, userId) {
+  const productionBonus = getHeavenlyModifier(guildId, 'spirit_vein_production');
   const [profile, state] = await Promise.all([
     getCultivationProfile(client, guildId, userId),
     getOrCreateState(client, guildId, userId),
   ]);
 
-  return buildSnapshot(profile, state);
+  return { ...buildSnapshot(profile, state, Date.now(), productionBonus), heavenlyProductionBonus: productionBonus };
 }
 
 export async function collectSpiritVein(client, guildId, userId) {
@@ -139,14 +142,15 @@ export async function collectSpiritVein(client, guildId, userId) {
     ]);
 
     const now = Date.now();
-    const state = accrueState(rawState, now);
+    const productionBonus = getHeavenlyModifier(guildId, 'spirit_vein_production');
+    const state = accrueState(rawState, now, productionBonus);
     const collected = Math.max(0, safeInteger(state.stored, 0));
 
     if (collected <= 0) {
       return {
         ok: false,
         reason: 'nothing_to_collect',
-        ...buildSnapshot(profile, state, now),
+        ...buildSnapshot(profile, state, now, productionBonus),
         collected: 0,
       };
     }
@@ -165,7 +169,7 @@ export async function collectSpiritVein(client, guildId, userId) {
     return {
       ok: true,
       collected,
-      ...buildSnapshot(savedProfile, savedState, now),
+      ...buildSnapshot(savedProfile, savedState, now, productionBonus),
     };
   });
 }
@@ -180,14 +184,15 @@ export async function upgradeSpiritVein(client, guildId, userId) {
     ]);
 
     const now = Date.now();
-    const state = accrueState(rawState, now);
+    const productionBonus = getHeavenlyModifier(guildId, 'spirit_vein_production');
+    const state = accrueState(rawState, now, productionBonus);
     const next = SPIRIT_VEIN_LEVELS[state.level + 1] || null;
 
     if (!next) {
       return {
         ok: false,
         reason: 'max_level',
-        ...buildSnapshot(profile, state, now),
+        ...buildSnapshot(profile, state, now, productionBonus),
       };
     }
 
@@ -195,7 +200,7 @@ export async function upgradeSpiritVein(client, guildId, userId) {
       return {
         ok: false,
         reason: 'realm_too_low',
-        ...buildSnapshot(profile, state, now),
+        ...buildSnapshot(profile, state, now, productionBonus),
       };
     }
 
@@ -203,7 +208,7 @@ export async function upgradeSpiritVein(client, guildId, userId) {
       return {
         ok: false,
         reason: 'not_enough_stones',
-        ...buildSnapshot(profile, state, now),
+        ...buildSnapshot(profile, state, now, productionBonus),
       };
     }
 
@@ -223,7 +228,7 @@ export async function upgradeSpiritVein(client, guildId, userId) {
     return {
       ok: true,
       upgradeCost: next.upgradeCost,
-      ...buildSnapshot(savedProfile, savedState, now),
+      ...buildSnapshot(savedProfile, savedState, now, productionBonus),
     };
   });
 }
