@@ -388,11 +388,7 @@ export async function playQuery(client, interaction, query) {
 
     if (willPlayNow) {
       await startPlayback(player);
-
-      // Do not depend only on Riffy's trackStart event for the public dashboard.
-      // refreshPlayerMessage edits the existing dashboard when present, so this
-      // is safe and prevents a playable track from starting with no dashboard.
-      await refreshPlayerMessage(client, interaction.guild.id);
+      // trackStart owns creation of the single public Music dashboard.
     }
 
     return {
