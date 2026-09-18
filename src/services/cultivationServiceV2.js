@@ -31,6 +31,8 @@ import {
   scalePositiveRealmReward,
 } from './cultivationRealmRewards.js';
 
+import { getHeavenlyModifier } from './cultivationHeavenlySecret.js';
+
 export * from './cultivationService.js';
 
 const CHAN_TIEN_REALM_INDEX = Math.max(
@@ -134,9 +136,10 @@ export async function cultivate(client, guildId, userId) {
         )
       : 0;
 
+  const heavenlyStaminaCost = getHeavenlyModifier(guildId, 'cultivation_stamina_cost');
   const effectiveStaminaCost = Math.max(
     0,
-    stamina.total - petStaminaRefund,
+    Math.round((stamina.total - petStaminaRefund) * (1 + heavenlyStaminaCost)),
   );
 
   if (profile.stamina < effectiveStaminaCost) {
@@ -202,6 +205,8 @@ export async function cultivate(client, guildId, userId) {
 
     let rawCultivationDelta = Number(result.cultivationDelta) || 0;
     const rawStoneDelta = Number(result.stoneDelta) || 0;
+    const heavenlyCultivationBonus = getHeavenlyModifier(guildId, 'cultivation_gain');
+    const heavenlyStoneBonus = getHeavenlyModifier(guildId, 'cultivation_stones');
 
     const rawEquipmentCultivationBonus = Math.max(
       0,
@@ -256,8 +261,9 @@ export async function cultivate(client, guildId, userId) {
       Number(profile.spiritRoot?.cultivateBonus) || 0,
     );
 
+    const heavenlyScaledRawStoneDelta = Math.max(0, Math.round(rawStoneDelta * (1 + heavenlyStoneBonus)));
     const scaledStoneDelta = scalePositiveRealmReward(
-      rawStoneDelta,
+      heavenlyScaledRawStoneDelta,
       realmRewards.spiritStones,
     );
     const realmStoneBonus = Math.max(
@@ -489,8 +495,11 @@ export async function cultivate(client, guildId, userId) {
       };
     }
 
+    const heavenlyScaledRawCultivationDelta = rawCultivationDelta > 0
+      ? Math.max(0, Math.round(rawCultivationDelta * (1 + heavenlyCultivationBonus)))
+      : rawCultivationDelta;
     const scaledCultivationDelta = scalePositiveRealmReward(
-      rawCultivationDelta,
+      heavenlyScaledRawCultivationDelta,
       realmRewards.cultivation,
     );
     const scaledEquipmentCultivationBonus = scalePositiveRealmReward(
@@ -786,7 +795,7 @@ export async function breakthrough(client, guildId, userId) {
   profile.pets ||= { owned: {}, active: null };
   profile.pets.active = null;
   profile.effects.nextBreakthroughBonus =
-    originalPillBonus + formationBonus + petBreakthroughBonus;
+    originalPillBonus + formationBonus + petBreakthroughBonus + getHeavenlyModifier(guildId, 'breakthrough_chance');
 
   await saveProfile(client, profile);
 
