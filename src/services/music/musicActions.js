@@ -388,6 +388,10 @@ export async function playQuery(client, interaction, query) {
 
     if (willPlayNow) {
       await startPlayback(player);
+
+      // Ensure the public Now Playing dashboard exists even when
+      // a Lavalink/Riffy trackStart event is delayed or missed.
+      await refreshPlayerMessage(client, interaction.guild.id);
     }
 
     return {
