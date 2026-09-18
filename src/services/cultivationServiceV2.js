@@ -853,6 +853,15 @@ export async function breakthrough(client, guildId, userId) {
       );
     }
 
+    let heavenlyBreakthroughReward = 0;
+    const heavenlyBreakthroughRewardPercent = getHeavenlyModifier(guildId, 'breakthrough_reward');
+    if (result.success && heavenlyBreakthroughRewardPercent > 0) {
+      const rewardBase = Math.max(1, Number(result.required) || Number(result.originalRequired) || 0);
+      heavenlyBreakthroughReward = Math.max(1, Math.round(rewardBase * heavenlyBreakthroughRewardPercent));
+      latest.cultivation += heavenlyBreakthroughReward;
+      latest.totalCultivation = Math.max(0, Number(latest.totalCultivation) || 0) + heavenlyBreakthroughReward;
+    }
+
     const saved = await saveProfile(client, latest);
 
     return {
@@ -866,6 +875,8 @@ export async function breakthrough(client, guildId, userId) {
       petLossSaved,
       cavePetBonus,
       formationBreakthroughBonus: formationBonus,
+      heavenlyBreakthroughRewardPercent,
+      heavenlyBreakthroughReward,
       formationResonanceLines: formation.lines || [],
     };
   } catch (error) {
