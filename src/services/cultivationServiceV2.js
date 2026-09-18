@@ -203,6 +203,24 @@ export async function cultivate(client, guildId, userId) {
       return result;
     }
 
+    // baseService đã trừ chi phí gốc sau khi wrapper pre-credit phần Formation/Pet.
+    // Thiên Cơ có thể làm chi phí cuối cùng cao hơn, nên cân lại đúng số Thể Lực thực tế tại đây.
+    const normalWrappedStaminaCost = Math.max(0, stamina.total - petStaminaRefund);
+    const heavenlyExtraStaminaCost = effectiveStaminaCost - normalWrappedStaminaCost;
+    if (heavenlyExtraStaminaCost !== 0) {
+      const latestStaminaProfile = result.profile || await baseService.getCultivationProfile(client, guildId, userId);
+      latestStaminaProfile.stamina = Math.max(
+        0,
+        Math.min(
+          Number(latestStaminaProfile.maxStamina) || CULTIVATION_CONFIG.gameplay.maxStamina,
+          (Number(latestStaminaProfile.stamina) || 0) - heavenlyExtraStaminaCost,
+        ),
+      );
+      result.profile = await saveProfile(client, latestStaminaProfile);
+      result.staminaCost = effectiveStaminaCost;
+      result.heavenlyStaminaCost = heavenlyStaminaCost;
+    }
+
     let rawCultivationDelta = Number(result.cultivationDelta) || 0;
     const rawStoneDelta = Number(result.stoneDelta) || 0;
     const heavenlyCultivationBonus = getHeavenlyModifier(guildId, 'cultivation_gain');
