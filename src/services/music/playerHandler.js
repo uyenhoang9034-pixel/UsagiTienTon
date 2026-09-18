@@ -666,118 +666,100 @@ export function setupPlayerHandler(
             payload,
         ) => {
             try {
-                logger.error(
-                    `Track error in ${player.guildId} for "${
-                        track?.info?.title ||
-                        'Unknown track'
-                    }":`,
-                    payload?.error ||
-                        payload,
-                );
-
                 const guildData =
                     getGuildMusicData(
                         player.guildId,
                     );
 
-                const failedUri =
-                    track?.info?.uri || '';
+                const title =
+                    track?.info?.title ||
+                    'Unknown track';
 
-                // A resolved YouTube result can still fail when Lavalink tries
-                // to decode/play that exact video. For search requests, retry
-                // once with a fresh search based on title + author and exclude
-                // the failed URI. This lets another playable upload/version win.
-                if (
-                    !track?.__usagiRetry &&
-                    track?.info?.title
-                ) {
+                logger.error(
+                    `Track error in ${player.guildId} for "${title}":`,
+                    payload?.error ||
+                        payload,
+                );
+
+                // Retry only once. This prevents an endless fallback loop.
+                if (!track?.info?.__usagiFallbackTried) {
                     try {
-                        const retryQuery =
-                            `${track.info.title} ${track.info.author || ''}`.trim();
+                        const author =
+                            track?.info?.author ||
+                            '';
 
-                        const retryResult =
+                        const fallbackResult =
                             await client.riffy.resolve({
-                                query: retryQuery,
+                                query:
+                                    `scsearch:${title} ${author}`.trim(),
                                 requester:
                                     track?.info?.requester ||
-                                    track?.requester,
+                                    null,
                             });
 
-                        const retryTracks =
+                        const fallbackTrack =
                             Array.isArray(
-                                retryResult?.tracks,
+                                fallbackResult?.tracks,
                             )
-                                ? retryResult.tracks
-                                : [];
+                                ? fallbackResult.tracks[0]
+                                : null;
 
-                        const fallback =
-                            retryTracks.find(
-                                candidate =>
-                                    candidate &&
-                                    candidate.info?.uri !==
-                                        failedUri,
-                            );
-
-                        if (fallback) {
-                            fallback.info ??= {};
-                            fallback.info.requester =
+                        if (fallbackTrack) {
+                            fallbackTrack.info ??= {};
+                            fallbackTrack.info.requester =
                                 track?.info?.requester ||
-                                track?.requester;
-                            fallback.__usagiRetry = true;
+                                null;
+                            fallbackTrack.info.__usagiFallbackTried =
+                                true;
 
                             if (
                                 typeof player.queue?.add ===
                                 'function'
                             ) {
                                 player.queue.add(
-                                    fallback,
+                                    fallbackTrack,
                                 );
                             } else {
-                                player.queue.push(
-                                    fallback,
+                                player.queue?.push?.(
+                                    fallbackTrack,
                                 );
                             }
 
-                            if (
-                                !player.playing &&
-                                !player.paused
-                            ) {
-                                await player.play();
-                            }
+                            player.stop();
 
-                            logger.warn(
-                                `Retried failed track "${track.info.title}" with alternate result "${fallback.info?.title || 'Unknown'}".`,
-                            );
+                            const channel =
+                                client.channels.cache.get(
+                                    guildData.playerChannelId ||
+                                        player.textChannel,
+                                );
+
+                            await channel
+                                ?.send(
+                                    `YouTube source failed for **${title}** — trying another audio source automatically...`,
+                                )
+                                .catch(() => null);
 
                             return;
                         }
-                    } catch (retryError) {
+                    } catch (fallbackError) {
                         logger.warn(
-                            'Music alternate-track retry failed:',
-                            retryError?.message ||
-                                retryError,
+                            `Music fallback failed for "${title}":`,
+                            fallbackError,
                         );
                     }
                 }
 
-                if (
-                    guildData.playerChannelId
-                ) {
-                    const channel =
-                        client.channels.cache.get(
-                            guildData.playerChannelId,
-                        );
+                const channel =
+                    client.channels.cache.get(
+                        guildData.playerChannelId ||
+                            player.textChannel,
+                    );
 
-                    if (channel) {
-                        await channel
-                            .send(
-                                `Failed to play **${track?.info?.title || 'track'}**. Skipping...`,
-                            )
-                            .catch(
-                                () => null,
-                            );
-                    }
-                }
+                await channel
+                    ?.send(
+                        `Failed to play **${title}**. Skipping...`,
+                    )
+                    .catch(() => null);
             } catch (error) {
                 logger.error(
                     'Music trackError handler error:',
