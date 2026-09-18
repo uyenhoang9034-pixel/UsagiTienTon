@@ -5,6 +5,7 @@ import { addInventoryItem, getCultivationProfile, saveCultivationProfile } from 
 import { getActivePet, getPetEffectValue } from './cultivationPet.js';
 import { getSafeCavePetBonus, amplifySafePetEffect } from './cultivationCavePetBonus.js';
 import { getFormationGameplayBonus, applyFormationStaminaReduction } from './cultivationFormationGameplay.js';
+import { getAdventureRealmRewardMultipliers, scalePositiveRealmReward } from './cultivationRealmRewards.js';
 
 const PREFIX = 'games:cultivation:bounty:';
 const TZ = 'Asia/Ho_Chi_Minh';
@@ -30,8 +31,15 @@ function weighted(list,roll,k='w'){let total=list.reduce((s,x)=>s+Number(x[k]||0
 const progression=p=>Math.max(0,(Number(p.realmIndex)||0)*CULTIVATION_STAGES.length+(Number(p.stageIndex)||0));
 function targetDisplay(step){const s=Math.max(0,Math.min(CULTIVATION_REALMS.length*CULTIVATION_STAGES.length-1,step));return CULTIVATION_REALMS[Math.floor(s/CULTIVATION_STAGES.length)]+' · '+CULTIVATION_STAGES[s%CULTIVATION_STAGES.length];}
 function danger(c){if(c>=.82)return'Dễ dàng';if(c>=.66)return'Ngang sức';if(c>=.48)return'Hung hiểm';return'Cửu tử nhất sinh';}
-function rewardFor(step,stars){const scale=Math.pow(1.42,Math.max(0,step));return{cultivation:Math.max(300,Math.round(scale*(95+stars*45))),stones:Math.max(180,Math.round(scale*(55+stars*28))),points:[8,20,45,75,120][stars-1]};}
-function makeTargets(g,u,p,date){const roll=rng(g+':'+u+':'+date+':bounty-v1'),used=new Set();return[0,1,2].map((_,slot)=>{let stars=weighted(STAR_WEIGHTS,roll).v;if(slot===2&&stars<2)stars=2;const monster=weighted(MONSTERS.filter(m=>!used.has(m.id)),roll,'weight');used.add(monster.id);const maxStep=CULTIVATION_REALMS.length*CULTIVATION_STAGES.length-1;const step=Math.max(0,Math.min(maxStep,progression(p)+[-2,-1,0,1,2][stars-1]));return{slot,id:date+':'+slot+':'+monster.id,monsterId:monster.id,name:monster.name,stars,rare:stars>=4,step,realm:targetDisplay(step),staminaCost:7+stars*3,reward:rewardFor(step,stars),completed:false};});}
+function rewardFor(profile,stars){
+  const realmRewards=getAdventureRealmRewardMultipliers(profile);
+  const immortal=Number(profile.realmIndex)>=CULTIVATION_REALMS.indexOf('Chân Tiên');
+  const baseCultivation=immortal?200000:Math.round((150+stars*70)*realmRewards.cultivation);
+  const baseStones=immortal?Math.round((70+stars*35)*realmRewards.spiritStones):Math.round((70+stars*35)*realmRewards.spiritStones);
+  const starMultiplier=[0.75,1,1.35,1.8,2.5][stars-1];
+  return{cultivation:Math.max(300,Math.round(baseCultivation*starMultiplier)),stones:Math.max(180,Math.round(baseStones*starMultiplier)),points:[8,20,45,75,120][stars-1]};
+}
+function makeTargets(g,u,p,date){const roll=rng(g+':'+u+':'+date+':bounty-v1'),used=new Set();return[0,1,2].map((_,slot)=>{let stars=weighted(STAR_WEIGHTS,roll).v;if(slot===2&&stars<2)stars=2;const monster=weighted(MONSTERS.filter(m=>!used.has(m.id)),roll,'weight');used.add(monster.id);const maxStep=CULTIVATION_REALMS.length*CULTIVATION_STAGES.length-1;const step=Math.max(0,Math.min(maxStep,progression(p)+[-2,-1,0,1,2][stars-1]));return{slot,id:date+':'+slot+':'+monster.id,monsterId:monster.id,name:monster.name,stars,rare:stars>=4,step,realm:targetDisplay(step),staminaCost:7+stars*3,reward:rewardFor(p,stars),completed:false};});}
 function normalize(raw,date,targets){
   if(!raw||raw.date!==date)return{version:1,date,points:Math.max(0,Number(raw?.points)||0),completed:{},targets};
   const completed=raw.completed&&typeof raw.completed==='object'?raw.completed:{};
