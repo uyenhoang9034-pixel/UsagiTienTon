@@ -29,6 +29,7 @@ import {
   getAdventureRealmRewardMultipliers,
   scalePositiveRealmReward,
 } from './cultivationRealmRewards.js';
+import { getHeavenlyModifier } from './cultivationHeavenlySecret.js';
 
 export * from './cultivationAdventureV2.js';
 
@@ -283,6 +284,9 @@ async function runWithFormationAdventureReward(fn, client, guildId, userId, ...a
   const effectiveCultivationMultiplier = immortalAdventureBase ? 1 : realmRewards.cultivation;
   const cultivationGain = scalePositiveRealmReward(normalizedCultivationGain, effectiveCultivationMultiplier);
   const stoneGain = scalePositiveRealmReward(rawStoneGain, realmRewards.spiritStones);
+  const heavenlyAdventureReward = getHeavenlyModifier(guildId, 'adventure_reward');
+  const heavenlyCultivationBonus = cultivationGain > 0 ? Math.max(0, Math.round(cultivationBonusBase * heavenlyAdventureReward)) : 0;
+  const heavenlyStoneBonus = stoneGain > 0 ? Math.max(0, Math.round(stoneGain * heavenlyAdventureReward)) : 0;
   const realmCultivationBonus = Math.max(0, cultivationGain - normalizedCultivationGain);
   const realmStoneBonus = Math.max(0, stoneGain - rawStoneGain);
 
@@ -369,6 +373,11 @@ async function runWithFormationAdventureReward(fn, client, guildId, userId, ...a
   const formationStoneBonus = stoneGain > 0 && stonePercent > 0
     ? Math.max(1, Math.round(stoneGain * stonePercent)) : 0;
 
+  if (heavenlyCultivationBonus > 0) {
+    afterProfile.cultivation += heavenlyCultivationBonus;
+    afterProfile.totalCultivation += heavenlyCultivationBonus;
+  }
+  if (heavenlyStoneBonus > 0) afterProfile.spiritStones += heavenlyStoneBonus;
   if (formationAdventureBonus > 0) {
     afterProfile.cultivation += formationAdventureBonus;
     afterProfile.totalCultivation += formationAdventureBonus;
@@ -393,7 +402,7 @@ async function runWithFormationAdventureReward(fn, client, guildId, userId, ...a
     Object.keys(petAllItemBonuses).length > 0 || Boolean(petMaterialFindBonus) ||
     (petCombatCultivationBonus > 0 && result.success) ||
     (petCombatStoneBonus > 0 && result.success) || Object.keys(petCombatItemBonuses).length > 0 ||
-    formationAdventureBonus > 0 || formationStoneBonus > 0;
+    formationAdventureBonus > 0 || formationStoneBonus > 0 || heavenlyCultivationBonus > 0 || heavenlyStoneBonus > 0;
 
   const savedProfile = needsSave
     ? await saveCultivationProfile(client, afterProfile)
@@ -427,6 +436,9 @@ async function runWithFormationAdventureReward(fn, client, guildId, userId, ...a
     petCombatCultivationBonus: result.success ? petCombatCultivationBonus : 0,
     petCombatStoneBonus: result.success ? petCombatStoneBonus : 0,
     petCombatItemBonuses,
+    heavenlyAdventureReward,
+    heavenlyCultivationBonus,
+    heavenlyStoneBonus,
     formationAdventureBonus,
     formationAdventurePercent: adventurePercent,
     formationStoneBonus,
