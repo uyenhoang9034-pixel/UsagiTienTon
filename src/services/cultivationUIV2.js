@@ -38,6 +38,10 @@ import {
 } from './cultivationHeavenlySecretUI.js';
 
 import {
+  getBountyDashboardButton,
+} from './cultivationBountyUI.js';
+
+import {
   buildFormationBreakthroughLines,
   buildFormationCultivateLines,
 } from './cultivationFormationResultUI.js';
@@ -99,6 +103,7 @@ function appendMetaButtons(rows, ownerId) {
     getImmortalOrderDashboardButton(ownerId),
     getCaveDashboardButton(ownerId),
     getHeavenlySecretDashboardButton(ownerId),
+    getBountyDashboardButton(ownerId),
   ];
 
   for (const btn of buttons) {
