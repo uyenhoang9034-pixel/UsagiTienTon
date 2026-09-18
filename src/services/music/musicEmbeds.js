@@ -4,6 +4,15 @@ import { getPaginationRow } from '../../utils/components.js';
 
 const QUEUE_PAGE_SIZE = 10;
 
+const EMOJI_HEART = '<a:heartg3:1546047728314884226>';
+const EMOJI_VOLUME = '<a:trangtrig1:1546040442548654140>';
+const EMOJI_INFO = '<a:trangtrig19:1546068350030053406>';
+const EMOJI_TITLE_LEFT = '<a:trangtrig2:1546040703375904801>';
+const EMOJI_TITLE_RIGHT = '<a:trangtrig3:1546040818261954610>';
+
+const BUTTON_HEART = { id: '1546047728314884226', name: 'heartg3', animated: true };
+const BUTTON_VOLUME = { id: '1546040442548654140', name: 'trangtrig1', animated: true };
+
 export const MUSIC_BUTTON_IDS = {
     PAUSE: 'music_pause',
     RESUME: 'music_resume',
@@ -57,24 +66,28 @@ export function buildNowPlayingEmbed(track, player, guildData) {
 
     const position = formatDuration(player?.position || 0);
     const duration = formatDuration(track?.info?.length || 0);
+    const title = track?.info?.title || 'Unknown track';
+    const artist = track?.info?.author || 'Unknown';
+    const queueLength = player?.queue?.length || 0;
 
     return createEmbed({
-        title: 'Now Playing',
-        description: track?.info?.title || 'Unknown track',
-        color: 'primary',
-        fields: [
-            { name: 'Artist', value: track?.info?.author || 'Unknown', inline: true },
-            { name: 'Requester', value: requesterLabel, inline: true },
-            { name: 'Progress', value: `${position} / ${duration}`, inline: true },
-            { name: 'Volume', value: `${guildData?.volume ?? 75}%`, inline: true },
-            { name: 'Loop', value: getLoopLabel(guildData?.loop), inline: true },
-            { name: 'Queue', value: `${player?.queue?.length || 0} track(s)`, inline: true },
-        ],
+        title: `${EMOJI_TITLE_LEFT} 𝓤𝓼𝓪𝓰𝓲 𝓜𝓾𝓼𝓲𝓬 ${EMOJI_TITLE_RIGHT}`,
+        description: [
+            `### ♪ ${title}`,
+            `*${artist}*`,
+            '',
+            `\`━━━━━━━●━━\` **${position} / ${duration}**`,
+            '',
+            `${EMOJI_INFO} **Yêu cầu:** ${requesterLabel}`,
+            `${EMOJI_VOLUME} **Âm lượng:** ${guildData?.volume ?? 75}%`,
+            `${EMOJI_INFO} **Lặp lại:** ${getLoopLabel(guildData?.loop)}`,
+            `${EMOJI_INFO} **Hàng chờ:** ${queueLength} bài`,
+        ].join('\\n'),
+        color: 0xffb7d5,
         thumbnail: getTrackArtwork(track),
         footer: player?.paused ? 'Paused' : 'Playing',
     });
 }
-
 export function buildQueueEmbed(queue, currentTrack, page = 0) {
     const totalTracks = queue?.length || 0;
     const totalPages = Math.max(1, Math.ceil(totalTracks / QUEUE_PAGE_SIZE));
@@ -113,29 +126,29 @@ export function buildPlayerButtonRows(player, guildData) {
             .setCustomId(MUSIC_BUTTON_IDS.PAUSE)
             .setLabel('Pause')
             .setStyle(ButtonStyle.Primary)
-            .setEmoji('⏸️')
+            .setEmoji(BUTTON_HEART)
             .setDisabled(Boolean(paused)),
         new ButtonBuilder()
             .setCustomId(MUSIC_BUTTON_IDS.RESUME)
             .setLabel('Resume')
             .setStyle(ButtonStyle.Success)
-            .setEmoji('▶️')
+            .setEmoji(BUTTON_HEART)
             .setDisabled(!paused),
         new ButtonBuilder()
             .setCustomId(MUSIC_BUTTON_IDS.SKIP)
             .setLabel('Skip')
             .setStyle(ButtonStyle.Secondary)
-            .setEmoji('⏭️'),
+            .setEmoji(BUTTON_HEART),
         new ButtonBuilder()
             .setCustomId(MUSIC_BUTTON_IDS.STOP)
             .setLabel('Stop')
             .setStyle(ButtonStyle.Danger)
-            .setEmoji('⏹️'),
+            .setEmoji(BUTTON_HEART),
         new ButtonBuilder()
             .setCustomId(MUSIC_BUTTON_IDS.SHUFFLE)
             .setLabel('Shuffle')
             .setStyle(guildData?.shuffle ? ButtonStyle.Success : ButtonStyle.Secondary)
-            .setEmoji('🔀'),
+            .setEmoji(BUTTON_HEART),
     );
 
     const row2 = new ActionRowBuilder().addComponents(
@@ -143,22 +156,22 @@ export function buildPlayerButtonRows(player, guildData) {
             .setCustomId(MUSIC_BUTTON_IDS.LOOP)
             .setLabel('Loop')
             .setStyle(guildData?.loop !== 'none' ? ButtonStyle.Success : ButtonStyle.Secondary)
-            .setEmoji('🔁'),
+            .setEmoji(BUTTON_HEART),
         new ButtonBuilder()
             .setCustomId(MUSIC_BUTTON_IDS.VOL_DOWN)
             .setLabel('Vol -')
             .setStyle(ButtonStyle.Secondary)
-            .setEmoji('🔉'),
+            .setEmoji(BUTTON_VOLUME),
         new ButtonBuilder()
             .setCustomId(MUSIC_BUTTON_IDS.VOL_UP)
             .setLabel('Vol +')
             .setStyle(ButtonStyle.Secondary)
-            .setEmoji('🔊'),
+            .setEmoji(BUTTON_VOLUME),
         new ButtonBuilder()
             .setCustomId(MUSIC_BUTTON_IDS.QUEUE)
             .setLabel('Queue')
             .setStyle(ButtonStyle.Secondary)
-            .setEmoji('📋'),
+            .setEmoji(BUTTON_HEART),
     );
 
     return [row1, row2];
