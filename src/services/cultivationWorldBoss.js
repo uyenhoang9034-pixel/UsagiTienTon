@@ -27,6 +27,8 @@ import {
   addImmortalOrderProgress,
 } from './cultivationImmortalOrder.js';
 
+import { getHeavenlyModifier } from './cultivationHeavenlySecret.js';
+
 const WORLD_BOSS_PREFIX = 'games:cultivation:worldBoss:';
 const WORLD_BOSS_REWARD_PREFIX = 'games:cultivation:worldBossReward:';
 const THREAD_PREFIX = 'games:cultivation:thread:';
@@ -214,10 +216,10 @@ export async function calculateWorldBossCapacity(client, guildId) {
     strongestEstimatedHit * WORLD_BOSS_STRONGEST_HIT_FLOOR,
   );
 
+  const heavenlyHpBonus = getHeavenlyModifier(guildId, 'boss_hp');
   const maxHp = Math.max(
     1_000_000,
-    serverScaledHp,
-    strongestPlayerFloorHp,
+    Math.round(Math.max(serverScaledHp, strongestPlayerFloorHp) * (1 + heavenlyHpBonus)),
   );
 
   return {
@@ -369,7 +371,8 @@ export async function attackWorldBoss(client, guildId, userId) {
     }
 
     const variance = 0.90 + Math.random() * 0.20;
-    const rawDamage = Math.max(1, Math.round(estimate.estimatedDamage * variance));
+    const heavenlyBossDamage = getHeavenlyModifier(guildId, 'boss_damage');
+    const rawDamage = Math.max(1, Math.round(estimate.estimatedDamage * variance * (1 + heavenlyBossDamage)));
     const damage = Math.min(number(state.currentHp), rawDamage);
 
     contribution.damage = number(contribution.damage) + damage;
@@ -440,7 +443,8 @@ export async function finalizeWorldBoss(client, guildId, eventId, reason = 'esca
     for (let index = 0; index < leaderboard.length; index += 1) {
       const entry = leaderboard[index];
       const rank = index + 1;
-      const reward = rewardForRank(rank);
+      const heavenlyBossReward = getHeavenlyModifier(guildId, 'boss_reward');
+      const reward = Math.max(0, Math.round(rewardForRank(rank) * (1 + heavenlyBossReward)));
       const contributionRate = totalDamage > 0
         ? entry.damage / totalDamage
         : 0;
