@@ -680,6 +680,86 @@ export function setupPlayerHandler(
                         player.guildId,
                     );
 
+                const failedUri =
+                    track?.info?.uri || '';
+
+                // A resolved YouTube result can still fail when Lavalink tries
+                // to decode/play that exact video. For search requests, retry
+                // once with a fresh search based on title + author and exclude
+                // the failed URI. This lets another playable upload/version win.
+                if (
+                    !track?.__usagiRetry &&
+                    track?.info?.title
+                ) {
+                    try {
+                        const retryQuery =
+                            `${track.info.title} ${track.info.author || ''}`.trim();
+
+                        const retryResult =
+                            await client.riffy.resolve({
+                                query: retryQuery,
+                                requester:
+                                    track?.info?.requester ||
+                                    track?.requester,
+                            });
+
+                        const retryTracks =
+                            Array.isArray(
+                                retryResult?.tracks,
+                            )
+                                ? retryResult.tracks
+                                : [];
+
+                        const fallback =
+                            retryTracks.find(
+                                candidate =>
+                                    candidate &&
+                                    candidate.info?.uri !==
+                                        failedUri,
+                            );
+
+                        if (fallback) {
+                            fallback.info ??= {};
+                            fallback.info.requester =
+                                track?.info?.requester ||
+                                track?.requester;
+                            fallback.__usagiRetry = true;
+
+                            if (
+                                typeof player.queue?.add ===
+                                'function'
+                            ) {
+                                player.queue.add(
+                                    fallback,
+                                );
+                            } else {
+                                player.queue.push(
+                                    fallback,
+                                );
+                            }
+
+                            if (
+                                !player.playing &&
+                                !player.paused
+                            ) {
+                                await player.play();
+                            }
+
+                            logger.warn(
+                                `Retried failed track "${track.info.title}" with alternate result "${fallback.info?.title || 'Unknown'}".`,
+                            );
+
+                            return;
+                        }
+                    } catch (retryError) {
+                        logger.warn(
+                            'Music alternate-track retry failed:',
+                            retryError?.message ||
+                                retryError,
+                        );
+                    }
+                }
+
                 if (
                     guildData.playerChannelId
                 ) {
@@ -691,10 +771,7 @@ export function setupPlayerHandler(
                     if (channel) {
                         await channel
                             .send(
-                                `Failed to play **${
-                                    track?.info?.title ||
-                                    'track'
-                                }**. Skipping...`,
+                                `Failed to play **${track?.info?.title || 'track'}**. Skipping...`,
                             )
                             .catch(
                                 () => null,
