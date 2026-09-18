@@ -5,7 +5,7 @@ import { addInventoryItem, getCultivationProfile, saveCultivationProfile } from 
 import { getActivePet, getPetEffectValue } from './cultivationPet.js';
 import { getSafeCavePetBonus, amplifySafePetEffect } from './cultivationCavePetBonus.js';
 import { getFormationGameplayBonus, applyFormationStaminaReduction } from './cultivationFormationGameplay.js';
-import { getAdventureRealmRewardMultipliers, scalePositiveRealmReward } from './cultivationRealmRewards.js';
+import { getAdventureRealmRewardMultipliers } from './cultivationRealmRewards.js';
 
 const PREFIX = 'games:cultivation:bounty:';
 const TZ = 'Asia/Ho_Chi_Minh';
