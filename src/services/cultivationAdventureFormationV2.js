@@ -199,11 +199,6 @@ async function runWithFormationAdventureReward(fn, client, guildId, userId, ...a
 
   const formation = await getFormationGameplayBonus(client, guildId, userId);
   const result = await fn(client, guildId, userId, ...args);
-  if (result?.ok && heavenlyAdventureDifficulty > 0 && result.success === true && Math.random() < heavenlyAdventureDifficulty) {
-    result.heavenlyDangerTriggered = true;
-    result.success = false;
-    result.type = result.type || 'heavenly_danger';
-  }
   if (!result?.ok) return result;
 
   const afterProfile = await getCultivationProfile(client, guildId, userId);
@@ -351,7 +346,7 @@ async function runWithFormationAdventureReward(fn, client, guildId, userId, ...a
 
   let petMaterialFindBonus = null;
   if (
-    petMaterialFindPercent > 0 && MATERIAL_ITEM_IDS.length > 0 &&
+    (petMaterialFindPercent > 0 || heavenlyAdventureRare > 0) && MATERIAL_ITEM_IDS.length > 0 &&
     Math.random() < Math.min(1, petMaterialFindPercent + heavenlyAdventureRare)
   ) {
     const itemId = randomItem(MATERIAL_ITEM_IDS);
