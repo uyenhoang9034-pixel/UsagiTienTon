@@ -123,7 +123,7 @@ export async function brewCultivationPill(
     const caveAlchemyBonus = Math.max(0, Number(cave?.alchemyBonus) || 0);
     const heavenlyAlchemyBonus = getHeavenlyModifier(guildId, 'alchemy_success');
     const heavenlyAlchemyReward = getHeavenlyModifier(guildId, 'alchemy_reward');
-    const heavenlyAlchemyQuality = getHeavenlyModifier(guildId, 'alchemy_quality');
+    const heavenlyAlchemyBonusPill = getHeavenlyModifier(guildId, 'alchemy_bonus_pill');
     const effectiveSuccessChance = Math.min(
       1,
       Math.max(0, Number(recipe.successChance) || 0) + caveAlchemyBonus + heavenlyAlchemyBonus,
@@ -187,13 +187,13 @@ export async function brewCultivationPill(
       const fractional = (successCount * heavenlyAlchemyReward) % 1;
       if (Math.random() < fractional) heavenlyBonusCount += 1;
     }
-    let heavenlyQualityBonusCount = 0;
-    if (successCount > 0 && heavenlyAlchemyQuality > 0) {
+    let heavenlyBonusPillCount = 0;
+    if (successCount > 0 && heavenlyAlchemyBonusPill > 0) {
       for (let index = 0; index < successCount; index += 1) {
-        if (Math.random() < heavenlyAlchemyQuality) heavenlyQualityBonusCount += 1;
+        if (Math.random() < heavenlyAlchemyBonusPill) heavenlyBonusPillCount += 1;
       }
     }
-    const totalResultCount = successCount + heavenlyBonusCount + heavenlyQualityBonusCount;
+    const totalResultCount = successCount + heavenlyBonusCount + heavenlyBonusPillCount;
     const failCount = craftQuantity - successCount;
     profile.stats.alchemyCount += craftQuantity;
     profile.stats.alchemySuccess += successCount;
@@ -217,7 +217,7 @@ export async function brewCultivationPill(
       quantity: craftQuantity,
       successCount,
       heavenlyBonusCount,
-      heavenlyQualityBonusCount,
+      heavenlyBonusPillCount,
       totalResultCount,
       failCount,
       recipe,
@@ -228,7 +228,7 @@ export async function brewCultivationPill(
       caveAlchemyBonus,
       heavenlyAlchemyBonus,
       heavenlyAlchemyReward,
-      heavenlyAlchemyQuality,
+      heavenlyAlchemyBonusPill,
       effectiveSuccessChance,
       remainingIngredient:
         saved.inventory?.[recipe.ingredientItemId] || 0,
