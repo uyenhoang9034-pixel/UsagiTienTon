@@ -29,6 +29,7 @@ import {
 } from './playerHandler.js';
 
 const YOUTUBE_URL_PATTERN = /(?:youtube\.com|youtu\.be)/i;
+const SOUNDCLOUD_URL_PATTERN = /(?:soundcloud\.com|on\.soundcloud\.com)/i;
 const PLAYER_CONNECT_TIMEOUT_MS = 12_000;
 
 function getConnectedLavalinkNodes(client) {
@@ -289,13 +290,49 @@ export async function playQuery(client, interaction, query) {
 
   const { player } = await ensurePlayer(client, interaction);
 
-  const result = await client.riffy.resolve({
+  let result = await client.riffy.resolve({
     query: cleanQuery,
     requester: interaction.user,
   });
 
-  const loadType = String(result?.loadType || '').toUpperCase();
-  const tracks = Array.isArray(result?.tracks) ? result.tracks : [];
+  let loadType = String(result?.loadType || '').toUpperCase();
+  let tracks = Array.isArray(result?.tracks) ? result.tracks : [];
+
+  // Some public Lavalink nodes cannot load a SoundCloud URL directly even
+  // though they can search/play the same song. Fall back to the URL slug as
+  // a normal search instead of returning "No results".
+  if (
+    SOUNDCLOUD_URL_PATTERN.test(cleanQuery) &&
+    (
+      loadType === 'NO_MATCHES' ||
+      loadType === 'NO_MATCH' ||
+      loadType === 'EMPTY' ||
+      !tracks.length
+    )
+  ) {
+    try {
+      const url = new URL(cleanQuery);
+      const slug = decodeURIComponent(url.pathname)
+        .split('/')
+        .filter(Boolean)
+        .slice(-2)
+        .join(' ')
+        .replace(/[-_]+/g, ' ')
+        .trim();
+
+      if (slug) {
+        result = await client.riffy.resolve({
+          query: slug,
+          requester: interaction.user,
+        });
+        loadType = String(result?.loadType || '').toUpperCase();
+        tracks = Array.isArray(result?.tracks) ? result.tracks : [];
+      }
+    } catch {
+      // Keep the original Lavalink result if the URL cannot be parsed.
+    }
+  }
+
   const playlistInfo = result?.playlistInfo;
 
   if (
