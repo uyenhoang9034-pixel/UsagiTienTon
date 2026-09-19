@@ -28,10 +28,6 @@ import {
   registerCommands as registerSlashCommands,
 } from './handlers/loaders/commandLoader.js';
 
-import {
-  initializeMusic,
-  initRiffyAfterReady,
-} from './services/music/riffySetup.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -65,7 +61,6 @@ class UsagiTienTonBot extends Client {
     this.db = null;
 
     this.rest = new REST({ version: '10' }).setToken(config.bot.token);
-    initializeMusic(this);
   }
 
   async diagnoseDiscordIdentity() {
@@ -158,7 +153,6 @@ class UsagiTienTonBot extends Client {
 
       await this.loginWithRetry();
 
-      initRiffyAfterReady(this);
       await this.registerCommands();
 
       startupLog(
@@ -192,7 +186,6 @@ class UsagiTienTonBot extends Client {
         status: 'healthy',
         discordReady: this.isReady(),
         uptime: process.uptime(),
-        musicReady: Boolean(this.riffy),
       }),
     );
 
