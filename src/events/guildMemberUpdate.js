@@ -13,8 +13,10 @@ import { logger } from '../utils/logger.js';
 const CULTIVATION_CHANNEL_ID =
   '1547233544412205066';
 
-const CULTIVATION_ROLE_ID =
-  '1547581204759318579';
+const CULTIVATION_ROLE_IDS = [
+  '1547581204759318579',
+  '1542537515037233172',
+];
 
 const CULTIVATION_RULES_KEYWORD =
   '&gttutien';
@@ -345,13 +347,19 @@ export default {
       }
 
       const hadRole =
-        oldMember.roles.cache.has(
-          CULTIVATION_ROLE_ID,
+        CULTIVATION_ROLE_IDS.some(
+          roleId =>
+            oldMember.roles.cache.has(
+              roleId,
+            ),
         );
 
       const hasRole =
-        newMember.roles.cache.has(
-          CULTIVATION_ROLE_ID,
+        CULTIVATION_ROLE_IDS.some(
+          roleId =>
+            newMember.roles.cache.has(
+              roleId,
+            ),
         );
 
       if (
