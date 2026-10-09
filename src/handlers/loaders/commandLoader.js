@@ -12,6 +12,7 @@ const __dirname = path.dirname(__filename);
 const ALLOWED_COMMAND_DIRS = new Set([
   'Games',
   'Music',
+  'Voice',
 ]);
 
 const MAX_COMMANDS = 100;

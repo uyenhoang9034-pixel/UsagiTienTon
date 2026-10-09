@@ -1,0 +1,263 @@
+/**
+ * Danh sách giọng đọc đa ngôn ngữ và công nghệ TTS (Edge Neural, Google, TikTok)
+ * Dành riêng cho em bot Usagi múp rụp.
+ */
+
+export const TTS_VOICES = [
+  // --- VIỆT NAM ---
+  {
+    id: 'vi-VN-HoaiMyNeural',
+    name: 'Hoài My (Nữ VN - Mượt mà)',
+    lang: 'vi',
+    engine: 'edge',
+    voiceName: 'vi-VN-HoaiMyNeural',
+    gender: 'Nữ',
+    flag: '🇻🇳',
+    category: 'Tiếng Việt',
+    description: 'Giọng nữ Bắc truyền cảm, tự nhiên, cực kỳ hợp với em Usagi',
+  },
+  {
+    id: 'vi-VN-NamMinhNeural',
+    name: 'Nam Minh (Nam VN - Trầm ấm)',
+    lang: 'vi',
+    engine: 'edge',
+    voiceName: 'vi-VN-NamMinhNeural',
+    gender: 'Nam',
+    flag: '🇻🇳',
+    category: 'Tiếng Việt',
+    description: 'Giọng nam phát thanh viên, chững chạc và ấm áp',
+  },
+  {
+    id: 'google-vi',
+    name: 'Google Nữ (Việt Nam)',
+    lang: 'vi',
+    engine: 'google',
+    voiceName: 'vi',
+    gender: 'Nữ',
+    flag: '🇻🇳',
+    category: 'Tiếng Việt',
+    description: 'Giọng chị Google huyền thoại, rõ ràng và thân quen',
+  },
+  {
+    id: 'vi_female_01',
+    name: 'TikTok Nữ (Việt Nam)',
+    lang: 'vi',
+    engine: 'tiktok',
+    voiceName: 'vi_female_01',
+    gender: 'Nữ',
+    flag: '🇻🇳',
+    category: 'Tiếng Việt',
+    description: 'Giọng nữ TikTok hot trend, trẻ trung và dễ thương',
+  },
+  {
+    id: 'vi_male_01',
+    name: 'TikTok Nam (Việt Nam)',
+    lang: 'vi',
+    engine: 'tiktok',
+    voiceName: 'vi_male_01',
+    gender: 'Nam',
+    flag: '🇻🇳',
+    category: 'Tiếng Việt',
+    description: 'Giọng nam TikTok bắt tai, hài hước',
+  },
+
+  // --- ENGLISH ---
+  {
+    id: 'en-US-JennyNeural',
+    name: 'Jenny (US Female - Natural)',
+    lang: 'en',
+    engine: 'edge',
+    voiceName: 'en-US-JennyNeural',
+    gender: 'Nữ',
+    flag: '🇺🇸',
+    category: 'Tiếng Anh',
+    description: 'Natural, friendly American English female voice',
+  },
+  {
+    id: 'en-US-GuyNeural',
+    name: 'Guy (US Male - Professional)',
+    lang: 'en',
+    engine: 'edge',
+    voiceName: 'en-US-GuyNeural',
+    gender: 'Nam',
+    flag: '🇺🇸',
+    category: 'Tiếng Anh',
+    description: 'Polished, clear American English male voice',
+  },
+  {
+    id: 'google-en',
+    name: 'Google English (US)',
+    lang: 'en',
+    engine: 'google',
+    voiceName: 'en',
+    gender: 'Nữ',
+    flag: '🇺🇸',
+    category: 'Tiếng Anh',
+    description: 'Classic Google English voice',
+  },
+  {
+    id: 'en_male_funny',
+    name: 'TikTok Meme Wacky (US)',
+    lang: 'en',
+    engine: 'tiktok',
+    voiceName: 'en_male_funny',
+    gender: 'Nam',
+    flag: '🇺🇸',
+    category: 'Tiếng Anh',
+    description: 'Fun, exaggerated meme voice from TikTok',
+  },
+
+  // --- JAPANESE ---
+  {
+    id: 'ja-JP-NanamiNeural',
+    name: 'Nanami (Anime Girl - Kawaii)',
+    lang: 'ja',
+    engine: 'edge',
+    voiceName: 'ja-JP-NanamiNeural',
+    gender: 'Nữ',
+    flag: '🇯🇵',
+    category: 'Tiếng Nhật',
+    description: 'Giọng anime waifu ngọt ngào, chuẩn giọng Nhật',
+  },
+  {
+    id: 'ja-JP-KeitaNeural',
+    name: 'Keita (Nam Nhật Bản)',
+    lang: 'ja',
+    engine: 'edge',
+    voiceName: 'ja-JP-KeitaNeural',
+    gender: 'Nam',
+    flag: '🇯🇵',
+    category: 'Tiếng Nhật',
+    description: 'Giọng nam thanh niên Nhật Bản lịch lãm',
+  },
+  {
+    id: 'google-ja',
+    name: 'Google Japanese',
+    lang: 'ja',
+    engine: 'google',
+    voiceName: 'ja',
+    gender: 'Nữ',
+    flag: '🇯🇵',
+    category: 'Tiếng Nhật',
+    description: 'Giọng tiếng Nhật của Google',
+  },
+
+  // --- KOREAN ---
+  {
+    id: 'ko-KR-SunHiNeural',
+    name: 'SunHi (Nữ Hàn Quốc)',
+    lang: 'ko',
+    engine: 'edge',
+    voiceName: 'ko-KR-SunHiNeural',
+    gender: 'Nữ',
+    flag: '🇰🇷',
+    category: 'Tiếng Hàn',
+    description: 'Giọng nữ chuẩn Seoul trong trẻo, dễ thương',
+  },
+  {
+    id: 'google-ko',
+    name: 'Google Korean',
+    lang: 'ko',
+    engine: 'google',
+    voiceName: 'ko',
+    gender: 'Nữ',
+    flag: '🇰🇷',
+    category: 'Tiếng Hàn',
+    description: 'Giọng tiếng Hàn quen thuộc',
+  },
+
+  // --- CHINESE ---
+  {
+    id: 'zh-CN-XiaoxiaoNeural',
+    name: 'Xiaoxiao (Nữ Trung Quốc)',
+    lang: 'zh-CN',
+    engine: 'edge',
+    voiceName: 'zh-CN-XiaoxiaoNeural',
+    gender: 'Nữ',
+    flag: '🇨🇳',
+    category: 'Tiếng Trung',
+    description: 'Giọng nữ phổ thông truyền cảm, nhẹ nhàng',
+  },
+  {
+    id: 'google-zh-CN',
+    name: 'Google Chinese',
+    lang: 'zh-CN',
+    engine: 'google',
+    voiceName: 'zh-CN',
+    gender: 'Nữ',
+    flag: '🇨🇳',
+    category: 'Tiếng Trung',
+    description: 'Giọng tiếng Trung phổ thông',
+  },
+
+  // --- FRENCH & OTHERS ---
+  {
+    id: 'fr-FR-DeniseNeural',
+    name: 'Denise (Nữ Pháp)',
+    lang: 'fr',
+    engine: 'edge',
+    voiceName: 'fr-FR-DeniseNeural',
+    gender: 'Nữ',
+    flag: '🇫🇷',
+    category: 'Ngôn ngữ khác',
+    description: 'Giọng nữ tiếng Pháp lãng mạn, thanh lịch',
+  },
+  {
+    id: 'google-es',
+    name: 'Google Spanish',
+    lang: 'es',
+    engine: 'google',
+    voiceName: 'es',
+    gender: 'Nữ',
+    flag: '🇪🇸',
+    category: 'Ngôn ngữ khác',
+    description: 'Giọng tiếng Tây Ban Nha',
+  },
+  {
+    id: 'google-th',
+    name: 'Google Thai',
+    lang: 'th',
+    engine: 'google',
+    voiceName: 'th',
+    gender: 'Nữ',
+    flag: '🇹🇭',
+    category: 'Ngôn ngữ khác',
+    description: 'Giọng tiếng Thái Lan',
+  },
+];
+
+export const DEFAULT_VOICE_ID = 'vi-VN-HoaiMyNeural';
+
+export function getDefaultVoice() {
+  return TTS_VOICES.find((v) => v.id === DEFAULT_VOICE_ID) || TTS_VOICES[0];
+}
+
+export function getVoiceById(id) {
+  if (!id) return getDefaultVoice();
+  const normalized = String(id).trim().toLowerCase();
+  return (
+    TTS_VOICES.find((v) => v.id.toLowerCase() === normalized) ||
+    TTS_VOICES.find((v) => v.voiceName.toLowerCase() === normalized) ||
+    getDefaultVoice()
+  );
+}
+
+export function getVoiceChoices() {
+  // Trả về choices cho slash command (tối đa 25 theo Discord limit)
+  return TTS_VOICES.slice(0, 25).map((v) => ({
+    name: `${v.flag} ${v.name} (${v.gender})`.slice(0, 100),
+    value: v.id,
+  }));
+}
+
+export const SPEED_LEVELS = [
+  { label: '0.75x (Chậm)', value: '0.75x', rate: '-25%' },
+  { label: '1.0x (Bình thường)', value: '1.0x', rate: '+0%' },
+  { label: '1.25x (Nhanh)', value: '1.25x', rate: '+25%' },
+  { label: '1.5x (Rất nhanh)', value: '1.5x', rate: '+50%' },
+];
+
+export function getSpeedRate(speedValue) {
+  const match = SPEED_LEVELS.find((s) => s.value === speedValue);
+  return match ? match.rate : '+0%';
+}

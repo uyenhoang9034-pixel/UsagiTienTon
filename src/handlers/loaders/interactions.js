@@ -36,7 +36,11 @@ const ALLOWED_INTERACTION_PATTERNS = [
   /^buttons\/tutienPetCodex.*\.js$/,
   /^buttons\/tutienPetCollectionReward\.js$/,
   /^buttons\/music\/.*\.js$/,
+  /^buttons\/tts.*\.js$/,
+  /^buttons\/tts\/.*\.js$/,
   /^selectMenus\/tutien.*\.js$/,
+  /^selectMenus\/tts.*\.js$/,
+  /^selectMenus\/tts\/.*\.js$/,
 ];
 
 function isAllowedInteraction(relativePath) {

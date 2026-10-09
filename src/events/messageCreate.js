@@ -8,6 +8,7 @@ import {
 } from '../utils/messageAdapter.js';
 import { resolveCommandAlias } from '../config/commands/commandAliases.js';
 import { getCommandPrefix } from '../config/bot.js';
+import { handleTTSMessage } from '../services/tts/ttsManager.js';
 
 const MUSIC_PREFIX_SHORTCUTS = new Map([
   ['leave', 'leave'],
@@ -28,6 +29,15 @@ export default {
   async execute(message, client) {
     if (message.author?.bot || !message.guild) {
       return;
+    }
+
+    try {
+      const handledByTTS = await handleTTSMessage(message, client);
+      if (handledByTTS) {
+        return;
+      }
+    } catch (ttsError) {
+      logger.error('Error handling TTS message:', ttsError);
     }
 
     await handlePrefixCommand(message, client);
