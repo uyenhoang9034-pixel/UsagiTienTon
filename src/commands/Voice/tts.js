@@ -459,15 +459,16 @@ export default {
       logger.error('TTS command execution error:', error);
       const errorMsg =
         error?.message || 'Có trục trặc nhỏ khi xử lý âm thanh rồi ạ!';
+      const replyContent = `❌ Ui vợ của Kim Nong ơi, có lỗi rồi nè:\n${errorMsg}`.slice(0, 1950);
 
       if (interaction.deferred || interaction.replied) {
         return interaction.editReply({
-          content: `❌ Ui vợ của Kim Nong ơi, có lỗi rồi nè: ${errorMsg}`,
+          content: replyContent,
         });
       }
 
       return interaction.reply({
-        content: `❌ Ui vợ của Kim Nong ơi, có lỗi rồi nè: ${errorMsg}`,
+        content: replyContent,
         flags: MessageFlags.Ephemeral,
       });
     }

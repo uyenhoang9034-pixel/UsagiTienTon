@@ -106,21 +106,29 @@ class TTSManager {
       selfMute: false,
     });
 
+    const stateHistory = [connection.state?.status || 'Signalling'];
     connection.on('stateChange', (oldState, newState) => {
-      logger.info(`TTS VoiceConnection in guild ${guild.id}: ${oldState.status} -> ${newState.status}`);
+      const transition = `${oldState.status} ➔ ${newState.status}`;
+      stateHistory.push(transition);
+      logger.info(`TTS VoiceConnection in guild ${guild.id}: ${transition}`);
     });
 
     // Chờ kết nối hoàn tất (Ready handshake với Discord UDP server kèm DAVE E2EE)
     try {
-      await voice.entersState(connection, voice.VoiceConnectionStatus.Ready, 30_000);
+      await voice.entersState(connection, voice.VoiceConnectionStatus.Ready, 25_000);
       logger.info(`Voice connection Ready in guild ${guild.id}`);
     } catch (connectError) {
       logger.error(`Voice connection failed to reach Ready in guild ${guild.id}:`, connectError);
+      const report =
+        typeof voice.generateDependencyReport === 'function'
+          ? voice.generateDependencyReport()
+          : 'Không có báo cáo thư viện';
+      const lastStatus = connection?.state?.status || 'unknown';
       try {
         connection.destroy();
       } catch {}
       throw new Error(
-        'Em không thể hoàn tất kết nối voice với Discord (timeout handshake). Vợ của Kim Nong thử lại giúp em nha!',
+        `Em không thể hoàn tất kết nối voice với Discord (timeout handshake).\n• Trạng thái cuối: \`${lastStatus}\`\n• Lịch sử: \`${stateHistory.join(', ')}\`\n\`\`\`\n${report}\n\`\`\``,
       );
     }
 
