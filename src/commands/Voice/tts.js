@@ -398,9 +398,10 @@ export default {
       if (subcommand === 'trangthai') {
         const session = ttsManager.getSession(guild.id);
         if (!session) {
+          const report = await ttsManager.getDependencyReport();
           return interaction.reply({
             content:
-              '🐰 Hiện tại em chưa vào phòng voice nào cả vợ của Kim Nong ơi! Chị dùng `/tts vao` để em vào nói thay chị nghen 💕',
+              `🐰 Hiện tại em chưa vào phòng voice nào cả vợ của Kim Nong ơi!\n• **Bản cập nhật:** \`v2.1.1-tts-dave\`\n• **Báo cáo thư viện voice:**\n\`\`\`\n${report}\n\`\`\`\nChị dùng \`/tts vao\` để em vào nói thay chị nghen 💕`,
             flags: MessageFlags.Ephemeral,
           });
         }

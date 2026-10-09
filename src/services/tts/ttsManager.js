@@ -102,7 +102,7 @@ class TTSManager {
       channelId: voiceChannel.id,
       guildId: guild.id,
       adapterCreator: guild.voiceAdapterCreator,
-      selfDeaf: false,
+      selfDeaf: true,
       selfMute: false,
     });
 
@@ -113,9 +113,22 @@ class TTSManager {
       logger.info(`TTS VoiceConnection in guild ${guild.id}: ${transition}`);
     });
 
+    connection.on(voice.VoiceConnectionStatus.Disconnected, async () => {
+      try {
+        await Promise.race([
+          voice.entersState(connection, voice.VoiceConnectionStatus.Signalling, 5_000),
+          voice.entersState(connection, voice.VoiceConnectionStatus.Connecting, 5_000),
+        ]);
+      } catch {
+        try {
+          connection.destroy();
+        } catch {}
+      }
+    });
+
     // Chờ kết nối hoàn tất (Ready handshake với Discord UDP server kèm DAVE E2EE)
     try {
-      await voice.entersState(connection, voice.VoiceConnectionStatus.Ready, 25_000);
+      await voice.entersState(connection, voice.VoiceConnectionStatus.Ready, 30_000);
       logger.info(`Voice connection Ready in guild ${guild.id}`);
     } catch (connectError) {
       logger.error(`Voice connection failed to reach Ready in guild ${guild.id}:`, connectError);
@@ -128,7 +141,7 @@ class TTSManager {
         connection.destroy();
       } catch {}
       throw new Error(
-        `Em không thể hoàn tất kết nối voice với Discord (timeout handshake).\n• Trạng thái cuối: \`${lastStatus}\`\n• Lịch sử: \`${stateHistory.join(', ')}\`\n\`\`\`\n${report}\n\`\`\``,
+        `Em không thể hoàn tất kết nối voice với Discord (timeout handshake).\n• Trạng thái cuối: \`${lastStatus}\`\n• Lịch sử: \`${stateHistory.join(', ')}\`\n• Bản build: \`v2.1.1-tts-dave\`\n\`\`\`\n${report}\n\`\`\``,
       );
     }
 
@@ -535,6 +548,18 @@ class TTSManager {
           session.aloneTimer = null;
         }
       }
+    }
+  }
+
+  async getDependencyReport() {
+    try {
+      const voice = await getVoiceModule();
+      if (typeof voice.generateDependencyReport === 'function') {
+        return voice.generateDependencyReport();
+      }
+      return 'Không có hàm generateDependencyReport';
+    } catch (err) {
+      return `Lỗi lấy báo cáo thư viện: ${err?.message || err}`;
     }
   }
 }

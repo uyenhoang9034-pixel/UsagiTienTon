@@ -1,6 +1,6 @@
 {
   "name": "usagi-tien-ton",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Usagi Tiên Tôn: YouTube music, reaction roles and Tiên Lộ cultivation",
   "main": "src/app.js",
   "type": "module",
@@ -31,10 +31,8 @@
     "riffy": "1.0.12",
     "@discordjs/voice": "^0.19.0",
     "@snazzah/davey": "^0.2.0",
-    "sodium-native": "^4.0.9",
     "opusscript": "^0.1.1",
     "libsodium-wrappers": "^0.7.15",
-    "ffmpeg-static": "^5.2.0",
     "ws": "^8.18.0"
   },
   "engines": {
