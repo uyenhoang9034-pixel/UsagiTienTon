@@ -139,10 +139,11 @@ class UsagiTienTonBot extends Client {
     try {
       startupLog('Starting Usagi Tiên Tôn...');
 
+      // Khởi động Web Server ngay lập tức để Railway Healthcheck (/health) đạt 200 OK ngay từ giây đầu tiên
+      this.startWebServer();
+
       const dbInstance = await initializeDatabase();
       this.db = dbInstance.db;
-
-      this.startWebServer();
 
       await loadCommands(this);
       await this.loadHandlers();
