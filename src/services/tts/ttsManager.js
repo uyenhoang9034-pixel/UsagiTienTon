@@ -88,6 +88,14 @@ class TTSManager {
       }
     }
 
+    // Dọn dẹp connection cũ trong @discordjs/voice nếu còn tồn tại
+    try {
+      const existingConn = voice.getVoiceConnection(guild.id);
+      if (existingConn) {
+        existingConn.destroy();
+      }
+    } catch {}
+
     // Kết nối Voice Channel
     logger.info(`Joining voice channel ${voiceChannel.id} in guild ${guild.id}...`);
     const connection = voice.joinVoiceChannel({
@@ -98,9 +106,13 @@ class TTSManager {
       selfMute: false,
     });
 
-    // Chờ kết nối hoàn tất (Ready handshake với Discord UDP server)
+    connection.on('stateChange', (oldState, newState) => {
+      logger.info(`TTS VoiceConnection in guild ${guild.id}: ${oldState.status} -> ${newState.status}`);
+    });
+
+    // Chờ kết nối hoàn tất (Ready handshake với Discord UDP server kèm DAVE E2EE)
     try {
-      await voice.entersState(connection, voice.VoiceConnectionStatus.Ready, 20_000);
+      await voice.entersState(connection, voice.VoiceConnectionStatus.Ready, 30_000);
       logger.info(`Voice connection Ready in guild ${guild.id}`);
     } catch (connectError) {
       logger.error(`Voice connection failed to reach Ready in guild ${guild.id}:`, connectError);
