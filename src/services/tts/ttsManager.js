@@ -45,6 +45,44 @@ async function ensureFFmpegPath() {
 class TTSManager {
   constructor() {
     this.sessions = new Map();
+    this.lavalinkListenersInitialized = false;
+  }
+
+  initLavalinkListeners(client) {
+    if (this.lavalinkListenersInitialized || !client?.riffy) return;
+    this.lavalinkListenersInitialized = true;
+
+    client.riffy.on('trackEnd', (player, track) => {
+      if (!player?.isTTS) return;
+      const session = this.getSession(player.guildId);
+      if (!session || session.engine !== 'lavalink') return;
+
+      logger.info(`Lavalink TTS track finished in guild ${player.guildId}`);
+      if (session.playbackWatchdog) {
+        clearTimeout(session.playbackWatchdog);
+        session.playbackWatchdog = null;
+      }
+      session.isPlaying = false;
+      this.playNextInQueue(player.guildId).catch((err) => {
+        logger.error('Error in Lavalink TTS trackEnd:', err);
+      });
+    });
+
+    client.riffy.on('trackError', (player, track, payload) => {
+      if (!player?.isTTS) return;
+      const session = this.getSession(player.guildId);
+      if (!session || session.engine !== 'lavalink') return;
+
+      logger.error(`Lavalink TTS trackError in guild ${player.guildId}:`, payload?.error || 'Unknown error');
+      if (session.playbackWatchdog) {
+        clearTimeout(session.playbackWatchdog);
+        session.playbackWatchdog = null;
+      }
+      session.isPlaying = false;
+      setTimeout(() => {
+        this.playNextInQueue(player.guildId).catch(() => {});
+      }, 500);
+    });
   }
 
   getSession(guildId) {
@@ -68,9 +106,6 @@ class TTSManager {
     mode = 'owner_only',
     speed = '1.0x',
   }) {
-    await ensureFFmpegPath();
-    const voice = await getVoiceModule();
-
     // Dừng session cũ nếu đang tồn tại
     if (this.sessions.has(guild.id)) {
       await this.stopSession(guild.id, 'Chuyển sang phiên nói thay mới');
@@ -87,6 +122,65 @@ class TTSManager {
         throw new Error('Em Usagi không có quyền **Speak (Nói)** trong phòng voice này đâu ạ!');
       }
     }
+
+    const client = guild.client;
+    this.initLavalinkListeners(client);
+
+    const isLavalinkActive = Boolean(
+      client?.riffy?.nodeMap?.size > 0 &&
+      [...client.riffy.nodeMap.values()].some((n) => n.connected)
+    );
+
+    // ƯU TIÊN 1: Nếu Lavalink đã kết nối, dùng Lavalink (hoàn hảo trên Railway, không bao giờ timeout UDP!)
+    if (isLavalinkActive) {
+      logger.info(`Starting TTS session with Lavalink (Riffy) in guild ${guild.id}...`);
+
+      let riffyPlayer = client.riffy.players.get(guild.id);
+      if (riffyPlayer && riffyPlayer.voiceChannel !== voiceChannel.id) {
+        try {
+          riffyPlayer.destroy();
+        } catch {}
+        riffyPlayer = null;
+      }
+
+      if (!riffyPlayer) {
+        riffyPlayer = client.riffy.createConnection({
+          guildId: guild.id,
+          voiceChannel: voiceChannel.id,
+          textChannel: textChannel.id,
+          deaf: true,
+        });
+      }
+      riffyPlayer.isTTS = true;
+
+      const session = {
+        guildId: guild.id,
+        voiceChannelId: voiceChannel.id,
+        textChannelId: textChannel.id,
+        ownerId,
+        voiceId: voiceId || getDefaultVoice().id,
+        speed: speed || '1.0x',
+        mode: mode || 'owner_only',
+        engine: 'lavalink',
+        riffyPlayer,
+        connection: null,
+        player: null,
+        queue: [],
+        isPlaying: false,
+        playbackWatchdog: null,
+        idleTimer: null,
+        aloneTimer: null,
+        createdAt: Date.now(),
+      };
+
+      this.sessions.set(guild.id, session);
+      this.resetIdleTimer(guild.id);
+      return session;
+    }
+
+    // ƯU TIÊN 2: Dự phòng dùng @discordjs/voice (cho môi trường local/VPS không bật Lavalink)
+    await ensureFFmpegPath();
+    const voice = await getVoiceModule();
 
     // Dọn dẹp connection cũ trong @discordjs/voice nếu còn tồn tại
     try {
@@ -229,11 +323,18 @@ class TTSManager {
     if (session.playbackWatchdog) clearTimeout(session.playbackWatchdog);
 
     try {
-      if (session.player) {
-        session.player.stop(true);
-      }
-      if (session.connection) {
-        session.connection.destroy();
+      if (session.engine === 'lavalink') {
+        if (session.riffyPlayer) {
+          session.riffyPlayer.destroy();
+          session.riffyPlayer = null;
+        }
+      } else {
+        if (session.player) {
+          session.player.stop(true);
+        }
+        if (session.connection) {
+          session.connection.destroy();
+        }
       }
     } catch (e) {
       logger.warn(`Error destroying TTS connection in guild ${guildId}:`, e?.message);
@@ -310,6 +411,66 @@ class TTSManager {
     session.isPlaying = true;
     const item = session.queue.shift();
 
+    // ============================================
+    // 1. ENGINE LAVALINK (Cloud Egress Native)
+    // ============================================
+    if (session.engine === 'lavalink') {
+      try {
+        const voiceIdToUse = item.voiceId || session.voiceId;
+        const voiceObj = getVoiceById(voiceIdToUse);
+        const lang = voiceObj?.lang ? voiceObj.lang.split('-')[0] : 'vi';
+
+        const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(item.text)}&tl=${encodeURIComponent(lang)}&client=tw-ob`;
+
+        logger.info(`Lavalink TTS speaking in guild ${guildId}: "${item.text.slice(0, 50)}"`);
+        const riffyPlayer = session.riffyPlayer;
+        const client = riffyPlayer?.client || riffyPlayer?.riffy?.client;
+
+        if (!riffyPlayer || !client?.riffy) {
+          throw new Error('Lavalink player không sẵn sàng');
+        }
+
+        const result = await client.riffy.resolve({
+          query: ttsUrl,
+          requester: client.user,
+        });
+
+        const tracks = Array.isArray(result?.tracks) ? result.tracks : [];
+        if (!tracks.length) {
+          throw new Error('Lavalink không thể nạp âm thanh TTS');
+        }
+
+        const track = tracks[0];
+        track.info = track.info || {};
+        track.info.isTTS = true;
+
+        if (session.playbackWatchdog) clearTimeout(session.playbackWatchdog);
+        session.playbackWatchdog = setTimeout(() => {
+          if (session.isPlaying) {
+            logger.warn(`Lavalink TTS watchdog triggered in guild ${guildId}`);
+            session.isPlaying = false;
+            this.playNextInQueue(guildId).catch(() => {});
+          }
+        }, 15_000);
+
+        riffyPlayer.play(track);
+      } catch (err) {
+        logger.error(`Error in Lavalink TTS playNextInQueue for guild ${guildId}:`, err);
+        if (session.playbackWatchdog) {
+          clearTimeout(session.playbackWatchdog);
+          session.playbackWatchdog = null;
+        }
+        session.isPlaying = false;
+        setTimeout(() => {
+          this.playNextInQueue(guildId).catch(() => {});
+        }, 500);
+      }
+      return;
+    }
+
+    // ============================================
+    // 2. ENGINE @discordjs/voice (Direct UDP)
+    // ============================================
     try {
       const voice = await getVoiceModule();
       const voiceIdToUse = item.voiceId || session.voiceId;
@@ -551,16 +712,24 @@ class TTSManager {
     }
   }
 
-  async getDependencyReport() {
+  async getDependencyReport(client) {
+    const isLavalinkActive = Boolean(
+      client?.riffy?.nodeMap?.size > 0 &&
+      [...client.riffy.nodeMap.values()].some((n) => n.connected)
+    );
+    const nodes = client?.riffy?.nodeMap ? [...client.riffy.nodeMap.values()].map((n) => `${n.name} (${n.connected ? 'Online ✅' : 'Offline ❌'})`).join(', ') : 'Chưa cấu hình';
+
+    let voiceReport = '';
     try {
       const voice = await getVoiceModule();
       if (typeof voice.generateDependencyReport === 'function') {
-        return voice.generateDependencyReport();
+        voiceReport = voice.generateDependencyReport();
       }
-      return 'Không có hàm generateDependencyReport';
     } catch (err) {
-      return `Lỗi lấy báo cáo thư viện: ${err?.message || err}`;
+      voiceReport = `Không có @discordjs/voice: ${err?.message || err}`;
     }
+
+    return `• Động cơ voice: ${isLavalinkActive ? 'Lavalink v4 (Cloud Engine - Không bị chặn UDP 🚀)' : '@discordjs/voice (Dự phòng)'}\n• Lavalink Nodes: ${nodes}\n\n${voiceReport}`;
   }
 }
 

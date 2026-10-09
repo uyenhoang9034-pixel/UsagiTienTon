@@ -71,6 +71,11 @@ export function buildTTSStatusEmbed(session, guild) {
         value: `${session.queue.length} câu đang chờ`,
         inline: true,
       },
+      {
+        name: '🔌 Động Cơ Voice',
+        value: session.engine === 'lavalink' ? '🚀 Lavalink v4 (Cloud Engine)' : 'Direct @discordjs/voice',
+        inline: true,
+      },
     )
     .setFooter({
       text: 'Usagi Tiên Tôn • Tính năng nói thay (TTS) cho vợ của Kim Nong',
@@ -398,7 +403,7 @@ export default {
       if (subcommand === 'trangthai') {
         const session = ttsManager.getSession(guild.id);
         if (!session) {
-          const report = await ttsManager.getDependencyReport();
+          const report = await ttsManager.getDependencyReport(client);
           return interaction.reply({
             content:
               `🐰 Hiện tại em chưa vào phòng voice nào cả vợ của Kim Nong ơi!\n• **Bản cập nhật:** \`v2.1.1-tts-dave\`\n• **Báo cáo thư viện voice:**\n\`\`\`\n${report}\n\`\`\`\nChị dùng \`/tts vao\` để em vào nói thay chị nghen 💕`,

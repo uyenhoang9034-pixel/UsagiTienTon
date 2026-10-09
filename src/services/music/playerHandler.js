@@ -358,6 +358,9 @@ export function setupPlayerHandler(
             track,
         ) => {
             try {
+                if (player?.isTTS || track?.info?.isTTS) {
+                    return;
+                }
                 const guildData =
                     getGuildMusicData(
                         player.guildId,
@@ -461,6 +464,9 @@ export function setupPlayerHandler(
         'queueEnd',
         async (player) => {
             try {
+                if (player?.isTTS) {
+                    return;
+                }
                 const guildData =
                     getGuildMusicData(
                         player.guildId,
@@ -587,6 +593,9 @@ export function setupPlayerHandler(
         'playerDisconnect',
         async (player) => {
             try {
+                if (player?.isTTS) {
+                    return;
+                }
                 const guildData =
                     getGuildMusicData(
                         player.guildId,
@@ -666,6 +675,9 @@ export function setupPlayerHandler(
             payload,
         ) => {
             try {
+                if (player?.isTTS || track?.info?.isTTS) {
+                    return;
+                }
                 const guildData =
                     getGuildMusicData(
                         player.guildId,
