@@ -30,7 +30,7 @@
     "zod": "^3.25.76",
     "riffy": "1.0.12",
     "@discordjs/voice": "^0.19.0",
-    "@snazzah/davey": "^0.2.0",
+    "@snazzah/davey": "^0.1.12",
     "opusscript": "^0.1.1",
     "libsodium-wrappers": "^0.7.15",
     "ws": "^8.18.0"
