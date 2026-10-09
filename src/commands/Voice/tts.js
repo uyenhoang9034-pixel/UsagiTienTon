@@ -13,6 +13,9 @@ import {
 import { logger } from '../../utils/logger.js';
 import {
   ttsManager,
+  hasTTSManagePermission,
+  TTS_MANAGER_ROLE_ID,
+  checkIsSpam,
 } from '../../services/tts/ttsManager.js';
 import {
   TTS_VOICES,
@@ -31,7 +34,7 @@ export function buildTTSStatusEmbed(session, guild) {
   const voice = getVoiceById(session.voiceId);
   const modeText =
     session.mode === 'owner_only'
-      ? '🔒 Chỉ nói thay vợ của Kim Nong (người gọi lệnh)'
+      ? `🔒 Chỉ nói thay Quản lý (<@${session.ownerId}>)`
       : '🌐 Nói thay tất cả mọi người chat trong kênh';
 
   const embed = new EmbedBuilder()
@@ -75,6 +78,11 @@ export function buildTTSStatusEmbed(session, guild) {
         name: '🔌 Động Cơ Voice',
         value: session.engine === 'lavalink' ? '🚀 Lavalink v4 (Cloud Engine)' : 'Direct @discordjs/voice',
         inline: true,
+      },
+      {
+        name: '🛡️ Quyền Quản Lý',
+        value: `Chỉ Quản lý (<@&${TTS_MANAGER_ROLE_ID}>) mới có quyền dùng chế độ "Chỉ mình tôi" và lệnh rời phòng. Mọi người đều có thể gọi em vào phòng voice nha! 💕`,
+        inline: false,
       },
     )
     .setFooter({
@@ -232,7 +240,7 @@ export default {
             .setName('cau_noi')
             .setDescription('Nội dung câu nói chị muốn em đọc to')
             .setRequired(true)
-            .setMaxLength(300),
+            .setMaxLength(1000),
         )
         .addStringOption((opt) =>
           opt
@@ -269,12 +277,26 @@ export default {
           });
         }
 
+        const isManager = hasTTSManagePermission(member);
+        const requestedMode = interaction.options.getString('chedo');
+
+        let mode = 'all';
+        if (isManager) {
+          mode = requestedMode || 'owner_only';
+        } else {
+          if (requestedMode === 'owner_only') {
+            return interaction.reply({
+              content: `❌ Dạ chỉ Quản lý (có role <@&${TTS_MANAGER_ROLE_ID}>) mới có quyền bật chế độ "Chỉ mình tôi" thôi nha vợ của Kim Nong ơi! Mọi người dùng chế độ nói thay chung cho cả kênh nha 🐰💕`,
+              flags: MessageFlags.Ephemeral,
+            });
+          }
+          mode = 'all';
+        }
+
         const textChannel =
           interaction.options.getChannel('kenh_chat') || interaction.channel;
         const voiceId =
           interaction.options.getString('giong') || getDefaultVoice().id;
-        const mode =
-          interaction.options.getString('chedo') || 'owner_only';
 
         await interaction.deferReply();
 
@@ -315,6 +337,14 @@ export default {
         if (!ttsManager.hasSession(guild.id)) {
           return interaction.reply({
             content: '🐰 Hiện tại em đâu có đang ở trong phòng voice nào đâu nè vợ của Kim Nong ơi!',
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
+        const isManager = hasTTSManagePermission(member);
+        if (!isManager) {
+          return interaction.reply({
+            content: `❌ Dạ chỉ Quản lý (role <@&${TTS_MANAGER_ROLE_ID}>) mới có quyền bảo em rời phòng voice thôi ạ! Mọi người chỉ có thể gọi em vào chứ không được đuổi em ra đâu nè 🐰💕`,
             flags: MessageFlags.Ephemeral,
           });
         }
@@ -388,10 +418,18 @@ export default {
           });
         }
 
+        const isManager = hasTTSManagePermission(member);
+        if (mode === 'owner_only' && !isManager) {
+          return interaction.reply({
+            content: `❌ Dạ chỉ Quản lý (role <@&${TTS_MANAGER_ROLE_ID}>) mới có quyền dùng chế độ "Chỉ mình tôi" thôi ạ! Mọi người dùng chế độ nói thay chung cho cả kênh nha 🐰💕`,
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
         ttsManager.setMode(guild.id, mode);
         const modeStr =
           mode === 'owner_only'
-            ? '🔒 **Chỉ nói thay cho vợ của Kim Nong** (chỉ đọc tin nhắn của chị)'
+            ? '🔒 **Chỉ nói thay cho Quản lý** (người gọi lệnh)'
             : '🌐 **Nói thay tất cả mọi người** trong kênh chat đã chọn';
 
         return interaction.reply({
@@ -424,6 +462,15 @@ export default {
       if (subcommand === 'noi') {
         const text = interaction.options.getString('cau_noi');
         const customVoice = interaction.options.getString('giong');
+
+        // Kiểm tra spam trước khi phát
+        const spamCheck = checkIsSpam({ content: text, stickers: null });
+        if (spamCheck.isSpam) {
+          return interaction.reply({
+            content: `❌ Câu nói này bị tính là spam (${spamCheck.reason}) nên em không đọc được đâu nè! 🐰`,
+            flags: MessageFlags.Ephemeral,
+          });
+        }
 
         let session = ttsManager.getSession(guild.id);
 

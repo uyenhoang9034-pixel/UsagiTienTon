@@ -4,6 +4,155 @@ import { logger } from '../../utils/logger.js';
 import { synthesizeSpeech } from './ttsAudioEngine.js';
 import { getVoiceById, getDefaultVoice } from './ttsVoices.js';
 
+export const TTS_MANAGER_ROLE_ID = '1545305594712432640';
+
+/**
+ * Kiểm tra người dùng có quyền Quản lý TTS hay không:
+ * - Có Role ID 1545305594712432640
+ * - Hoặc là Chủ máy chủ (Server Owner)
+ * - Hoặc có quyền Administrator
+ */
+export function hasTTSManagePermission(member) {
+  if (!member) return false;
+  if (member.guild?.ownerId && member.id === member.guild.ownerId) return true;
+  if (member.permissions?.has?.(PermissionFlagsBits.Administrator)) return true;
+
+  if (member.roles?.cache?.has?.(TTS_MANAGER_ROLE_ID)) return true;
+  if (Array.isArray(member.roles) && member.roles.includes(TTS_MANAGER_ROLE_ID)) return true;
+
+  return false;
+}
+
+/**
+ * Kiểm tra tin nhắn spam:
+ * - Spam sticker
+ * - Spam emoji (chỉ toàn emoji, hoặc gửi từ 5 emoji trở lên)
+ * - Spam cùng 1 chữ cái lặp lại 5+ lần (liên tiếp hoặc cách quãng)
+ */
+export function checkIsSpam(message) {
+  if (!message) return { isSpam: false };
+
+  // 1. Kiểm tra spam sticker
+  if (message.stickers && message.stickers.size > 0) {
+    return { isSpam: true, reason: 'Gửi sticker' };
+  }
+
+  const rawContent = typeof message.content === 'string' ? message.content.trim() : '';
+  if (!rawContent) {
+    return { isSpam: true, reason: 'Tin nhắn không có nội dung văn bản' };
+  }
+
+  // 2. Kiểm tra spam emoji
+  const customEmojiRegex = /<a?:\w+:\d+>/g;
+  const customEmojis = rawContent.match(customEmojiRegex) || [];
+
+  const unicodeEmojiRegex = /\p{Extended_Pictographic}/gu;
+  const unicodeEmojis = rawContent.match(unicodeEmojiRegex) || [];
+
+  const totalEmojis = customEmojis.length + unicodeEmojis.length;
+
+  // Nếu gửi từ 5 emoji trở lên -> coi là spam emoji
+  if (totalEmojis >= 5) {
+    return { isSpam: true, reason: `Spam emoji (${totalEmojis} emoji trong 1 tin nhắn)` };
+  }
+
+  // Nếu tin nhắn chỉ toàn emoji mà không có chữ nghĩa gì
+  if (totalEmojis > 0) {
+    const textWithoutEmojis = rawContent
+      .replace(customEmojiRegex, '')
+      .replace(unicodeEmojiRegex, '')
+      .replace(/[\s\p{P}\p{S}]/gu, '');
+    if (textWithoutEmojis.length === 0) {
+      return { isSpam: true, reason: 'Tin nhắn chỉ toàn emoji' };
+    }
+  }
+
+  // 3. Kiểm tra spam cùng 1 chữ cái (5+ lần)
+  // 3a. Một ký tự chữ/số lặp liên tiếp 5 lần trở lên (vd: aaaaa, hhhhh, đẹpppppp, 11111)
+  if (/([\p{L}\p{N}])\1{4,}/iu.test(rawContent)) {
+    return { isSpam: true, reason: 'Spam cùng 1 chữ cái lặp lại liên tiếp 5+ lần' };
+  }
+
+  // 3b. Một ký tự chữ lặp cách quãng 5 lần trở lên (vd: a a a a a, k. k. k. k. k)
+  if (/(?:^|\s)([\p{L}\p{N}])(?:\s*[.,!?~-]*\s*\1){4,}(?:\s|$)/iu.test(rawContent)) {
+    return { isSpam: true, reason: 'Spam cùng 1 chữ cái cách nhau 5+ lần' };
+  }
+
+  return { isSpam: false };
+}
+
+/**
+ * Tự động ngắt văn bản dài thành nhiều đoạn tự nhiên (theo dấu chấm, phẩy, từ)
+ * Mỗi đoạn tối đa khoảng 160 ký tự để phát âm mượt mà, không bị nghẽn
+ */
+export function splitTextIntoChunks(text, maxChunkLength = 160) {
+  if (!text || typeof text !== 'string') return [];
+  const trimmed = text.trim();
+  if (trimmed.length <= maxChunkLength) {
+    return [trimmed];
+  }
+
+  // Tách văn bản thành các câu dựa vào dấu ngắt câu (. ! ? \n)
+  const sentenceRegex = /([^.!?\n]+[.!?\n]*)/g;
+  const rawSentences = trimmed.match(sentenceRegex) || [trimmed];
+
+  const chunks = [];
+  let currentChunk = '';
+
+  for (let s of rawSentences) {
+    s = s.trim();
+    if (!s) continue;
+
+    if (s.length > maxChunkLength) {
+      if (currentChunk) {
+        chunks.push(currentChunk);
+        currentChunk = '';
+      }
+
+      // Tách theo dấu phẩy / chấm phẩy
+      const subClauses = s.match(/([^,;]+[,;]*)/g) || [s];
+      for (let sc of subClauses) {
+        sc = sc.trim();
+        if (!sc) continue;
+
+        if (sc.length > maxChunkLength) {
+          // Tách theo từng từ
+          const words = sc.split(/\s+/);
+          for (const word of words) {
+            if ((currentChunk ? `${currentChunk} ${word}` : word).length <= maxChunkLength) {
+              currentChunk = currentChunk ? `${currentChunk} ${word}` : word;
+            } else {
+              if (currentChunk) chunks.push(currentChunk);
+              currentChunk = word;
+            }
+          }
+        } else {
+          if ((currentChunk ? `${currentChunk} ${sc}` : sc).length <= maxChunkLength) {
+            currentChunk = currentChunk ? `${currentChunk} ${sc}` : sc;
+          } else {
+            if (currentChunk) chunks.push(currentChunk);
+            currentChunk = sc;
+          }
+        }
+      }
+    } else {
+      if ((currentChunk ? `${currentChunk} ${s}` : s).length <= maxChunkLength) {
+        currentChunk = currentChunk ? `${currentChunk} ${s}` : s;
+      } else {
+        if (currentChunk) chunks.push(currentChunk);
+        currentChunk = s;
+      }
+    }
+  }
+
+  if (currentChunk) {
+    chunks.push(currentChunk);
+  }
+
+  // Giới hạn tối đa 10 đoạn cho 1 tin nhắn để tránh spam quá tải
+  return chunks.slice(0, 10);
+}
+
 let voiceModule = null;
 let ffmpegInitialized = false;
 
@@ -539,6 +688,7 @@ class TTSManager {
 
   /**
    * Nói ngay 1 câu cụ thể (dành cho lệnh /tts noi)
+   * Tự động chia nhỏ thành các đoạn nếu văn bản dài
    */
   async speakNow(guildId, text, { voiceId, speed, authorName, userId } = {}) {
     const session = this.sessions.get(guildId);
@@ -546,13 +696,18 @@ class TTSManager {
       throw new Error('Chưa có phiên TTS nào đang hoạt động trong máy chủ này!');
     }
 
-    await this.enqueue(guildId, {
-      text,
-      voiceId: voiceId || session.voiceId,
-      speed: speed || session.speed,
-      authorName: authorName || 'Người dùng',
-      userId,
-    });
+    const chunks = splitTextIntoChunks(text, 160);
+    for (let i = 0; i < chunks.length; i++) {
+      await this.enqueue(guildId, {
+        text: chunks[i],
+        voiceId: voiceId || session.voiceId,
+        speed: speed || session.speed,
+        authorName: authorName || 'Người dùng',
+        userId,
+        part: i + 1,
+        totalParts: chunks.length,
+      });
+    }
   }
 
   /**
@@ -602,8 +757,11 @@ class TTSManager {
       return channel ? `#${channel.name}` : '#kênh';
     });
 
-    // Thay thế custom discord emoji bằng tên emoji
-    text = text.replace(/<a?:(\w+):\d+>/g, '$1');
+    // Xóa custom discord emoji để không đọc thành ký tự lạ
+    text = text.replace(/<a?:\w+:\d+>/g, '');
+
+    // Xóa unicode emoji để giọng đọc trong trẻo tự nhiên
+    text = text.replace(/\p{Extended_Pictographic}/gu, '');
 
     // Thay thế đường dẫn link
     text = text.replace(/https?:\/\/\S+/gi, 'đường link');
@@ -614,9 +772,9 @@ class TTSManager {
     // Bỏ markdown cơ bản
     text = text.replace(/[*_~`]/g, '');
 
-    // Cắt ngắn nếu quá dài để tránh spam
-    if (text.length > 350) {
-      text = text.slice(0, 350) + '...';
+    // Giới hạn tối đa 1000 ký tự (sẽ được tự động chia thành nhiều đoạn đọc lần lượt)
+    if (text.length > 1000) {
+      text = text.slice(0, 1000) + '...';
     }
 
     return text.trim();
@@ -645,18 +803,38 @@ class TTSManager {
       return false;
     }
 
+    // 1. Kiểm tra spam (sticker spam, emoji spam, cùng 1 chữ cái lặp 5+ lần) -> LƯỢT VÀ KHÔNG ĐỌC
+    const spamCheck = checkIsSpam(message);
+    if (spamCheck.isSpam) {
+      logger.info(
+        `[TTS Anti-Spam] Lượt bỏ tin nhắn từ ${message.author.tag} (${message.author.id}) trong guild ${message.guild.id}. Lý do: ${spamCheck.reason}`,
+      );
+      return false;
+    }
+
     const cleanedText = this.cleanTextForSpeech(message.content, message.guild);
     if (!cleanedText) {
       return false;
     }
 
-    await this.enqueue(message.guild.id, {
-      text: cleanedText,
-      authorName: message.member?.displayName || message.author.username,
-      userId: message.author.id,
-      voiceId: session.voiceId,
-      speed: session.speed,
-    });
+    // 2. Tự động ngắt văn bản dài thành nhiều đoạn tự nhiên và đọc lần lượt
+    const chunks = splitTextIntoChunks(cleanedText, 160);
+    if (chunks.length === 0) {
+      return false;
+    }
+
+    const authorName = message.member?.displayName || message.author.username;
+    for (let i = 0; i < chunks.length; i++) {
+      await this.enqueue(message.guild.id, {
+        text: chunks[i],
+        authorName,
+        userId: message.author.id,
+        voiceId: session.voiceId,
+        speed: session.speed,
+        part: i + 1,
+        totalParts: chunks.length,
+      });
+    }
 
     // Thả cảm xúc thông báo em Usagi đã nhận và đang nói thay
     try {

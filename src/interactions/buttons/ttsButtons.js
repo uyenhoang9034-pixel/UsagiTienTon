@@ -1,6 +1,10 @@
 import { MessageFlags } from 'discord.js';
 import { logger } from '../../utils/logger.js';
-import { ttsManager } from '../../services/tts/ttsManager.js';
+import {
+  ttsManager,
+  hasTTSManagePermission,
+  TTS_MANAGER_ROLE_ID,
+} from '../../services/tts/ttsManager.js';
 import {
   buildTTSStatusEmbed,
   buildTTSControlButtons,
@@ -23,7 +27,7 @@ export default {
 
     const session = ttsManager.getSession(guildId);
 
-    // 1. Nút dừng và rời phòng
+    // 1. Nút dừng và rời phòng (chỉ Quản lý mới được bấm)
     if (action === 'stop') {
       if (!session) {
         return interaction.reply({
@@ -32,16 +36,24 @@ export default {
         });
       }
 
+      const isManager = hasTTSManagePermission(interaction.member);
+      if (!isManager) {
+        return interaction.reply({
+          content: `❌ Dạ chỉ Quản lý (có role <@&${TTS_MANAGER_ROLE_ID}>) mới có quyền yêu cầu em rời phòng voice thôi ạ! Mọi người chỉ có thể gọi em vào chứ không được đuổi em ra đâu nè 🐰💕`,
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
       await ttsManager.stopSession(guildId, 'Bấm nút dừng điều khiển');
 
       return interaction.update({
-        content: '💤 Em bot Usagi múp rụp đã rời phòng voice theo lệnh của vợ của Kim Nong rồi nha 💕',
+        content: '💤 Em bot Usagi múp rụp đã rời phòng voice theo lệnh của Quản lý rồi nha 💕',
         embeds: [],
         components: [],
       });
     }
 
-    // 2. Nút chuyển đổi chế độ đọc
+    // 2. Nút chuyển đổi chế độ đọc (chỉ Quản lý mới được bật "Chỉ mình tôi")
     if (action === 'toggle_mode') {
       if (!session) {
         return interaction.reply({
@@ -50,7 +62,16 @@ export default {
         });
       }
 
+      const isManager = hasTTSManagePermission(interaction.member);
       const nextMode = session.mode === 'owner_only' ? 'all' : 'owner_only';
+
+      if (nextMode === 'owner_only' && !isManager) {
+        return interaction.reply({
+          content: `❌ Dạ chỉ Quản lý (có role <@&${TTS_MANAGER_ROLE_ID}>) mới có quyền chuyển sang chế độ "Chỉ mình tôi" thôi nha! Mọi người dùng chế độ nói thay chung cho cả kênh nha 💕`,
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
       ttsManager.setMode(guildId, nextMode);
 
       const embed = buildTTSStatusEmbed(session, guild);
