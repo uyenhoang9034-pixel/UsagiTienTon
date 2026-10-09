@@ -283,12 +283,18 @@ export default {
           speed: '1.0x',
         });
 
-        // Đọc câu chào mở đầu
-        await ttsManager.speakNow(
-          guild.id,
-          'Dạ vâng em bot Usagi múp rụp xin nghe lệnh vợ của Kim Nong ạ!',
-          { voiceId: session.voiceId },
-        );
+        // Đọc câu chào mở đầu sau khi phòng voice đã kết nối hoàn tất
+        setTimeout(() => {
+          ttsManager
+            .speakNow(
+              guild.id,
+              'Dạ vâng em bot Usagi múp rụp xin nghe lệnh vợ của Kim Nong ạ!',
+              { voiceId: session.voiceId },
+            )
+            .catch((err) => {
+              logger.warn('Failed to play welcome greeting:', err?.message);
+            });
+        }, 600);
 
         const embed = buildTTSStatusEmbed(session, guild);
         const components = buildTTSControlButtons(guild.id, session);

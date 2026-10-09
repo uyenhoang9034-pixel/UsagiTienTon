@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import crypto, { randomUUID } from 'node:crypto';
 import axios from 'axios';
 import { logger } from '../../utils/logger.js';
 import { getVoiceById, getDefaultVoice, getSpeedRate } from './ttsVoices.js';
@@ -11,6 +11,24 @@ try {
   }
 } catch {
   // Use globalThis.WebSocket in Node 22
+}
+
+const TRUSTED_CLIENT_TOKEN = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
+
+/**
+ * Tạo token Sec-MS-GEC để xác thực với máy chủ Bing Edge TTS
+ * Thuật toán chuẩn: (Date.now() ticks kể từ năm 1601 làm tròn xuống 5 phút) + TRUSTED_CLIENT_TOKEN -> SHA256 (uppercase)
+ */
+function generateSecMsGec() {
+  try {
+    const ticks = BigInt(Date.now()) * 10000n + 116444736000000000n;
+    const rounded = ticks - (ticks % 3000000000n);
+    const str = `${rounded}${TRUSTED_CLIENT_TOKEN}`;
+    return crypto.createHash('sha256').update(str).digest('hex').toUpperCase();
+  } catch (err) {
+    logger.warn('Failed to calculate Sec-MS-GEC:', err?.message);
+    return '';
+  }
 }
 
 /**
@@ -33,7 +51,6 @@ function splitIntoChunks(text, maxLen = 180) {
       if (part.length <= maxLen) {
         current = part;
       } else {
-        // Cắt theo từ nếu 1 câu quá dài
         const words = part.split(/\s+/);
         let subCurrent = '';
         for (const word of words) {
@@ -54,8 +71,7 @@ function splitIntoChunks(text, maxLen = 180) {
 }
 
 /**
- * Tổng hợp giọng đọc bằng Google Translate TTS
- * Đảm bảo 100% không bao giờ lỗi, hoạt động bền bỉ
+ * Tổng hợp giọng đọc bằng Google Translate TTS với nhiều endpoint dự phòng
  */
 export async function synthesizeGoogleTTS(text, lang = 'vi') {
   const chunks = splitIntoChunks(text, 180);
@@ -63,29 +79,56 @@ export async function synthesizeGoogleTTS(text, lang = 'vi') {
     throw new Error('Văn bản rỗng');
   }
 
-  const buffers = [];
   const normalizedLang = lang.split('-')[0] || 'vi';
+  const endpoints = [
+    (q) =>
+      `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(q)}&tl=${encodeURIComponent(normalizedLang)}&client=tw-ob`,
+    (q) =>
+      `https://translate.google.com.vn/translate_tts?ie=UTF-8&q=${encodeURIComponent(q)}&tl=${encodeURIComponent(normalizedLang)}&client=tw-ob`,
+    (q) =>
+      `https://translate.googleapis.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(q)}&tl=${encodeURIComponent(normalizedLang)}&client=tw-ob`,
+  ];
+
+  const buffers = [];
 
   for (const chunk of chunks) {
-    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunk)}&tl=${encodeURIComponent(normalizedLang)}&client=tw-ob`;
-    const response = await axios.get(url, {
-      responseType: 'arraybuffer',
-      timeout: 10000,
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-        'Referer': 'https://translate.google.com/',
-      },
-    });
+    let chunkBuffer = null;
+    let lastError = null;
 
-    buffers.push(Buffer.from(response.data));
+    for (const makeUrl of endpoints) {
+      try {
+        const url = makeUrl(chunk);
+        const response = await axios.get(url, {
+          responseType: 'arraybuffer',
+          timeout: 8000,
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+            'Referer': 'https://translate.google.com/',
+            'Accept': '*/*',
+          },
+        });
+        if (response.data && response.data.byteLength > 0) {
+          chunkBuffer = Buffer.from(response.data);
+          break;
+        }
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    if (!chunkBuffer) {
+      throw lastError || new Error('Không thể tải âm thanh từ Google TTS');
+    }
+
+    buffers.push(chunkBuffer);
   }
 
   return Buffer.concat(buffers);
 }
 
 /**
- * Tổng hợp giọng đọc tự nhiên chuẩn Microsoft Edge Neural TTS
+ * Tổng hợp giọng đọc tự nhiên chuẩn Microsoft Edge Neural TTS có xác thực Sec-MS-GEC
  */
 export async function synthesizeEdgeTTS(text, voiceName = 'vi-VN-HoaiMyNeural', rate = '+0%') {
   return new Promise((resolve, reject) => {
@@ -94,7 +137,8 @@ export async function synthesizeEdgeTTS(text, voiceName = 'vi-VN-HoaiMyNeural', 
     }
 
     const connectionId = randomUUID().replace(/-/g, '');
-    const url = `wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4&ConnectionId=${connectionId}`;
+    const secMsGec = generateSecMsGec();
+    const url = `wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=${TRUSTED_CLIENT_TOKEN}&Sec-MS-GEC=${secMsGec}&Sec-MS-GEC-Version=1-130.0.2849.68&ConnectionId=${connectionId}`;
 
     let ws;
     try {
@@ -120,12 +164,16 @@ export async function synthesizeEdgeTTS(text, voiceName = 'vi-VN-HoaiMyNeural', 
         try {
           ws.close();
         } catch {}
-        reject(new Error('Edge TTS timed out after 12s'));
+        if (audioChunks.length > 0) {
+          resolve(Buffer.concat(audioChunks));
+        } else {
+          reject(new Error('Edge TTS timed out after 10s'));
+        }
       }
-    }, 12000);
+    }, 10000);
 
     const onOpen = () => {
-      // 1. Cấu hình định dạng MP3
+      // 1. Cấu hình định dạng âm thanh MP3
       const configMsg =
         `Content-Type:application/json;charset=utf-8\r\nPath:speech.config\r\n\r\n` +
         JSON.stringify({
@@ -166,35 +214,41 @@ export async function synthesizeEdgeTTS(text, voiceName = 'vi-VN-HoaiMyNeural', 
     };
 
     const handleMessageData = (data) => {
-      if (Buffer.isBuffer(data) || data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
-        const buf = Buffer.from(data);
-        if (buf.length >= 2) {
-          const headerLen = buf.readUInt16BE(0);
-          if (buf.length > headerLen + 2) {
-            const audioData = buf.subarray(headerLen + 2);
-            audioChunks.push(audioData);
+      const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+      const str = buf.toString('utf8');
+
+      // 1. Kiểm tra tín hiệu kết thúc turn
+      if (str.includes('Path:turn.end')) {
+        if (!completed) {
+          completed = true;
+          clearTimeout(timeout);
+          try {
+            ws.close();
+          } catch {}
+          if (audioChunks.length > 0) {
+            resolve(Buffer.concat(audioChunks));
+          } else {
+            reject(new Error('Edge TTS không nhận được dữ liệu âm thanh'));
           }
         }
-      } else {
-        const textStr = String(data);
-        if (textStr.includes('Path:turn.end')) {
-          if (!completed) {
-            completed = true;
-            clearTimeout(timeout);
-            try {
-              ws.close();
-            } catch {}
-            if (audioChunks.length > 0) {
-              resolve(Buffer.concat(audioChunks));
-            } else {
-              reject(new Error('Edge TTS không trả về dữ liệu âm thanh'));
+        return;
+      }
+
+      // 2. Tách dữ liệu âm thanh binary: 2 byte header length + header text (chứa Path:audio) + audio payload
+      if (buf.length >= 2) {
+        const headerLen = buf.readUInt16BE(0);
+        if (headerLen > 0 && buf.length > headerLen + 2) {
+          const headerStr = buf.subarray(2, headerLen + 2).toString('utf8');
+          if (headerStr.includes('Path:audio')) {
+            const audioData = buf.subarray(headerLen + 2);
+            if (audioData.length > 0) {
+              audioChunks.push(audioData);
             }
           }
         }
       }
     };
 
-    // Tương thích cả ws package và WHATWG WebSocket
     if (typeof ws.on === 'function') {
       ws.on('open', onOpen);
       ws.on('message', (data) => handleMessageData(data));
@@ -212,7 +266,7 @@ export async function synthesizeEdgeTTS(text, voiceName = 'vi-VN-HoaiMyNeural', 
           if (audioChunks.length > 0) {
             resolve(Buffer.concat(audioChunks));
           } else {
-            reject(new Error('WebSocket đóng trước khi nhận xong âm thanh'));
+            reject(new Error('WebSocket đóng'));
           }
         }
       });
@@ -260,7 +314,7 @@ export async function synthesizeTikTokTTS(text, voice = 'vi_female_01') {
         'com.zhiliaoapp.musically/2022600030 (Linux; U; Android 7.1.2; es_ES; SM-G988N; Build/NRD90M;tt-ok/3.12.13.1)',
       'Cookie': 'sessionid=abc;',
     },
-    timeout: 10000,
+    timeout: 8000,
   });
 
   const body = response.data;
@@ -279,24 +333,44 @@ export async function synthesizeSpeech(text, { voiceId = 'vi-VN-HoaiMyNeural', s
   const voice = getVoiceById(voiceId) || getDefaultVoice();
   const rate = getSpeedRate(speed);
 
-  // Thử phát bằng engine chỉ định
+  // 1. Thử Edge TTS nếu voice là edge
   if (voice.engine === 'edge') {
     try {
       const buffer = await synthesizeEdgeTTS(text, voice.voiceName, rate);
-      return { buffer, voice, engine: 'edge' };
+      if (buffer && buffer.length > 0) {
+        return { buffer, voice, engine: 'edge' };
+      }
     } catch (edgeError) {
-      logger.warn(`Edge TTS (${voice.id}) lỗi, chuyển sang Google TTS fallback:`, edgeError?.message || edgeError);
-    }
-  } else if (voice.engine === 'tiktok') {
-    try {
-      const buffer = await synthesizeTikTokTTS(text, voice.voiceName);
-      return { buffer, voice, engine: 'tiktok' };
-    } catch (tiktokError) {
-      logger.warn(`TikTok TTS (${voice.id}) lỗi, chuyển sang Google TTS fallback:`, tiktokError?.message || tiktokError);
+      logger.warn(`Edge TTS (${voice.id}) lỗi, chuyển sang fallback:`, edgeError?.message || edgeError);
     }
   }
 
-  // Fallback sang Google TTS
+  // 2. Thử TikTok TTS nếu voice là tiktok
+  if (voice.engine === 'tiktok') {
+    try {
+      const buffer = await synthesizeTikTokTTS(text, voice.voiceName);
+      if (buffer && buffer.length > 0) {
+        return { buffer, voice, engine: 'tiktok' };
+      }
+    } catch (tiktokError) {
+      logger.warn(`TikTok TTS (${voice.id}) lỗi, chuyển sang fallback:`, tiktokError?.message || tiktokError);
+    }
+  }
+
+  // 3. Nếu là tiếng Việt và Edge lỗi, thử TikTok tiếng Việt trước khi xuống Google
+  if (voice.lang === 'vi') {
+    try {
+      const tiktokVoice = voice.gender === 'Nam' ? 'vi_male_01' : 'vi_female_01';
+      const buffer = await synthesizeTikTokTTS(text, tiktokVoice);
+      if (buffer && buffer.length > 0) {
+        return { buffer, voice, engine: 'tiktok' };
+      }
+    } catch {
+      // Tiếp tục xuống Google
+    }
+  }
+
+  // 4. Fallback cuối cùng sang Google TTS
   const fallbackLang = voice.lang || 'vi';
   const buffer = await synthesizeGoogleTTS(text, fallbackLang);
   return { buffer, voice, engine: 'google' };

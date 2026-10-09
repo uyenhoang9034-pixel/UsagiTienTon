@@ -1,4 +1,4 @@
-import { Readable } from 'node:stream';
+import { PassThrough } from 'node:stream';
 import { PermissionFlagsBits } from 'discord.js';
 import { logger } from '../../utils/logger.js';
 import { synthesizeSpeech } from './ttsAudioEngine.js';
@@ -89,6 +89,7 @@ class TTSManager {
     }
 
     // Kết nối Voice Channel
+    logger.info(`Joining voice channel ${voiceChannel.id} in guild ${guild.id}...`);
     const connection = voice.joinVoiceChannel({
       channelId: voiceChannel.id,
       guildId: guild.id,
@@ -97,10 +98,24 @@ class TTSManager {
       selfMute: false,
     });
 
-    // Tạo Audio Player
+    // Chờ kết nối hoàn tất (Ready handshake với Discord UDP server)
+    try {
+      await voice.entersState(connection, voice.VoiceConnectionStatus.Ready, 20_000);
+      logger.info(`Voice connection Ready in guild ${guild.id}`);
+    } catch (connectError) {
+      logger.error(`Voice connection failed to reach Ready in guild ${guild.id}:`, connectError);
+      try {
+        connection.destroy();
+      } catch {}
+      throw new Error(
+        'Em không thể hoàn tất kết nối voice với Discord (timeout handshake). Vợ của Kim Nong thử lại giúp em nha!',
+      );
+    }
+
+    // Tạo Audio Player với NoSubscriberBehavior.Play để không bao giờ bị pause oan
     const player = voice.createAudioPlayer({
       behaviors: {
-        noSubscriber: voice.NoSubscriberBehavior?.Pause || 'pause',
+        noSubscriber: voice.NoSubscriberBehavior?.Play || 'play',
       },
     });
 
@@ -118,21 +133,35 @@ class TTSManager {
       player,
       queue: [],
       isPlaying: false,
+      playbackWatchdog: null,
       idleTimer: null,
       aloneTimer: null,
       createdAt: Date.now(),
     };
 
-    // Lắng nghe sự kiện player
+    // Theo dõi trạng thái audio player
     player.on(voice.AudioPlayerStatus.Idle, () => {
+      logger.info(`AudioPlayer status Idle in guild ${guild.id}`);
+      if (session.playbackWatchdog) {
+        clearTimeout(session.playbackWatchdog);
+        session.playbackWatchdog = null;
+      }
       session.isPlaying = false;
       this.playNextInQueue(guild.id).catch((err) => {
         logger.error(`Error processing next TTS track in guild ${guild.id}:`, err);
       });
     });
 
+    player.on(voice.AudioPlayerStatus.Playing, () => {
+      logger.info(`AudioPlayer status Playing in guild ${guild.id}`);
+    });
+
     player.on('error', (error) => {
-      logger.error(`AudioPlayer error in guild ${guild.id}:`, error);
+      logger.error(`AudioPlayer error in guild ${guild.id}:`, error?.message || error);
+      if (session.playbackWatchdog) {
+        clearTimeout(session.playbackWatchdog);
+        session.playbackWatchdog = null;
+      }
       session.isPlaying = false;
       this.playNextInQueue(guild.id).catch(() => {});
     });
@@ -164,6 +193,7 @@ class TTSManager {
 
     if (session.idleTimer) clearTimeout(session.idleTimer);
     if (session.aloneTimer) clearTimeout(session.aloneTimer);
+    if (session.playbackWatchdog) clearTimeout(session.playbackWatchdog);
 
     try {
       if (session.player) {
@@ -222,6 +252,7 @@ class TTSManager {
     this.resetIdleTimer(guildId);
 
     session.queue.push(item);
+    logger.info(`Enqueued TTS phrase for guild ${guildId}: "${item.text.slice(0, 50)}...". Queue len: ${session.queue.length}`);
 
     if (!session.isPlaying) {
       await this.playNextInQueue(guildId);
@@ -251,13 +282,24 @@ class TTSManager {
       const voiceIdToUse = item.voiceId || session.voiceId;
       const speedToUse = item.speed || session.speed;
 
-      const { buffer } = await synthesizeSpeech(item.text, {
+      logger.info(`Synthesizing speech for guild ${guildId} with voice ${voiceIdToUse}: "${item.text.slice(0, 60)}"`);
+
+      const { buffer, engine } = await synthesizeSpeech(item.text, {
         voiceId: voiceIdToUse,
         speed: speedToUse,
       });
 
-      const audioStream = Readable.from(buffer);
-      const resource = voice.createAudioResource(audioStream, {
+      if (!buffer || buffer.length === 0) {
+        throw new Error('Dữ liệu âm thanh rỗng');
+      }
+
+      logger.info(`Speech synthesized (${engine}, ${buffer.length} bytes). Creating audio resource...`);
+
+      // Dùng PassThrough stream an toàn tuyệt đối với child process pipes
+      const passThroughStream = new PassThrough();
+      passThroughStream.end(buffer);
+
+      const resource = voice.createAudioResource(passThroughStream, {
         inputType: voice.StreamType.Arbitrary,
         inlineVolume: true,
       });
@@ -266,11 +308,35 @@ class TTSManager {
         resource.volume.setVolume(1.0);
       }
 
+      if (resource.playStream) {
+        resource.playStream.on('error', (streamErr) => {
+          logger.error(`Resource playStream error in guild ${guildId}:`, streamErr);
+        });
+      }
+
+      // Đặt watchdog timer: nếu 25s chưa xong thì cưỡng chế qua câu tiếp theo
+      if (session.playbackWatchdog) {
+        clearTimeout(session.playbackWatchdog);
+      }
+      session.playbackWatchdog = setTimeout(() => {
+        if (session.isPlaying) {
+          logger.warn(`TTS playback watchdog triggered in guild ${guildId}. Moving to next.`);
+          try {
+            session.player.stop(true);
+          } catch {}
+          session.isPlaying = false;
+          this.playNextInQueue(guildId).catch(() => {});
+        }
+      }, 25_000);
+
       session.player.play(resource);
     } catch (error) {
-      logger.error(`Error playing TTS track for guild ${guildId}:`, error);
+      logger.error(`Error playing TTS track for guild ${guildId}:`, error?.message || error);
+      if (session.playbackWatchdog) {
+        clearTimeout(session.playbackWatchdog);
+        session.playbackWatchdog = null;
+      }
       session.isPlaying = false;
-      // Thử phát câu kế tiếp nếu câu này lỗi
       setTimeout(() => {
         this.playNextInQueue(guildId).catch(() => {});
       }, 500);
@@ -437,7 +503,6 @@ class TTSManager {
       const nonBotMembers = currentChannel.members.filter((m) => !m.user.bot);
 
       if (nonBotMembers.size === 0) {
-        // Không còn ai trong phòng ngoài bot -> hẹn giờ rời sau 45s
         if (!session.aloneTimer) {
           logger.info(`Bot is alone in voice channel ${session.voiceChannelId}. Scheduling leave in 45s.`);
           session.aloneTimer = setTimeout(async () => {
@@ -445,7 +510,6 @@ class TTSManager {
           }, 45 * 1000);
         }
       } else {
-        // Có người vào lại -> hủy timer rời phòng
         if (session.aloneTimer) {
           clearTimeout(session.aloneTimer);
           session.aloneTimer = null;
