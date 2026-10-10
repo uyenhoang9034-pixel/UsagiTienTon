@@ -27,6 +27,7 @@ import {
   loadCommands,
   registerCommands as registerSlashCommands,
 } from './handlers/loaders/commandLoader.js';
+import { getTTSAudioBuffer } from './services/tts/ttsManager.js';
 
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -189,6 +190,16 @@ class UsagiTienTonBot extends Client {
         uptime: process.uptime(),
       }),
     );
+
+    app.get('/api/tts/audio/:id.mp3', (req, res) => {
+      const item = getTTSAudioBuffer(req.params.id);
+      if (!item) {
+        return res.status(404).send('TTS audio not found or expired');
+      }
+      res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Content-Length', item.buffer.length);
+      return res.end(item.buffer);
+    });
 
     this.webServer = app.listen(port, host, () => {
       startupLog(`Web server listening on ${host}:${port}`);

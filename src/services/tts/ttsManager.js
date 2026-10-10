@@ -1,8 +1,27 @@
 import { PassThrough } from 'node:stream';
+import { randomUUID } from 'node:crypto';
 import { PermissionFlagsBits } from 'discord.js';
 import { logger } from '../../utils/logger.js';
 import { synthesizeSpeech } from './ttsAudioEngine.js';
 import { getVoiceById, getDefaultVoice } from './ttsVoices.js';
+
+const ttsAudioCache = new Map();
+
+export function cacheTTSAudio(id, buffer) {
+  ttsAudioCache.set(id, { buffer, expiresAt: Date.now() + 120_000 });
+  setTimeout(() => {
+    ttsAudioCache.delete(id);
+  }, 120_000);
+}
+
+export function getTTSAudioBuffer(id) {
+  const item = ttsAudioCache.get(id);
+  if (!item || item.expiresAt < Date.now()) {
+    ttsAudioCache.delete(id);
+    return null;
+  }
+  return item;
+}
 
 export const TTS_MANAGER_ROLE_ID = '1545305594712432640';
 
@@ -275,14 +294,135 @@ class TTSManager {
     const client = guild.client;
     this.initLavalinkListeners(client);
 
+    // Dọn dẹp Lavalink player cũ trong guild này nếu có để không bị chiếm quyền voice
+    if (client?.riffy?.players?.has(guild.id)) {
+      try {
+        const existingRiffy = client.riffy.players.get(guild.id);
+        existingRiffy.destroy();
+      } catch {}
+    }
+
+    // =========================================================================
+    // ƯU TIÊN 1: Dùng @discordjs/voice (Direct Native Voice Engine với DAVE E2EE)
+    // Cho phép phát trực tiếp tất cả âm thanh chất lượng cao (Hoài My, Nam Minh, TikTok, Anime,...)
+    // =========================================================================
+    let directVoiceError = null;
+    try {
+      await ensureFFmpegPath();
+      const voice = await getVoiceModule();
+
+      // Dọn dẹp connection cũ trong @discordjs/voice nếu còn tồn tại
+      try {
+        const existingConn = voice.getVoiceConnection(guild.id);
+        if (existingConn) {
+          existingConn.destroy();
+        }
+      } catch {}
+
+      logger.info(`Joining voice channel ${voiceChannel.id} in guild ${guild.id} with @discordjs/voice...`);
+      const connection = voice.joinVoiceChannel({
+        channelId: voiceChannel.id,
+        guildId: guild.id,
+        adapterCreator: guild.voiceAdapterCreator,
+        selfDeaf: true,
+        selfMute: false,
+      });
+
+      const stateHistory = [connection.state?.status || 'Signalling'];
+      connection.on('stateChange', (oldState, newState) => {
+        const transition = `${oldState.status} ➔ ${newState.status}`;
+        stateHistory.push(transition);
+        logger.info(`TTS VoiceConnection in guild ${guild.id}: ${transition}`);
+      });
+
+      connection.on(voice.VoiceConnectionStatus.Disconnected, async () => {
+        try {
+          await Promise.race([
+            voice.entersState(connection, voice.VoiceConnectionStatus.Signalling, 5_000),
+            voice.entersState(connection, voice.VoiceConnectionStatus.Connecting, 5_000),
+          ]);
+        } catch {
+          await this.stopSession(guild.id, 'Mất kết nối với phòng voice');
+        }
+      });
+
+      // Chờ kết nối hoàn tất (Ready handshake với Discord UDP server kèm DAVE E2EE)
+      await voice.entersState(connection, voice.VoiceConnectionStatus.Ready, 25_000);
+      logger.info(`Voice connection Ready in guild ${guild.id} (DAVE E2EE active) ✅`);
+
+      // Tạo Audio Player với NoSubscriberBehavior.Play
+      const player = voice.createAudioPlayer({
+        behaviors: {
+          noSubscriber: voice.NoSubscriberBehavior?.Play || 'play',
+        },
+      });
+
+      connection.subscribe(player);
+
+      const session = {
+        guildId: guild.id,
+        voiceChannelId: voiceChannel.id,
+        textChannelId: textChannel.id,
+        ownerId,
+        voiceId: voiceId || getDefaultVoice().id,
+        speed: speed || '1.0x',
+        mode: mode || 'owner_only',
+        engine: 'discordjs',
+        connection,
+        player,
+        riffyPlayer: null,
+        queue: [],
+        isPlaying: false,
+        playbackWatchdog: null,
+        idleTimer: null,
+        aloneTimer: null,
+        createdAt: Date.now(),
+      };
+
+      player.on(voice.AudioPlayerStatus.Idle, () => {
+        logger.info(`AudioPlayer status Idle in guild ${guild.id}`);
+        if (session.playbackWatchdog) {
+          clearTimeout(session.playbackWatchdog);
+          session.playbackWatchdog = null;
+        }
+        session.isPlaying = false;
+        this.playNextInQueue(guild.id).catch((err) => {
+          logger.error(`Error processing next TTS track in guild ${guild.id}:`, err);
+        });
+      });
+
+      player.on(voice.AudioPlayerStatus.Playing, () => {
+        logger.info(`AudioPlayer status Playing in guild ${guild.id}`);
+      });
+
+      player.on('error', (error) => {
+        logger.error(`AudioPlayer error in guild ${guild.id}:`, error?.message || error);
+        if (session.playbackWatchdog) {
+          clearTimeout(session.playbackWatchdog);
+          session.playbackWatchdog = null;
+        }
+        session.isPlaying = false;
+        this.playNextInQueue(guild.id).catch(() => {});
+      });
+
+      this.sessions.set(guild.id, session);
+      this.resetIdleTimer(guild.id);
+      return session;
+    } catch (err) {
+      directVoiceError = err;
+      logger.warn(`@discordjs/voice kết nối không thành công (${err?.message}). Thử fallback sang Lavalink...`);
+    }
+
+    // =========================================================================
+    // DỰ PHÒNG: Nếu @discordjs/voice gặp lỗi, fallback sang Lavalink v4
+    // =========================================================================
     const isLavalinkActive = Boolean(
       client?.riffy?.nodeMap?.size > 0 &&
       [...client.riffy.nodeMap.values()].some((n) => n.connected)
     );
 
-    // ƯU TIÊN 1: Nếu Lavalink đã kết nối, dùng Lavalink (hoàn hảo trên Railway, không bao giờ timeout UDP!)
     if (isLavalinkActive) {
-      logger.info(`Starting TTS session with Lavalink (Riffy) in guild ${guild.id}...`);
+      logger.info(`Falling back to Lavalink (Riffy) for TTS in guild ${guild.id}...`);
 
       let riffyPlayer = client.riffy.players.get(guild.id);
       if (riffyPlayer && riffyPlayer.voiceChannel !== voiceChannel.id) {
@@ -327,137 +467,8 @@ class TTSManager {
       return session;
     }
 
-    // ƯU TIÊN 2: Dự phòng dùng @discordjs/voice (cho môi trường local/VPS không bật Lavalink)
-    await ensureFFmpegPath();
-    const voice = await getVoiceModule();
-
-    // Dọn dẹp connection cũ trong @discordjs/voice nếu còn tồn tại
-    try {
-      const existingConn = voice.getVoiceConnection(guild.id);
-      if (existingConn) {
-        existingConn.destroy();
-      }
-    } catch {}
-
-    // Kết nối Voice Channel
-    logger.info(`Joining voice channel ${voiceChannel.id} in guild ${guild.id}...`);
-    const connection = voice.joinVoiceChannel({
-      channelId: voiceChannel.id,
-      guildId: guild.id,
-      adapterCreator: guild.voiceAdapterCreator,
-      selfDeaf: true,
-      selfMute: false,
-    });
-
-    const stateHistory = [connection.state?.status || 'Signalling'];
-    connection.on('stateChange', (oldState, newState) => {
-      const transition = `${oldState.status} ➔ ${newState.status}`;
-      stateHistory.push(transition);
-      logger.info(`TTS VoiceConnection in guild ${guild.id}: ${transition}`);
-    });
-
-    connection.on(voice.VoiceConnectionStatus.Disconnected, async () => {
-      try {
-        await Promise.race([
-          voice.entersState(connection, voice.VoiceConnectionStatus.Signalling, 5_000),
-          voice.entersState(connection, voice.VoiceConnectionStatus.Connecting, 5_000),
-        ]);
-      } catch {
-        try {
-          connection.destroy();
-        } catch {}
-      }
-    });
-
-    // Chờ kết nối hoàn tất (Ready handshake với Discord UDP server kèm DAVE E2EE)
-    try {
-      await voice.entersState(connection, voice.VoiceConnectionStatus.Ready, 30_000);
-      logger.info(`Voice connection Ready in guild ${guild.id}`);
-    } catch (connectError) {
-      logger.error(`Voice connection failed to reach Ready in guild ${guild.id}:`, connectError);
-      const report =
-        typeof voice.generateDependencyReport === 'function'
-          ? voice.generateDependencyReport()
-          : 'Không có báo cáo thư viện';
-      const lastStatus = connection?.state?.status || 'unknown';
-      try {
-        connection.destroy();
-      } catch {}
-      throw new Error(
-        `Em không thể hoàn tất kết nối voice với Discord (timeout handshake).\n• Trạng thái cuối: \`${lastStatus}\`\n• Lịch sử: \`${stateHistory.join(', ')}\`\n• Bản build: \`v2.1.1-tts-dave\`\n\`\`\`\n${report}\n\`\`\``,
-      );
-    }
-
-    // Tạo Audio Player với NoSubscriberBehavior.Play để không bao giờ bị pause oan
-    const player = voice.createAudioPlayer({
-      behaviors: {
-        noSubscriber: voice.NoSubscriberBehavior?.Play || 'play',
-      },
-    });
-
-    connection.subscribe(player);
-
-    const session = {
-      guildId: guild.id,
-      voiceChannelId: voiceChannel.id,
-      textChannelId: textChannel.id,
-      ownerId,
-      voiceId: voiceId || getDefaultVoice().id,
-      speed: speed || '1.0x',
-      mode: mode || 'owner_only',
-      connection,
-      player,
-      queue: [],
-      isPlaying: false,
-      playbackWatchdog: null,
-      idleTimer: null,
-      aloneTimer: null,
-      createdAt: Date.now(),
-    };
-
-    // Theo dõi trạng thái audio player
-    player.on(voice.AudioPlayerStatus.Idle, () => {
-      logger.info(`AudioPlayer status Idle in guild ${guild.id}`);
-      if (session.playbackWatchdog) {
-        clearTimeout(session.playbackWatchdog);
-        session.playbackWatchdog = null;
-      }
-      session.isPlaying = false;
-      this.playNextInQueue(guild.id).catch((err) => {
-        logger.error(`Error processing next TTS track in guild ${guild.id}:`, err);
-      });
-    });
-
-    player.on(voice.AudioPlayerStatus.Playing, () => {
-      logger.info(`AudioPlayer status Playing in guild ${guild.id}`);
-    });
-
-    player.on('error', (error) => {
-      logger.error(`AudioPlayer error in guild ${guild.id}:`, error?.message || error);
-      if (session.playbackWatchdog) {
-        clearTimeout(session.playbackWatchdog);
-        session.playbackWatchdog = null;
-      }
-      session.isPlaying = false;
-      this.playNextInQueue(guild.id).catch(() => {});
-    });
-
-    // Lắng nghe ngắt kết nối
-    connection.on(voice.VoiceConnectionStatus.Disconnected, async () => {
-      try {
-        await Promise.race([
-          voice.entersState(connection, voice.VoiceConnectionStatus.Signalling, 5_000),
-          voice.entersState(connection, voice.VoiceConnectionStatus.Connecting, 5_000),
-        ]);
-      } catch {
-        await this.stopSession(guild.id, 'Mất kết nối với phòng voice');
-      }
-    });
-
-    this.sessions.set(guild.id, session);
-    this.resetIdleTimer(guild.id);
-
-    return session;
+    // Nếu cả 2 đều không thành công, quăng lỗi chi tiết
+    throw directVoiceError || new Error('Không thể khởi tạo kết nối âm thanh trong phòng voice.');
   }
 
   /**
@@ -560,23 +571,48 @@ class TTSManager {
     session.isPlaying = true;
     const item = session.queue.shift();
 
-    // ============================================
-    // 1. ENGINE LAVALINK (Cloud Egress Native)
-    // ============================================
+    // =========================================================================
+    // 1. ENGINE LAVALINK (Dự phòng cho cloud nếu @discordjs/voice không dùng được)
+    // =========================================================================
     if (session.engine === 'lavalink') {
       try {
         const voiceIdToUse = item.voiceId || session.voiceId;
-        const voiceObj = getVoiceById(voiceIdToUse);
-        const lang = voiceObj?.lang ? voiceObj.lang.split('-')[0] : 'vi';
-
-        const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(item.text)}&tl=${encodeURIComponent(lang)}&client=tw-ob`;
-
-        logger.info(`Lavalink TTS speaking in guild ${guildId}: "${item.text.slice(0, 50)}"`);
+        const speedToUse = item.speed || session.speed;
         const riffyPlayer = session.riffyPlayer;
         const client = riffyPlayer?.client || riffyPlayer?.riffy?.client;
 
         if (!riffyPlayer || !client?.riffy) {
           throw new Error('Lavalink player không sẵn sàng');
+        }
+
+        // Tổng hợp âm thanh thật qua synthesizeSpeech (Edge Neural / TikTok / Google)
+        const { buffer, voice: usedVoice, engine: usedEngine } = await synthesizeSpeech(item.text, {
+          voiceId: voiceIdToUse,
+          speed: speedToUse,
+        });
+
+        const audioId = randomUUID();
+        cacheTTSAudio(audioId, buffer);
+
+        // Kiểm tra xem có public domain trên Railway không để Lavalink tải file âm thanh thật
+        const publicDomain =
+          process.env.RAILWAY_PUBLIC_DOMAIN ||
+          process.env.PUBLIC_URL ||
+          process.env.APP_URL;
+
+        let ttsUrl;
+        if (publicDomain) {
+          const baseUrl = publicDomain.startsWith('http')
+            ? publicDomain.replace(/\/$/, '')
+            : `https://${publicDomain.replace(/\/$/, '')}`;
+          ttsUrl = `${baseUrl}/api/tts/audio/${audioId}.mp3`;
+          logger.info(`Lavalink streaming custom TTS audio (${usedVoice.name}) via ${ttsUrl}`);
+        } else {
+          // Fallback nếu không có public domain
+          const voiceObj = getVoiceById(voiceIdToUse);
+          const lang = voiceObj?.lang ? voiceObj.lang.split('-')[0] : 'vi';
+          ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(item.text)}&tl=${encodeURIComponent(lang)}&client=tw-ob`;
+          logger.info(`Lavalink streaming Google fallback TTS in guild ${guildId}`);
         }
 
         const result = await client.riffy.resolve({
@@ -907,7 +943,7 @@ class TTSManager {
       voiceReport = `Không có @discordjs/voice: ${err?.message || err}`;
     }
 
-    return `• Động cơ voice: ${isLavalinkActive ? 'Lavalink v4 (Cloud Engine - Không bị chặn UDP 🚀)' : '@discordjs/voice (Dự phòng)'}\n• Lavalink Nodes: ${nodes}\n\n${voiceReport}`;
+    return `• Động cơ TTS chính: @discordjs/voice (DAVE E2EE Native - Âm thanh nguyên bản) 🎧\n• Động cơ dự phòng: ${isLavalinkActive ? 'Lavalink v4 Cloud' : 'Chưa bật'}\n• Lavalink Nodes: ${nodes}\n\n${voiceReport}`;
   }
 }
 

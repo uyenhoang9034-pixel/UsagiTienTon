@@ -76,7 +76,7 @@ export function buildTTSStatusEmbed(session, guild) {
       },
       {
         name: '🔌 Động Cơ Voice',
-        value: session.engine === 'lavalink' ? '🚀 Lavalink v4 (Cloud Engine)' : 'Direct @discordjs/voice',
+        value: session.engine === 'discordjs' ? '🎧 @discordjs/voice (DAVE E2EE Native)' : '🚀 Lavalink v4 (Cloud Engine)',
         inline: true,
       },
       {
