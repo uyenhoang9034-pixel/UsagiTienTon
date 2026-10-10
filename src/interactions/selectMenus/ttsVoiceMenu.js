@@ -31,6 +31,10 @@ export default {
         sampleText = 'Ah... Em đã đổi sang giọng Mayu nũng nịu ướt át cho vợ của Kim Nong rồi nè...';
       } else if (voice.id === 'vi-VN-AnimeWaifu') {
         sampleText = 'Onii-chan~ Em đã đổi sang giọng Anime Waifu siêu cấp dễ thương rồi nè!';
+      } else if (voice.id === 'de-DE-KatjaNeural') {
+        sampleText = 'Guten Tag! Em đã đổi sang giọng nữ tiếng Đức Katja cho vợ của Kim Nong rồi nha!';
+      } else if (voice.id === 'de-DE-ConradNeural') {
+        sampleText = 'Hallo! Em đã đổi sang giọng nam tiếng Đức Conrad cho vợ của Kim Nong rồi nha!';
       }
 
       ttsManager

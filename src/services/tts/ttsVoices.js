@@ -241,6 +241,34 @@ export const TTS_VOICES = [
     description: 'Giọng tiếng Trung phổ thông',
   },
 
+  // --- GERMAN ---
+  {
+    id: 'de-DE-KatjaNeural',
+    name: 'Katja (Nữ Đức - Tự nhiên)',
+    lang: 'de',
+    engine: 'edge',
+    voiceName: 'de-DE-KatjaNeural',
+    gender: 'Nữ',
+    flag: '🇩🇪',
+    category: 'Tiếng Đức',
+    pitch: '+0Hz',
+    rate: '+0%',
+    description: 'Giọng nữ tiếng Đức chuẩn Berlin, phát âm sắc nét và ấm áp',
+  },
+  {
+    id: 'de-DE-ConradNeural',
+    name: 'Conrad (Nam Đức - Trầm hùng)',
+    lang: 'de',
+    engine: 'edge',
+    voiceName: 'de-DE-ConradNeural',
+    gender: 'Nam',
+    flag: '🇩🇪',
+    category: 'Tiếng Đức',
+    pitch: '+0Hz',
+    rate: '+0%',
+    description: 'Giọng nam tiếng Đức sang trọng, phong độ, đĩnh đạc',
+  },
+
   // --- FRENCH & OTHERS ---
   {
     id: 'fr-FR-DeniseNeural',
