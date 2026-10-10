@@ -129,7 +129,12 @@ export async function synthesizeGoogleTTS(text, lang = 'vi') {
  * Tổng hợp giọng đọc tự nhiên chuẩn Microsoft Edge Neural TTS có xác thực Sec-MS-GEC
  * Hỗ trợ Hoài My (Nữ VN), Nam Minh (Nam VN), Nanami (Anime JP), Jenny, Guy,...
  */
-export async function synthesizeEdgeTTS(text, voiceName = 'vi-VN-HoaiMyNeural', rate = '+0%') {
+export async function synthesizeEdgeTTS(
+  text,
+  voiceName = 'vi-VN-HoaiMyNeural',
+  rate = '+0%',
+  pitch = '+0Hz',
+) {
   return new Promise((resolve, reject) => {
     const connectionId = randomUUID().replace(/-/g, '');
     const secMsGec = generateSecMsGec();
@@ -200,7 +205,7 @@ export async function synthesizeEdgeTTS(text, voiceName = 'vi-VN-HoaiMyNeural', 
       const ssml =
         `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>` +
         `<voice name='${voiceName}'>` +
-        `<prosody pitch='+0Hz' rate='${rate}' volume='+0%'>${safeText}</prosody>` +
+        `<prosody pitch='${pitch}' rate='${rate}' volume='+0%'>${safeText}</prosody>` +
         `</voice></speak>`;
 
       const ssmlMsg = `X-RequestId:${requestId}\r\nContent-Type:application/ssml+xml\r\nPath:ssml\r\n\r\n${ssml}`;
@@ -267,37 +272,30 @@ export async function synthesizeEdgeTTS(text, voiceName = 'vi-VN-HoaiMyNeural', 
 
 /**
  * Tổng hợp giọng đọc bằng TikTok TTS
- * Hỗ trợ nhiều endpoint với form-urlencoded payload chuẩn
+ * Hỗ trợ endpoint TikTok chính thức kèm cookie sessionid (tùy chọn qua TIKTOK_SESSION_ID trong .env)
  */
 export async function synthesizeTikTokTTS(text, voice = 'vi_female_01') {
   const clean = String(text || '').slice(0, 300);
+  const sessionId = process.env.TIKTOK_SESSION_ID || '581a1225c93f9b4bb9aacc49e4ebc5a9';
 
   const endpoints = [
-    'https://api.tiktokv.com/media/api/text/speech/invoke/',
-    'https://api16-normal-c-useast1a.tiktokv.com/media/api/text/speech/invoke/',
-    'https://api16-normal-v6.tiktokv.com/media/api/text/speech/invoke/',
-    'https://api16-normal-v6.byteoversea.com/media/api/text/speech/invoke/',
+    `https://api16-normal-c-useast1a.tiktokv.com/media/api/text/speech/invoke/?text_speaker=${encodeURIComponent(voice)}&req_text=${encodeURIComponent(clean)}&speaker_map_type=0&aid=1233`,
+    `https://api16-normal-v6.tiktokv.com/media/api/text/speech/invoke/?text_speaker=${encodeURIComponent(voice)}&req_text=${encodeURIComponent(clean)}&speaker_map_type=0&aid=1233`,
+    `https://api16-normal-v6.byteoversea.com/media/api/text/speech/invoke/?text_speaker=${encodeURIComponent(voice)}&req_text=${encodeURIComponent(clean)}&speaker_map_type=0&aid=1233`,
+    `https://api.tiktokv.com/media/api/text/speech/invoke/?text_speaker=${encodeURIComponent(voice)}&req_text=${encodeURIComponent(clean)}&speaker_map_type=0&aid=1233`,
   ];
-
-  const payload = new URLSearchParams({
-    req_text: clean,
-    text_speaker: voice,
-    speaker_map_type: '0',
-    aid: '1233',
-  }).toString();
 
   let lastError = null;
 
   for (const url of endpoints) {
     try {
-      const response = await axios.post(url, payload, {
+      const response = await axios.post(url, null, {
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8',
           'User-Agent':
             'com.zhiliaoapp.musically/2022600030 (Linux; U; Android 7.1.2; es_ES; SM-G988N; Build/NRD90M;tt-ok/3.12.13.1)',
-          'Cookie': 'sessionid=581a1225c93f9b4bb9aacc49e4ebc5a9',
+          'Cookie': `sessionid=${sessionId}`,
         },
-        timeout: 6000,
+        timeout: 5000,
       });
 
       const body = response.data;
@@ -319,12 +317,15 @@ export async function synthesizeTikTokTTS(text, voice = 'vi_female_01') {
  */
 export async function synthesizeSpeech(text, { voiceId = 'vi-VN-HoaiMyNeural', speed = '1.0x' } = {}) {
   const voice = getVoiceById(voiceId) || getDefaultVoice();
-  const rate = getSpeedRate(speed);
+  // Nếu giọng có rate mặc định (như TikTok +15%), và người dùng đang để 1.0x, ưu tiên nhịp đọc của giọng đó
+  const baseRate = getSpeedRate(speed);
+  const rate = (speed === '1.0x' && voice.rate) ? voice.rate : baseRate;
+  const pitch = voice.pitch || '+0Hz';
 
   // 1. Nếu giọng được chọn là Edge Neural (Hoài My, Nam Minh, Nanami, Jenny, Guy, SunHi, Xiaoxiao,...)
   if (voice.engine === 'edge') {
     try {
-      const buffer = await synthesizeEdgeTTS(text, voice.voiceName, rate);
+      const buffer = await synthesizeEdgeTTS(text, voice.voiceName, rate, pitch);
       if (buffer && buffer.length > 0) {
         return { buffer, voice, engine: 'edge' };
       }
@@ -341,17 +342,26 @@ export async function synthesizeSpeech(text, { voiceId = 'vi-VN-HoaiMyNeural', s
         return { buffer, voice, engine: 'tiktok' };
       }
     } catch (tiktokError) {
-      logger.warn(`TikTok TTS (${voice.id}) lỗi: ${tiktokError?.message}. Fallback sang Edge Neural tương ứng...`);
+      logger.warn(`TikTok TTS (${voice.id}) lỗi: ${tiktokError?.message}. Fallback sang phong cách TikTok tương ứng...`);
     }
 
-    // NÂNG CẤP QUAN TRỌNG: Nếu TikTok lỗi, fallback sang giọng Edge Neural tương ứng (Hoài My / Nam Minh)
-    // KHÔNG BAO GIỜ để người dùng nghe phải giọng chị Google rô-bốt!
+    // NÂNG CẤP ĐẶC BIỆT:
+    // Nếu TikTok API chưa có session hoặc bị chặn, bot fallback sang Edge Neural nhưng với
+    // CAO ĐỘ (PITCH) và TỐC ĐỘ (RATE) đặc trưng của TikTok!
+    // Nữ TikTok: pitch +18Hz, rate +15% -> Biến giọng thành giọng nữ lí lắc, nhí nhảnh, cao và nhanh đặc trưng TikTok!
+    // Nam TikTok: pitch -5Hz, rate +10% -> Biến giọng thành giọng nam dứt khoát, bắt tai!
     try {
-      const edgeFallback = voice.gender === 'Nam' ? 'vi-VN-NamMinhNeural' : 'vi-VN-HoaiMyNeural';
-      const buffer = await synthesizeEdgeTTS(text, edgeFallback, rate);
+      const isNam = voice.gender === 'Nam';
+      const edgeFallback = isNam ? 'vi-VN-NamMinhNeural' : 'vi-VN-HoaiMyNeural';
+      const tiktokPitch = voice.pitch || (isNam ? '-5Hz' : '+18Hz');
+      const tiktokRate = (speed === '1.0x' && voice.rate) ? voice.rate : (isNam ? '+10%' : '+15%');
+
+      const buffer = await synthesizeEdgeTTS(text, edgeFallback, tiktokRate, tiktokPitch);
       if (buffer && buffer.length > 0) {
-        logger.info(`TikTok fallback sang Edge Neural (${edgeFallback}) thành công`);
-        return { buffer, voice: getVoiceById(edgeFallback), engine: 'edge' };
+        logger.info(
+          `TikTok style qua Edge Neural (${edgeFallback}, pitch=${tiktokPitch}, rate=${tiktokRate}) thành công`,
+        );
+        return { buffer, voice, engine: 'edge' };
       }
     } catch (fallbackEdgeError) {
       logger.warn(`Fallback Edge cho TikTok cũng lỗi: ${fallbackEdgeError?.message}`);
