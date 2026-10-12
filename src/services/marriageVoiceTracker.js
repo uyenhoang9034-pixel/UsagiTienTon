@@ -6,6 +6,7 @@ import {
 } from './marriageService.js';
 
 import { MARRIAGE_CONFIG } from '../config/marriageConfig.js';
+import { logger } from '../utils/logger.js';
 
 // Cứ 30 phút cùng phòng voice = +30 Điểm Thân Mật 💕
 export const VOICE_TARGET_MINUTES = MARRIAGE_CONFIG.voice.targetMinutes;
