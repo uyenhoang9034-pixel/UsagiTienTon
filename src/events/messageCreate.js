@@ -9,6 +9,7 @@ import {
 import { resolveCommandAlias } from '../config/commands/commandAliases.js';
 import { getCommandPrefix } from '../config/bot.js';
 import { handleTTSMessage } from '../services/tts/ttsManager.js';
+import { handleMarriageMention } from '../services/marriageMentionTracker.js';
 
 const MUSIC_PREFIX_SHORTCUTS = new Map([
   ['leave', 'leave'],
@@ -38,6 +39,12 @@ export default {
       }
     } catch (ttsError) {
       logger.error('Error handling TTS message:', ttsError);
+    }
+
+    try {
+      await handleMarriageMention(message, client);
+    } catch (mentionError) {
+      logger.error('Error handling marriage mention:', mentionError);
     }
 
     await handlePrefixCommand(message, client);

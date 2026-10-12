@@ -41,6 +41,12 @@ export const getCultivationAdventureV2SessionKey = (guildId, userId) =>
 export const getCultivationSecretRealmSessionKey = (guildId, userId) =>
   `games:cultivation:secretRealm:${guildId}:${userId}`;
 
+export const getMarriageKey = (guildId, userId) =>
+  `games:marriage:profile:${guildId}:${userId}`;
+
+export const getMarriageRegistryKey = (guildId) =>
+  `games:marriage:registry:${guildId}`;
+
 /**
  * =========================================================
  * COMPATIBILITY EXPORTS · OLD MODULES

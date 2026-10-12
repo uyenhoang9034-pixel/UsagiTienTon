@@ -20,6 +20,8 @@ import {
   getCultivationProfilePrefix,
   getCultivationAdventureV2SessionKey,
   getCultivationSecretRealmSessionKey,
+  getMarriageKey,
+  getMarriageRegistryKey,
   canonicalizeKey,
   getLegacyVariantsForCanonical,
 } from './database/keys.js';
@@ -42,6 +44,8 @@ export {
   getCultivationProfilePrefix,
   getCultivationAdventureV2SessionKey,
   getCultivationSecretRealmSessionKey,
+  getMarriageKey,
+  getMarriageRegistryKey,
   canonicalizeKey,
   getLegacyVariantsForCanonical,
 };
