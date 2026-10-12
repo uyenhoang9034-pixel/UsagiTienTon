@@ -670,8 +670,8 @@ export default {
           .setTitle(MARRIAGE_CONFIG.interact.embedTitle)
           .setDescription(
             `${quote}\n\n` +
-              `> ✨ Hai bạn được cộng **+${result.pointsGained} <a:trangtrig46:1547240249761996812> Điểm Thân Mật**!\n` +
-              `> 💕 Tổng điểm hiện tại: **${result.totalPoints.toLocaleString()}** điểm (${result.level.icon} ${result.level.name})`,
+              `> <:jz1:1546149460751552572> Hai bạn được cộng **+${result.pointsGained} <a:trangtrig46:1547240249761996812> Điểm Thân Mật**!\n` +
+              `> <:jz1:1546149460751552572> Tổng điểm hiện tại: **${result.totalPoints.toLocaleString()}** điểm (${result.level.icon} ${result.level.name})`,
           )
           .setFooter({
             text: MARRIAGE_CONFIG.interact.embedFooter,
@@ -823,8 +823,8 @@ export default {
           .setDescription(
             `<@${interaction.user.id}> đã gửi tặng đến <@${spouseId}> một món quà ngọt ngào!\n\n` +
               `${result.gift.icon} **${result.gift.name}** (+${result.pointsGained} <a:trangtrig46:1547240249761996812>): *${result.gift.desc}*\n\n` +
-              `> ✨ Nhận ngay: **+${result.pointsGained} <a:trangtrig46:1547240249761996812> Điểm Thân Mật**\n` +
-              `> 💕 Tổng Điểm Thân Mật: **${result.totalPoints.toLocaleString()}** điểm (${result.level.icon} ${result.level.name})`,
+              `> <:jz1:1546149460751552572> Nhận ngay: **+${result.pointsGained} <a:trangtrig46:1547240249761996812> Điểm Thân Mật**\n` +
+              `> <:jz1:1546149460751552572> Tổng Điểm Thân Mật: **${result.totalPoints.toLocaleString()}** điểm (${result.level.icon} ${result.level.name})`,
           )
           .setFooter({
             text: MARRIAGE_CONFIG.gifts.embedFooter,
