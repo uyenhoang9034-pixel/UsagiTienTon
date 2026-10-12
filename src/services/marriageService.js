@@ -53,7 +53,7 @@ export function normalizeUserMarriage(raw, userId) {
           spouseId: raw.spouseId,
           marriedAt: raw.marriedAt || Date.now(),
           lovePoints: raw.lovePoints || 100,
-          bio: raw.bio || 'Bên nhau trọn đời 💕',
+          bio: raw.bio || 'Bên nhau trọn đời!',
           ring: raw.ring || '💍 Nhẫn Ước Hẹn Vĩnh Cửu',
           lastInteractedAt: raw.lastInteractedAt || null,
           lastDailyAt: raw.lastDailyAt || null,
@@ -97,7 +97,7 @@ export async function createMarriage(client, guildId, user1Id, user2Id, options 
   if (!guildId || !user1Id || !user2Id) return false;
 
   const now = Date.now();
-  const bio = (options.bio || 'Bên nhau trọn đời 💕').trim().slice(0, 120);
+  const bio = (options.bio || 'Bên nhau trọn đời!').trim().slice(0, 120);
   const proposalMessage = (options.proposalMessage || '').trim().slice(0, 150);
 
   const u1 = await getUserMarriage(client, guildId, user1Id);

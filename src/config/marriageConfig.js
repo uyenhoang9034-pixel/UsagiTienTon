@@ -124,9 +124,13 @@ export const MARRIAGE_CONFIG = {
 
     // Embed Giấy Chứng Nhận Kết Hôn chi tiết
     certTitle: '<a:trangtrig2:1546040703375904801> 𝓖𝓲𝓪̂́𝔂 𝓒𝓱𝓾̛́𝓷𝓰 𝓝𝓱𝓪̣̂𝓷 𝓚𝓮̂́𝓽 𝓗𝓸̂𝓷 <a:trangtrig3:1546040818261954610>',
-    certDescription: (userId, spouseId, bio) =>
-      `<@${userId}> <a:heartg6:1546906117551030382> <@${spouseId}>\n\n` +
-      `> 💌 **Lời thề ước:** *" ${bio || 'Bên nhau trọn đời 💕'} "*`,
+    certDescription: (userId, spouseId, bio) => {
+      const bioText = (bio && bio !== 'Bên nhau trọn đời 💕') ? bio : 'Bên nhau trọn đời!';
+      return (
+        `<@${userId}> <a:heartg6:1546906117551030382> <@${spouseId}>\n\n` +
+        `> <a:trangtrig30:1546905942476464178> Lời thề ước: **${bioText}** <a:bunnyg2:1541439896001183744>`
+      );
+    },
     certFooter: 'Dùng /marry tuongtac hoặc /marry diemdanh để tăng điểm mỗi ngày nha!',
   },
 
