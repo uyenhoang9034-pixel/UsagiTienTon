@@ -80,7 +80,7 @@ export const MARRIAGE_CONFIG = {
 
     // Embed khi đối phương ĐỒNG Ý
     weddingSuccessTitle: '<a:trangtrig2:1546040703375904801> 𝓒𝓱𝓾́𝓬 𝓗𝓸̂𝓷 𝓛𝓮̂̃ 𝓣𝓱𝓪̀𝓷𝓱 𝓒𝓸̂𝓷𝓰 <a:trangtrig3:1546040818261954610>',
-    weddingSuccessContent: '🎉 Tiếng chuông đám cưới vang lên! Chúc mừng hai bạn đã nên duyên vợ chồng! 💕',
+    weddingSuccessContent: 'Tiếng chuông đám cưới vang lên! Chúc mừng hai bạn đã nên duyên vợ chồng! <a:bunnyg8:1541440159990550580>',
     weddingSuccessDescription: (authorId, targetId) =>
       `Hôm nay là ngày lành tháng tốt, xin chúc mừng cho đôi uyên ương <@${authorId}> <a:heartg6:1546906117551030382> <@${targetId}>\n\n` +
       `<a:trangtrig30:1546905942476464178> Lời thề nguyện: Hai bạn đã chính thức kết duyên vợ chồng và nhận ngay 100 Điểm Thân Mật khởi đầu! <a:trangtrig46:1547240249761996812>\n\n` +
@@ -88,7 +88,7 @@ export const MARRIAGE_CONFIG = {
       `> /marry diemdanh: Điểm danh uyên ương (+50 đến +100 <a:trangtrig46:1547240249761996812>)\n` +
       `> /marry tuongtac: Hôn, ôm, hẹn hò, xoa đầu (+20 đến +35 <a:trangtrig46:1547240249761996812>)\n` +
       `> /marry tangqua: Tặng trà sữa, hoa hồng, socola, kim cương (+20 đến +150 <a:trangtrig46:1547240249761996812>)`,
-    weddingSuccessFooter: 'Em bot Usagi múp rụp chúc hai bạn trăm năm hạnh phúc, mặn nồng keo sơn! <a:ebichug2:1541444390856163458>',
+    weddingSuccessFooter: 'Em bot Usagi múp rụp chúc hai bạn trăm năm hạnh phúc, mặn nồng keo sơn!',
 
     // Embed khi đối phương TỪ CHỐI
     weddingDeclinedTitle: '<a:trangtrig43:1547238351869059082> 𝓛𝓸̛̀𝓲 𝓒𝓪̂̀𝓾 𝓗𝓸̂𝓷 𝓑𝓲̣ 𝓣𝓾̛̀ 𝓒𝓱𝓸̂́𝓲 <a:trangtrig43:1547238351869059082>',
@@ -127,7 +127,7 @@ export const MARRIAGE_CONFIG = {
     certDescription: (userId, spouseId, bio) =>
       `<@${userId}> <a:heartg6:1546906117551030382> <@${spouseId}>\n\n` +
       `> 💌 **Lời thề ước:** *" ${bio || 'Bên nhau trọn đời 💕'} "*`,
-    certFooter: 'Dùng /marry tuongtac hoặc /marry diemdanh để tăng điểm mỗi ngày nha! <a:chiikawag7:1541427343216738414>',
+    certFooter: 'Dùng /marry tuongtac hoặc /marry diemdanh để tăng điểm mỗi ngày nha!',
   },
 
   // ==========================================
