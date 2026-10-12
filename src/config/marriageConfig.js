@@ -13,29 +13,29 @@ export const MARRIAGE_CONFIG = {
     `Lệnh kết hôn chỉ có thể sử dụng tại kênh <#${channelId}> thôi nha! 🐰🌸`,
 
   // ==========================================
-  // BẢNG MÀU EMBED (HEX CODE)
+  // BẢNG MÀU EMBED (HỒNG PASTEL CHO TOÀN BỘ LỆNH)
   // ==========================================
   colors: {
-    proposal: '#FF69B4',       // Gửi lời cầu hôn
-    wedding: '#FF1493',        // Hôn lễ thành công rực rỡ
-    rejected: '#808080',       // Lời cầu hôn bị từ chối
-    timeout: '#808080',        // Hết hạn phản hồi
-    profile: '#FF69B4',        // Giấy chứng nhận kết hôn
-    harem: '#FF69B4',          // Danh sách hậu cung
-    interact: '#FF1493',       // Tương tác hâm nóng tình cảm
-    checkIn: '#00FA9A',        // Điểm danh hàng ngày
-    gift: '#FF69B4',           // Tặng quà tình yêu
-    divorceConfirm: '#ED4245', // Cảnh báo xác nhận ly hôn
-    divorced: '#7289DA',       // Thông báo đã ly hôn
-    leaderboard: '#FFD700',    // Bảng vàng xếp hạng
+    proposal: '#FFB6C1',       // Gửi lời cầu hôn
+    wedding: '#FFB6C1',        // Hôn lễ thành công rực rỡ
+    rejected: '#FFB6C1',       // Lời cầu hôn bị từ chối
+    timeout: '#FFB6C1',        // Hết hạn phản hồi
+    profile: '#FFB6C1',        // Giấy chứng nhận kết hôn
+    harem: '#FFB6C1',          // Danh sách hậu cung
+    interact: '#FFB6C1',       // Tương tác hâm nóng tình cảm
+    checkIn: '#FFB6C1',        // Điểm danh hàng ngày
+    gift: '#FFB6C1',           // Tặng quà tình yêu
+    divorceConfirm: '#FFB6C1', // Cảnh báo xác nhận ly hôn
+    divorced: '#FFB6C1',       // Thông báo đã ly hôn
+    leaderboard: '#FFB6C1',    // Bảng vàng xếp hạng
   },
 
   // ==========================================
   // HÌNH ẢNH & GIF MINH HOẠ
   // ==========================================
   images: {
-    // Direct download/display URL từ Google Drive: 1LB0Bb8ktfQd-t8kBEV02uM5ny7aJsew-
-    weddingGif: 'https://lh3.googleusercontent.com/d/1LB0Bb8ktfQd-t8kBEV02uM5ny7aJsew-',
+    // URL trực tiếp từ GitHub repository assets/marry/marry.gif
+    weddingGif: 'https://raw.githubusercontent.com/uyenhoang9034-pixel/UsagiTienTon/main/assets/marry/marry.gif',
   },
 
   // ==========================================
@@ -200,7 +200,7 @@ export const MARRIAGE_CONFIG = {
   // ==========================================
   gifts: {
     cooldownMs: 60 * 60 * 1000,      // 1 tiếng cooldown
-    embedColor: '#FF69B4',
+    embedColor: '#FFB6C1',
     embedTitle: '<a:trangtrig2:1546040703375904801> 𝓠𝓾𝓪̀ 𝓣𝓪̣̆𝓷𝓰 𝓣𝓲̀𝓷𝓱 𝓨𝓮̂𝓾 𝓝𝓰𝓸̣𝓽 𝓝𝓰𝓪̀𝓸 <a:trangtrig3:1546040818261954610>',
     items: {
       trasua: {

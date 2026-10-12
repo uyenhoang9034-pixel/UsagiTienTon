@@ -188,7 +188,7 @@ export default {
             .setDescription('Chọn món quà tình yêu')
             .setRequired(true)
             .addChoices(
-              { name: '🧋 Trà Sữa Trân Châu (+20 💕)', value: 'trasua' },
+              { name: '🥤 Trà Sữa Trân Châu (+20 💕)', value: 'trasua' },
               { name: '💐 Bó Hoa Hồng Đỏ (+40 💕)', value: 'hoahong' },
               { name: '🍫 Hộp Socola Trái Tim (+65 💕)', value: 'socola' },
               { name: '💎 Nhẫn Kim Cương Lấp Lánh (+150 💕)', value: 'kimcuong' },
@@ -809,7 +809,7 @@ export default {
         }
 
         const giftEmbed = new EmbedBuilder()
-          .setColor(MARRIAGE_CONFIG.colors.gift || '#FF69B4')
+          .setColor(MARRIAGE_CONFIG.colors.gift || '#FFB6C1')
           .setTitle(MARRIAGE_CONFIG.gifts.embedTitle)
           .setDescription(
             `<@${interaction.user.id}> đã gửi tặng đến <@${spouseId}> một món quà ngọt ngào!\n\n` +
