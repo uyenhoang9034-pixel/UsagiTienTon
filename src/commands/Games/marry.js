@@ -1,3 +1,4 @@
+import fs from 'fs';
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -389,16 +390,24 @@ export default {
                   targetUser.id,
                 ),
               )
-              .setImage(MARRIAGE_CONFIG.images.weddingGif)
               .setFooter({
                 text: MARRIAGE_CONFIG.proposal.weddingSuccessFooter,
               })
               .setTimestamp();
 
+            const weddingFiles = [];
+            if (fs.existsSync('assets/marry/marry.gif')) {
+              weddingEmbed.setImage('attachment://marry.gif');
+              weddingFiles.push({ attachment: 'assets/marry/marry.gif', name: 'marry.gif' });
+            } else {
+              weddingEmbed.setImage(MARRIAGE_CONFIG.images.weddingGif);
+            }
+
             return btnInteraction.update({
               content: MARRIAGE_CONFIG.proposal.weddingSuccessContent,
               embeds: [weddingEmbed],
               components: [],
+              files: weddingFiles,
             });
           }
 
