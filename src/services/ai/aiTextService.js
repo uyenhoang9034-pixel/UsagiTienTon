@@ -76,21 +76,38 @@ async function callGeminiAPI(prompt, history = []) {
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
-  const contents = [];
+  const rawContents = [];
 
-  // Thêm lịch sử hội thoại
-  for (const msg of history) {
-    contents.push({
+  // 1. Thêm lịch sử hội thoại gần nhất
+  for (const msg of history.slice(-6)) {
+    if (!msg.content?.trim()) continue;
+    rawContents.push({
       role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }],
+      parts: [{ text: msg.content.trim() }],
     });
   }
 
-  // Thêm câu hỏi hiện tại
-  contents.push({
+  // 2. Thêm câu hỏi hiện tại
+  rawContents.push({
     role: 'user',
-    parts: [{ text: prompt }],
+    parts: [{ text: prompt.trim() }],
   });
+
+  // 3. Đảm bảo lượt mở đầu luôn là user
+  while (rawContents.length > 0 && rawContents[0].role !== 'user') {
+    rawContents.shift();
+  }
+
+  // 4. Gộp các lượt liên tiếp cùng role để tránh lỗi 400 của Gemini
+  const contents = [];
+  for (const item of rawContents) {
+    const last = contents[contents.length - 1];
+    if (last && last.role === item.role) {
+      last.parts[0].text += `\n${item.parts[0].text}`;
+    } else {
+      contents.push({ role: item.role, parts: [{ text: item.parts[0].text }] });
+    }
+  }
 
   const payload = {
     systemInstruction: {
