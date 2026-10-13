@@ -120,10 +120,40 @@ async function callGeminiAPI(prompt, history = []) {
     },
   };
 
-  // Ưu tiên hàng đầu gemini-3.8-flash theo đúng khuyến nghị chính thức của Google API
-  const priorityModels = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  // Thử các model Gemini 3.8 chính thức được hỗ trợ
+  const priorityModels = ['gemini-3.8-flash', 'gemini-3.8-pro', 'gemini-3.5-flash'];
 
   for (const model of priorityModels) {
+    const text = await tryCallGeminiModel(model, payload, apiKey);
+    if (text) return text;
+  }
+
+  // Nếu các model trên đều bị nghẽn, tự động gọi API ListModels để lấy danh sách model thực tế được cấp
+  try {
+    const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+    const listRes = await axios.get(listUrl, { timeout: 10000 });
+    const remoteModels = (listRes.data?.models || [])
+      .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
+      .map((m) => m.name.replace(/^models\//, ''))
+      .filter((m) => !priorityModels.includes(m));
+
+    logger.info(`[AI Text] Auto-discovered ${remoteModels.length} additional Gemini models: ${remoteModels.slice(0, 5).join(', ')}`);
+
+    for (const model of remoteModels) {
+      const text = await tryCallGeminiModel(model, payload, apiKey, 2);
+      if (text) return text;
+    }
+  } catch (listErr) {
+    logger.warn('[AI Text] Failed to auto-discover Gemini models:', listErr.message);
+  }
+
+  return null;
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function tryCallGeminiModel(model, payload, apiKey, maxAttempts = 3) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       const response = await axios.post(url, payload, {
@@ -131,46 +161,31 @@ async function callGeminiAPI(prompt, history = []) {
         headers: { 'Content-Type': 'application/json' },
       });
 
-      const candidate = response.data?.candidates?.[0];
-      const text = candidate?.content?.parts?.[0]?.text;
+      const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (text) {
-        logger.info(`[AI Text] Gemini API model ${model} responded successfully ✅`);
+        logger.info(`[AI Text] Gemini model ${model} responded successfully (attempt ${attempt}) ✅`);
         return text;
       }
     } catch (err) {
       const errMsg = err.response?.data?.error?.message || err.message;
-      logger.warn(`[AI Text] Gemini API (${model}) failed: ${errMsg}`);
+      const status = err.response?.status;
+      const isHighDemand =
+        status === 429 ||
+        status === 503 ||
+        /high demand|spikes in demand|resource has been exhausted|quota|temporarily unavailable/i.test(errMsg);
+
+      logger.warn(`[AI Text] Gemini (${model}) attempt ${attempt} failed: ${errMsg}`);
+
+      if (isHighDemand && attempt < maxAttempts) {
+        const delay = attempt * 1500;
+        logger.info(`[AI Text] High demand spike on ${model}, retrying in ${delay / 1000}s...`);
+        await sleep(delay);
+        continue;
+      }
+
+      break;
     }
   }
-
-  // Nếu các model trên đều bị từ chối, tự động gọi API ListModels để lấy danh sách model thực tế được cấp
-  try {
-    const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-    const listRes = await axios.get(listUrl, { timeout: 10000 });
-    const remoteModels = (listRes.data?.models || [])
-      .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
-      .map((m) => m.name.replace(/^models\//, ''));
-
-    for (const model of remoteModels) {
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-        const response = await axios.post(url, payload, {
-          timeout: 30000,
-          headers: { 'Content-Type': 'application/json' },
-        });
-
-        const candidate = response.data?.candidates?.[0];
-        const text = candidate?.content?.parts?.[0]?.text;
-        if (text) {
-          logger.info(`[AI Text] Discovered Gemini model ${model} responded successfully ✅`);
-          return text;
-        }
-      } catch {}
-    }
-  } catch (listErr) {
-    logger.warn('[AI Text] Failed to auto-discover Gemini models:', listErr.message);
-  }
-
   return null;
 }
 
