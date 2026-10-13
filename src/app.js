@@ -179,6 +179,11 @@ class UsagiTienTonBot extends Client {
       startupLog(
         `ONLINE ✅ | ${this.commands.size} commands | ${this.buttons.size} buttons | ${this.selectMenus.size} menus`,
       );
+
+      const hasGemini = Boolean(String(process.env.GEMINI_API_KEY || '').trim());
+      startupLog(
+        `AI Engine: ${hasGemini ? 'Google Gemini 1.5 Flash (GEMINI_API_KEY OK) ✅' : 'Free AI Engine (Chưa nhận GEMINI_API_KEY trên Railway) ⚠️'}`,
+      );
     } catch (error) {
       logger.error('Failed to start Usagi Tiên Tôn:', error);
       process.exit(1);

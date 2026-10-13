@@ -71,10 +71,10 @@ export function cleanDialoguePrefix(responseText = '') {
  * Gọi Gemini API chính thức nếu có GEMINI_API_KEY
  */
 async function callGeminiAPI(prompt, history = []) {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = String(process.env.GEMINI_API_KEY || '')
+    .trim()
+    .replace(/^["']|["']$/g, '');
   if (!apiKey) return null;
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
   const rawContents = [];
 
@@ -120,21 +120,39 @@ async function callGeminiAPI(prompt, history = []) {
     },
   };
 
-  const response = await axios.post(url, payload, {
-    timeout: 30000,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  // Thử các model Gemini tương thích từ 1.5 Flash đến 2.0 Flash
+  const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash-8b', 'gemini-1.5-pro'];
 
-  const candidate = response.data?.candidates?.[0];
-  const text = candidate?.content?.parts?.[0]?.text;
-  return text || null;
+  for (const model of models) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const response = await axios.post(url, payload, {
+        timeout: 30000,
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const candidate = response.data?.candidates?.[0];
+      const text = candidate?.content?.parts?.[0]?.text;
+      if (text) {
+        logger.info(`[AI Text] Gemini API model ${model} responded successfully ✅`);
+        return text;
+      }
+    } catch (err) {
+      const errMsg = err.response?.data?.error?.message || err.message;
+      logger.warn(`[AI Text] Gemini API (${model}) failed: ${errMsg}`);
+    }
+  }
+
+  return null;
 }
 
 /**
  * Gọi OpenAI API nếu có OPENAI_API_KEY
  */
 async function callOpenAIAPI(prompt, history = []) {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = String(process.env.OPENAI_API_KEY || '')
+    .trim()
+    .replace(/^["']|["']$/g, '');
   if (!apiKey) return null;
 
   const url = 'https://api.openai.com/v1/chat/completions';
@@ -215,11 +233,11 @@ async function callPollinationsAI(prompt, history = []) {
     logger.warn('[AI Text] Pollinations POST failed or timed out, trying GET fallback:', postError.message);
   }
 
-  // 2. Fallback sang phương thức GET trực tiếp nếu POST bị nghẽn mạng
+  // 2. Fallback sang phương thức GET trực tiếp nếu POST bị nghẽn mạng (rút gọn system prompt để tránh lỗi 414 URI Too Long)
   try {
-    const encodedPrompt = encodeURIComponent(prompt);
-    const encodedSystem = encodeURIComponent(AI_CONFIG.systemPrompt);
-    const getUrl = `https://text.pollinations.ai/${encodedPrompt}?system=${encodedSystem}`;
+    const encodedPrompt = encodeURIComponent(String(prompt || '').slice(0, 500));
+    const shortSystem = encodeURIComponent('Ban la em bot Usagi mup rup xeo sac tren Discord');
+    const getUrl = `https://text.pollinations.ai/${encodedPrompt}?system=${shortSystem}`;
 
     const getResponse = await axios.get(getUrl, {
       timeout: 35000,
