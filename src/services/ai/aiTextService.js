@@ -120,102 +120,35 @@ async function callGeminiAPI(prompt, history = []) {
     },
   };
 
-  // Danh sách các model Gemini chính thức hỗ trợ generateContent (ưu tiên theo hiệu năng)
-  const priorityModels = [
-    'gemini-3.8-flash',
-    'gemini-2.5-flash',
-    'gemini-2.0-flash',
-    'gemini-2.5-flash-lite',
-    'gemini-2.5-pro',
-    'gemini-1.5-flash',
-  ];
+  // Chỉ giữ 2 model chính thức đang hoạt động ổn định nhất của Google (2026):
+  // 1. gemini-3.8-flash: Model thế hệ mới chuẩn xác
+  // 2. gemini-3.5-flash-lite: Model siêu tốc độ, dự phòng khi 3.8 gặp đợt nghẽn tải
+  const activeModels = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'];
 
-  for (const model of priorityModels) {
+  for (const model of activeModels) {
     const text = await tryCallGeminiModel(model, payload, apiKey);
     if (text) return text;
-  }
-
-  // Nếu các model ưu tiên đều bị nghẽn, tự động gọi API ListModels để lấy thêm các model chat thực tế
-  try {
-    const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-    const listRes = await axios.get(listUrl, { timeout: 10000 });
-    const remoteModels = (listRes.data?.models || [])
-      .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
-      .map((m) => m.name.replace(/^models\//, ''))
-      .filter((m) => {
-        const lower = m.toLowerCase();
-        if (priorityModels.includes(m)) return false;
-        // Chỉ lấy họ Gemini, LOẠI BỎ triệt để TTS (quota = 0), embedding, imagen, và gemma (dễ lỗi 500)
-        if (!lower.startsWith('gemini-')) return false;
-        if (lower.includes('-tts') || lower.includes('tts')) return false;
-        if (lower.includes('embedding') || lower.includes('imagen') || lower.includes('aqa')) return false;
-        return true;
-      });
-
-    if (remoteModels.length > 0) {
-      logger.info(`[AI Text] Auto-discovered ${remoteModels.length} additional Gemini chat models: ${remoteModels.slice(0, 5).join(', ')}`);
-
-      for (const model of remoteModels) {
-        const text = await tryCallGeminiModel(model, payload, apiKey, 1);
-        if (text) return text;
-      }
-    }
-  } catch (listErr) {
-    logger.warn('[AI Text] Failed to auto-discover Gemini models:', listErr.message);
   }
 
   return null;
 }
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+async function tryCallGeminiModel(model, payload, apiKey) {
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const response = await axios.post(url, payload, {
+      timeout: 5000, // Tối đa 5s để bot luôn phản hồi tức thì
+      headers: { 'Content-Type': 'application/json' },
+    });
 
-async function tryCallGeminiModel(model, payload, apiKey, maxAttempts = 2) {
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const response = await axios.post(url, payload, {
-        timeout: 25000,
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text) {
-        logger.info(`[AI Text] Gemini model ${model} responded successfully (attempt ${attempt}) ✅`);
-        return text;
-      }
-    } catch (err) {
-      const errMsg = err.response?.data?.error?.message || err.message;
-      const status = err.response?.status;
-
-      // 1. Nếu model không tồn tại hoặc không hỗ trợ generateContent -> Bỏ qua ngay, không retry
-      if (status === 404 || /not found|not supported|is no longer available|unknown model/i.test(errMsg)) {
-        logger.warn(`[AI Text] Gemini (${model}) unavailable: ${errMsg}`);
-        return null;
-      }
-
-      // 2. Nếu model bị limit: 0 (như tts trên free tier) -> Bỏ qua ngay
-      if (/limit:\s*0|free_tier_requests.*limit:\s*0/i.test(errMsg)) {
-        logger.warn(`[AI Text] Gemini (${model}) has 0 free quota: ${errMsg}`);
-        return null;
-      }
-
-      // 3. Nếu là spike quá tải tạm thời (503 / 429)
-      const isHighDemand =
-        status === 429 ||
-        status === 503 ||
-        /high demand|spikes in demand|resource has been exhausted|temporarily unavailable/i.test(errMsg);
-
-      logger.warn(`[AI Text] Gemini (${model}) attempt ${attempt} failed: ${errMsg}`);
-
-      if (isHighDemand && attempt < maxAttempts) {
-        const delay = attempt * 1500;
-        logger.info(`[AI Text] High demand spike on ${model}, retrying in ${delay / 1000}s...`);
-        await sleep(delay);
-        continue;
-      }
-
-      break;
+    const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (text) {
+      logger.info(`[AI Text] Gemini model ${model} responded successfully ✅`);
+      return text;
     }
+  } catch (err) {
+    const errMsg = err.response?.data?.error?.message || err.message;
+    logger.warn(`[AI Text] Gemini (${model}) failed: ${errMsg}`);
   }
   return null;
 }
@@ -271,7 +204,27 @@ async function callPollinationsAI(prompt, history = []) {
     { role: 'user', content: prompt },
   ];
 
-  // 1. Thử gọi qua phương thức POST (model openai tốc độ 1-3s)
+  // 1. Thử gọi GET trực tiếp với model=openai (phản hồi siêu nhanh qua CDN ~1-2s)
+  try {
+    const encodedPrompt = encodeURIComponent(String(prompt || '').slice(0, 500));
+    const shortSystem = encodeURIComponent('Ban la em bot Usagi mup rup xeo sac tren Discord, xưng em, goi bac');
+    const getUrl = `https://text.pollinations.ai/${encodedPrompt}?system=${shortSystem}&model=openai`;
+
+    const getResponse = await axios.get(getUrl, {
+      timeout: 5000,
+      headers: {
+        'User-Agent': 'UsagiTienTonBot/2.1 (Discord Bot)',
+      },
+    });
+
+    if (typeof getResponse.data === 'string' && getResponse.data.trim()) {
+      return getResponse.data;
+    }
+  } catch (getError) {
+    logger.warn('[AI Text] Pollinations GET failed, trying POST fallback:', getError.message);
+  }
+
+  // 2. Fallback sang POST nếu GET gặp sự cố
   try {
     const response = await axios.post(
       'https://text.pollinations.ai/',
@@ -281,7 +234,7 @@ async function callPollinationsAI(prompt, history = []) {
         temperature: 0.7,
       },
       {
-        timeout: 12000,
+        timeout: 6000,
         headers: {
           'Content-Type': 'application/json',
           'User-Agent': 'UsagiTienTonBot/2.1 (Discord Bot)',
@@ -305,27 +258,7 @@ async function callPollinationsAI(prompt, history = []) {
       return String(response.data);
     }
   } catch (postError) {
-    logger.warn('[AI Text] Pollinations POST failed, trying GET fallback:', postError.message);
-  }
-
-  // 2. Fallback sang phương thức GET trực tiếp với model=openai
-  try {
-    const encodedPrompt = encodeURIComponent(String(prompt || '').slice(0, 500));
-    const shortSystem = encodeURIComponent('Ban la em bot Usagi mup rup xeo sac tren Discord, xưng em, goi bac');
-    const getUrl = `https://text.pollinations.ai/${encodedPrompt}?system=${shortSystem}&model=openai`;
-
-    const getResponse = await axios.get(getUrl, {
-      timeout: 12000,
-      headers: {
-        'User-Agent': 'UsagiTienTonBot/2.1 (Discord Bot)',
-      },
-    });
-
-    if (typeof getResponse.data === 'string' && getResponse.data.trim()) {
-      return getResponse.data;
-    }
-  } catch (getError) {
-    logger.error('[AI Text] Pollinations GET also failed:', getError.message);
+    logger.error('[AI Text] Pollinations POST also failed:', postError.message);
   }
 
   return null;
