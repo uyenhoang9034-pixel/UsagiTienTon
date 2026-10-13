@@ -120,10 +120,10 @@ async function callGeminiAPI(prompt, history = []) {
     },
   };
 
-  // Thử các model Gemini tương thích từ 1.5 Flash đến 2.0 Flash
-  const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash-8b', 'gemini-1.5-pro'];
+  // Ưu tiên hàng đầu gemini-3.8-flash theo đúng khuyến nghị chính thức của Google API
+  const priorityModels = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
 
-  for (const model of models) {
+  for (const model of priorityModels) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       const response = await axios.post(url, payload, {
@@ -141,6 +141,34 @@ async function callGeminiAPI(prompt, history = []) {
       const errMsg = err.response?.data?.error?.message || err.message;
       logger.warn(`[AI Text] Gemini API (${model}) failed: ${errMsg}`);
     }
+  }
+
+  // Nếu các model trên đều bị từ chối, tự động gọi API ListModels để lấy danh sách model thực tế được cấp
+  try {
+    const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+    const listRes = await axios.get(listUrl, { timeout: 10000 });
+    const remoteModels = (listRes.data?.models || [])
+      .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
+      .map((m) => m.name.replace(/^models\//, ''));
+
+    for (const model of remoteModels) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const response = await axios.post(url, payload, {
+          timeout: 30000,
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const candidate = response.data?.candidates?.[0];
+        const text = candidate?.content?.parts?.[0]?.text;
+        if (text) {
+          logger.info(`[AI Text] Discovered Gemini model ${model} responded successfully ✅`);
+          return text;
+        }
+      } catch {}
+    }
+  } catch (listErr) {
+    logger.warn('[AI Text] Failed to auto-discover Gemini models:', listErr.message);
   }
 
   return null;
