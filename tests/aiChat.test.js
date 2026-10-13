@@ -24,6 +24,16 @@ test('AI Dialogue Prefix Cleaner: removes annoying EM: or Usagi: speaker tags', 
   // Không xóa chữ "em" nếu nó là một phần bình thường của câu
   assert.equal(cleanDialoguePrefix('Em chào bác nha!'), 'Em chào bác nha!');
   assert.equal(cleanDialoguePrefix('Em bot Usagi múp rụp chúc bác vui vẻ!'), 'Em bot Usagi múp rụp chúc bác vui vẻ!');
+
+  // Xóa hành động nhại lại kịch bản và chuẩn hóa Em viết hoa giữa câu (trường hợp screenshot)
+  assert.equal(
+    cleanDialoguePrefix('Em: *hì* 🐰❤️ Chào bác, có gì cần Em giúp không? 😏✨'),
+    '🐰❤️ Chào bác, có gì cần em giúp không? 😏✨',
+  );
+  assert.equal(
+    cleanDialoguePrefix('Em chào bác, có gì cần em bot Usagi múp rụp giúp đỡ không ạ?'),
+    'Em chào bác, có gì cần em bot Usagi múp rụp giúp đỡ không ạ?',
+  );
 });
 
 test('AI Code Interception: accurately identifies code writing requests and ignores normal questions', () => {

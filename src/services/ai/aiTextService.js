@@ -41,21 +41,28 @@ export function sanitizeCodeFromResponse(responseText = '') {
 
 /**
  * Loại bỏ triệt để các tiền tố kịch bản dạng "EM: ", "Em: ", "Usagi: ", "**EM:** ", "Bot: "
+ * cũng như các hành động nhại lại trong dấu sao và chuẩn hóa viết thường chữ "em" ở giữa câu.
  */
 export function cleanDialoguePrefix(responseText = '') {
   let text = String(responseText || '').trim();
 
-  // Loại bỏ tiền tố kịch bản ở đầu tin nhắn
+  // 1. Loại bỏ tiền tố kịch bản ở đầu tin nhắn (ví dụ "Em: ", "EM: ", "**Em:** ", "Usagi: ")
   text = text.replace(
-    /^[\s*_#>\-\[]*(?:em(?:\s+bot)?(?:\s+usagi)?(?:\s+múp\s+rụp)?|usagi|bot|ai|assistant|trợ\s+lý)[\]\s*_]*\s*:\s*[*_]*/i,
+    /^[\s*_#>\-\[]*(?:em(?:\s+bot)?(?:\s+usagi)?(?:\s+múp\s+rụp)?|usagi|bot|ai|assistant|trợ\s+lý)[\]\s*_]*\s*:\s*/i,
     '',
   );
 
-  // Loại bỏ nếu xuất hiện ở đầu các dòng kế tiếp
+  // 2. Loại bỏ các tiền tố ở đầu các dòng kế tiếp
   text = text.replace(
-    /\n[\s*_#>\-\[]*(?:em(?:\s+bot)?(?:\s+usagi)?(?:\s+múp\s+rụp)?|usagi|bot|ai|assistant|trợ\s+lý)[\]\s*_]*\s*:\s*[*_]*/gi,
+    /\n[\s*_#>\-\[]*(?:em(?:\s+bot)?(?:\s+usagi)?(?:\s+múp\s+rụp)?|usagi|bot|ai|assistant|trợ\s+lý)[\]\s*_]*\s*:\s*/gi,
     '\n',
   );
+
+  // 3. Loại bỏ hành động nhại lại trong dấu sao ở đầu câu nếu có (ví dụ "*hì* ", "*cười* ")
+  text = text.replace(/^\s*\*[^*]{1,20}\*\s*/i, '');
+
+  // 4. Chuẩn hóa chữ "Em" ở giữa câu thành chữ thường "em" (trừ khi đứng ở đầu câu/sau dấu chấm)
+  text = text.replace(/(?<=\b[a-zA-Z0-9À-ỹ]+\s+)Em\b/g, 'em');
 
   return text.trim();
 }
