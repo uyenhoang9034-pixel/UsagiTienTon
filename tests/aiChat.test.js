@@ -37,6 +37,17 @@ Hy vọng giúp ích cho bạn!
   const sanitized = sanitizeCodeFromResponse(responseWithCode);
   assert.equal(sanitized.includes('def hello():'), false);
   assert.equal(sanitized.includes('Em bot Usagi múp rụp xin phép không cung cấp mã nguồn/code'), true);
+  assert.equal(sanitized.includes('bác'), true);
+});
+
+test('AI Persona: verifies sassy em-bac persona and dynamic adaptability in system prompt', () => {
+  assert.equal(AI_CONFIG.systemPrompt.includes('Em bot Usagi múp rụp'), true);
+  assert.equal(AI_CONFIG.systemPrompt.includes('Bác'), true);
+  assert.equal(AI_CONFIG.systemPrompt.includes('XÉO SẮC'), true);
+  assert.equal(AI_CONFIG.systemPrompt.includes('CỤC SÚC'), true);
+  assert.equal(AI_CONFIG.systemPrompt.includes('CUTE'), true);
+  assert.equal(AI_CONFIG.refusalMessage.includes('Em bot Usagi múp rụp'), true);
+  assert.equal(AI_CONFIG.refusalMessage.includes('bác'), true);
 });
 
 test('AI Image Service: accurately identifies image design requests and extracts clean prompt', () => {

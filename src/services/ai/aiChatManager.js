@@ -110,13 +110,13 @@ export async function handleAIChatMessage(message, client) {
 
         const imageEmbed = new EmbedBuilder()
           .setColor(getColor('primary'))
-          .setTitle('🎨 Bức ảnh của bạn đã được thiết kế xong nè!')
+          .setTitle('🎨 Bức ảnh của bác đã được thiết kế xong rồi nè!')
           .setDescription(
-            `> **Yêu cầu:** ${content}\n\n*Được vẽ và thiết kế bởi Em bot Usagi múp rụp 🐰✨*`,
+            `> **Yêu cầu của bác:** ${content}\n\n*Được vẽ và thiết kế bởi Em bot Usagi múp rụp 🐰💅*`,
           )
           .setImage(`attachment://${imageResult.fileName}`)
           .setFooter({
-            text: 'Usagi AI Studio • Sáng tạo không giới hạn',
+            text: 'Usagi AI Studio • Xéo sắc nhưng tài năng',
             iconURL: client.user?.displayAvatarURL?.() || null,
           })
           .setTimestamp();
@@ -137,7 +137,7 @@ export async function handleAIChatMessage(message, client) {
         stopTyping();
         await message.reply({
           content:
-            'Dạ Usagi gặp chút sự cố khi tải hình ảnh từ máy chủ vẽ tranh, bạn thử miêu tả lại rõ hơn giúp Usagi nhé~ 🐰💦',
+            'Dạ em bot Usagi múp rụp vẽ mà máy chủ tranh bị nghẽn xíu rồi bác ơi, bác miêu tả lại rõ hơn tí để em vẽ lại xem nào~ 🐰💅',
           allowedMentions: { repliedUser: false },
         });
         return true;
@@ -186,7 +186,7 @@ export async function handleAIChatMessage(message, client) {
     try {
       await message.reply({
         content:
-          'Dạ Usagi gặp một chút trục trặc khi suy nghĩ câu trả lời rồi, bạn nhắn lại câu khác giúp Usagi nhé~ 🐰💔',
+          'Dạ em bot Usagi múp rụp suy nghĩ câu này hơi bị xoắn não xíu rồi bác ơi, bác hỏi câu khác xem nào~ 🐰💅',
         allowedMentions: { repliedUser: false },
       });
     } catch {}

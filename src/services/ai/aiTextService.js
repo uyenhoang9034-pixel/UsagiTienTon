@@ -32,7 +32,7 @@ export function sanitizeCodeFromResponse(responseText = '') {
   if (codeBlockRegex.test(text)) {
     text = text.replace(
       codeBlockRegex,
-      '\n> 🐰 *[Em bot Usagi múp rụp xin phép không cung cấp mã nguồn/code theo đúng phạm vi hoạt động nha~]*\n',
+      '\n> 🐰 *[Em bot Usagi múp rụp xin phép không cung cấp mã nguồn/code đâu nha bác~ Bác tự code đi nè! 💅]*\n',
     );
   }
 
