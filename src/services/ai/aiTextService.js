@@ -120,28 +120,45 @@ async function callGeminiAPI(prompt, history = []) {
     },
   };
 
-  // Thử các model Gemini 3.8 chính thức được hỗ trợ
-  const priorityModels = ['gemini-3.8-flash', 'gemini-3.8-pro', 'gemini-3.5-flash'];
+  // Danh sách các model Gemini chính thức hỗ trợ generateContent (ưu tiên theo hiệu năng)
+  const priorityModels = [
+    'gemini-3.8-flash',
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-pro',
+    'gemini-1.5-flash',
+  ];
 
   for (const model of priorityModels) {
     const text = await tryCallGeminiModel(model, payload, apiKey);
     if (text) return text;
   }
 
-  // Nếu các model trên đều bị nghẽn, tự động gọi API ListModels để lấy danh sách model thực tế được cấp
+  // Nếu các model ưu tiên đều bị nghẽn, tự động gọi API ListModels để lấy thêm các model chat thực tế
   try {
     const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
     const listRes = await axios.get(listUrl, { timeout: 10000 });
     const remoteModels = (listRes.data?.models || [])
       .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
       .map((m) => m.name.replace(/^models\//, ''))
-      .filter((m) => !priorityModels.includes(m));
+      .filter((m) => {
+        const lower = m.toLowerCase();
+        if (priorityModels.includes(m)) return false;
+        // Chỉ lấy họ Gemini, LOẠI BỎ triệt để TTS (quota = 0), embedding, imagen, và gemma (dễ lỗi 500)
+        if (!lower.startsWith('gemini-')) return false;
+        if (lower.includes('-tts') || lower.includes('tts')) return false;
+        if (lower.includes('embedding') || lower.includes('imagen') || lower.includes('aqa')) return false;
+        return true;
+      });
 
-    logger.info(`[AI Text] Auto-discovered ${remoteModels.length} additional Gemini models: ${remoteModels.slice(0, 5).join(', ')}`);
+    if (remoteModels.length > 0) {
+      logger.info(`[AI Text] Auto-discovered ${remoteModels.length} additional Gemini chat models: ${remoteModels.slice(0, 5).join(', ')}`);
 
-    for (const model of remoteModels) {
-      const text = await tryCallGeminiModel(model, payload, apiKey, 2);
-      if (text) return text;
+      for (const model of remoteModels) {
+        const text = await tryCallGeminiModel(model, payload, apiKey, 1);
+        if (text) return text;
+      }
     }
   } catch (listErr) {
     logger.warn('[AI Text] Failed to auto-discover Gemini models:', listErr.message);
@@ -152,12 +169,12 @@ async function callGeminiAPI(prompt, history = []) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function tryCallGeminiModel(model, payload, apiKey, maxAttempts = 3) {
+async function tryCallGeminiModel(model, payload, apiKey, maxAttempts = 2) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       const response = await axios.post(url, payload, {
-        timeout: 30000,
+        timeout: 25000,
         headers: { 'Content-Type': 'application/json' },
       });
 
@@ -169,10 +186,24 @@ async function tryCallGeminiModel(model, payload, apiKey, maxAttempts = 3) {
     } catch (err) {
       const errMsg = err.response?.data?.error?.message || err.message;
       const status = err.response?.status;
+
+      // 1. Nếu model không tồn tại hoặc không hỗ trợ generateContent -> Bỏ qua ngay, không retry
+      if (status === 404 || /not found|not supported|is no longer available|unknown model/i.test(errMsg)) {
+        logger.warn(`[AI Text] Gemini (${model}) unavailable: ${errMsg}`);
+        return null;
+      }
+
+      // 2. Nếu model bị limit: 0 (như tts trên free tier) -> Bỏ qua ngay
+      if (/limit:\s*0|free_tier_requests.*limit:\s*0/i.test(errMsg)) {
+        logger.warn(`[AI Text] Gemini (${model}) has 0 free quota: ${errMsg}`);
+        return null;
+      }
+
+      // 3. Nếu là spike quá tải tạm thời (503 / 429)
       const isHighDemand =
         status === 429 ||
         status === 503 ||
-        /high demand|spikes in demand|resource has been exhausted|quota|temporarily unavailable/i.test(errMsg);
+        /high demand|spikes in demand|resource has been exhausted|temporarily unavailable/i.test(errMsg);
 
       logger.warn(`[AI Text] Gemini (${model}) attempt ${attempt} failed: ${errMsg}`);
 
@@ -240,16 +271,17 @@ async function callPollinationsAI(prompt, history = []) {
     { role: 'user', content: prompt },
   ];
 
-  // 1. Thử gọi qua phương thức POST (mặc định model nhẹ, phản hồi 2-4s)
+  // 1. Thử gọi qua phương thức POST (model openai tốc độ 1-3s)
   try {
     const response = await axios.post(
       'https://text.pollinations.ai/',
       {
         messages,
+        model: 'openai',
         temperature: 0.7,
       },
       {
-        timeout: 45000,
+        timeout: 12000,
         headers: {
           'Content-Type': 'application/json',
           'User-Agent': 'UsagiTienTonBot/2.1 (Discord Bot)',
@@ -273,17 +305,17 @@ async function callPollinationsAI(prompt, history = []) {
       return String(response.data);
     }
   } catch (postError) {
-    logger.warn('[AI Text] Pollinations POST failed or timed out, trying GET fallback:', postError.message);
+    logger.warn('[AI Text] Pollinations POST failed, trying GET fallback:', postError.message);
   }
 
-  // 2. Fallback sang phương thức GET trực tiếp nếu POST bị nghẽn mạng (rút gọn system prompt để tránh lỗi 414 URI Too Long)
+  // 2. Fallback sang phương thức GET trực tiếp với model=openai
   try {
     const encodedPrompt = encodeURIComponent(String(prompt || '').slice(0, 500));
-    const shortSystem = encodeURIComponent('Ban la em bot Usagi mup rup xeo sac tren Discord');
-    const getUrl = `https://text.pollinations.ai/${encodedPrompt}?system=${shortSystem}`;
+    const shortSystem = encodeURIComponent('Ban la em bot Usagi mup rup xeo sac tren Discord, xưng em, goi bac');
+    const getUrl = `https://text.pollinations.ai/${encodedPrompt}?system=${shortSystem}&model=openai`;
 
     const getResponse = await axios.get(getUrl, {
-      timeout: 35000,
+      timeout: 12000,
       headers: {
         'User-Agent': 'UsagiTienTonBot/2.1 (Discord Bot)',
       },

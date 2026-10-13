@@ -182,7 +182,7 @@ class UsagiTienTonBot extends Client {
 
       const hasGemini = Boolean(String(process.env.GEMINI_API_KEY || '').trim());
       startupLog(
-        `AI Engine: ${hasGemini ? 'Google Gemini 3.8 Flash (GEMINI_API_KEY OK) ✅' : 'Free AI Engine (Chưa nhận GEMINI_API_KEY trên Railway) ⚠️'}`,
+        `AI Engine: ${hasGemini ? 'Google Gemini (GEMINI_API_KEY OK) ✅' : 'Free AI Engine (Chưa nhận GEMINI_API_KEY trên Railway) ⚠️'}`,
       );
     } catch (error) {
       logger.error('Failed to start Usagi Tiên Tôn:', error);
