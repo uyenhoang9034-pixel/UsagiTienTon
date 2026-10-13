@@ -40,6 +40,27 @@ export function sanitizeCodeFromResponse(responseText = '') {
 }
 
 /**
+ * Loại bỏ triệt để các tiền tố kịch bản dạng "EM: ", "Em: ", "Usagi: ", "**EM:** ", "Bot: "
+ */
+export function cleanDialoguePrefix(responseText = '') {
+  let text = String(responseText || '').trim();
+
+  // Loại bỏ tiền tố kịch bản ở đầu tin nhắn
+  text = text.replace(
+    /^[\s*_#>\-\[]*(?:em(?:\s+bot)?(?:\s+usagi)?(?:\s+múp\s+rụp)?|usagi|bot|ai|assistant|trợ\s+lý)[\]\s*_]*\s*:\s*[*_]*/i,
+    '',
+  );
+
+  // Loại bỏ nếu xuất hiện ở đầu các dòng kế tiếp
+  text = text.replace(
+    /\n[\s*_#>\-\[]*(?:em(?:\s+bot)?(?:\s+usagi)?(?:\s+múp\s+rụp)?|usagi|bot|ai|assistant|trợ\s+lý)[\]\s*_]*\s*:\s*[*_]*/gi,
+    '\n',
+  );
+
+  return text.trim();
+}
+
+/**
  * Gọi Gemini API chính thức nếu có GEMINI_API_KEY
  */
 async function callGeminiAPI(prompt, history = []) {
@@ -160,6 +181,13 @@ async function callPollinationsAI(prompt, history = []) {
   return String(response.data || '');
 }
 
+function prepareCleanHistory(history = []) {
+  return history.map((m) => ({
+    role: m.role,
+    content: cleanDialoguePrefix(m.content),
+  }));
+}
+
 /**
  * Hàm điều phối sinh câu trả lời AI với cơ chế Fallback tự động
  */
@@ -173,13 +201,14 @@ export async function generateAIResponse(prompt, history = []) {
     };
   }
 
+  const cleanHistory = prepareCleanHistory(history);
   let answer = null;
   let providerUsed = 'unknown';
 
   // 2. Thử Gemini API nếu có key
   if (process.env.GEMINI_API_KEY) {
     try {
-      answer = await callGeminiAPI(prompt, history);
+      answer = await callGeminiAPI(prompt, cleanHistory);
       if (answer) providerUsed = 'gemini';
     } catch (err) {
       logger.warn('[AI Text] Gemini API call failed, falling back:', err.message);
@@ -189,7 +218,7 @@ export async function generateAIResponse(prompt, history = []) {
   // 3. Thử OpenAI API nếu có key
   if (!answer && process.env.OPENAI_API_KEY) {
     try {
-      answer = await callOpenAIAPI(prompt, history);
+      answer = await callOpenAIAPI(prompt, cleanHistory);
       if (answer) providerUsed = 'openai';
     } catch (err) {
       logger.warn('[AI Text] OpenAI API call failed, falling back:', err.message);
@@ -199,7 +228,7 @@ export async function generateAIResponse(prompt, history = []) {
   // 4. Fallback sang Pollinations AI miễn phí
   if (!answer) {
     try {
-      answer = await callPollinationsAI(prompt, history);
+      answer = await callPollinationsAI(prompt, cleanHistory);
       if (answer) providerUsed = 'pollinations';
     } catch (err) {
       logger.error('[AI Text] Pollinations AI call failed:', err.message);
@@ -209,12 +238,13 @@ export async function generateAIResponse(prompt, history = []) {
   if (!answer) {
     return {
       success: false,
-      text: 'Dạ hiện tại máy chủ AI đang bận một chút, bạn thử nhắn lại sau vài giây giúp Usagi nhé~ 🐰💦',
+      text: 'Dạ hiện tại máy chủ AI đang bận một chút, bác thử nhắn lại sau vài giây giúp em bot Usagi múp rụp nhé~ 🐰💦',
     };
   }
 
-  // 5. Kiểm tra an toàn: Lọc sạch bất kỳ khối code nào còn sót lại
-  const sanitized = sanitizeCodeFromResponse(answer);
+  // 5. Kiểm tra an toàn: Lọc sạch bất kỳ khối code nào còn sót lại và loại bỏ triệt để tiền tố EM:
+  let sanitized = sanitizeCodeFromResponse(answer);
+  sanitized = cleanDialoguePrefix(sanitized);
 
   logger.info(`[AI Text] Generated response using ${providerUsed} (${sanitized.length} chars)`);
 

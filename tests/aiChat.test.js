@@ -1,11 +1,30 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { isCodeRequest, sanitizeCodeFromResponse } from '../src/services/ai/aiTextService.js';
+import {
+  isCodeRequest,
+  sanitizeCodeFromResponse,
+  cleanDialoguePrefix,
+} from '../src/services/ai/aiTextService.js';
 import { isImageGenerationRequest, extractImagePrompt } from '../src/services/ai/imageService.js';
 import { aiHistoryManager } from '../src/services/ai/aiHistoryManager.js';
 import { AI_CONFIG } from '../src/services/ai/aiConfig.js';
 import { handleAIChatMessage } from '../src/services/ai/aiChatManager.js';
+
+test('AI Dialogue Prefix Cleaner: removes annoying EM: or Usagi: speaker tags', () => {
+  assert.equal(cleanDialoguePrefix('EM: Chào bác nha!'), 'Chào bác nha!');
+  assert.equal(cleanDialoguePrefix('Em: Bác hỏi câu này chán thế!'), 'Bác hỏi câu này chán thế!');
+  assert.equal(cleanDialoguePrefix('**EM:** Chào bác nha!'), 'Chào bác nha!');
+  assert.equal(cleanDialoguePrefix('**Em:** Chào bác nha!'), 'Chào bác nha!');
+  assert.equal(cleanDialoguePrefix('Usagi: Bác ăn cơm chưa?'), 'Bác ăn cơm chưa?');
+  assert.equal(cleanDialoguePrefix('Em bot Usagi múp rụp: Bác khỏe không?'), 'Bác khỏe không?');
+  assert.equal(cleanDialoguePrefix('Bot: Xin chào!'), 'Xin chào!');
+  assert.equal(cleanDialoguePrefix('AI: Trả lời bác nè.'), 'Trả lời bác nè.');
+  
+  // Không xóa chữ "em" nếu nó là một phần bình thường của câu
+  assert.equal(cleanDialoguePrefix('Em chào bác nha!'), 'Em chào bác nha!');
+  assert.equal(cleanDialoguePrefix('Em bot Usagi múp rụp chúc bác vui vẻ!'), 'Em bot Usagi múp rụp chúc bác vui vẻ!');
+});
 
 test('AI Code Interception: accurately identifies code writing requests and ignores normal questions', () => {
   // Những câu hỏi yêu cầu code -> Phải bị phát hiện
