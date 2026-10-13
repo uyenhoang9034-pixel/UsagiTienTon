@@ -137,7 +137,7 @@ async function tryCallGeminiModel(model, payload, apiKey) {
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     const response = await axios.post(url, payload, {
-      timeout: 5000, // Tối đa 5s để bot luôn phản hồi tức thì
+      timeout: 16000, // Đủ thời gian cho Gemini sinh xong nội dung (thường mất 5-8s)
       headers: { 'Content-Type': 'application/json' },
     });
 
@@ -179,7 +179,7 @@ async function callOpenAIAPI(prompt, history = []) {
       max_tokens: 2048,
     },
     {
-      timeout: 30000,
+      timeout: 20000,
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
@@ -195,23 +195,14 @@ async function callOpenAIAPI(prompt, history = []) {
  * Tích hợp cơ chế kép: Thử POST nhanh, nếu bị nghẽn thì tự động Fallback sang GET
  */
 async function callPollinationsAI(prompt, history = []) {
-  // Chỉ lấy tối đa 6 lượt hội thoại gần nhất để tránh phình to payload gây chậm trễ
-  const recentHistory = history.slice(-6);
-
-  const messages = [
-    { role: 'system', content: AI_CONFIG.systemPrompt },
-    ...recentHistory.map((m) => ({ role: m.role, content: m.content })),
-    { role: 'user', content: prompt },
-  ];
-
-  // 1. Thử gọi GET trực tiếp với model=openai (phản hồi siêu nhanh qua CDN ~1-2s)
+  // 1. Thử gọi GET trực tiếp với model=openai (nhanh gọn qua CDN)
   try {
     const encodedPrompt = encodeURIComponent(String(prompt || '').slice(0, 500));
     const shortSystem = encodeURIComponent('Ban la em bot Usagi mup rup xeo sac tren Discord, xưng em, goi bac');
     const getUrl = `https://text.pollinations.ai/${encodedPrompt}?system=${shortSystem}&model=openai`;
 
     const getResponse = await axios.get(getUrl, {
-      timeout: 5000,
+      timeout: 15000,
       headers: {
         'User-Agent': 'UsagiTienTonBot/2.1 (Discord Bot)',
       },
@@ -226,6 +217,13 @@ async function callPollinationsAI(prompt, history = []) {
 
   // 2. Fallback sang POST nếu GET gặp sự cố
   try {
+    const recentHistory = history.slice(-4);
+    const messages = [
+      { role: 'system', content: AI_CONFIG.systemPrompt },
+      ...recentHistory.map((m) => ({ role: m.role, content: m.content })),
+      { role: 'user', content: prompt },
+    ];
+
     const response = await axios.post(
       'https://text.pollinations.ai/',
       {
@@ -234,7 +232,7 @@ async function callPollinationsAI(prompt, history = []) {
         temperature: 0.7,
       },
       {
-        timeout: 6000,
+        timeout: 15000,
         headers: {
           'Content-Type': 'application/json',
           'User-Agent': 'UsagiTienTonBot/2.1 (Discord Bot)',
