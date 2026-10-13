@@ -4,6 +4,7 @@ import {
   Client,
   Collection,
   GatewayIntentBits,
+  Options,
   Partials,
   Routes,
 } from 'discord.js';
@@ -27,7 +28,7 @@ import {
   loadCommands,
   registerCommands as registerSlashCommands,
 } from './handlers/loaders/commandLoader.js';
-import { getTTSAudioBuffer } from './services/tts/ttsManager.js';
+import { getTTSAudioBuffer, deleteTTSAudio } from './services/tts/ttsManager.js';
 
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -50,6 +51,24 @@ class UsagiTienTonBot extends Client {
         Partials.Reaction,
         Partials.User,
       ],
+      // 🚀 Tối ưu RAM cho Discord.js: Hạn chế cache không cần thiết và tự động dọn rác bộ nhớ
+      makeCache: Options.cacheWithLimits({
+        ...Options.DefaultMakeCacheSettings,
+        MessageManager: 25, // Chỉ giữ tối đa 25 tin nhắn/kênh thay vì 200 (giảm ~80% RAM tin nhắn)
+        PresenceManager: 0, // Không cache presence (tiết kiệm RAM lớn)
+        StageInstanceManager: 0,
+        AutoModerationRuleManager: 0,
+        GuildScheduledEventManager: 0,
+        ReactionUserManager: 0,
+        ThreadManager: 10,
+      }),
+      sweepers: {
+        ...Options.DefaultSweeperSettings,
+        messages: {
+          interval: 300, // Cứ mỗi 5 phút quét dọn tin nhắn cũ
+          lifetime: 600, // Giải phóng tin nhắn cũ hơn 10 phút khỏi RAM
+        },
+      },
     });
 
     this.config = config;
@@ -198,7 +217,12 @@ class UsagiTienTonBot extends Client {
       }
       res.setHeader('Content-Type', 'audio/mpeg');
       res.setHeader('Content-Length', item.buffer.length);
-      return res.end(item.buffer);
+      res.end(item.buffer);
+
+      // Giải phóng bộ nhớ đệm TTS sớm sau 5 giây khi client/player đã tải xong
+      setTimeout(() => {
+        deleteTTSAudio(req.params.id);
+      }, 5_000);
     });
 
     this.webServer = app.listen(port, host, () => {
@@ -262,5 +286,14 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (error) => {
   logger.error('Unhandled rejection:', error);
 });
+
+// Nếu runtime có cờ --expose-gc, tự động dọn rác bộ nhớ (GC) định kỳ mỗi 15 phút
+if (typeof global.gc === 'function') {
+  setInterval(() => {
+    try {
+      global.gc();
+    } catch {}
+  }, 15 * 60 * 1000);
+}
 
 bot.start();

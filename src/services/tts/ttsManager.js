@@ -6,12 +6,20 @@ import { synthesizeSpeech } from './ttsAudioEngine.js';
 import { getVoiceById, getDefaultVoice } from './ttsVoices.js';
 
 const ttsAudioCache = new Map();
+const MAX_TTS_CACHE_ITEMS = 15;
+const TTS_CACHE_TTL_MS = 45_000;
 
 export function cacheTTSAudio(id, buffer) {
-  ttsAudioCache.set(id, { buffer, expiresAt: Date.now() + 120_000 });
+  // Giới hạn số lượng buffer âm thanh trong RAM để tránh phình bộ nhớ
+  if (ttsAudioCache.size >= MAX_TTS_CACHE_ITEMS) {
+    const oldestKey = ttsAudioCache.keys().next().value;
+    if (oldestKey) ttsAudioCache.delete(oldestKey);
+  }
+
+  ttsAudioCache.set(id, { buffer, expiresAt: Date.now() + TTS_CACHE_TTL_MS });
   setTimeout(() => {
     ttsAudioCache.delete(id);
-  }, 120_000);
+  }, TTS_CACHE_TTL_MS);
 }
 
 export function getTTSAudioBuffer(id) {
@@ -21,6 +29,10 @@ export function getTTSAudioBuffer(id) {
     return null;
   }
   return item;
+}
+
+export function deleteTTSAudio(id) {
+  ttsAudioCache.delete(id);
 }
 
 export const TTS_MANAGER_ROLE_ID = '1545305594712432640';

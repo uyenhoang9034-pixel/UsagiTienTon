@@ -25,10 +25,8 @@ export default {
 
       // Thử phát thử 1 câu ngắn bằng giọng mới để người dùng nghe thử
       let sampleText = `Em đã đổi sang giọng ${voice.name} rồi nha!`;
-      if (voice.id === 'ja-JP-AoiNeural') {
-        sampleText = 'Ara ara~ Em đã đổi sang giọng Aoi quyến rũ cho vợ của Kim Nong rồi nha~';
-      } else if (voice.id === 'ja-JP-MayuNeural') {
-        sampleText = 'Ah... Em đã đổi sang giọng Mayu nũng nịu ướt át cho vợ của Kim Nong rồi nè...';
+      if (voice.id === 'ja-JP-NanamiNeural') {
+        sampleText = 'Konnichiwa~ Em đã đổi sang giọng Nanami Kawaii cho vợ của Kim Nong rồi nha!';
       } else if (voice.id === 'vi-VN-AnimeWaifu') {
         sampleText = 'Onii-chan~ Em đã đổi sang giọng Anime Waifu siêu cấp dễ thương rồi nè!';
       } else if (voice.id === 'de-DE-KatjaNeural') {
