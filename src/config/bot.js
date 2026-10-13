@@ -70,6 +70,11 @@ export const botConfig = {
   features: {
     music: true,
     cultivation: true,
+    ai: true,
+  },
+
+  aiChat: {
+    channelId: process.env.AI_CHAT_CHANNEL_ID || '1542899821189267516',
   },
 };
 

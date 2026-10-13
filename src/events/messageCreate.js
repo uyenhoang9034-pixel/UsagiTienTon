@@ -10,6 +10,7 @@ import { resolveCommandAlias } from '../config/commands/commandAliases.js';
 import { getCommandPrefix } from '../config/bot.js';
 import { handleTTSMessage } from '../services/tts/ttsManager.js';
 import { handleMarriageMention } from '../services/marriageMentionTracker.js';
+import { handleAIChatMessage } from '../services/ai/aiChatManager.js';
 
 const MUSIC_PREFIX_SHORTCUTS = new Map([
   ['leave', 'leave'],
@@ -30,6 +31,15 @@ export default {
   async execute(message, client) {
     if (message.author?.bot || !message.guild) {
       return;
+    }
+
+    try {
+      const handledByAI = await handleAIChatMessage(message, client);
+      if (handledByAI) {
+        return;
+      }
+    } catch (aiError) {
+      logger.error('Error handling AI chat message:', aiError);
     }
 
     try {
