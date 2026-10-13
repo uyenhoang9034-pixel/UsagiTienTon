@@ -85,11 +85,22 @@ export default {
 
     // 3. Nút mở bảng chọn giọng
     if (action === 'open_voices') {
+      const isManager = hasTTSManagePermission(interaction.member);
+      if (session && !isManager && ttsManager.hasUserChangedVoice(guildId, interaction.user.id)) {
+        return interaction.reply({
+          content:
+            '❌ Dạ trong phòng voice này bạn đã đổi giọng 1 lần rồi nha! Để tránh spam làm lag em bot Usagi, chỉ có role Quản lý/Admin mới được đổi giọng liên tục thôi ạ 🐰💕',
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
       const currentVoiceId = session ? session.voiceId : null;
       const selectMenuRow = buildVoiceSelectMenu(guildId, currentVoiceId);
 
       return interaction.reply({
-        content: '🗣️ Vợ của Kim Nong hãy chọn giọng đọc em sẽ dùng ở menu bên dưới nha:',
+        content: isManager
+          ? '🗣️ Vợ của Kim Nong hãy chọn giọng đọc em sẽ dùng ở menu bên dưới nha (Admin đổi thoải mái):'
+          : '🗣️ Hãy chọn giọng đọc em sẽ dùng ở menu bên dưới nha (bạn chỉ được đổi 1 lần trong phòng voice này):',
         components: [selectMenuRow],
         flags: MessageFlags.Ephemeral,
       });

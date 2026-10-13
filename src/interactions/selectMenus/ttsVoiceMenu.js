@@ -1,6 +1,9 @@
 import { MessageFlags } from 'discord.js';
 import { logger } from '../../utils/logger.js';
-import { ttsManager } from '../../services/tts/ttsManager.js';
+import {
+  ttsManager,
+  hasTTSManagePermission,
+} from '../../services/tts/ttsManager.js';
 import { getVoiceById } from '../../services/tts/ttsVoices.js';
 
 export default {
@@ -21,7 +24,21 @@ export default {
     const session = ttsManager.getSession(guildId);
 
     if (session) {
+      const isManager = hasTTSManagePermission(interaction.member);
+
+      // Nếu không phải role Quản lý/Admin, chỉ được đổi giọng 1 lần duy nhất trong phòng voice này
+      if (!isManager && ttsManager.hasUserChangedVoice(guildId, interaction.user.id)) {
+        return interaction.reply({
+          content:
+            '❌ Dạ trong phòng voice này bạn đã đổi giọng 1 lần rồi nha! Để tránh spam làm lag em bot Usagi, chỉ có role Quản lý/Admin mới được đổi giọng liên tục thôi ạ 🐰💕',
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
       ttsManager.setVoice(guildId, voice.id);
+      if (!isManager) {
+        ttsManager.recordUserVoiceChange(guildId, interaction.user.id);
+      }
 
       // Thử phát thử 1 câu ngắn bằng giọng mới để người dùng nghe thử
       let sampleText = `Em đã đổi sang giọng ${voice.name} rồi nha!`;

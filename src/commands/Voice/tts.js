@@ -361,11 +361,24 @@ export default {
       if (subcommand === 'giong') {
         const session = ttsManager.getSession(guild.id);
         const chosenVoiceId = interaction.options.getString('chon_giong');
+        const isManager = hasTTSManagePermission(member);
+
+        // Kiểm tra nếu là role everyone thì chỉ được đổi 1 lần duy nhất trong phòng voice hiện tại
+        if (session && !isManager && ttsManager.hasUserChangedVoice(guild.id, member.id)) {
+          return interaction.reply({
+            content:
+              '❌ Dạ trong phòng voice này bạn đã đổi giọng 1 lần rồi nha! Để tránh spam làm lag em bot Usagi, chỉ có role Quản lý/Admin mới được đổi giọng liên tục thôi ạ 🐰💕',
+            flags: MessageFlags.Ephemeral,
+          });
+        }
 
         if (chosenVoiceId) {
           const newVoice = getVoiceById(chosenVoiceId);
           if (session) {
             ttsManager.setVoice(guild.id, newVoice.id);
+            if (!isManager) {
+              ttsManager.recordUserVoiceChange(guild.id, member.id);
+            }
           }
 
           return interaction.reply({
@@ -381,7 +394,7 @@ export default {
           .setColor(USAGI_COLOR)
           .setTitle('🗣️ Bảng Chọn Giọng Đọc Cho Em Usagi')
           .setDescription(
-            `Vợ của Kim Nong hãy chọn một giọng đọc ở menu bên dưới nha! Em có đầy đủ giọng Việt chuẩn tự nhiên (Hoài My, Nam Minh, TikTok, Google) và các thứ tiếng Anh, Nhật anime waifu, Hàn, Trung, Pháp... siêu xịn luôn á! 💕`,
+            `Vợ của Kim Nong hãy chọn một giọng đọc ở menu bên dưới nha! Em có các giọng Việt chuẩn mượt mà (Hoài My, Nam Minh, Google, Anime Waifu) và tiếng Nhật Anime Kawaii Nanami siêu cưng luôn á! 💕`,
           )
           .setFooter({ text: 'Em bot Usagi múp rụp luôn sẵn sàng phục vụ!' });
 

@@ -47,9 +47,15 @@ export function hasTTSManagePermission(member) {
   if (!member) return false;
   if (member.guild?.ownerId && member.id === member.guild.ownerId) return true;
   if (member.permissions?.has?.(PermissionFlagsBits.Administrator)) return true;
+  if (member.permissions?.has?.(PermissionFlagsBits.ManageGuild)) return true;
 
   if (member.roles?.cache?.has?.(TTS_MANAGER_ROLE_ID)) return true;
   if (Array.isArray(member.roles) && member.roles.includes(TTS_MANAGER_ROLE_ID)) return true;
+
+  const hasAdminRole = member.roles?.cache?.some?.((r) =>
+    /^(admin|administrator|quản lý|quản trị viên|quan ly|quan tri vien)$/i.test(r.name?.trim())
+  );
+  if (hasAdminRole) return true;
 
   return false;
 }
@@ -389,6 +395,7 @@ class TTSManager {
         idleTimer: null,
         aloneTimer: null,
         createdAt: Date.now(),
+        voiceChangedUsers: new Set(),
       };
 
       player.on(voice.AudioPlayerStatus.Idle, () => {
@@ -472,6 +479,7 @@ class TTSManager {
         idleTimer: null,
         aloneTimer: null,
         createdAt: Date.now(),
+        voiceChangedUsers: new Set(),
       };
 
       this.sessions.set(guild.id, session);
@@ -481,6 +489,26 @@ class TTSManager {
 
     // Nếu cả 2 đều không thành công, quăng lỗi chi tiết
     throw directVoiceError || new Error('Không thể khởi tạo kết nối âm thanh trong phòng voice.');
+  }
+
+  /**
+   * Kiểm tra xem người dùng đã đổi giọng trong phiên voice hiện tại chưa
+   */
+  hasUserChangedVoice(guildId, userId) {
+    const session = this.getSession(guildId);
+    if (!session || !session.voiceChangedUsers) return false;
+    return session.voiceChangedUsers.has(userId);
+  }
+
+  /**
+   * Ghi nhận người dùng đã sử dụng lượt đổi giọng trong phiên voice hiện tại
+   */
+  recordUserVoiceChange(guildId, userId) {
+    const session = this.getSession(guildId);
+    if (session) {
+      if (!session.voiceChangedUsers) session.voiceChangedUsers = new Set();
+      session.voiceChangedUsers.add(userId);
+    }
   }
 
   /**
