@@ -150,42 +150,75 @@ async function callOpenAIAPI(prompt, history = []) {
 
 /**
  * Gọi Pollinations AI (Miễn phí 100%, không cần API key, tốc độ cao)
+ * Tích hợp cơ chế kép: Thử POST nhanh, nếu bị nghẽn thì tự động Fallback sang GET
  */
 async function callPollinationsAI(prompt, history = []) {
-  const url = 'https://text.pollinations.ai/';
+  // Chỉ lấy tối đa 6 lượt hội thoại gần nhất để tránh phình to payload gây chậm trễ
+  const recentHistory = history.slice(-6);
 
   const messages = [
     { role: 'system', content: AI_CONFIG.systemPrompt },
-    ...history.map((m) => ({ role: m.role, content: m.content })),
+    ...recentHistory.map((m) => ({ role: m.role, content: m.content })),
     { role: 'user', content: prompt },
   ];
 
-  const response = await axios.post(
-    url,
-    {
-      messages,
-      model: 'openai',
-      temperature: 0.7,
-    },
-    {
+  // 1. Thử gọi qua phương thức POST (mặc định model nhẹ, phản hồi 2-4s)
+  try {
+    const response = await axios.post(
+      'https://text.pollinations.ai/',
+      {
+        messages,
+        temperature: 0.7,
+      },
+      {
+        timeout: 45000,
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'UsagiTienTonBot/2.1 (Discord Bot)',
+        },
+      },
+    );
+
+    if (typeof response.data === 'string' && response.data.trim()) {
+      return response.data;
+    }
+
+    if (response.data?.content) {
+      return response.data.content;
+    }
+
+    if (response.data?.choices?.[0]?.message?.content) {
+      return response.data.choices[0].message.content;
+    }
+
+    if (String(response.data || '').trim()) {
+      return String(response.data);
+    }
+  } catch (postError) {
+    logger.warn('[AI Text] Pollinations POST failed or timed out, trying GET fallback:', postError.message);
+  }
+
+  // 2. Fallback sang phương thức GET trực tiếp nếu POST bị nghẽn mạng
+  try {
+    const encodedPrompt = encodeURIComponent(prompt);
+    const encodedSystem = encodeURIComponent(AI_CONFIG.systemPrompt);
+    const getUrl = `https://text.pollinations.ai/${encodedPrompt}?system=${encodedSystem}`;
+
+    const getResponse = await axios.get(getUrl, {
       timeout: 35000,
-      headers: { 'Content-Type': 'application/json' },
-    },
-  );
+      headers: {
+        'User-Agent': 'UsagiTienTonBot/2.1 (Discord Bot)',
+      },
+    });
 
-  if (typeof response.data === 'string') {
-    return response.data;
+    if (typeof getResponse.data === 'string' && getResponse.data.trim()) {
+      return getResponse.data;
+    }
+  } catch (getError) {
+    logger.error('[AI Text] Pollinations GET also failed:', getError.message);
   }
 
-  if (response.data?.content) {
-    return response.data.content;
-  }
-
-  if (response.data?.choices?.[0]?.message?.content) {
-    return response.data.choices[0].message.content;
-  }
-
-  return String(response.data || '');
+  return null;
 }
 
 function prepareCleanHistory(history = []) {

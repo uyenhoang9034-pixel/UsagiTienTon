@@ -1,3 +1,4 @@
+
 export const AI_CONFIG = {
   // Kênh chat AI cố định theo yêu cầu của vợ của Kim Nong
   channelId: process.env.AI_CHAT_CHANNEL_ID || '1542899821189267516',
