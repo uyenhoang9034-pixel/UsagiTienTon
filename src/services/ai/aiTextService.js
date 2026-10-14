@@ -191,6 +191,43 @@ async function tryCallGeminiModel(model, payload, apiKey) {
   return { success: false, quotaExceeded: false };
 }
 
+let cachedGroqModels = null;
+
+async function getAvailableGroqModel(apiKey) {
+  if (process.env.GROQ_MODEL) return process.env.GROQ_MODEL;
+  if (cachedGroqModels && cachedGroqModels.length > 0) return cachedGroqModels[0];
+
+  try {
+    const res = await axios.get('https://api.groq.com/openai/v1/models', {
+      timeout: 5000,
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    const models = (res.data?.data || [])
+      .map((m) => m.id)
+      .filter((id) => !id.includes('whisper') && !id.includes('vision') && !id.includes('guard'));
+
+    logger.info(`[AI Text] Auto-discovered Groq models: ${models.slice(0, 5).join(', ')}`);
+
+    // Danh sách ưu tiên theo chuẩn cập nhật mới nhất của Groq
+    const preferred = [
+      'openai/gpt-oss-120b',
+      'qwen/qwen3.6-27b',
+      'openai/gpt-oss-20b',
+      'llama-3.3-70b-versatile',
+      'llama-3.1-8b-instant',
+    ];
+
+    const selected = preferred.find((p) => models.includes(p)) || models[0];
+    if (selected) {
+      cachedGroqModels = [selected];
+      return selected;
+    }
+  } catch (err) {
+    logger.warn('[AI Text] Failed to auto-discover Groq models:', err.message);
+  }
+  return 'openai/gpt-oss-120b';
+}
+
 /**
  * Gọi Groq API (Miễn phí 100%, 14.400 request/ngày, tốc độ cực nhanh < 1s)
  */
@@ -200,6 +237,7 @@ async function callGroqAPI(prompt, history = []) {
     .replace(/^["']|["']$/g, '');
   if (!apiKey) return null;
 
+  const model = await getAvailableGroqModel(apiKey);
   const url = 'https://api.groq.com/openai/v1/chat/completions';
   const recentHistory = history.slice(-6);
   const messages = [
@@ -212,7 +250,7 @@ async function callGroqAPI(prompt, history = []) {
     const response = await axios.post(
       url,
       {
-        model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+        model,
         messages,
         temperature: 0.7,
         max_tokens: 2048,
@@ -228,12 +266,13 @@ async function callGroqAPI(prompt, history = []) {
 
     const text = response.data?.choices?.[0]?.message?.content;
     if (text) {
-      logger.info('[AI Text] Groq LLaMA 3.3 70B responded successfully ✅');
+      logger.info(`[AI Text] Groq model ${model} responded successfully ✅`);
       return text;
     }
   } catch (err) {
     const errMsg = err.response?.data?.error?.message || err.message;
-    logger.warn(`[AI Text] Groq API failed: ${errMsg}`);
+    logger.warn(`[AI Text] Groq API (${model}) failed: ${errMsg}`);
+    cachedGroqModels = null; // Xóa cache để lần sau tự dò model khác
   }
   return null;
 }
