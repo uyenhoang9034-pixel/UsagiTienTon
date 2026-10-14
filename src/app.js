@@ -180,10 +180,14 @@ class UsagiTienTonBot extends Client {
         `ONLINE ✅ | ${this.commands.size} commands | ${this.buttons.size} buttons | ${this.selectMenus.size} menus`,
       );
 
-      const hasGemini = Boolean(String(process.env.GEMINI_API_KEY || '').trim());
-      startupLog(
-        `AI Engine: ${hasGemini ? 'Google Gemini (GEMINI_API_KEY OK) ✅' : 'Free AI Engine (Chưa nhận GEMINI_API_KEY trên Railway) ⚠️'}`,
-      );
+      const engines = [];
+      if (process.env.GROQ_API_KEY) engines.push('Groq ⚡');
+      if (process.env.GEMINI_API_KEY) engines.push('Google Gemini 🌟');
+      if (process.env.OPENROUTER_API_KEY) engines.push('OpenRouter 🌐');
+      if (process.env.OPENAI_API_KEY) engines.push('OpenAI 🧠');
+      engines.push('Pollinations Backup 🛡️');
+
+      startupLog(`AI Engines Active: ${engines.join(' -> ')} ✅`);
     } catch (error) {
       logger.error('Failed to start Usagi Tiên Tôn:', error);
       process.exit(1);

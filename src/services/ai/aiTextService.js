@@ -67,14 +67,41 @@ export function cleanDialoguePrefix(responseText = '') {
   return text.trim();
 }
 
+// Bộ nhớ đệm lưu các API key / model Gemini bị hết hạn mức (Quota Exceeded) để tránh gọi lặp lại làm treo bot
+const blockedGeminiKeys = new Map();
+
+function isGeminiKeyBlocked(key) {
+  const unblockAt = blockedGeminiKeys.get(key);
+  if (!unblockAt) return false;
+  if (Date.now() > unblockAt) {
+    blockedGeminiKeys.delete(key);
+    return false;
+  }
+  return true;
+}
+
+function blockGeminiKey(key, durationMs = 60 * 60 * 1000) {
+  blockedGeminiKeys.set(key, Date.now() + durationMs);
+}
+
 /**
- * Gọi Gemini API chính thức nếu có GEMINI_API_KEY
+ * Gọi Gemini API chính thức với hỗ trợ xoay vòng nhiều key (key1, key2...) và tự động bỏ qua key hết quota
  */
 async function callGeminiAPI(prompt, history = []) {
-  const apiKey = String(process.env.GEMINI_API_KEY || '')
-    .trim()
-    .replace(/^["']|["']$/g, '');
-  if (!apiKey) return null;
+  const rawKeyString = String(process.env.GEMINI_API_KEY || '').trim();
+  if (!rawKeyString) return null;
+
+  // Hỗ trợ cấu hình nhiều key cách nhau bởi dấu phẩy hoặc chấm phẩy
+  const apiKeys = rawKeyString
+    .split(/[,;\n]+/)
+    .map((k) => k.trim().replace(/^["']|["']$/g, ''))
+    .filter(Boolean);
+
+  const availableKeys = apiKeys.filter((k) => !isGeminiKeyBlocked(k));
+  if (availableKeys.length === 0) {
+    logger.warn('[AI Text] Tất cả GEMINI_API_KEY hiện tại đều đã hết hạn mức (Quota Exceeded), chuyển sang AI dự phòng...');
+    return null;
+  }
 
   const rawContents = [];
 
@@ -120,14 +147,21 @@ async function callGeminiAPI(prompt, history = []) {
     },
   };
 
-  // Chỉ giữ 2 model chính thức đang hoạt động ổn định nhất của Google (2026):
-  // 1. gemini-3.8-flash: Model thế hệ mới chuẩn xác
-  // 2. gemini-3.5-flash-lite: Model siêu tốc độ, dự phòng khi 3.8 gặp đợt nghẽn tải
   const activeModels = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'];
 
-  for (const model of activeModels) {
-    const text = await tryCallGeminiModel(model, payload, apiKey);
-    if (text) return text;
+  for (const apiKey of availableKeys) {
+    for (const model of activeModels) {
+      const result = await tryCallGeminiModel(model, payload, apiKey);
+      if (result.success) {
+        return result.text;
+      }
+      if (result.quotaExceeded) {
+        // Khóa key này lại 1 giờ để không spam tiếp
+        logger.warn(`[AI Text] Gemini key ${apiKey.slice(0, 6)}... hết hạn mức (Quota Exceeded). Đang tự động chuyển sang nguồn khác.`);
+        blockGeminiKey(apiKey, 60 * 60 * 1000);
+        break; // Chuyển sang key tiếp theo
+      }
+    }
   }
 
   return null;
@@ -137,18 +171,118 @@ async function tryCallGeminiModel(model, payload, apiKey) {
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     const response = await axios.post(url, payload, {
-      timeout: 16000, // Đủ thời gian cho Gemini sinh xong nội dung (thường mất 5-8s)
+      timeout: 10000, // Tối đa 10s cho mỗi lần gọi
       headers: { 'Content-Type': 'application/json' },
     });
 
     const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
     if (text) {
       logger.info(`[AI Text] Gemini model ${model} responded successfully ✅`);
+      return { success: true, text };
+    }
+  } catch (err) {
+    const errMsg = err.response?.data?.error?.message || err.message;
+    const isQuota = /quota|rate.limit|resource.has.been.exhausted|limit:\s*\d+/i.test(errMsg);
+    logger.warn(`[AI Text] Gemini (${model}) failed: ${errMsg}`);
+    if (isQuota) {
+      return { success: false, quotaExceeded: true };
+    }
+  }
+  return { success: false, quotaExceeded: false };
+}
+
+/**
+ * Gọi Groq API (Miễn phí 100%, 14.400 request/ngày, tốc độ cực nhanh < 1s)
+ */
+async function callGroqAPI(prompt, history = []) {
+  const apiKey = String(process.env.GROQ_API_KEY || '')
+    .trim()
+    .replace(/^["']|["']$/g, '');
+  if (!apiKey) return null;
+
+  const url = 'https://api.groq.com/openai/v1/chat/completions';
+  const recentHistory = history.slice(-6);
+  const messages = [
+    { role: 'system', content: AI_CONFIG.systemPrompt },
+    ...recentHistory.map((m) => ({ role: m.role, content: m.content })),
+    { role: 'user', content: prompt },
+  ];
+
+  try {
+    const response = await axios.post(
+      url,
+      {
+        model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+        messages,
+        temperature: 0.7,
+        max_tokens: 2048,
+      },
+      {
+        timeout: 10000,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+      },
+    );
+
+    const text = response.data?.choices?.[0]?.message?.content;
+    if (text) {
+      logger.info('[AI Text] Groq LLaMA 3.3 70B responded successfully ✅');
       return text;
     }
   } catch (err) {
     const errMsg = err.response?.data?.error?.message || err.message;
-    logger.warn(`[AI Text] Gemini (${model}) failed: ${errMsg}`);
+    logger.warn(`[AI Text] Groq API failed: ${errMsg}`);
+  }
+  return null;
+}
+
+/**
+ * Gọi OpenRouter API (Hỗ trợ các model free không giới hạn)
+ */
+async function callOpenRouterAPI(prompt, history = []) {
+  const apiKey = String(process.env.OPENROUTER_API_KEY || '')
+    .trim()
+    .replace(/^["']|["']$/g, '');
+  if (!apiKey) return null;
+
+  const url = 'https://openrouter.ai/api/v1/chat/completions';
+  const recentHistory = history.slice(-6);
+  const messages = [
+    { role: 'system', content: AI_CONFIG.systemPrompt },
+    ...recentHistory.map((m) => ({ role: m.role, content: m.content })),
+    { role: 'user', content: prompt },
+  ];
+
+  try {
+    const response = await axios.post(
+      url,
+      {
+        model: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
+        messages,
+        temperature: 0.7,
+        max_tokens: 2048,
+      },
+      {
+        timeout: 12000,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+          'HTTP-Referer': 'https://github.com/uyenhoang9034-pixel/UsagiTienTon',
+          'X-Title': 'Usagi Tiên Tôn Bot',
+        },
+      },
+    );
+
+    const text = response.data?.choices?.[0]?.message?.content;
+    if (text) {
+      logger.info('[AI Text] OpenRouter responded successfully ✅');
+      return text;
+    }
+  } catch (err) {
+    const errMsg = err.response?.data?.error?.message || err.message;
+    logger.warn(`[AI Text] OpenRouter API failed: ${errMsg}`);
   }
   return null;
 }
@@ -191,20 +325,23 @@ async function callOpenAIAPI(prompt, history = []) {
 }
 
 /**
- * Gọi Pollinations AI (Miễn phí 100%, không cần API key, tốc độ cao)
- * Tích hợp cơ chế kép: Thử POST nhanh, nếu bị nghẽn thì tự động Fallback sang GET
+ * Gọi Pollinations AI (Miễn phí 100%, không cần API key)
  */
 async function callPollinationsAI(prompt, history = []) {
-  // 1. Thử gọi GET trực tiếp với model=openai (nhanh gọn qua CDN)
+  // 1. Thử gọi GET trực tiếp (loại bỏ ký tự ? / # gây treo router CDN)
   try {
-    const encodedPrompt = encodeURIComponent(String(prompt || '').slice(0, 500));
-    const shortSystem = encodeURIComponent('Ban la em bot Usagi mup rup xeo sac tren Discord, xưng em, goi bac');
-    const getUrl = `https://text.pollinations.ai/${encodedPrompt}?system=${shortSystem}&model=openai`;
+    const safePrompt = String(prompt || '')
+      .replace(/[/?#%&=]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 300);
+
+    const getUrl = `https://text.pollinations.ai/${encodeURIComponent(safePrompt)}?model=openai-fast`;
 
     const getResponse = await axios.get(getUrl, {
-      timeout: 15000,
+      timeout: 8000,
       headers: {
-        'User-Agent': 'UsagiTienTonBot/2.1 (Discord Bot)',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
       },
     });
 
@@ -212,10 +349,10 @@ async function callPollinationsAI(prompt, history = []) {
       return getResponse.data;
     }
   } catch (getError) {
-    logger.warn('[AI Text] Pollinations GET failed, trying POST fallback:', getError.message);
+    logger.warn(`[AI Text] Pollinations GET failed: ${getError.message}`);
   }
 
-  // 2. Fallback sang POST nếu GET gặp sự cố
+  // 2. Fallback sang POST
   try {
     const recentHistory = history.slice(-4);
     const messages = [
@@ -228,14 +365,14 @@ async function callPollinationsAI(prompt, history = []) {
       'https://text.pollinations.ai/',
       {
         messages,
-        model: 'openai',
+        model: 'openai-fast',
         temperature: 0.7,
       },
       {
-        timeout: 15000,
+        timeout: 8000,
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': 'UsagiTienTonBot/2.1 (Discord Bot)',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
         },
       },
     );
@@ -256,7 +393,7 @@ async function callPollinationsAI(prompt, history = []) {
       return String(response.data);
     }
   } catch (postError) {
-    logger.error('[AI Text] Pollinations POST also failed:', postError.message);
+    logger.error(`[AI Text] Pollinations POST also failed: ${postError.message}`);
   }
 
   return null;
@@ -286,8 +423,18 @@ export async function generateAIResponse(prompt, history = []) {
   let answer = null;
   let providerUsed = 'unknown';
 
-  // 2. Thử Gemini API nếu có key
-  if (process.env.GEMINI_API_KEY) {
+  // 2. Thử Groq API nếu có GROQ_API_KEY (Siêu tốc < 1s, miễn phí 14.400 request/ngày)
+  if (!answer && process.env.GROQ_API_KEY) {
+    try {
+      answer = await callGroqAPI(prompt, cleanHistory);
+      if (answer) providerUsed = 'groq';
+    } catch (err) {
+      logger.warn('[AI Text] Groq API call failed, falling back:', err.message);
+    }
+  }
+
+  // 3. Thử Gemini API nếu có key (tự động bỏ qua key hết quota và xoay vòng sang key khác)
+  if (!answer && process.env.GEMINI_API_KEY) {
     try {
       answer = await callGeminiAPI(prompt, cleanHistory);
       if (answer) providerUsed = 'gemini';
@@ -296,7 +443,17 @@ export async function generateAIResponse(prompt, history = []) {
     }
   }
 
-  // 3. Thử OpenAI API nếu có key
+  // 4. Thử OpenRouter API nếu có OPENROUTER_API_KEY
+  if (!answer && process.env.OPENROUTER_API_KEY) {
+    try {
+      answer = await callOpenRouterAPI(prompt, cleanHistory);
+      if (answer) providerUsed = 'openrouter';
+    } catch (err) {
+      logger.warn('[AI Text] OpenRouter API call failed, falling back:', err.message);
+    }
+  }
+
+  // 5. Thử OpenAI API nếu có OPENAI_API_KEY
   if (!answer && process.env.OPENAI_API_KEY) {
     try {
       answer = await callOpenAIAPI(prompt, cleanHistory);
@@ -306,7 +463,7 @@ export async function generateAIResponse(prompt, history = []) {
     }
   }
 
-  // 4. Fallback sang Pollinations AI miễn phí
+  // 6. Fallback sang Pollinations AI miễn phí
   if (!answer) {
     try {
       answer = await callPollinationsAI(prompt, cleanHistory);
