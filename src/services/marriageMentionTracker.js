@@ -16,6 +16,16 @@ const MENTION_REACTION_EMOJI = MARRIAGE_CONFIG.mention.reactionEmoji;
 
 const mentionCooldownMap = new Map();
 
+// Tự động dọn dẹp các cặp đã hết hạn cooldown mỗi 10 phút để tránh rò rỉ RAM
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, timestamp] of mentionCooldownMap.entries()) {
+    if (now - timestamp > MENTION_COOLDOWN_MS) {
+      mentionCooldownMap.delete(key);
+    }
+  }
+}, 10 * 60 * 1000).unref();
+
 /**
  * Xử lý khi thành viên gửi tin nhắn có tag (@đối phương)
  * Nếu người được tag là bạn đời: cộng thêm +5 Điểm Thân Mật và thả reaction 💕

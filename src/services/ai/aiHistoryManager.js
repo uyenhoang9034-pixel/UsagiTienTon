@@ -6,9 +6,10 @@ class AIHistoryManager {
     this.histories = new Map();
     this.maxMessages = AI_CONFIG.history.maxMessages || 10;
     this.ttlMs = AI_CONFIG.history.ttlMs || 30 * 60 * 1000;
+    this.maxSessions = 50; // Giới hạn tối đa 50 phiên hội thoại cùng lúc trong RAM
 
-    // Định kỳ dọn rác bộ nhớ mỗi 10 phút để tối ưu RAM trên Railway
-    setInterval(() => this.cleanupExpired(), 10 * 60 * 1000).unref();
+    // Định kỳ dọn rác bộ nhớ mỗi 5 phút để tối ưu RAM trên Railway
+    setInterval(() => this.cleanupExpired(), 5 * 60 * 1000).unref();
   }
 
   getKey(channelId, userId) {
@@ -41,6 +42,12 @@ class AIHistoryManager {
     let entry = this.histories.get(key);
 
     if (!entry || Date.now() - entry.lastUpdated > this.ttlMs) {
+      // Nếu vượt giới hạn phiên cho phép, xóa phiên cũ nhất
+      if (this.histories.size >= this.maxSessions) {
+        const oldestKey = this.histories.keys().next().value;
+        if (oldestKey) this.histories.delete(oldestKey);
+      }
+
       entry = {
         messages: [],
         lastUpdated: Date.now(),

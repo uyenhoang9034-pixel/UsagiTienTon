@@ -78,9 +78,9 @@ export function resolveSslConfig() {
 
 function buildSharedPoolOptions() {
   return {
-    max: parseInteger(process.env.POSTGRES_MAX_CONNECTIONS, 10),
+    max: parseInteger(process.env.POSTGRES_MAX_CONNECTIONS, 5),
     min: parseInteger(process.env.POSTGRES_MIN_CONNECTIONS, 0),
-    idleTimeoutMillis: parseInteger(process.env.POSTGRES_IDLE_TIMEOUT, 30000),
+    idleTimeoutMillis: parseInteger(process.env.POSTGRES_IDLE_TIMEOUT, 15000),
     connectionTimeoutMillis: parseInteger(process.env.POSTGRES_CONNECTION_TIMEOUT, 10000),
     application_name: process.env.POSTGRES_APPLICATION_NAME || DEFAULT_APPLICATION_NAME,
     statement_timeout: process.env.NODE_ENV === 'production' ? 30000 : 0,
@@ -122,9 +122,9 @@ export const pgConfig = {
     password: String(process.env.POSTGRES_PASSWORD || ''),
     ssl: resolveSslConfig(),
 
-    max: parseInteger(process.env.POSTGRES_MAX_CONNECTIONS, 10),
+    max: parseInteger(process.env.POSTGRES_MAX_CONNECTIONS, 5),
     min: parseInteger(process.env.POSTGRES_MIN_CONNECTIONS, 0),
-    idleTimeoutMillis: parseInteger(process.env.POSTGRES_IDLE_TIMEOUT, 30000),
+    idleTimeoutMillis: parseInteger(process.env.POSTGRES_IDLE_TIMEOUT, 15000),
     connectionTimeoutMillis: parseInteger(process.env.POSTGRES_CONNECTION_TIMEOUT, 10000),
     application_name: process.env.POSTGRES_APPLICATION_NAME || DEFAULT_APPLICATION_NAME,
     statement_timeout: process.env.NODE_ENV === 'production' ? 30000 : 0,

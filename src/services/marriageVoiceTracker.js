@@ -19,6 +19,16 @@ const coupleVoiceMinutes = new Map();
 const marriageCheckCache = new Map();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 phút
 
+// Định kỳ quét dọn cache hôn nhân hết hạn mỗi 5 phút để giải phóng RAM
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of marriageCheckCache.entries()) {
+    if (now >= entry.expiresAt) {
+      marriageCheckCache.delete(key);
+    }
+  }
+}, CACHE_TTL_MS).unref();
+
 let voiceInterval = null;
 
 async function isPairMarriedWithCache(client, guildId, u1Id, u2Id) {

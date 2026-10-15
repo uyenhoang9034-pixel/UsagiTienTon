@@ -6,8 +6,18 @@ import { synthesizeSpeech } from './ttsAudioEngine.js';
 import { getVoiceById, getDefaultVoice } from './ttsVoices.js';
 
 const ttsAudioCache = new Map();
-const MAX_TTS_CACHE_ITEMS = 15;
-const TTS_CACHE_TTL_MS = 45_000;
+const MAX_TTS_CACHE_ITEMS = 5;
+const TTS_CACHE_TTL_MS = 20_000;
+
+// Định kỳ quét dọn buffer âm thanh quá hạn mỗi 15 giây
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, item] of ttsAudioCache.entries()) {
+    if (now >= item.expiresAt) {
+      ttsAudioCache.delete(id);
+    }
+  }
+}, 15_000).unref();
 
 export function cacheTTSAudio(id, buffer) {
   // Giới hạn số lượng buffer âm thanh trong RAM để tránh phình bộ nhớ
@@ -19,7 +29,7 @@ export function cacheTTSAudio(id, buffer) {
   ttsAudioCache.set(id, { buffer, expiresAt: Date.now() + TTS_CACHE_TTL_MS });
   setTimeout(() => {
     ttsAudioCache.delete(id);
-  }, TTS_CACHE_TTL_MS);
+  }, TTS_CACHE_TTL_MS).unref?.();
 }
 
 export function getTTSAudioBuffer(id) {
