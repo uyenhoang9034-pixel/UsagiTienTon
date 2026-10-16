@@ -14,7 +14,8 @@ import {
 } from './cultivationWorldBossUI.js';
 
 const WORLD_BOSS_PREFIX = 'games:cultivation:worldBoss:';
-const CHECK_INTERVAL_MS = 60_000;
+// Tăng lên 5 phút (300_000ms) để giảm tải CPU, REST API và Network Egress trên Railway
+const CHECK_INTERVAL_MS = 5 * 60_000;
 
 let timer = null;
 let running = false;
@@ -64,9 +65,9 @@ export async function deliverPendingWorldBossReward(client, guild, record) {
     return false;
   }
 
-  const thread = await guild.channels
-    .fetch(threadData.threadId)
-    .catch(() => null);
+  const thread =
+    guild.channels.cache.get(threadData.threadId) ||
+    (await guild.channels.fetch(threadData.threadId).catch(() => null));
 
   if (!thread?.isThread?.()) {
     logger.warn(

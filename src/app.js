@@ -328,13 +328,13 @@ if (typeof global.gc === 'function') {
     } catch {}
   }, 5 * 60 * 1000).unref();
 
-  // Memory Guard: Quét mỗi 30s, nếu heapUsed > 160MB hoặc RSS > 350MB thì lập tức cưỡng chế GC
+  // Memory Guard: Quét mỗi 30s, nếu heapUsed > 110MB hoặc RSS > 220MB thì lập tức cưỡng chế GC
   setInterval(() => {
     try {
       const mem = process.memoryUsage();
       const heapUsedMB = mem.heapUsed / 1024 / 1024;
       const rssMB = mem.rss / 1024 / 1024;
-      if (heapUsedMB > 160 || rssMB > 350) {
+      if (heapUsedMB > 110 || rssMB > 220) {
         global.gc();
         logger.warn(
           `[Memory Guard] Cưỡng chế GC do chạm ngưỡng RAM! HeapUsed: ${heapUsedMB.toFixed(1)}MB, RSS: ${rssMB.toFixed(1)}MB`,

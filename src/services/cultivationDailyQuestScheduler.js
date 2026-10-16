@@ -18,10 +18,12 @@ import {
 } from './cultivationAchievement.js';
 
 const THREAD_PREFIX = 'games:cultivation:thread:';
-const CHECK_INTERVAL_MS = 60_000;
+// Tăng lên 5 phút (300_000ms) để giảm tải CPU, REST API và Network Egress trên Railway
+const CHECK_INTERVAL_MS = 5 * 60_000;
 
 let timer = null;
 let running = false;
+const lastRenderedSignatures = new Map();
 
 async function reopenThread(thread) {
   try {
@@ -97,9 +99,12 @@ async function getThreadEntries(client, guild) {
 }
 
 async function processPlayer(client, guild, entry) {
-  const thread = await guild.channels
-    .fetch(entry.threadId)
-    .catch(() => null);
+  const playerKey = `${guild.id}:${entry.userId}`;
+
+  // Tận dụng cache của Discord.js trước khi gọi REST API để tiết kiệm băng thông và CPU
+  const thread =
+    guild.channels.cache.get(entry.threadId) ||
+    (await guild.channels.fetch(entry.threadId).catch(() => null));
 
   if (!thread?.isThread?.()) return;
 
@@ -125,6 +130,7 @@ async function processPlayer(client, guild, entry) {
       entry.userId,
       null,
     );
+    lastRenderedSignatures.delete(playerKey);
   }
 
   state = await syncDailyQuests(
@@ -157,15 +163,27 @@ async function processPlayer(client, guild, entry) {
         null,
       );
     }
+    lastRenderedSignatures.delete(playerKey);
     return;
   }
 
-  const member = await guild.members
-    .fetch(entry.userId)
-    .catch(() => null);
-  const user = member?.user || await client.users
-    .fetch(entry.userId)
-    .catch(() => null);
+  // Tạo signature ngắn gọn để phát hiện tiến độ nhiệm vụ có thay đổi không
+  const currentSignature = Array.isArray(state.quests)
+    ? state.quests.map((q) => `${q.id}:${q.progress}:${q.completed ? 1 : 0}`).join('|')
+    : '';
+
+  // 🚀 TỐI ƯU CỰC MẠNH: Nếu panel đã tồn tại và tiến độ chưa thay đổi, BỎ QUA không edit!
+  if (state.messageId && lastRenderedSignatures.get(playerKey) === currentSignature) {
+    return;
+  }
+
+  const member =
+    guild.members.cache.get(entry.userId) ||
+    (await guild.members.fetch(entry.userId).catch(() => null));
+  const user =
+    member?.user ||
+    client.users.cache.get(entry.userId) ||
+    (await client.users.fetch(entry.userId).catch(() => null));
 
   if (!user) return;
 
@@ -178,6 +196,7 @@ async function processPlayer(client, guild, entry) {
 
   if (message) {
     await message.edit(payload).catch(() => null);
+    lastRenderedSignatures.set(playerKey, currentSignature);
     await setThreadDailyQuestMessageId(
       client,
       guild.id,
@@ -195,6 +214,7 @@ async function processPlayer(client, guild, entry) {
   });
 
   if (message?.id) {
+    lastRenderedSignatures.set(playerKey, currentSignature);
     await setDailyQuestMessageId(
       client,
       guild.id,
