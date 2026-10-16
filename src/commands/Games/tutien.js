@@ -261,16 +261,15 @@ export default {
       }
 
       const member =
-        await interaction.guild.members.fetch(
-          interaction.user.id,
-        );
+        interaction.member ||
+        interaction.guild.members.cache.get(interaction.user.id) ||
+        (await interaction.guild.members.fetch(interaction.user.id).catch(() => null));
 
       const isCultivationAdmin =
         Boolean(
           CULTIVATION_CONFIG.adminRoleId &&
-          member.roles.cache.has(
-            CULTIVATION_CONFIG.adminRoleId,
-          ),
+          (member?.roles?.cache?.has?.(CULTIVATION_CONFIG.adminRoleId) ||
+            (Array.isArray(member?.roles) && member.roles.includes(CULTIVATION_CONFIG.adminRoleId))),
         );
 
       if (

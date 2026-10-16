@@ -639,6 +639,8 @@ export function setupPlayerHandler(
                 guildData.previousTracks =
                     [];
 
+                guildData.queuePages.clear();
+
                 guildData.autoPaused =
                     false;
 
