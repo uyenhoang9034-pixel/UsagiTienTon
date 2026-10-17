@@ -1,13 +1,11 @@
 /**
- * Command category metadata for Usagi Tiên Tôn.
- *
- * Repo này chỉ giữ Music + Tiên Lộ, nên các category cũ
- * như Economy / Ticket / Moderation / Giveaway... đã được bỏ.
+ * Command category metadata for Usagi Bot.
  */
 
 export const CATEGORY_ICONS = {
-  Games: '⚔️',
+  Games: '🎮',
   Music: '🎵',
+  Voice: '🎙️',
 };
 
 /**

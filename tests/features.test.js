@@ -21,20 +21,12 @@ const { loadCommands, registerCommands } = await import('../src/handlers/loaders
 const { default: loadEvents } = await import('../src/handlers/loaders/events.js');
 const { default: loadInteractions } = await import('../src/handlers/loaders/interactions.js');
 const { canControlMusic, requireVoiceChannel } = await import('../src/services/music/permissions.js');
-const { getCultivationProfile, saveCultivationProfile } = await import('../src/services/cultivationService.js');
+const { getUserMarriage, createMarriage } = await import('../src/services/marriageService.js');
 
 const EXPECTED_COMMANDS = [
-  'join',
-  'music',
-  'nowplaying',
-  'play',
-  'queue',
-  'tutien',
-  'tutienitem',
-  'tutienmode',
-  'tutientest',
-  'tutientranphap',
-  'tutientuvi',
+  'marry',
+  'tts',
+  'xoatinnhan',
 ];
 
 function createMockClient() {
@@ -72,7 +64,7 @@ function createMockClient() {
   return client;
 }
 
-test('loads only Music and Tiên Lộ commands, then serializes slash payloads', async () => {
+test('loads only active commands, then serializes slash payloads', async () => {
   const client = createMockClient();
 
   await loadCommands(client);
@@ -122,15 +114,21 @@ test('loads only scoped events and scoped interactions', async () => {
 
   await loadInteractions(client);
 
-  assert.ok(client.buttons.has('tutien_action'));
-  assert.ok(client.buttons.size > 1);
-  assert.ok(client.selectMenus.size > 0);
+  assert.ok(client.buttons.has('tts_button'));
+  assert.ok(client.selectMenus.has('tts_select_voice'));
   assert.equal(client.modals.size, 0);
+
+  for (const name of client.buttons.keys()) {
+    assert.ok(
+      name.startsWith('tts'),
+      `Unexpected non-scoped button loaded: ${name}`,
+    );
+  }
 
   for (const name of client.selectMenus.keys()) {
     assert.ok(
-      name.startsWith('tutien'),
-      `Unexpected non-Tiên Lộ select menu loaded: ${name}`,
+      name.startsWith('tts'),
+      `Unexpected non-scoped select menu loaded: ${name}`,
     );
   }
 });
@@ -155,7 +153,7 @@ test('music controls require the same voice channel', () => {
   );
 });
 
-test('cultivation keeps the stable database key and restores progress', async () => {
+test('marriage database persistence works correctly', async () => {
   const records = new Map();
 
   const db = {
@@ -163,37 +161,24 @@ test('cultivation keeps the stable database key and restores progress', async ()
     set: async (key, value) => records.set(key, structuredClone(value)),
   };
 
-  const original = await getCultivationProfile(
-    { db },
-    'guild',
-    'player',
+  const client = { db };
+
+  const success = await createMarriage(
+    client,
+    'guild123',
+    'userA',
+    'userB',
+    { bio: 'Yêu thương đong đầy 💕' },
   );
 
-  original.cultivation = 12345;
+  assert.equal(success, true);
+  assert.ok(records.has('games:marriage:profile:guild123:userA'));
+  assert.ok(records.has('games:marriage:profile:guild123:userB'));
 
-  await saveCultivationProfile(
-    { db },
-    original,
-  );
+  const marriageA = await getUserMarriage(client, 'guild123', 'userA');
+  assert.equal(Boolean(marriageA.spouses['userB']), true);
+  assert.equal(marriageA.spouses['userB'].bio, 'Yêu thương đong đầy 💕');
 
-  assert.ok(records.has('games:cultivation:profile:guild:player'));
-
-  const restored = await getCultivationProfile(
-    { db },
-    'guild',
-    'player',
-    { create: false },
-  );
-
-  assert.equal(restored.cultivation, 12345);
-
-  assert.equal(
-    await getCultivationProfile(
-      { db },
-      'guild',
-      'unknown',
-      { create: false },
-    ),
-    null,
-  );
+  const emptyUser = await getUserMarriage(client, 'guild123', 'unknownUser');
+  assert.deepEqual(emptyUser.spouses, {});
 });

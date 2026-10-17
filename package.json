@@ -1,7 +1,7 @@
 {
   "name": "usagi-tien-ton",
   "version": "2.1.1",
-  "description": "Usagi Tiên Tôn: YouTube music, reaction roles and Tiên Lộ cultivation",
+  "description": "Usagi: Discord bot with music, voice TTS, marriage, and AI assistant",
   "main": "src/app.js",
   "type": "module",
   "scripts": {

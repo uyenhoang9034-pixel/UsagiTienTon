@@ -1,8 +1,5 @@
 /**
- * Command aliases for Usagi Tiên Tôn.
- *
- * Repo này chỉ giữ Music + Tiên Lộ, nên alias cũ của
- * Economy / Ticket / Moderation / Giveaway / Shop... đã được bỏ.
+ * Command aliases for Usagi Bot.
  */
 
 export const commandAliases = {
@@ -22,20 +19,6 @@ export const commandAliases = {
 
   m: 'music',
   music: 'music',
-
-  // Tiên Lộ shortcuts
-  tt: 'tutien',
-  tu: 'tutien',
-  tienlo: 'tutien',
-  tutien: 'tutien',
-
-  tti: 'tutienitem',
-  itemtt: 'tutienitem',
-  tutienitem: 'tutienitem',
-
-  ttest: 'tutientest',
-  testtt: 'tutientest',
-  tutientest: 'tutientest',
 };
 
 export const subcommandAliases = {

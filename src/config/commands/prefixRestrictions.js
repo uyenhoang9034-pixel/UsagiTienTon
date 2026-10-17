@@ -1,17 +1,9 @@
 /**
- * Prefix command restrictions for Usagi Tiên Tôn.
- *
- * Bot mới chỉ giữ Music + Tiên Lộ.
- * Tiên Lộ dùng slash command để tránh sai channel/permission/options,
- * còn Music vẫn cho dùng prefix ở các thao tác đơn giản.
+ * Prefix command restrictions for Usagi Bot.
  */
 
 /** Top-level commands that cannot be invoked via prefix at all. */
-export const SLASH_ONLY_COMMANDS = new Set([
-  'tutien',
-  'tutienitem',
-  'tutientest',
-]);
+export const SLASH_ONLY_COMMANDS = new Set([]);
 
 /** Subcommands blocked for every command when invoked via prefix. */
 export const GLOBAL_BLOCKED_SUBCOMMANDS = new Set([]);
@@ -84,7 +76,7 @@ export function getPrefixRestriction(command, args = [], resolveSubcommandAlias 
   if (SLASH_ONLY_COMMANDS.has(commandName)) {
     return {
       blocked: true,
-      reason: 'Lệnh Tiên Lộ chỉ dùng bằng slash command để tránh nhập sai.',
+      reason: 'Lệnh này chỉ dùng bằng slash command.',
     };
   }
 

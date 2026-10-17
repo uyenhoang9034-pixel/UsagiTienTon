@@ -12,7 +12,6 @@ const ALLOWED_EVENT_FILES = new Set([
   'interactionCreate.js',
   'messageCreate.js',
   'voiceStateUpdate.js',
-  'guildMemberUpdate.js',
 ]);
 
 export default async function loadEvents(client) {

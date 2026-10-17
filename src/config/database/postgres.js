@@ -6,7 +6,7 @@ const DEFAULT_POSTGRES_URL = `postgresql://localhost:5432/${DEFAULT_POSTGRES_DAT
 const DEFAULT_APPLICATION_NAME = 'usagi-tien-ton';
 
 /**
- * Runtime hiện tại chủ yếu dùng key/value qua temp_data cho Music + Tiên Lộ.
+ * Runtime hiện tại chủ yếu dùng key/value qua temp_data cho Music, Kết Hôn, v.v.
  * Các table legacy được giữ lại để schema/runtime cũ không lỗi import khi start.
  */
 const configuredTables = {
@@ -144,7 +144,7 @@ export const pgConfig = {
     cache: 1800,
     guildConfig: null,
     music: null,
-    cultivation: null,
+    marriage: null,
   },
 
   features: {

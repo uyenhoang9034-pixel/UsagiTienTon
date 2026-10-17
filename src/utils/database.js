@@ -1,5 +1,5 @@
-// database.js — facade hiện tại của Usagi Tiên Tôn
-// Scope giữ lại: Music + Tiên Lộ / Tu Tiên.
+// database.js — facade hiện tại của Usagi Bot
+// Scope: Music + Kết Hôn + Voice TTS + AI.
 
 import { pgDb } from './postgresDatabase.js';
 
@@ -16,10 +16,6 @@ import {
   getMusicGuildKey,
   getMusicSessionKey,
   getMusicQueueKey,
-  getCultivationProfileKey,
-  getCultivationProfilePrefix,
-  getCultivationAdventureV2SessionKey,
-  getCultivationSecretRealmSessionKey,
   getMarriageKey,
   getMarriageRegistryKey,
   canonicalizeKey,
@@ -40,10 +36,6 @@ export {
   getMusicGuildKey,
   getMusicSessionKey,
   getMusicQueueKey,
-  getCultivationProfileKey,
-  getCultivationProfilePrefix,
-  getCultivationAdventureV2SessionKey,
-  getCultivationSecretRealmSessionKey,
   getMarriageKey,
   getMarriageRegistryKey,
   canonicalizeKey,
@@ -204,45 +196,6 @@ export async function saveMusicData(client, guildId, value) {
   );
 }
 
-/**
- * Cultivation helpers — giữ key ổn định để không mất tiến độ người chơi.
- */
-export function getCultivationKeys(guildId, userId) {
-  return {
-    profile: getCultivationProfileKey(guildId, userId),
-    adventureV2Session: getCultivationAdventureV2SessionKey(guildId, userId),
-    secretRealmSession: getCultivationSecretRealmSessionKey(guildId, userId),
-  };
-}
-
-export async function getCultivationProfileData(
-  client,
-  guildId,
-  userId,
-  defaultValue = null,
-) {
-  return getDatabaseValue(
-    client,
-    getCultivationProfileKey(guildId, userId),
-    defaultValue,
-  );
-}
-
-export async function saveCultivationProfileData(client, guildId, userId, value) {
-  return setDatabaseValue(
-    client,
-    getCultivationProfileKey(guildId, userId),
-    value,
-  );
-}
-
-export async function deleteCultivationProfileData(client, guildId, userId) {
-  return deleteDatabaseValue(
-    client,
-    getCultivationProfileKey(guildId, userId),
-  );
-}
-
 const DEFAULT_MESSAGES = {
   noPermission: 'Bạn không có quyền dùng lệnh này.',
   cooldownActive: 'Vui lòng chờ {time} rồi thử lại.',
@@ -275,7 +228,6 @@ const DEFAULT_COLORS = {
   light: '#FFFFFF',
   gray: '#99AAB5',
   music: '#F3AFC8',
-  cultivation: '#F3AFC8',
 };
 
 export function getColor(nameOrHex = 'primary', fallback = '#F3AFC8') {
@@ -316,10 +268,6 @@ const databaseFacade = {
   getMusicKeys,
   getMusicData,
   saveMusicData,
-  getCultivationKeys,
-  getCultivationProfileData,
-  saveCultivationProfileData,
-  deleteCultivationProfileData,
   getMessage,
   getColor,
 };

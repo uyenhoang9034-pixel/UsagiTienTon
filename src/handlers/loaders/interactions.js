@@ -9,36 +9,18 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 /**
- * Usagi Tiên Tôn hiện chỉ giữ:
+ * Usagi:
  * - Music buttons
- * - Tu Tiên buttons
- * - Tu Tiên select menus
+ * - TTS buttons & select menus
  *
  * Loader không được để 1 file interaction lỗi kéo sập toàn bộ hệ thống.
  */
 const interactionTypes = ['buttons', 'selectMenus'];
 
 const ALLOWED_INTERACTION_PATTERNS = [
-  /^buttons\/tutien\.js$/,
-  /^buttons\/tutienCraft\.js$/,
-  /^buttons\/tutienDailyQuest\.js$/,
-  /^buttons\/tutienFormation\.js$/,
-  /^buttons\/tutienFormationHeart\.js$/,
-  /^buttons\/tutienShop\.js$/,
-  /^buttons\/tutienSpiritVein\.js$/,
-  /^buttons\/tutienAchievement\.js$/,
-  /^buttons\/tutienWorldBoss\.js$/,
-  /^buttons\/tutienWorldBossReward\.js$/,
-  /^buttons\/tutienDungeon\.js$/,
-  /^buttons\/tutienImmortalOrder\.js$/,
-  /^buttons\/tutienTribulation\.js$/,
-  /^buttons\/tutienCave\.js$/,
-  /^buttons\/tutienPetCodex.*\.js$/,
-  /^buttons\/tutienPetCollectionReward\.js$/,
   /^buttons\/music\/.*\.js$/,
   /^buttons\/tts.*\.js$/,
   /^buttons\/tts\/.*\.js$/,
-  /^selectMenus\/tutien.*\.js$/,
   /^selectMenus\/tts.*\.js$/,
   /^selectMenus\/tts\/.*\.js$/,
 ];

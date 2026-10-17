@@ -44,10 +44,9 @@ export const botConfig = {
       dark: '#202225',
       gray: '#99AAB5',
       music: BRAND_COLOR,
-      cultivation: BRAND_COLOR,
     },
     footer: {
-      text: 'Usagi Tiên Tôn',
+      text: 'Usagi Bot',
       icon: null,
     },
     thumbnail: null,
@@ -69,7 +68,8 @@ export const botConfig = {
 
   features: {
     music: true,
-    cultivation: true,
+    games: true,
+    voice: true,
     ai: true,
   },
 
@@ -80,13 +80,8 @@ export const botConfig = {
 
 const COMMAND_CATEGORY_FEATURE_MAP = {
   music: 'music',
-  games: 'cultivation',
-  game: 'cultivation',
-  tutien: 'cultivation',
-  tu_tien: 'cultivation',
-  tienlo: 'cultivation',
-  tien_lo: 'cultivation',
-  cultivation: 'cultivation',
+  games: 'games',
+  voice: 'voice',
 };
 
 function normalizeCategoryKey(category) {

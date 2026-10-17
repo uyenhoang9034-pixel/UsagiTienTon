@@ -1,9 +1,11 @@
 /**
  * Database key helpers for Usagi Tiên Tôn.
  *
- * Scope hiện tại của bot mới:
+ * Scope hiện tại của bot:
  * - Music
- * - Tiên Lộ / Tu Tiên
+ * - Kết Hôn
+ * - TTS
+ * - AI
  *
  * Một số helper cũ vẫn được giữ dạng compatibility export để các file facade
  * chưa dọn hết không bị lỗi import khi bot khởi động.
@@ -19,7 +21,7 @@ const userKey = (guildId, scope, userId) => guildKey(guildId, scope, userId);
 
 /**
  * =========================================================
- * CURRENT SCOPE · CORE / MUSIC / CULTIVATION
+ * CURRENT SCOPE · CORE / MUSIC / MARRIAGE
  * =========================================================
  */
 
@@ -29,17 +31,6 @@ export const getMusicGuildKey = (guildId) => guildKey(guildId, 'music');
 export const getMusicSessionKey = (guildId) => guildKey(guildId, 'music', 'session');
 export const getMusicQueueKey = (guildId) => guildKey(guildId, 'music', 'queue');
 
-export const getCultivationProfileKey = (guildId, userId) =>
-  `games:cultivation:profile:${guildId}:${userId}`;
-
-export const getCultivationProfilePrefix = (guildId) =>
-  `games:cultivation:profile:${guildId}:`;
-
-export const getCultivationAdventureV2SessionKey = (guildId, userId) =>
-  `games:cultivation:adventureV2:${guildId}:${userId}`;
-
-export const getCultivationSecretRealmSessionKey = (guildId, userId) =>
-  `games:cultivation:secretRealm:${guildId}:${userId}`;
 
 export const getMarriageKey = (guildId, userId) =>
   `games:marriage:profile:${guildId}:${userId}`;
@@ -111,16 +102,7 @@ export const getGiveawayLockKey = (messageId) => `giveaway:lock:${messageId}`;
  * không còn chạy Economy/Ticket/Giveaway/Reaction Role nữa.
  */
 
-export const LEGACY_KEY_RESOLVERS = [
-  {
-    pattern: /^cultivation:profile:([^:]+):([^:]+)$/,
-    toCanonical: ([, guildId, userId]) => getCultivationProfileKey(guildId, userId),
-  },
-  {
-    pattern: /^cultivation:adventureV2:([^:]+):([^:]+)$/,
-    toCanonical: ([, guildId, userId]) => getCultivationAdventureV2SessionKey(guildId, userId),
-  },
-];
+export const LEGACY_KEY_RESOLVERS = [];
 
 export function canonicalizeKey(key) {
   if (typeof key !== 'string' || key.length === 0) {
@@ -138,19 +120,5 @@ export function canonicalizeKey(key) {
 }
 
 export function getLegacyVariantsForCanonical(canonicalKey) {
-  if (typeof canonicalKey !== 'string' || canonicalKey.length === 0) {
-    return [];
-  }
-
-  const profileMatch = canonicalKey.match(/^games:cultivation:profile:([^:]+):([^:]+)$/);
-  if (profileMatch) {
-    return [`cultivation:profile:${profileMatch[1]}:${profileMatch[2]}`];
-  }
-
-  const adventureMatch = canonicalKey.match(/^games:cultivation:adventureV2:([^:]+):([^:]+)$/);
-  if (adventureMatch) {
-    return [`cultivation:adventureV2:${adventureMatch[1]}:${adventureMatch[2]}`];
-  }
-
   return [];
 }

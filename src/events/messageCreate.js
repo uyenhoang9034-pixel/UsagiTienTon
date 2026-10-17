@@ -86,8 +86,7 @@ async function handlePrefixCommand(message, client) {
     const resolvedCommandName = resolveCommandAlias(commandName);
 
     /**
-     * Repo Usagi Tiên Tôn chỉ giữ prefix cho music controls.
-     * Tu Tiên và GM command dùng slash command để tránh cấp nhầm item/test event.
+     * Usagi bot chỉ giữ prefix cho music controls.
      */
     if (resolvedCommandName !== 'music') {
       return;

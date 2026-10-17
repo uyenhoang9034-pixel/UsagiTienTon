@@ -3,14 +3,13 @@ import { MemoryStorage } from '../memoryStorage.js';
 import { logger } from '../logger.js';
 
 /**
- * Database wrapper hiện tại của Usagi Tiên Tôn.
+ * Database wrapper hiện tại của Usagi Bot.
  *
  * Scope giữ lại:
  * - Music
- * - Tiên Lộ / Tu Tiên
- *
- * Không import guild config schema cũ nữa để tránh kéo lại các hệ đã xóa
- * như Ticket / Economy / Welcome / Verification.
+ * - Kết Hôn
+ * - TTS
+ * - AI
  */
 class DatabaseWrapper {
   constructor() {
@@ -64,12 +63,12 @@ class DatabaseWrapper {
     }
 
     /**
-     * Tiên Lộ có tiến độ người chơi nên mặc định KHÔNG cho chạy bằng memory.
+     * Dữ liệu cần lưu bền vững nên mặc định KHÔNG cho chạy bằng memory.
      * Chỉ bật tạm bằng ALLOW_MEMORY_DATABASE=true khi test local.
      */
     if (process.env.ALLOW_MEMORY_DATABASE !== 'true') {
       throw new Error(
-        'PostgreSQL unavailable. Refusing to start with temporary storage because Tiên Lộ progress must persist.',
+        'PostgreSQL unavailable. Refusing to start with temporary storage because persistent storage is required.',
       );
     }
 
@@ -196,7 +195,7 @@ class DatabaseWrapper {
 export const db = new DatabaseWrapper();
 
 export async function initializeDatabase() {
-  logger.info('Initializing Database (PostgreSQL required for Tiên Lộ persistence)...');
+  logger.info('Initializing Database (PostgreSQL required for persistence)...');
 
   try {
     await db.initialize();
