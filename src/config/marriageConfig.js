@@ -282,28 +282,7 @@ export const MARRIAGE_CONFIG = {
   },
 
   // ==========================================
-  // 9. THÔNG BÁO TAG BẠN ĐỜI TRONG CHAT
-  // ==========================================
-  mention: {
-    cooldownMs: 60 * 1000, // 1 phút giữa các lần tag
-    points: 5,             // +5 💕 mỗi lần tag
-    reactionEmoji: '<a:trangtrig47:1547249293944029308>', // Tự động thả tim custom
-  },
-
-  // ==========================================
-  // 10. THÔNG BÁO TREO VOICE CÙNG PHÒNG
-  // ==========================================
-  voice: {
-    targetMinutes: 30, // Cứ mỗi 30 phút
-    pointsReward: 30,  // Cộng 30 điểm
-    messageText: (u1, u2, channelId, points, total, icon, name) =>
-      `<a:trangtrig15:1546047955696488489> <@${u1}> và <@${u2}> đã cùng nhau gắn bó 30 phút trong phòng thoại <#${channelId}>! ` +
-      `Hai bạn được cộng +${points} Điểm Thân Mật <a:trangtrig46:1547240249761996812> ` +
-      `*(Tổng cộng: ${total.toLocaleString()} <a:trangtrig46:1547240249761996812> · ${icon} ${name})*`,
-  },
-
-  // ==========================================
-  // 11. BẢNG 6 CẤP BẬC TÌNH YÊU (LOVE TIERS)
+  // 9. BẢNG 6 CẤP BẬC TÌNH YÊU (LOVE TIERS)
   // ==========================================
   levels: [
     { min: 0, level: 1, name: 'Tình Đầu Ngây Thơ', icon: '<:hamster1:1546057497159409664>', title: 'Thuở Thiếu Thời' },

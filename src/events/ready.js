@@ -2,7 +2,6 @@ import { Events } from 'discord.js';
 
 import { logger } from '../utils/logger.js';
 import { initRiffyAfterReady } from '../services/music/riffySetup.js';
-import { startMarriageVoiceTracker } from '../services/marriageVoiceTracker.js';
 
 export default {
   name: Events.ClientReady,
@@ -21,12 +20,6 @@ export default {
       await initRiffyAfterReady(client);
     } catch (error) {
       logger.error('Could not initialize Riffy/Lavalink after ready:', error);
-    }
-
-    try {
-      startMarriageVoiceTracker(client);
-    } catch (error) {
-      logger.error('Could not start Marriage Voice Tracker:', error);
     }
 
     logger.info('Usagi ready: Music + Kết Hôn + Voice TTS + AI.');
