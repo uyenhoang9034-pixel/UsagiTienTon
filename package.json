@@ -1,7 +1,7 @@
 {
   "name": "usagi-tien-ton",
   "version": "2.1.1",
-  "description": "Usagi: Discord bot with music, voice TTS, marriage, and AI assistant",
+  "description": "Usagi: Discord bot with voice TTS, marriage, and AI assistant",
   "main": "src/app.js",
   "type": "module",
   "scripts": {
@@ -27,7 +27,6 @@
     "winston": "^3.19.0",
     "winston-daily-rotate-file": "^5.0.0",
     "zod": "^3.25.76",
-    "riffy": "1.0.12",
     "@discordjs/voice": "^0.19.0",
     "@snazzah/davey": "^0.1.12",
     "opusscript": "^0.1.1",

@@ -12,16 +12,7 @@ export const GLOBAL_BLOCKED_SUBCOMMANDS = new Set([]);
 export const GLOBAL_BLOCKED_SUBCOMMAND_GROUPS = new Set([]);
 
 /** Per-command subcommands that stay slash-only. */
-export const COMMAND_BLOCKED_SUBCOMMANDS = {
-  music: new Set([
-    // Các subcommand này có nhiều option hoặc dễ nhập sai qua prefix.
-    'loop',
-    'seek',
-    'remove',
-    'move',
-    '247',
-  ]),
-};
+export const COMMAND_BLOCKED_SUBCOMMANDS = {};
 
 function collectSubcommandNames(commandJson) {
   const subcommandGroups =

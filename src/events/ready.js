@@ -1,7 +1,6 @@
 import { Events } from 'discord.js';
 
 import { logger } from '../utils/logger.js';
-import { initRiffyAfterReady } from '../services/music/riffySetup.js';
 
 export default {
   name: Events.ClientReady,
@@ -16,12 +15,6 @@ export default {
       logger.warn('Could not set bot presence:', error);
     }
 
-    try {
-      await initRiffyAfterReady(client);
-    } catch (error) {
-      logger.error('Could not initialize Riffy/Lavalink after ready:', error);
-    }
-
-    logger.info('Usagi ready: Music + Kết Hôn + Voice TTS + AI.');
+    logger.info('Usagi ready: Kết Hôn + Voice TTS + AI.');
   },
 };

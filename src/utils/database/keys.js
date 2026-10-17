@@ -2,7 +2,6 @@
  * Database key helpers for Usagi Tiên Tôn.
  *
  * Scope hiện tại của bot:
- * - Music
  * - Kết Hôn
  * - TTS
  * - AI
@@ -21,16 +20,11 @@ const userKey = (guildId, scope, userId) => guildKey(guildId, scope, userId);
 
 /**
  * =========================================================
- * CURRENT SCOPE · CORE / MUSIC / MARRIAGE
+ * CURRENT SCOPE · CORE / MARRIAGE
  * =========================================================
  */
 
 export const getGuildConfigKey = (guildId) => guildKey(guildId, 'config');
-
-export const getMusicGuildKey = (guildId) => guildKey(guildId, 'music');
-export const getMusicSessionKey = (guildId) => guildKey(guildId, 'music', 'session');
-export const getMusicQueueKey = (guildId) => guildKey(guildId, 'music', 'queue');
-
 
 export const getMarriageKey = (guildId, userId) =>
   `games:marriage:profile:${guildId}:${userId}`;

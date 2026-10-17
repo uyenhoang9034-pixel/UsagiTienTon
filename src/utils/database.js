@@ -1,5 +1,5 @@
 // database.js — facade hiện tại của Usagi Bot
-// Scope: Music + Kết Hôn + Voice TTS + AI.
+// Scope: Kết Hôn + Voice TTS + AI.
 
 import { pgDb } from './postgresDatabase.js';
 
@@ -13,9 +13,6 @@ import {
 
 import {
   getGuildConfigKey,
-  getMusicGuildKey,
-  getMusicSessionKey,
-  getMusicQueueKey,
   getMarriageKey,
   getMarriageRegistryKey,
   canonicalizeKey,
@@ -33,9 +30,6 @@ export {
 
 export {
   getGuildConfigKey,
-  getMusicGuildKey,
-  getMusicSessionKey,
-  getMusicQueueKey,
   getMarriageKey,
   getMarriageRegistryKey,
   canonicalizeKey,
@@ -169,32 +163,6 @@ export async function deleteDatabaseValue(client, key) {
   }
 }
 
-/**
- * Music helpers — dành cho dữ liệu Music cần lưu theo guild.
- */
-export function getMusicKeys(guildId) {
-  return {
-    guild: getMusicGuildKey(guildId),
-    session: getMusicSessionKey(guildId),
-    queue: getMusicQueueKey(guildId),
-  };
-}
-
-export async function getMusicData(client, guildId, defaultValue = {}) {
-  return getDatabaseValue(
-    client,
-    getMusicGuildKey(guildId),
-    defaultValue,
-  );
-}
-
-export async function saveMusicData(client, guildId, value) {
-  return setDatabaseValue(
-    client,
-    getMusicGuildKey(guildId),
-    value,
-  );
-}
 
 const DEFAULT_MESSAGES = {
   noPermission: 'Bạn không có quyền dùng lệnh này.',
@@ -227,7 +195,6 @@ const DEFAULT_COLORS = {
   dark: '#202225',
   light: '#FFFFFF',
   gray: '#99AAB5',
-  music: '#F3AFC8',
 };
 
 export function getColor(nameOrHex = 'primary', fallback = '#F3AFC8') {
@@ -265,9 +232,6 @@ const databaseFacade = {
   getDatabaseValue,
   setDatabaseValue,
   deleteDatabaseValue,
-  getMusicKeys,
-  getMusicData,
-  saveMusicData,
   getMessage,
   getColor,
 };

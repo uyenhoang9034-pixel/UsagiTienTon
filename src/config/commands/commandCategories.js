@@ -4,7 +4,6 @@
 
 export const CATEGORY_ICONS = {
   Games: '🎮',
-  Music: '🎵',
   Voice: '🎙️',
 };
 

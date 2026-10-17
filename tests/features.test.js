@@ -7,20 +7,9 @@ process.env.USAGI_IMPORT_ONLY = 'true';
 process.env.LOG_LEVEL = 'error';
 process.env.DISCORD_TOKEN = 'test-only-placeholder';
 process.env.CLIENT_ID = '123456789012345678';
-process.env.LAVALINK_NODES = JSON.stringify([
-  {
-    host: 'localhost',
-    port: 2333,
-    password: 'test-only-placeholder',
-    secure: false,
-    name: 'Test',
-  },
-]);
-
 const { loadCommands, registerCommands } = await import('../src/handlers/loaders/commandLoader.js');
 const { default: loadEvents } = await import('../src/handlers/loaders/events.js');
 const { default: loadInteractions } = await import('../src/handlers/loaders/interactions.js');
-const { canControlMusic, requireVoiceChannel } = await import('../src/services/music/permissions.js');
 const { getUserMarriage, createMarriage } = await import('../src/services/marriageService.js');
 
 const EXPECTED_COMMANDS = [
@@ -133,25 +122,6 @@ test('loads only scoped events and scoped interactions', async () => {
   }
 });
 
-test('music controls require the same voice channel', () => {
-  assert.equal(requireVoiceChannel({}), false);
-
-  assert.equal(
-    canControlMusic(
-      { voice: { channel: { id: 'other' } } },
-      { voiceChannel: 'music' },
-    ),
-    false,
-  );
-
-  assert.equal(
-    canControlMusic(
-      { voice: { channel: { id: 'music' } } },
-      { voiceChannel: 'music' },
-    ),
-    true,
-  );
-});
 
 test('marriage database persistence works correctly', async () => {
   const records = new Map();

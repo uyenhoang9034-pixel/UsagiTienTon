@@ -6,7 +6,6 @@ import { logger } from '../logger.js';
  * Database wrapper hiện tại của Usagi Bot.
  *
  * Scope giữ lại:
- * - Music
  * - Kết Hôn
  * - TTS
  * - AI

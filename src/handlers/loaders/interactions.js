@@ -10,7 +10,6 @@ const __dirname = dirname(__filename);
 
 /**
  * Usagi:
- * - Music buttons
  * - TTS buttons & select menus
  *
  * Loader không được để 1 file interaction lỗi kéo sập toàn bộ hệ thống.
@@ -18,7 +17,6 @@ const __dirname = dirname(__filename);
 const interactionTypes = ['buttons', 'selectMenus'];
 
 const ALLOWED_INTERACTION_PATTERNS = [
-  /^buttons\/music\/.*\.js$/,
   /^buttons\/tts.*\.js$/,
   /^buttons\/tts\/.*\.js$/,
   /^selectMenus\/tts.*\.js$/,

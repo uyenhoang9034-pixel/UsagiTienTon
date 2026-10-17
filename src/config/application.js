@@ -69,7 +69,6 @@ const appConfig = {
     embeds: {
       colors: {
         primary: '#F3AFC8',
-        music: '#F3AFC8',
         success: '#57F287',
         error: '#ED4245',
         warning: '#FEE75C',
@@ -125,7 +124,6 @@ const appConfig = {
   },
 
   features: {
-    music: true,
     games: true,
     voice: true,
     ai: true,

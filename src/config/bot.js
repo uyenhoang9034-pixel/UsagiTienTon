@@ -43,7 +43,6 @@ export const botConfig = {
       light: '#FFFFFF',
       dark: '#202225',
       gray: '#99AAB5',
-      music: BRAND_COLOR,
     },
     footer: {
       text: 'Usagi Bot',
@@ -67,7 +66,6 @@ export const botConfig = {
   },
 
   features: {
-    music: true,
     games: true,
     voice: true,
     ai: true,
@@ -79,7 +77,6 @@ export const botConfig = {
 };
 
 const COMMAND_CATEGORY_FEATURE_MAP = {
-  music: 'music',
   games: 'games',
   voice: 'voice',
 };

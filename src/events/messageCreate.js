@@ -11,19 +11,6 @@ import { getCommandPrefix } from '../config/bot.js';
 import { handleTTSMessage } from '../services/tts/ttsManager.js';
 import { handleAIChatMessage } from '../services/ai/aiChatManager.js';
 
-const MUSIC_PREFIX_SHORTCUTS = new Map([
-  ['leave', 'leave'],
-  ['disconnect', 'leave'],
-  ['dc', 'leave'],
-  ['pause', 'pause'],
-  ['resume', 'resume'],
-  ['skip', 'skip'],
-  ['s', 'skip'],
-  ['stop', 'stop'],
-  ['volume', 'volume'],
-  ['vol', 'volume'],
-]);
-
 export default {
   name: Events.MessageCreate,
 
@@ -67,32 +54,11 @@ async function handlePrefixCommand(message, client) {
       return;
     }
 
-    let { commandName, args } = parsed;
-    const normalizedCommandName = String(commandName || '').toLowerCase();
-    const musicShortcut = MUSIC_PREFIX_SHORTCUTS.get(normalizedCommandName);
-
-    if (musicShortcut) {
-      commandName = 'music';
-      args = [musicShortcut, ...args];
-    }
-
+    const { commandName, args } = parsed;
     const resolvedCommandName = resolveCommandAlias(commandName);
 
-    /**
-     * Usagi bot chỉ giữ prefix cho music controls.
-     */
-    if (resolvedCommandName !== 'music') {
-      return;
-    }
-
     const command = client.commands.get(resolvedCommandName);
-
-    if (!command) {
-      logger.warn(`Prefix command not found: ${resolvedCommandName}`);
-      return;
-    }
-
-    if (!supportsPrefixExecution(command)) {
+    if (!command || !supportsPrefixExecution(command)) {
       return;
     }
 
