@@ -1,10 +1,8 @@
-import { AttachmentBuilder, EmbedBuilder } from 'discord.js';
 import { AI_CONFIG } from './aiConfig.js';
 import { aiHistoryManager } from './aiHistoryManager.js';
-import { isImageGenerationRequest, generateAIImage } from './imageService.js';
 import { generateAIResponse } from './aiTextService.js';
 import { logger } from '../../utils/logger.js';
-import { getColor, getCommandPrefix } from '../../config/bot.js';
+import { getCommandPrefix } from '../../config/bot.js';
 
 /**
  * Chia văn bản thành các đoạn nhỏ dưới 1950 ký tự để phù hợp giới hạn Discord
@@ -97,54 +95,7 @@ export async function handleAIChatMessage(message, client) {
   try {
     await startTyping();
 
-    // 1. KIỂM TRA Ý ĐỊNH THIẾT KẾ / VẼ ẢNH
-    if (isImageGenerationRequest(content)) {
-      logger.info(`[AI Channel] User ${message.author.tag} requested image design: "${content}"`);
-
-      const imageResult = await generateAIImage(content);
-
-      if (imageResult.success && imageResult.buffer) {
-        const attachment = new AttachmentBuilder(imageResult.buffer, {
-          name: imageResult.fileName,
-        });
-
-        const imageEmbed = new EmbedBuilder()
-          .setColor(getColor('primary'))
-          .setTitle('🎨 Bức ảnh của bác đã được thiết kế xong rồi nè!')
-          .setDescription(
-            `> **Yêu cầu của bác:** ${content}\n\n*Được vẽ và thiết kế bởi Em bot Usagi múp rụp 🐰💅*`,
-          )
-          .setImage(`attachment://${imageResult.fileName}`)
-          .setFooter({
-            text: 'Usagi AI Studio • Xéo sắc nhưng tài năng',
-            iconURL: client.user?.displayAvatarURL?.() || null,
-          })
-          .setTimestamp();
-
-        stopTyping();
-        await message.reply({
-          embeds: [imageEmbed],
-          files: [attachment],
-          allowedMentions: { repliedUser: false },
-        });
-
-        try {
-          await message.react('🎨');
-        } catch {}
-
-        return true;
-      } else {
-        stopTyping();
-        await message.reply({
-          content:
-            'Dạ em bot Usagi múp rụp vẽ mà máy chủ tranh bị nghẽn xíu rồi bác ơi, bác miêu tả lại rõ hơn tí để em vẽ lại xem nào~ 🐰💅',
-          allowedMentions: { repliedUser: false },
-        });
-        return true;
-      }
-    }
-
-    // 2. XỬ LÝ CÂU HỎI & TRÒ CHUYỆN AI (TEXT)
+    // XỬ LÝ CÂU HỎI & TRÒ CHUYỆN AI (TEXT THUẦN TÚY - CHỈ HỎI ĐÁP, KHÔNG CODE, KHÔNG LÀM ẢNH)
     const history = aiHistoryManager.getHistory(message.channelId, message.author.id);
 
     const aiResult = await generateAIResponse(content, history);

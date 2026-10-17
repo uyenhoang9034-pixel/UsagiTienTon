@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 
 import {
   isCodeRequest,
+  isImageRequest,
   sanitizeCodeFromResponse,
   cleanDialoguePrefix,
+  generateAIResponse,
 } from '../src/services/ai/aiTextService.js';
-import { isImageGenerationRequest, extractImagePrompt } from '../src/services/ai/imageService.js';
 import { aiHistoryManager } from '../src/services/ai/aiHistoryManager.js';
 import { AI_CONFIG } from '../src/services/ai/aiConfig.js';
 import { handleAIChatMessage } from '../src/services/ai/aiChatManager.js';
@@ -25,7 +26,7 @@ test('AI Dialogue Prefix Cleaner: removes annoying EM: or Usagi: speaker tags', 
   assert.equal(cleanDialoguePrefix('Em chào bác nha!'), 'Em chào bác nha!');
   assert.equal(cleanDialoguePrefix('Em bot Usagi múp rụp chúc bác vui vẻ!'), 'Em bot Usagi múp rụp chúc bác vui vẻ!');
 
-  // Xóa hành động nhại lại kịch bản và chuẩn hóa Em viết hoa giữa câu (trường hợp screenshot)
+  // Xóa hành động nhại lại kịch bản và chuẩn hóa Em viết hoa giữa câu
   assert.equal(
     cleanDialoguePrefix('Em: *hì* 🐰❤️ Chào bác, có gì cần Em giúp không? 😏✨'),
     '🐰❤️ Chào bác, có gì cần em giúp không? 😏✨',
@@ -71,31 +72,32 @@ Hy vọng giúp ích cho bạn!
 
 test('AI Persona: verifies sassy em-bac persona and dynamic adaptability in system prompt', () => {
   assert.equal(AI_CONFIG.systemPrompt.includes('Em bot Usagi múp rụp'), true);
-  assert.equal(AI_CONFIG.systemPrompt.includes('Bác'), true);
+  assert.equal(AI_CONFIG.systemPrompt.includes('bác'), true);
   assert.equal(AI_CONFIG.systemPrompt.includes('XÉO SẮC'), true);
   assert.equal(AI_CONFIG.systemPrompt.includes('CỤC SÚC'), true);
   assert.equal(AI_CONFIG.systemPrompt.includes('CUTE'), true);
-  assert.equal(AI_CONFIG.refusalMessage.includes('Em bot Usagi múp rụp'), true);
+  assert.equal(/em bot usagi múp rụp/i.test(AI_CONFIG.refusalMessage), true);
   assert.equal(AI_CONFIG.refusalMessage.includes('bác'), true);
+  assert.equal(/em bot usagi múp rụp/i.test(AI_CONFIG.imageRefusalMessage), true);
+  assert.equal(AI_CONFIG.imageRefusalMessage.includes('bác'), true);
 });
 
-test('AI Image Service: accurately identifies image design requests and extracts clean prompt', () => {
-  // Yêu cầu vẽ ảnh
-  assert.equal(isImageGenerationRequest('Vẽ cho tôi một chú mèo đang uống trà sữa'), true);
-  assert.equal(isImageGenerationRequest('Tạo ảnh hoàng hôn trên bờ biển phong cách anime'), true);
-  assert.equal(isImageGenerationRequest('Design ảnh một phi hành gia thỏ trong vũ trụ'), true);
-  assert.equal(isImageGenerationRequest('Draw a cute cat with flowers'), true);
+test('AI Image Rejection: intercepts image creation requests and provides polite refusal (no image feature)', async () => {
+  // Yêu cầu vẽ ảnh -> Phải bị phát hiện để từ chối
+  assert.equal(isImageRequest('Vẽ cho tôi một chú mèo đang uống trà sữa'), true);
+  assert.equal(isImageRequest('Tạo ảnh hoàng hôn trên bờ biển phong cách anime'), true);
+  assert.equal(isImageRequest('Design ảnh một phi hành gia thỏ trong vũ trụ'), true);
+  assert.equal(isImageRequest('Draw a cute cat with flowers'), true);
 
-  // Câu hỏi thông tin / không phải yêu cầu vẽ
-  assert.equal(isImageGenerationRequest('Ai đã vẽ bức tranh nàng Mona Lisa?'), false);
-  assert.equal(isImageGenerationRequest('Tại sao bầu trời lại có màu xanh?'), false);
+  // Câu hỏi kiến thức / thông tin thuần túy -> KHÔNG bị nhận nhầm
+  assert.equal(isImageRequest('Ai đã vẽ bức tranh nàng Mona Lisa?'), false);
+  assert.equal(isImageRequest('Tại sao bầu trời lại có màu xanh?'), false);
 
-  // Trích xuất prompt
-  const prompt1 = extractImagePrompt('Vẽ cho tôi một chú mèo đang uống trà sữa');
-  assert.equal(prompt1, 'chú mèo đang uống trà sữa');
-
-  const prompt2 = extractImagePrompt('Tạo ảnh hoàng hôn trên bờ biển');
-  assert.equal(prompt2, 'hoàng hôn trên bờ biển');
+  // Trực tiếp kiểm tra phản hồi từ chối vẽ ảnh từ generateAIResponse
+  const res = await generateAIResponse('Vẽ giúp em một bức tranh hoàng hôn');
+  assert.equal(res.success, true);
+  assert.equal(res.text, AI_CONFIG.imageRefusalMessage);
+  assert.equal(res.isRefusal, true);
 });
 
 test('AI History Manager: maintains session context and limits message capacity', () => {

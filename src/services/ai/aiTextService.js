@@ -11,13 +11,40 @@ export function isCodeRequest(text = '') {
 
   const codePatterns = [
     /\b(?:viết|làm|tạo|cho\s+xin|hãy\s+viết|code\s+hộ|code\s+giúp|lập\s+trình)\s+(?:cho\s+.*?\s+)?(?:đoạn\s+)?(?:code|mã\s+nguồn|script|chương\s+trình)\b/i,
-    /\b(?:viết|hãy\s+viết|tạo)\s+(?:hàm|class|function|bot|tool|script|chương\s+trình)\s+(?:bằng|trong|với)?\s*(?:python|javascript|typescript|js|ts|c\+\+|cpp|c#|java|php|html|css|sql|rust|golang|go|ruby)\b/i,
-    /\b(?:write|generate|create)\s+(?:some\s+)?(?:code|script|program)\b/i,
+    /\b(?:viết|hãy\s+viết|tạo|code\s+hộ|code\s+giúp|code)\s+(?:hàm|class|function|bot|tool|script|chương\s+trình|thuật\s+toán)\s*(?:bằng|trong|với)?\s*(?:python|javascript|typescript|js|ts|c\+\+|cpp|c#|java|php|html|css|sql|rust|golang|go|ruby)?\b/i,
+    /\b(?:write|generate|create)\s+(?:(?:some|a|an)\s+)?(?:[a-zA-Z0-9#+]+\s+)?(?:code|script|program)\b/i,
     /\b(?:solve\s+leetcode|giải\s+bài\s+tập\s+lập\s+trình|viết\s+thuật\s+toán\s+bằng)\b/i,
-    /\b(?:viết\s+code|code\s+cho|hướng\s+dẫn\s+code|lập\s+trình\s+giúp)\b/i,
+    /\b(?:viết\s+code|code\s+cho|code\s+hộ|code\s+giúp|hướng\s+dẫn\s+code|lập\s+trình\s+giúp)\b/i,
   ];
 
   return codePatterns.some((regex) => regex.test(content));
+}
+
+/**
+ * Kiểm tra xem người dùng có đang yêu cầu vẽ/tạo ảnh hay không (để từ chối vì bot chỉ thuần hỏi đáp).
+ */
+export function isImageRequest(text = '') {
+  const content = String(text || '').trim();
+  if (!content) return false;
+
+  // Lọc bỏ các câu hỏi lý thuyết, thông tin thuần túy
+  if (
+    /^(?:tại\s+sao|vì\s+sao|ai\s+(?:đã\s+)?(?:vẽ|tạo)|giải\s+thích|định\s+nghĩa|hướng\s+dẫn\s+vẽ|cách\s+vẽ|làm\s+sao\s+để\s+vẽ)/i.test(
+      content,
+    )
+  ) {
+    return false;
+  }
+
+  // Các mẫu câu yêu cầu vẽ hoặc tạo ảnh
+  const imageTriggers = [
+    /^(?:hãy\s+|xin\s+|làm\s+ơn\s+)?(?:vẽ|tạo|thiết\s+kế|design)\s+(?:cho\s+.*?\s+)?(?:một\s+)?(?:bức\s+)?(?:ảnh|hình|tranh)/i,
+    /^(?:vẽ|tạo\s+ảnh|tạo\s+hình|tạo\s+tranh|design\s+ảnh|thiết\s+kế\s+ảnh|draw|paint|generate\s+image)\b/i,
+    /(?:vẽ\s+(?:cho|giúp|hộ)\s+(?:mình|em|tôi|tao|bọn\s+mình))/i,
+    /\b(?:vẽ\s+giúp|vẽ\s+hộ|vẽ\s+cho|vẽ\s+một\s+bức)\b/i,
+  ];
+
+  return imageTriggers.some((regex) => regex.test(content));
 }
 
 /**
@@ -48,13 +75,13 @@ export function cleanDialoguePrefix(responseText = '') {
 
   // 1. Loại bỏ tiền tố kịch bản ở đầu tin nhắn (ví dụ "Em: ", "EM: ", "**Em:** ", "Usagi: ")
   text = text.replace(
-    /^[\s*_#>\-\[]*(?:em(?:\s+bot)?(?:\s+usagi)?(?:\s+múp\s+rụp)?|usagi|bot|ai|assistant|trợ\s+lý)[\]\s*_]*\s*:\s*/i,
+    /^(?:\*\*|__)?(?:em(?:\s+bot)?(?:\s+usagi)?(?:\s+múp\s+rụp)?|usagi|bot|ai|assistant|trợ\s+lý)(?:\*\*|__)?\s*:\s*(?:\*\*|__)?\s*/i,
     '',
   );
 
   // 2. Loại bỏ các tiền tố ở đầu các dòng kế tiếp
   text = text.replace(
-    /\n[\s*_#>\-\[]*(?:em(?:\s+bot)?(?:\s+usagi)?(?:\s+múp\s+rụp)?|usagi|bot|ai|assistant|trợ\s+lý)[\]\s*_]*\s*:\s*/gi,
+    /\n(?:\*\*|__)?(?:em(?:\s+bot)?(?:\s+usagi)?(?:\s+múp\s+rụp)?|usagi|bot|ai|assistant|trợ\s+lý)(?:\*\*|__)?\s*:\s*(?:\*\*|__)?\s*/gi,
     '\n',
   );
 
@@ -454,6 +481,15 @@ export async function generateAIResponse(prompt, history = []) {
     return {
       success: true,
       text: AI_CONFIG.refusalMessage,
+      isRefusal: true,
+    };
+  }
+
+  // 2. Chặn ngay nếu người dùng yêu cầu vẽ/tạo ảnh (tính năng làm ảnh đã được loại bỏ)
+  if (isImageRequest(prompt)) {
+    return {
+      success: true,
+      text: AI_CONFIG.imageRefusalMessage,
       isRefusal: true,
     };
   }
