@@ -44,6 +44,11 @@ async function isPairMarriedWithCache(client, guildId, u1Id, u2Id) {
     const u1Data = await getUserMarriage(client, guildId, u1Id);
     const isMarried = areMarried(u1Data, u2Id);
 
+    if (marriageCheckCache.size >= 100) {
+      const oldestKey = marriageCheckCache.keys().next().value;
+      if (oldestKey) marriageCheckCache.delete(oldestKey);
+    }
+
     marriageCheckCache.set(coupleKey, {
       isMarried,
       expiresAt: now + CACHE_TTL_MS,
@@ -60,6 +65,8 @@ async function isPairMarriedWithCache(client, guildId, u1Id, u2Id) {
  */
 async function tickMarriageVoice(client) {
   if (!client?.guilds?.cache) return;
+
+  const activeCouplesInVoice = new Set();
 
   for (const guild of client.guilds.cache.values()) {
     try {
@@ -83,6 +90,7 @@ async function tickMarriageVoice(client) {
             if (!isMarried) continue;
 
             const coupleKey = `${guild.id}:${getCoupleKey(u1, u2)}`;
+            activeCouplesInVoice.add(coupleKey);
             const currentMins = (coupleVoiceMinutes.get(coupleKey) || 0) + 1;
 
             if (currentMins >= VOICE_TARGET_MINUTES) {
@@ -127,6 +135,13 @@ async function tickMarriageVoice(client) {
       }
     } catch (err) {
       logger.debug('Error in tickMarriageVoice for guild:', err.message);
+    }
+  }
+
+  // Dọn sạch mọi cặp không còn cùng nhau trong phòng voice để RAM luôn ở mức tối thiểu
+  for (const key of coupleVoiceMinutes.keys()) {
+    if (!activeCouplesInVoice.has(key)) {
+      coupleVoiceMinutes.delete(key);
     }
   }
 }

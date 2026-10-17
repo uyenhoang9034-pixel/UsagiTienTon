@@ -66,7 +66,7 @@ class UsagiTienTonBot extends Client {
         GuildScheduledEventManager: 0,
         GuildBanManager: 0, // Không cache danh sách ban
         GuildInviteManager: 0, // Không cache invite
-        ThreadManager: 5, // Giữ tối đa 5 threads
+        ThreadManager: 0, // Không cache thread
         ThreadMemberManager: 0, // Không cache thread member
         ApplicationCommandManager: 0,
         BaseGuildEmojiManager: 0,
@@ -85,10 +85,6 @@ class UsagiTienTonBot extends Client {
         guildMembers: {
           interval: 120, // Mỗi 2 phút dọn member cache không hoạt động voice
           filter: () => (member) => member.id !== member.client.user?.id && !member.voice?.channelId,
-        },
-        threads: {
-          interval: 180, // Mỗi 3 phút quét thread
-          lifetime: 300,
         },
       },
     });
