@@ -1,49 +1,8 @@
 import { PassThrough } from 'node:stream';
-import { randomUUID } from 'node:crypto';
 import { PermissionFlagsBits } from 'discord.js';
 import { logger } from '../../utils/logger.js';
 import { synthesizeSpeech } from './ttsAudioEngine.js';
 import { getVoiceById, getDefaultVoice } from './ttsVoices.js';
-
-const ttsAudioCache = new Map();
-const MAX_TTS_CACHE_ITEMS = 5;
-const TTS_CACHE_TTL_MS = 20_000;
-
-// Định kỳ quét dọn buffer âm thanh quá hạn mỗi 15 giây
-setInterval(() => {
-  const now = Date.now();
-  for (const [id, item] of ttsAudioCache.entries()) {
-    if (now >= item.expiresAt) {
-      ttsAudioCache.delete(id);
-    }
-  }
-}, 15_000).unref();
-
-export function cacheTTSAudio(id, buffer) {
-  // Giới hạn số lượng buffer âm thanh trong RAM để tránh phình bộ nhớ
-  if (ttsAudioCache.size >= MAX_TTS_CACHE_ITEMS) {
-    const oldestKey = ttsAudioCache.keys().next().value;
-    if (oldestKey) ttsAudioCache.delete(oldestKey);
-  }
-
-  ttsAudioCache.set(id, { buffer, expiresAt: Date.now() + TTS_CACHE_TTL_MS });
-  setTimeout(() => {
-    ttsAudioCache.delete(id);
-  }, TTS_CACHE_TTL_MS).unref?.();
-}
-
-export function getTTSAudioBuffer(id) {
-  const item = ttsAudioCache.get(id);
-  if (!item || item.expiresAt < Date.now()) {
-    ttsAudioCache.delete(id);
-    return null;
-  }
-  return item;
-}
-
-export function deleteTTSAudio(id) {
-  ttsAudioCache.delete(id);
-}
 
 export const TTS_MANAGER_ROLE_ID = '1545305594712432640';
 
@@ -437,6 +396,13 @@ class TTSManager {
 
     this.sessions.delete(guildId);
     logger.info(`TTS session ended in guild ${guildId}. Reason: ${reason || 'User requested'}`);
+
+    if (typeof global.gc === 'function') {
+      try {
+        global.gc();
+      } catch {}
+    }
+
     return true;
   }
 
@@ -600,7 +566,7 @@ class TTSManager {
   }
 
   /**
-   * Thiết lập hẹn giờ tự ngắt khi không ai nói trong 10 phút
+   * Thiết lập hẹn giờ tự ngắt khi không ai nói trong 2 phút
    */
   resetIdleTimer(guildId) {
     const session = this.sessions.get(guildId);
@@ -611,9 +577,9 @@ class TTSManager {
     }
 
     session.idleTimer = setTimeout(async () => {
-      logger.info(`TTS idle timeout (10m) in guild ${guildId}. Leaving voice.`);
-      await this.stopSession(guildId, 'Không có tin nhắn nào trong 10 phút');
-    }, 10 * 60 * 1000);
+      logger.info(`TTS idle timeout (2m) in guild ${guildId}. Leaving voice.`);
+      await this.stopSession(guildId, 'Không có tin nhắn nào trong 2 phút');
+    }, 2 * 60 * 1000);
   }
 
   /**
@@ -765,10 +731,10 @@ class TTSManager {
 
       if (nonBotMembers.size === 0) {
         if (!session.aloneTimer) {
-          logger.info(`Bot is alone in voice channel ${session.voiceChannelId}. Scheduling leave in 45s.`);
+          logger.info(`Bot is alone in voice channel ${session.voiceChannelId}. Scheduling leave in 15s.`);
           session.aloneTimer = setTimeout(async () => {
             await this.stopSession(guildId, 'Không còn ai trong phòng voice');
-          }, 45 * 1000);
+          }, 15 * 1000);
         }
       } else {
         if (session.aloneTimer) {
