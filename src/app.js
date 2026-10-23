@@ -37,26 +37,23 @@ class UsagiTienTonBot extends Client {
     super({
       intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.GuildMessageReactions,
         GatewayIntentBits.GuildVoiceStates,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.DirectMessages,
       ],
       partials: [
         Partials.Message,
         Partials.Channel,
-        Partials.Reaction,
         Partials.User,
       ],
       // 🚀 Tối ưu RAM cho Discord.js: Khóa chặt cache không cần thiết và tự động dọn rác bộ nhớ cực kỳ triệt để
       makeCache: Options.cacheWithLimits({
         ...Options.DefaultMakeCacheSettings,
-        GuildMemberManager: 25, // Khóa cứng member cache (mặc định Discord.js là Infinity - thủ phạm chính ngốn RAM khi có nhiều user)
-        UserManager: 25, // Giới hạn tối đa 25 user trong RAM
-        MessageManager: 5, // Chỉ lưu 5 tin nhắn gần nhất mỗi channel
-        GuildEmojiManager: 5, // Giới hạn cache 5 emoji
+        GuildMemberManager: 10, // Khóa cứng member cache (chỉ lưu tối đa 10 member mỗi guild)
+        UserManager: 10, // Giới hạn tối đa 10 user trong RAM
+        MessageManager: 1, // Chỉ lưu tối đa 1 tin nhắn gần nhất mỗi channel
+        RoleManager: 10, // Giới hạn tối đa 10 role mỗi guild
+        GuildEmojiManager: 0, // Không cache emoji
         GuildStickerManager: 0, // Không cache sticker
         ReactionManager: 0, // Không cache reaction
         ReactionUserManager: 0, // Không cache reaction user
@@ -69,21 +66,17 @@ class UsagiTienTonBot extends Client {
         ThreadMemberManager: 0, // Không cache thread member
         ApplicationCommandManager: 0,
         BaseGuildEmojiManager: 0,
-        VoiceStateManager: 25, // Giới hạn 25 voice state
+        VoiceStateManager: 15, // Giới hạn 15 voice state cần thiết
       }),
       sweepers: {
         ...Options.DefaultSweeperSettings,
         messages: {
-          interval: 120, // Mỗi 2 phút quét dọn tin nhắn cũ
-          lifetime: 180, // Giải phóng tin nhắn cũ hơn 3 phút khỏi RAM
+          interval: 60, // Mỗi 1 phút quét dọn tin nhắn cũ
+          lifetime: 60, // Giải phóng tin nhắn cũ hơn 1 phút khỏi RAM
         },
         users: {
-          interval: 120, // Mỗi 2 phút dọn user cache không còn tương tác
+          interval: 60, // Mỗi 1 phút dọn user cache không còn tương tác
           filter: () => (user) => user.id !== user.client.user?.id,
-        },
-        guildMembers: {
-          interval: 120, // Mỗi 2 phút dọn member cache không hoạt động voice
-          filter: () => (member) => member.id !== member.client.user?.id && !member.voice?.channelId,
         },
       },
     });
@@ -302,27 +295,27 @@ process.on('unhandledRejection', (error) => {
 if (typeof global.gc === 'function') {
   startupLog('Garbage Collection (global.gc) is active ✅');
 
-  // Chạy GC chủ động định kỳ mỗi 60 giây để thu hồi bộ nhớ ngay lập tức
+  // Chạy GC chủ động định kỳ mỗi 30 giây để thu hồi bộ nhớ ngay lập tức
   setInterval(() => {
     try {
       global.gc();
     } catch {}
-  }, 60 * 1000).unref();
+  }, 30 * 1000).unref();
 
-  // Memory Guard: Quét mỗi 20s, nếu heapUsed > 85MB hoặc RSS > 160MB thì lập tức cưỡng chế GC
+  // Memory Guard: Quét mỗi 15s, nếu heapUsed > 70MB hoặc RSS > 130MB thì lập tức cưỡng chế GC
   setInterval(() => {
     try {
       const mem = process.memoryUsage();
       const heapUsedMB = mem.heapUsed / 1024 / 1024;
       const rssMB = mem.rss / 1024 / 1024;
-      if (heapUsedMB > 85 || rssMB > 160) {
+      if (heapUsedMB > 70 || rssMB > 130) {
         global.gc();
         logger.warn(
           `[Memory Guard] Cưỡng chế GC do chạm ngưỡng RAM! HeapUsed: ${heapUsedMB.toFixed(1)}MB, RSS: ${rssMB.toFixed(1)}MB`,
         );
       }
     } catch {}
-  }, 20 * 1000).unref();
+  }, 15 * 1000).unref();
 }
 
 bot.start();

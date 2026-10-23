@@ -317,12 +317,10 @@ export async function synthesizeTikTokTTS(text, voice = 'vi_female_01') {
  */
 export async function synthesizeSpeech(text, { voiceId = 'vi-VN-HoaiMyNeural', speed = '1.0x' } = {}) {
   const voice = getVoiceById(voiceId) || getDefaultVoice();
-  // Nếu giọng có rate mặc định (như TikTok +15%), và người dùng đang để 1.0x, ưu tiên nhịp đọc của giọng đó
-  const baseRate = getSpeedRate(speed);
-  const rate = (speed === '1.0x' && voice.rate) ? voice.rate : baseRate;
+  const rate = getSpeedRate(speed);
   const pitch = voice.pitch || '+0Hz';
 
-  // 1. Nếu giọng được chọn là Edge Neural (Hoài My, Nam Minh, Nanami, Jenny, Guy, SunHi, Xiaoxiao,...)
+  // 1. Nếu giọng được chọn là Edge Neural (Hoài My, Nam Minh)
   if (voice.engine === 'edge') {
     try {
       const buffer = await synthesizeEdgeTTS(text, voice.voiceName, rate, pitch);
@@ -330,56 +328,11 @@ export async function synthesizeSpeech(text, { voiceId = 'vi-VN-HoaiMyNeural', s
         return { buffer, voice, engine: 'edge' };
       }
     } catch (edgeError) {
-      logger.warn(`Edge TTS (${voice.id}) gặp lỗi: ${edgeError?.message}. Đang thử fallback...`);
+      logger.warn(`Edge TTS (${voice.id}) gặp lỗi: ${edgeError?.message}. Đang thử fallback sang Google...`);
     }
   }
 
-  // 2. Nếu giọng được chọn là TikTok
-  if (voice.engine === 'tiktok') {
-    try {
-      const buffer = await synthesizeTikTokTTS(text, voice.voiceName);
-      if (buffer && buffer.length > 0) {
-        return { buffer, voice, engine: 'tiktok' };
-      }
-    } catch (tiktokError) {
-      logger.warn(`TikTok TTS (${voice.id}) lỗi: ${tiktokError?.message}. Fallback sang phong cách TikTok tương ứng...`);
-    }
-
-    // NÂNG CẤP ĐẶC BIỆT:
-    // Nếu TikTok API chưa có session hoặc bị chặn, bot fallback sang Edge Neural nhưng với
-    // CAO ĐỘ (PITCH) và TỐC ĐỘ (RATE) đặc trưng của TikTok!
-    // Nữ TikTok: pitch +18Hz, rate +15% -> Biến giọng thành giọng nữ lí lắc, nhí nhảnh, cao và nhanh đặc trưng TikTok!
-    // Nam TikTok: pitch -5Hz, rate +10% -> Biến giọng thành giọng nam dứt khoát, bắt tai!
-    try {
-      const isNam = voice.gender === 'Nam';
-      const edgeFallback = isNam ? 'vi-VN-NamMinhNeural' : 'vi-VN-HoaiMyNeural';
-      const tiktokPitch = voice.pitch || (isNam ? '-5Hz' : '+18Hz');
-      const tiktokRate = (speed === '1.0x' && voice.rate) ? voice.rate : (isNam ? '+10%' : '+15%');
-
-      const buffer = await synthesizeEdgeTTS(text, edgeFallback, tiktokRate, tiktokPitch);
-      if (buffer && buffer.length > 0) {
-        logger.info(
-          `TikTok style qua Edge Neural (${edgeFallback}, pitch=${tiktokPitch}, rate=${tiktokRate}) thành công`,
-        );
-        return { buffer, voice, engine: 'edge' };
-      }
-    } catch (fallbackEdgeError) {
-      logger.warn(`Fallback Edge cho TikTok cũng lỗi: ${fallbackEdgeError?.message}`);
-    }
-  }
-
-  // 3. Nếu là tiếng Việt và Edge lỗi, thử TikTok trước khi xuống Google
-  if (voice.engine === 'edge' && voice.lang === 'vi') {
-    try {
-      const tiktokVoice = voice.gender === 'Nam' ? 'vi_male_01' : 'vi_female_01';
-      const buffer = await synthesizeTikTokTTS(text, tiktokVoice);
-      if (buffer && buffer.length > 0) {
-        return { buffer, voice, engine: 'tiktok' };
-      }
-    } catch {}
-  }
-
-  // 4. Nếu người dùng chọn giọng Google cụ thể (hoặc fallback bất khả kháng cuối cùng)
+  // 2. Giọng Google hoặc fallback an toàn sang Google TTS
   const fallbackLang = voice.lang || 'vi';
   const buffer = await synthesizeGoogleTTS(text, fallbackLang);
   return { buffer, voice, engine: 'google' };

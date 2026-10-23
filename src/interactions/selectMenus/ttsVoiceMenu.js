@@ -41,16 +41,7 @@ export default {
       }
 
       // Thử phát thử 1 câu ngắn bằng giọng mới để người dùng nghe thử
-      let sampleText = `Em đã đổi sang giọng ${voice.name} rồi nha!`;
-      if (voice.id === 'ja-JP-NanamiNeural') {
-        sampleText = 'Konnichiwa~ Em đã đổi sang giọng Nanami Kawaii cho vợ của Kim Nong rồi nha!';
-      } else if (voice.id === 'vi-VN-AnimeWaifu') {
-        sampleText = 'Onii-chan~ Em đã đổi sang giọng Anime Waifu siêu cấp dễ thương rồi nè!';
-      } else if (voice.id === 'de-DE-KatjaNeural') {
-        sampleText = 'Guten Tag! Em đã đổi sang giọng nữ tiếng Đức Katja cho vợ của Kim Nong rồi nha!';
-      } else if (voice.id === 'de-DE-ConradNeural') {
-        sampleText = 'Hallo! Em đã đổi sang giọng nam tiếng Đức Conrad cho vợ của Kim Nong rồi nha!';
-      }
+      const sampleText = `Em bot Usagi múp rụp đã đổi sang giọng ${voice.name} cho vợ của Kim Nong rồi nha!`;
 
       ttsManager
         .speakNow(guildId, sampleText, {

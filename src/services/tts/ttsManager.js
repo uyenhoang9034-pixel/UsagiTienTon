@@ -313,6 +313,8 @@ class TTSManager {
         playbackWatchdog: null,
         idleTimer: null,
         aloneTimer: null,
+        currentStream: null,
+        currentResource: null,
         createdAt: Date.now(),
         voiceChangedUsers: new Set(),
       };
@@ -323,6 +325,7 @@ class TTSManager {
           clearTimeout(session.playbackWatchdog);
           session.playbackWatchdog = null;
         }
+        this.cleanupCurrentAudio(session);
         session.isPlaying = false;
         this.playNextInQueue(guild.id).catch((err) => {
           logger.error(`Error processing next TTS track in guild ${guild.id}:`, err);
@@ -339,6 +342,7 @@ class TTSManager {
           clearTimeout(session.playbackWatchdog);
           session.playbackWatchdog = null;
         }
+        this.cleanupCurrentAudio(session);
         session.isPlaying = false;
         this.playNextInQueue(guild.id).catch(() => {});
       });
@@ -373,6 +377,29 @@ class TTSManager {
   }
 
   /**
+   * Giải phóng tài nguyên âm thanh (Stream & Resource) để thu hồi RAM ngay lập tức
+   */
+  cleanupCurrentAudio(session) {
+    if (!session) return;
+    if (session.currentStream) {
+      try {
+        if (!session.currentStream.destroyed) {
+          session.currentStream.destroy();
+        }
+      } catch {}
+      session.currentStream = null;
+    }
+    if (session.currentResource) {
+      try {
+        if (session.currentResource.playStream && !session.currentResource.playStream.destroyed) {
+          session.currentResource.playStream.destroy();
+        }
+      } catch {}
+      session.currentResource = null;
+    }
+  }
+
+  /**
    * Dừng và xóa phiên TTS của guild
    */
   async stopSession(guildId, reason = '') {
@@ -382,6 +409,9 @@ class TTSManager {
     if (session.idleTimer) clearTimeout(session.idleTimer);
     if (session.aloneTimer) clearTimeout(session.aloneTimer);
     if (session.playbackWatchdog) clearTimeout(session.playbackWatchdog);
+
+    this.cleanupCurrentAudio(session);
+    session.queue = [];
 
     try {
       if (session.player) {
@@ -446,6 +476,11 @@ class TTSManager {
 
     this.resetIdleTimer(guildId);
 
+    // Giới hạn tối đa 25 câu trong hàng đợi để bảo vệ RAM khỏi spam
+    if (session.queue.length >= 25) {
+      session.queue.shift();
+    }
+
     session.queue.push(item);
     logger.info(`Enqueued TTS phrase for guild ${guildId}: "${item.text.slice(0, 50)}...". Queue len: ${session.queue.length}`);
 
@@ -465,12 +500,19 @@ class TTSManager {
 
     if (session.queue.length === 0) {
       session.isPlaying = false;
+      this.cleanupCurrentAudio(session);
       this.resetIdleTimer(guildId);
+      if (typeof global.gc === 'function') {
+        try {
+          global.gc();
+        } catch {}
+      }
       return;
     }
 
     session.isPlaying = true;
     const item = session.queue.shift();
+    this.cleanupCurrentAudio(session);
 
     // ============================================
     // ENGINE @discordjs/voice (Direct Native)
@@ -499,12 +541,10 @@ class TTSManager {
 
       const resource = voice.createAudioResource(passThroughStream, {
         inputType: voice.StreamType.Arbitrary,
-        inlineVolume: true,
       });
 
-      if (resource.volume) {
-        resource.volume.setVolume(1.0);
-      }
+      session.currentStream = passThroughStream;
+      session.currentResource = resource;
 
       if (resource.playStream) {
         resource.playStream.on('error', (streamErr) => {
@@ -522,6 +562,7 @@ class TTSManager {
           try {
             session.player.stop(true);
           } catch {}
+          this.cleanupCurrentAudio(session);
           session.isPlaying = false;
           this.playNextInQueue(guildId).catch(() => {});
         }
@@ -534,6 +575,7 @@ class TTSManager {
         clearTimeout(session.playbackWatchdog);
         session.playbackWatchdog = null;
       }
+      this.cleanupCurrentAudio(session);
       session.isPlaying = false;
       setTimeout(() => {
         this.playNextInQueue(guildId).catch(() => {});

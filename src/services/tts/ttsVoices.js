@@ -4,7 +4,7 @@
  */
 
 export const TTS_VOICES = [
-  // --- VIỆT NAM ---
+  // --- VIỆT NAM (1 Nữ, 1 Nam, 1 Google) ---
   {
     id: 'vi-VN-HoaiMyNeural',
     name: 'Hoài My (Nữ VN - Mượt mà)',
@@ -32,19 +32,6 @@ export const TTS_VOICES = [
     description: 'Giọng nam phát thanh viên, chững chạc và ấm áp',
   },
   {
-    id: 'vi-VN-AnimeWaifu',
-    name: 'Anime Waifu VN (Dễ thương)',
-    lang: 'vi',
-    engine: 'edge',
-    voiceName: 'vi-VN-HoaiMyNeural',
-    gender: 'Nữ',
-    flag: '🎀',
-    category: 'Tiếng Việt',
-    pitch: '+24Hz',
-    rate: '+8%',
-    description: 'Giọng waifu tiếng Việt ngọt ngào, trong trẻo và đáng yêu',
-  },
-  {
     id: 'google-vi',
     name: 'Google Nữ (Việt Nam)',
     lang: 'vi',
@@ -54,73 +41,6 @@ export const TTS_VOICES = [
     flag: '🇻🇳',
     category: 'Tiếng Việt',
     description: 'Giọng chị Google huyền thoại, rõ ràng và thân quen',
-  },
-
-  // --- JAPANESE (Chỉ giữ lại 1 giọng duy nhất) ---
-  {
-    id: 'ja-JP-NanamiNeural',
-    name: 'Nanami (Anime Girl - Kawaii)',
-    lang: 'ja',
-    engine: 'edge',
-    voiceName: 'ja-JP-NanamiNeural',
-    gender: 'Nữ',
-    flag: '🇯🇵',
-    category: 'Tiếng Nhật',
-    pitch: '+0Hz',
-    rate: '+0%',
-    description: 'Giọng anime waifu ngọt ngào, chuẩn giọng Nhật',
-  },
-
-  // --- CHINESE ---
-  {
-    id: 'zh-CN-XiaoxiaoNeural',
-    name: 'Xiaoxiao (Nữ Trung Quốc)',
-    lang: 'zh-CN',
-    engine: 'edge',
-    voiceName: 'zh-CN-XiaoxiaoNeural',
-    gender: 'Nữ',
-    flag: '🇨🇳',
-    category: 'Tiếng Trung',
-    description: 'Giọng nữ phổ thông truyền cảm, nhẹ nhàng',
-  },
-  {
-    id: 'google-zh-CN',
-    name: 'Google Chinese',
-    lang: 'zh-CN',
-    engine: 'google',
-    voiceName: 'zh-CN',
-    gender: 'Nữ',
-    flag: '🇨🇳',
-    category: 'Tiếng Trung',
-    description: 'Giọng tiếng Trung phổ thông',
-  },
-
-  // --- GERMAN ---
-  {
-    id: 'de-DE-KatjaNeural',
-    name: 'Katja (Nữ Đức - Tự nhiên)',
-    lang: 'de',
-    engine: 'edge',
-    voiceName: 'de-DE-KatjaNeural',
-    gender: 'Nữ',
-    flag: '🇩🇪',
-    category: 'Tiếng Đức',
-    pitch: '+0Hz',
-    rate: '+0%',
-    description: 'Giọng nữ tiếng Đức chuẩn Berlin, phát âm sắc nét và ấm áp',
-  },
-  {
-    id: 'de-DE-ConradNeural',
-    name: 'Conrad (Nam Đức - Trầm hùng)',
-    lang: 'de',
-    engine: 'edge',
-    voiceName: 'de-DE-ConradNeural',
-    gender: 'Nam',
-    flag: '🇩🇪',
-    category: 'Tiếng Đức',
-    pitch: '+0Hz',
-    rate: '+0%',
-    description: 'Giọng nam tiếng Đức sang trọng, phong độ, đĩnh đạc',
   },
 ];
 
