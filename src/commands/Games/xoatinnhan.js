@@ -4,7 +4,7 @@ import {
   SlashCommandBuilder,
 } from 'discord.js';
 
-const ADMIN_ROLE_ID = '1541303749916754001';
+const ADMIN_ROLE_ID = '1545305594712432640';
 const MAX_DELETE_COUNT = 1000;
 const FETCH_SIZE = 100;
 const BULK_DELETE_AGE_MS = 14 * 24 * 60 * 60 * 1000;

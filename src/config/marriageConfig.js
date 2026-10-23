@@ -7,7 +7,7 @@ export const MARRIAGE_CONFIG = {
   // ==========================================
   // CẤU HÌNH ADMIN VÀ KÊNH LỆNH CỐ ĐỊNH
   // ==========================================
-  adminRoleId: '1541303749916754001',
+  adminRoleId: '1545305594712432640',
   marryChannelId: '1559076209214890030',
   channelErrorMessage: (channelId) =>
     `Lệnh kết hôn chỉ có thể sử dụng tại kênh <#${channelId}> thôi nha! 🐰🌸`,
