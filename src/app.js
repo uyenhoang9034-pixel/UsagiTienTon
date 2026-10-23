@@ -52,7 +52,6 @@ class UsagiTienTonBot extends Client {
         GuildMemberManager: 10, // Khóa cứng member cache (chỉ lưu tối đa 10 member mỗi guild)
         UserManager: 10, // Giới hạn tối đa 10 user trong RAM
         MessageManager: 1, // Chỉ lưu tối đa 1 tin nhắn gần nhất mỗi channel
-        RoleManager: 10, // Giới hạn tối đa 10 role mỗi guild
         GuildEmojiManager: 0, // Không cache emoji
         GuildStickerManager: 0, // Không cache sticker
         ReactionManager: 0, // Không cache reaction

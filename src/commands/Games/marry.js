@@ -50,13 +50,34 @@ function getInteractionQuote(action, senderId, spouseId) {
 }
 
 function isMarryAdmin(interaction) {
-  const memberRoles = interaction.member?.roles;
-  if (!memberRoles) return false;
-  if (Array.isArray(memberRoles)) {
-    return memberRoles.includes(MARRIAGE_CONFIG.adminRoleId);
+  const member = interaction.member;
+  if (!member) return false;
+
+  const ownerId = interaction.guild?.ownerId;
+  if (ownerId && (member.id === ownerId || interaction.user?.id === ownerId)) {
+    return true;
   }
-  if (memberRoles.cache) {
-    return memberRoles.cache.has(MARRIAGE_CONFIG.adminRoleId);
+
+  if (member.permissions?.has?.(PermissionFlagsBits.Administrator)) return true;
+  if (member.permissions?.has?.(PermissionFlagsBits.ManageGuild)) return true;
+
+  const configuredOwnerIds = (process.env.OWNER_IDS || '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+  if (configuredOwnerIds.includes(interaction.user?.id) || configuredOwnerIds.includes(member.id)) {
+    return true;
+  }
+
+  const memberRoles = member.roles;
+  if (Array.isArray(memberRoles) && memberRoles.includes(MARRIAGE_CONFIG.adminRoleId)) {
+    return true;
+  }
+  if (Array.isArray(member._roles) && member._roles.includes(MARRIAGE_CONFIG.adminRoleId)) {
+    return true;
+  }
+  if (memberRoles?.cache?.has?.(MARRIAGE_CONFIG.adminRoleId)) {
+    return true;
   }
   return false;
 }

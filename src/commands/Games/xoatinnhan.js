@@ -10,8 +10,43 @@ const FETCH_SIZE = 100;
 const BULK_DELETE_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 const BULK_DELETE_SAFETY_MS = 60 * 1000;
 
-function hasAdminRole(member) {
-  return Boolean(member?.roles?.cache?.has(ADMIN_ROLE_ID));
+function hasAdminRole(interaction) {
+  const member = interaction?.member;
+  if (!member) return false;
+
+  // 1. Chủ máy chủ (Server Owner) luôn luôn có toàn quyền
+  const ownerId = interaction.guild?.ownerId;
+  if (ownerId && (member.id === ownerId || interaction.user?.id === ownerId)) {
+    return true;
+  }
+
+  // 2. Thành viên có quyền Administrator, ManageMessages hoặc ManageGuild
+  if (member.permissions?.has?.(PermissionFlagsBits.Administrator)) return true;
+  if (member.permissions?.has?.(PermissionFlagsBits.ManageMessages)) return true;
+  if (member.permissions?.has?.(PermissionFlagsBits.ManageGuild)) return true;
+
+  // 3. ID nằm trong danh sách OWNER_IDS
+  const configuredOwnerIds = (process.env.OWNER_IDS || '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+  if (configuredOwnerIds.includes(interaction.user?.id) || configuredOwnerIds.includes(member.id)) {
+    return true;
+  }
+
+  // 4. Có Role Admin cụ thể (hỗ trợ cả cache, array roles và _roles)
+  if (Array.isArray(member.roles) && member.roles.includes(ADMIN_ROLE_ID)) return true;
+  if (Array.isArray(member._roles) && member._roles.includes(ADMIN_ROLE_ID)) return true;
+  if (member.roles?.cache?.has?.(ADMIN_ROLE_ID)) return true;
+
+  // 5. Có Role mang tên admin / quản trị
+  if (member.roles?.cache?.some?.((r) =>
+    /^(admin|administrator|quản lý|quản trị viên|quan ly|quan tri vien)$/i.test(r.name?.trim())
+  )) {
+    return true;
+  }
+
+  return false;
 }
 
 function canManageMessages(channel) {
@@ -68,7 +103,7 @@ export default {
         });
       }
 
-      if (!hasAdminRole(interaction.member)) {
+      if (!hasAdminRole(interaction)) {
         return interaction.reply({
           content: 'Bạn không có quyền sử dụng lệnh xóa tin nhắn.',
           flags: MessageFlags.Ephemeral,
