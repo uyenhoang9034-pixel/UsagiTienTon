@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -6,6 +7,7 @@ import {
   ComponentType,
   EmbedBuilder,
   MessageFlags,
+  PermissionFlagsBits,
   SlashCommandBuilder,
 } from 'discord.js';
 
@@ -50,7 +52,7 @@ function getInteractionQuote(action, senderId, spouseId) {
 }
 
 function isMarryAdmin(interaction) {
-  const member = interaction.member;
+  const member = interaction?.member;
   if (!member) return false;
 
   const ownerId = interaction.guild?.ownerId;
@@ -58,8 +60,9 @@ function isMarryAdmin(interaction) {
     return true;
   }
 
-  if (member.permissions?.has?.(PermissionFlagsBits.Administrator)) return true;
-  if (member.permissions?.has?.(PermissionFlagsBits.ManageGuild)) return true;
+  const perms = interaction.memberPermissions || member.permissions;
+  if (perms?.has?.(PermissionFlagsBits.Administrator)) return true;
+  if (perms?.has?.(PermissionFlagsBits.ManageGuild)) return true;
 
   const configuredOwnerIds = (process.env.OWNER_IDS || '')
     .split(',')
@@ -69,14 +72,20 @@ function isMarryAdmin(interaction) {
     return true;
   }
 
+  const adminRoleId = process.env.ADMIN_ROLE_ID || MARRIAGE_CONFIG.adminRoleId;
   const memberRoles = member.roles;
-  if (Array.isArray(memberRoles) && memberRoles.includes(MARRIAGE_CONFIG.adminRoleId)) {
+  if (Array.isArray(memberRoles) && memberRoles.includes(adminRoleId)) {
     return true;
   }
-  if (Array.isArray(member._roles) && member._roles.includes(MARRIAGE_CONFIG.adminRoleId)) {
+  if (Array.isArray(member._roles) && member._roles.includes(adminRoleId)) {
     return true;
   }
-  if (memberRoles?.cache?.has?.(MARRIAGE_CONFIG.adminRoleId)) {
+  if (memberRoles?.cache?.has?.(adminRoleId)) {
+    return true;
+  }
+  if (memberRoles?.cache?.some?.((r) =>
+    /^(admin|administrator|quản lý|quản trị viên|quan ly|quan tri vien|mod|moderator)$/i.test(r.name?.trim())
+  )) {
     return true;
   }
   return false;
@@ -107,7 +116,7 @@ function resolveTargetSpouse(userData, specifiedUser, isAdmin = false) {
   }
 
   if (specifiedUser) {
-    const found = userData.spouses[specifiedUser.id];
+    const found = userData?.spouses?.[specifiedUser.id];
     if (!found) {
       return { error: 'NOT_MARRIED_TO_USER' };
     }
@@ -264,29 +273,33 @@ export default {
   category: 'Games',
 
   async execute(interaction, client) {
-    const botClient = client || interaction.client;
-    const guildId = interaction.guildId;
-
-    if (!guildId) {
-      return interaction.reply({
-        content: 'Lệnh này chỉ có thể sử dụng trong server thôi nha! 🐰',
-        flags: MessageFlags.Ephemeral,
-      });
-    }
-
-    const isAdmin = isMarryAdmin(interaction);
-
-    // Kiểm tra kênh lệnh: Người bình thường chỉ dùng tại kênh MARRY_CONFIG.marryChannelId, admin dùng ở bất kì kênh nào
-    if (!isAdmin && interaction.channelId !== MARRIAGE_CONFIG.marryChannelId) {
-      return interaction.reply({
-        content: MARRIAGE_CONFIG.channelErrorMessage(MARRIAGE_CONFIG.marryChannelId),
-        flags: MessageFlags.Ephemeral,
-      });
-    }
-
-    const subcommand = interaction.options.getSubcommand();
-
     try {
+      const botClient = client || interaction.client;
+      const guildId = interaction.guildId;
+
+      if (!guildId) {
+        return interaction.reply({
+          content: 'Lệnh này chỉ có thể sử dụng trong server thôi nha! 🐰',
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      const isAdmin = isMarryAdmin(interaction);
+
+      // Kiểm tra kênh lệnh: Người bình thường chỉ dùng tại kênh MARRY_CONFIG.marryChannelId, admin dùng ở bất kì kênh nào
+      // Nếu kênh không tồn tại trong server hoặc không cấu hình thì cho phép dùng tự do
+      const targetChannelId = MARRIAGE_CONFIG.marryChannelId;
+      if (targetChannelId && !isAdmin && interaction.channelId !== targetChannelId) {
+        const channelExists = interaction.guild?.channels?.cache?.has?.(targetChannelId);
+        if (channelExists) {
+          return interaction.reply({
+            content: MARRIAGE_CONFIG.channelErrorMessage(targetChannelId),
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+      }
+
+      const subcommand = interaction.options.getSubcommand();
       // 1. CẦU HÔN (HỖ TRỢ CƯỚI NHIỀU NGƯỜI, TRỪ BOT)
       if (subcommand === 'cauhon') {
         const targetUser = interaction.options.getUser('doiphuong');
@@ -417,9 +430,10 @@ export default {
               .setTimestamp();
 
             const weddingFiles = [];
-            if (fs.existsSync('assets/marry/marry.gif')) {
+            const gifPath = path.resolve(process.cwd(), 'assets/marry/marry.gif');
+            if (fs.existsSync(gifPath)) {
               weddingEmbed.setImage('attachment://marry.gif');
-              weddingFiles.push({ attachment: 'assets/marry/marry.gif', name: 'marry.gif' });
+              weddingFiles.push({ attachment: gifPath, name: 'marry.gif' });
             } else {
               weddingEmbed.setImage(MARRIAGE_CONFIG.images.weddingGif);
             }
@@ -989,7 +1003,7 @@ export default {
 
             return interaction.channel?.send({
               embeds: [announcementEmbed],
-            });
+            }).catch(() => {});
           }
 
           if (btnInteraction.customId === cancelBtnId) {

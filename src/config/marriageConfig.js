@@ -7,8 +7,8 @@ export const MARRIAGE_CONFIG = {
   // ==========================================
   // CẤU HÌNH ADMIN VÀ KÊNH LỆNH CỐ ĐỊNH
   // ==========================================
-  adminRoleId: '1545305594712432640',
-  marryChannelId: '1559076209214890030',
+  adminRoleId: process.env.ADMIN_ROLE_ID || '1545305594712432640',
+  marryChannelId: process.env.MARRY_CHANNEL_ID || process.env.MARRIAGE_CHANNEL_ID || '1559076209214890030',
   channelErrorMessage: (channelId) =>
     `Lệnh kết hôn chỉ có thể sử dụng tại kênh <#${channelId}> thôi nha! 🐰🌸`,
 
@@ -131,6 +131,33 @@ export const MARRIAGE_CONFIG = {
         `> <a:trangtrig30:1546905942476464178> Lời thề ước: **${bioText}** <a:bunnyg2:1541439896001183744>`
       );
     },
+    certFields: (marriedTimestamp, daysTogether, lovePoints, levelText, streak) => [
+      {
+        name: '<a:heartg1:1545307544808071258> Ngày Thành Hôn',
+        value: `<t:${marriedTimestamp}:D> (<t:${marriedTimestamp}:R>)`,
+        inline: true,
+      },
+      {
+        name: '<a:heartg1:1545307544808071258> Thời Gian Bên Nhau',
+        value: `${daysTogether} ngày hạnh phúc`,
+        inline: true,
+      },
+      {
+        name: '<a:trangtrig46:1547240249761996812> Điểm Thân Mật',
+        value: `${(lovePoints || 0).toLocaleString()} điểm`,
+        inline: true,
+      },
+      {
+        name: '<a:heartg1:1545307544808071258> Cấp Bậc Tình Yêu',
+        value: levelText,
+        inline: true,
+      },
+      {
+        name: '<a:trangtrig45:1547239010190237819> Chuỗi Điểm Danh',
+        value: `${streak || 0} ngày liên tục`,
+        inline: true,
+      },
+    ],
     certFooter: 'Dùng /marry tuongtac hoặc /marry diemdanh để tăng điểm mỗi ngày nha!',
   },
 

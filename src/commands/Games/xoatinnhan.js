@@ -21,9 +21,10 @@ function hasAdminRole(interaction) {
   }
 
   // 2. Thành viên có quyền Administrator, ManageMessages hoặc ManageGuild
-  if (member.permissions?.has?.(PermissionFlagsBits.Administrator)) return true;
-  if (member.permissions?.has?.(PermissionFlagsBits.ManageMessages)) return true;
-  if (member.permissions?.has?.(PermissionFlagsBits.ManageGuild)) return true;
+  const perms = interaction.memberPermissions || member.permissions;
+  if (perms?.has?.(PermissionFlagsBits.Administrator)) return true;
+  if (perms?.has?.(PermissionFlagsBits.ManageMessages)) return true;
+  if (perms?.has?.(PermissionFlagsBits.ManageGuild)) return true;
 
   // 3. ID nằm trong danh sách OWNER_IDS
   const configuredOwnerIds = (process.env.OWNER_IDS || '')
@@ -35,13 +36,14 @@ function hasAdminRole(interaction) {
   }
 
   // 4. Có Role Admin cụ thể (hỗ trợ cả cache, array roles và _roles)
-  if (Array.isArray(member.roles) && member.roles.includes(ADMIN_ROLE_ID)) return true;
-  if (Array.isArray(member._roles) && member._roles.includes(ADMIN_ROLE_ID)) return true;
-  if (member.roles?.cache?.has?.(ADMIN_ROLE_ID)) return true;
+  const targetAdminRoleId = process.env.ADMIN_ROLE_ID || ADMIN_ROLE_ID;
+  if (Array.isArray(member.roles) && member.roles.includes(targetAdminRoleId)) return true;
+  if (Array.isArray(member._roles) && member._roles.includes(targetAdminRoleId)) return true;
+  if (member.roles?.cache?.has?.(targetAdminRoleId)) return true;
 
-  // 5. Có Role mang tên admin / quản trị
+  // 5. Có Role mang tên admin / quản trị / mod
   if (member.roles?.cache?.some?.((r) =>
-    /^(admin|administrator|quản lý|quản trị viên|quan ly|quan tri vien)$/i.test(r.name?.trim())
+    /^(admin|administrator|quản lý|quản trị viên|quan ly|quan tri vien|mod|moderator)$/i.test(r.name?.trim())
   )) {
     return true;
   }
@@ -83,6 +85,7 @@ export default {
   data: new SlashCommandBuilder()
     .setName('xoatinnhan')
     .setDescription('Admin: Xóa số lượng tin nhắn gần nhất trong kênh.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
     .addIntegerOption((option) =>
       option
         .setName('soluong')
@@ -119,19 +122,35 @@ export default {
         });
       }
 
-      const botMember = interaction.guild.members.me;
-      const permissions = channel.permissionsFor?.(botMember);
+      // Kiểm tra quyền của bot trong kênh:
+      // Ưu tiên dùng interaction.appPermissions từ Discord API (không phụ thuộc cache member)
+      let botPermissions = interaction.appPermissions;
+      let botMember = interaction.guild.members.me;
 
-      if (
-        !permissions?.has(PermissionFlagsBits.ViewChannel) ||
-        !permissions?.has(PermissionFlagsBits.ReadMessageHistory) ||
-        !permissions?.has(PermissionFlagsBits.ManageMessages)
-      ) {
-        return interaction.reply({
-          content:
-            'Bot cần quyền **View Channel**, **Read Message History** và **Manage Messages** trong kênh này.',
-          flags: MessageFlags.Ephemeral,
-        });
+      if (!botPermissions && !botMember) {
+        botMember = await interaction.guild.members.fetchMe().catch(() => null);
+      }
+      if (!botPermissions && botMember) {
+        botPermissions = channel.permissionsFor?.(botMember);
+      }
+
+      // Nếu bot có Administrator ở Server, bot nghiễm nhiên có TOÀN QUYỀN trong mọi kênh
+      const isBotAdmin =
+        botPermissions?.has?.(PermissionFlagsBits.Administrator) ||
+        botMember?.permissions?.has?.(PermissionFlagsBits.Administrator);
+
+      if (!isBotAdmin) {
+        const canView = botPermissions?.has?.(PermissionFlagsBits.ViewChannel) ?? true;
+        const canRead = botPermissions?.has?.(PermissionFlagsBits.ReadMessageHistory) ?? true;
+        const canManage = botPermissions?.has?.(PermissionFlagsBits.ManageMessages) ?? true;
+
+        if (!canView || !canRead || !canManage) {
+          return interaction.reply({
+            content:
+              'Bot cần các quyền **Xem Kênh (View Channel)**, **Đọc Lịch Sử Tin Nhắn (Read Message History)** và **Quản Lý Tin Nhắn (Manage Messages)** trong kênh này.',
+            flags: MessageFlags.Ephemeral,
+          });
+        }
       }
 
       const requested = interaction.options.getInteger('soluong', true);
@@ -179,13 +198,18 @@ export default {
 
         if (recent.length > 0) {
           try {
-            const result = await channel.bulkDelete(
-              recent.map((message) => message.id),
-              true,
-            );
-            const bulkDeleted = result?.size || 0;
-            deleted += bulkDeleted;
-            failed += Math.max(0, recent.length - bulkDeleted);
+            if (recent.length === 1) {
+              await recent[0].delete();
+              deleted += 1;
+            } else {
+              const result = await channel.bulkDelete(
+                recent.map((message) => message.id),
+                true,
+              );
+              const bulkDeleted = result?.size || 0;
+              deleted += bulkDeleted;
+              failed += Math.max(0, recent.length - bulkDeleted);
+            }
           } catch {
             const fallback = await deleteOldMessages(recent);
             deleted += fallback.deleted;
