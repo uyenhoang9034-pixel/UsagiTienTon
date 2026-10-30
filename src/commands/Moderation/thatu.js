@@ -8,7 +8,7 @@ const PRISON_IMAGE_URL = 'https://files.catbox.moe/sv428x.png';
 export default {
   data: new SlashCommandBuilder()
     .setName('thatu')
-    .setDescription('Thả một phạm nhân khỏi Nhà Tù ngay lập tức.')
+    .setDescription('Thả một phạm nhân khỏi Nhà Tù và khôi phục role cũ.')
     .addUserOption(option =>
       option.setName('thanhvien').setDescription('Phạm nhân cần thả').setRequired(true))
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
@@ -36,28 +36,26 @@ export default {
         });
       }
 
-      const releaseRecord = record?.active
-        ? record
-        : {
-            active: true,
-            guildId: interaction.guildId,
-            userId: user.id,
-            originalRoleIds: [],
-            totalLabor: 0,
-            completedLabor: 0,
-            remainingLabor: 0,
-            reason: 'Thả tù thủ công',
-            jailedAt: Date.now(),
-          };
+      // Chuẩn bị record giải phóng: ưu tiên lấy originalRoleIds đã lưu từ trước
+      const releaseRecord = record || {
+        active: true,
+        guildId: interaction.guildId,
+        userId: user.id,
+        originalRoleIds: [],
+        totalLabor: 0,
+        completedLabor: 0,
+        remainingLabor: 0,
+        reason: 'Thả tù thủ công',
+        jailedAt: Date.now(),
+      };
 
       const released = await releaseMember(client, member, releaseRecord);
 
       const channel = await interaction.guild.channels.fetch(PRISON_CHANNEL_ID).catch(() => null);
-      if (!channel?.isTextBased()) {
-        return InteractionHelper.safeEditReply(interaction, {
-          content: `Đã thả <@${user.id}> nhưng không tìm thấy kênh Nhà Tù để gửi thông báo.`,
-        });
-      }
+
+      const restoredInfo = released.restoredRoleCount > 0
+        ? `<a:trangtrig6:1546043036390260756> Đã khôi phục thành công **${released.restoredRoleCount} role** cũ cho thành viên!`
+        : '<a:trangtrig6:1546043036390260756> Đã gỡ role Tù Nhân (không tìm thấy danh sách role cũ trong hồ sơ do phạt thủ công hoặc bị lỗi trước đó).';
 
       const embed = new EmbedBuilder()
         .setColor(0xfceec9)
@@ -71,16 +69,18 @@ export default {
           '',
           '━━━━━━━━━━━━━━━━━━━━',
           '<a:trangtrig6:1546043036390260756> Cửa Nhà Tù đã được mở.',
-          '<a:trangtrig6:1546043036390260756> Các role trước khi thụ án đang được khôi phục.',
+          restoredInfo,
           '',
           '<a:catg11:1546058047393239151> Quản Ngục Usagi: *Lần sau ngoan nhé, không là vào lau tiếp đấy!*',
         ].join('\n'))
-          .setImage(PRISON_IMAGE_URL);
+        .setImage(PRISON_IMAGE_URL);
 
-      await channel.send({ embeds: [embed] });
+      if (channel?.isTextBased()) {
+        await channel.send({ embeds: [embed] }).catch(() => {});
+      }
 
       return InteractionHelper.safeEditReply(interaction, {
-        content: `Đã thả <@${user.id}> và gửi thông báo tại <#${PRISON_CHANNEL_ID}>.`,
+        content: `✅ Đã thả <@${user.id}> thành công.${released.restoredRoleCount > 0 ? ` (Đã khôi phục ${released.restoredRoleCount} role)` : ''}`,
       });
     } catch (error) {
       logger.error('Error executing /thatu command:', error);

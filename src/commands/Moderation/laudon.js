@@ -61,6 +61,10 @@ export default {
     const record = result.record;
 
     if (result.status === 'released') {
+      const restoredInfo = record.restoredRoleCount > 0
+        ? `<a:trangtrig6:1546043036390260756> Đã khôi phục **${record.restoredRoleCount} role** cũ cho bạn!`
+        : '<a:trangtrig6:1546043036390260756> Bạn đã được tự do hoàn toàn.';
+
       const embed = new EmbedBuilder()
         .setColor(0xfceec9)
         .setTitle('<a:trangtrig2:1546040703375904801> 𝓤𝓼𝓪𝓰𝓲 · 𝓜𝓪̃𝓷 𝓗𝓪̣𝓷 𝓣𝓾̀ <a:trangtrig3:1546040818261954610>')
@@ -74,7 +78,7 @@ export default {
           '',
           '━━━━━━━━━━━━━━━━━━━━',
           '<a:trangtrig6:1546043036390260756> Cửa Nhà Tù đã được mở.',
-          '<a:trangtrig6:1546043036390260756> Các role trước khi thụ án đang được khôi phục.',
+          restoredInfo,
           '',
           '<a:catg11:1546058047393239151> Quản Ngục Usagi: *Lần sau ngoan nhé, không là vào lau tiếp đấy!*',
         ].join('\n'))
@@ -97,7 +101,7 @@ export default {
       : [
           `<@${interaction.user.id}> đang cặm cụi lau dọn nhà tù...`,
           '',
-          '<a:trangtrig31:1546905996893626440> Hoàn thành **1 lần lao động**.',
+          '<a:trangtrig31:1546905996893626440> Hoàn thành **1 lần lao động**.`,
           `<a:capybarag1:1546058369566122015> Còn lại: **${record.remainingLabor} lần**`,
           '',
           bar,
