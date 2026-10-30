@@ -33,6 +33,8 @@ export async function jailMember(client, member, { laborRequired, reason, modera
   }
 
   const freshMember = await guild.members.fetch(member.id);
+
+  // Lấy các role cũ không phải managed và không phải prisonRole để lưu vào record
   const oldRoles = freshMember.roles.cache.filter(role =>
     role.id !== guild.id &&
     role.id !== PRISON_ROLE_ID &&
@@ -43,44 +45,36 @@ export async function jailMember(client, member, { laborRequired, reason, modera
     ? existing.originalRoleIds || []
     : [...oldRoles.keys()];
 
-  // IMPORTANT: assign Prisoner first. This prevents a half-jailed member if
-  // Discord rejects the Prisoner role after old roles have already been removed.
-  if (!freshMember.roles.cache.has(PRISON_ROLE_ID)) {
-    await freshMember.roles.add(PRISON_ROLE_ID, 'Usagi Prison: vào tù');
-  }
+  // Nếu là người mới vào tù:
+  if (!existing?.active) {
+    // Các role bot PHẢI giữ lại: role managed (ví dụ Nitro Booster) hoặc role cao hơn bot không can thiệp được
+    const rolesToKeep = freshMember.roles.cache.filter(role =>
+      role.id !== guild.id &&
+      (role.managed || !role.editable)
+    );
 
-  try {
-    if (!existing?.active) {
-      for (const role of oldRoles.values()) {
-        if (!role.editable) {
-          throw new Error(
-            `Bot không thể xóa role "${role.name}" (${role.id}). Hãy kéo role của bot lên trên role này.`,
-          );
-        }
+    // Target roles: role Tù Nhân + các role bắt buộc phải giữ lại
+    const targetRoleIds = [...new Set([PRISON_ROLE_ID, ...rolesToKeep.keys()])];
+
+    try {
+      // Dùng roles.set để thay thế toàn bộ role của member trong DUY NHẤT 1 API CALL!
+      // Tránh triệt để race condition và lỗi rate limit khi gỡ từng role trong vòng lặp.
+      await freshMember.roles.set(targetRoleIds, `Usagi Prison: phạt tù (${reason || 'Không có lý do'})`);
+    } catch (setErr) {
+      // Fallback nếu roles.set gặp lỗi: Thêm role tù trước, sau đó gỡ các role có thể gỡ
+      if (!freshMember.roles.cache.has(PRISON_ROLE_ID)) {
+        await freshMember.roles.add(PRISON_ROLE_ID, 'Usagi Prison: vào tù').catch(() => {});
       }
-
-      for (const role of oldRoles.values()) {
-        await freshMember.roles.remove(role.id, 'Usagi Prison: phạt tù');
-      }
-
-      const verifiedMember = await guild.members.fetch(freshMember.id);
-      const rolesStillPresent = [...oldRoles.keys()].filter(id =>
-        verifiedMember.roles.cache.has(id)
-      );
-
-      if (rolesStillPresent.length > 0) {
-        throw new Error(
-          `Không thể xóa hết role cũ: ${rolesStillPresent.map(id => `<@&${id}>`).join(', ')}.`,
-        );
+      const removable = oldRoles.filter(r => r.editable);
+      if (removable.size > 0) {
+        await freshMember.roles.remove(removable, 'Usagi Prison: phạt tù').catch(() => {});
       }
     }
-  } catch (error) {
-    // Roll back Prisoner role if stripping old roles fails.
-    const rollbackMember = await guild.members.fetch(member.id).catch(() => null);
-    if (rollbackMember?.roles.cache.has(PRISON_ROLE_ID) && !existing?.active) {
-      await rollbackMember.roles.remove(PRISON_ROLE_ID, 'Usagi Prison: rollback lỗi phạt tù').catch(() => {});
+  } else {
+    // Nếu phạm nhân đã ở trong tù sẵn: đảm bảo role Tù Nhân vẫn được cấp
+    if (!freshMember.roles.cache.has(PRISON_ROLE_ID)) {
+      await freshMember.roles.add(PRISON_ROLE_ID, 'Usagi Prison: vào tù').catch(() => {});
     }
-    throw error;
   }
 
   const added = Math.max(1, Math.floor(Number(laborRequired) || 1));
@@ -105,10 +99,7 @@ export async function jailMember(client, member, { laborRequired, reason, modera
 export async function releaseMember(client, member, record) {
   const guild = member.guild;
   const botMember = guild.members.me || await guild.members.fetchMe();
-
-  if (member.roles.cache.has(PRISON_ROLE_ID)) {
-    await member.roles.remove(PRISON_ROLE_ID, 'Usagi Prison: mãn hạn tù');
-  }
+  const freshMember = await guild.members.fetch(member.id).catch(() => member);
 
   const restorable = (record.originalRoleIds || [])
     .map(id => guild.roles.cache.get(id))
@@ -117,12 +108,24 @@ export async function releaseMember(client, member, record) {
       role.id !== guild.id &&
       role.id !== PRISON_ROLE_ID &&
       !role.managed &&
+      role.editable &&
       role.position < botMember.roles.highest.position
     )
     .map(role => role.id);
 
-  if (restorable.length > 0) {
-    await member.roles.add(restorable, 'Usagi Prison: khôi phục role sau mãn hạn');
+  try {
+    const currentRolesWithoutPrison = freshMember.roles.cache
+      .filter(r => r.id !== guild.id && r.id !== PRISON_ROLE_ID)
+      .map(r => r.id);
+    const newRoles = [...new Set([...currentRolesWithoutPrison, ...restorable])];
+    await freshMember.roles.set(newRoles, 'Usagi Prison: mãn hạn tù');
+  } catch {
+    if (freshMember.roles.cache.has(PRISON_ROLE_ID)) {
+      await freshMember.roles.remove(PRISON_ROLE_ID, 'Usagi Prison: mãn hạn tù').catch(() => {});
+    }
+    if (restorable.length > 0) {
+      await freshMember.roles.add(restorable, 'Usagi Prison: khôi phục role sau mãn hạn').catch(() => {});
+    }
   }
 
   const released = {
