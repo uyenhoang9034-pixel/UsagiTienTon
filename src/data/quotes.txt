@@ -1,0 +1,486 @@
+# ==========================================
+# 🐰 BỂ QUOTE CỦA USAGI MÚP RỤP
+# Hướng dẫn:
+# - Mỗi câu quote cách nhau bằng 1 dòng trống (Enter 2 lần).
+# - Câu quote có thể gồm nhiều dòng (ví dụ tiếng Trung + tiếng Việt hoặc thơ lục bát).
+# - Các dòng bắt đầu bằng dấu '#' sẽ là ghi chú (bot không đọc).
+# ==========================================
+
+"雨停了，撑伞的人来不来，也不重要了。"<a:hachiwareg1:1541427296777408552>
+> Mưa tạnh rồi, người che ô có tới hay không, cũng không còn quan trọng nữa.
+
+"Đã tuổi nhất tuần nhưng chẳng là duy nhất, đêm đêm thức giấc chỉ nghĩ về em. <a:chiikawag13:1541429102668554250>"
+
+"北方的冬天太长，却长不过一个想你的夜。"
+> Mùa đông phương Bắc thật sự rất dài, nhưng cũng không thể dài bằng một đêm nhớ đến anh.
+
+"Nhân duyên luôn kỳ lạ nhưng chưa từng bạc đãi những ai hết mình tìm kiếm tình yêu."
+
+"Be careful who you trust.
+Salt and sugar look the same."
+
+"Giữa biển người mênh mông, ta gặp được nhau coi như là quả báo."
+
+"Có người đem lòng yêu một dòng sông, chỉ vì họ chưa nhìn thấy biển cả.
+Riêng tôi nhìn thấy cả dãy ngân hà, nhưng trong lòng chỉ chứa duy nhất một vì sao."
+
+"Ba ngàn con sông chỉ uống một gáo nước, thiên hạ vạn người chỉ muốn nắm tay em."
+
+“Có những người chỉ có thể đi cùng ta một đoạn đường, nhưng lại khiến ta nhớ cả một đời.”
+
+“Đừng dùng sự chân thành của mình để thử lòng người khác. Có người không biết trân trọng, nhưng lại rất giỏi tận dụng.”
+
+“Cô đơn nhất không phải là không có ai bên cạnh, mà là có rất nhiều người xung quanh nhưng chẳng có ai để thật lòng.”
+
+“Cuộc đời không nợ bạn một lời giải thích, và bạn cũng không nợ ai một cuộc đời như họ mong muốn.”
+
+“Có những chuyện không cần một lời kết. Người rời đi cứ để họ đi, người muốn ở lại tự khắc sẽ tìm cách.”
+
+“Tôi không thay đổi, chỉ là không còn đối xử với tất cả mọi người bằng cùng một phiên bản của mình.”
+
+"Rượu ngon uống mãi cũng say
+Người ngu nói mãi cả ngày vẫn ngu."
+
+"Trăng lên đỉnh núi trăng tà
+Bao giờ hết nợ mới là đại gia."
+
+"Chim khôn đậu nóc nhà cao
+Người khôn không cãi với bao người khùng."
+
+"Người ta đi cấy lấy công
+Còn tôi đi ngủ, long đong cuộc đời."
+
+"Bắc thang lên hỏi ông trời
+Bao giờ hết ế để đời nở hoa?
+Ông trời ngoảnh mặt đi ra:
+Mày còn như thế, ai mà thèm yêu?"
+
+"Trời sinh cái miệng để ăn
+Trời sinh cái nết để săn chuyện người."
+
+"Công danh sự nghiệp chưa thành
+Nhưng mà gáy sớm thì nhanh nhất làng."
+
+"Một kiếm phá vạn quân, một người loạn tâm thần."
+
+"Trust takes years to build, seconds to break, and forever to repair."
+
+"Water may be clear, but not every reflection tells the truth."
+
+"Thiên hạ sợ kẻ vô tình, ta chỉ sợ người hữu tình mà giả vờ vô tâm."
+
+"八岁的你和九十岁的你都在看着你，
+一个希望你大胆去做，
+一个希望你不留遗憾。"
+> Em của năm 8 tuổi và em của năm 90 tuổi đều đang nhìn vào em bây giờ đấy. Một người mong em gan dạ tiến lên, một người mong em không phải nuối tiếc.
+
+"我要苦练七十二变，
+笑对人间八十一劫。"
+> Tôi phải khắc khổ luyện tập 72 phép biến hoá để mỉm cười đối mặt với tám mươi mốt kiếp nạn của cuộc đời.
+
+“Ta từng muốn đi hết núi cao biển rộng, ngắm hết nhân gian vạn cảnh. Sau này gặp em rồi mới hiểu, phong cảnh đẹp đến đâu cũng chỉ là phong cảnh, nếu người đứng cạnh ta không phải người ta thương.”
+
+“Nếu mỗi vì sao là một điều ước, anh nguyện cả bầu trời đêm chỉ còn một ánh sáng. Không phải vì những vì sao khác chẳng đẹp, mà vì anh đã tìm được ánh sáng mình muốn ngắm suốt đời.”
+
+"Love is not love which alters when it alteration finds.
+Tình yêu chẳng còn là tình yêu nếu đổi thay khi gặp đổi thay."
+
+"Shall I compare thee to a summer's day? Thou art more lovely and more temperate.
+Anh có nên ví em với một ngày hè? Em còn dịu dàng và đáng yêu hơn thế."
+
+"Lovers don't finally meet somewhere. They're in each other all along.
+Những người yêu nhau cuối cùng chẳng phải gặp nhau ở một nơi nào đó. Họ vốn đã ở trong nhau từ trước."
+
+"Yêu là chết ở trong lòng một ít,
+Vì mấy khi yêu mà chắc được yêu?"
+
+“Người ta khổ vì thương không phải cách, yêu sai duyên, và mến chẳng nhằm người.”
+
+“Làm sao sống được mà không yêu, không nhớ, không thương một kẻ nào?”
+
+“Sông sâu còn có kẻ dò, lòng người nham hiểm ai đo cho cùng.”
+
+“Ở sao cho vừa lòng người,
+Ở rộng người cười, ở hẹp người chê.”
+
+“Đi với bụt mặc áo cà sa, đi với ma mặc áo giấy.”
+
+"Thiện căn ở tại lòng ta,
+Chữ tâm kia mới bằng ba chữ tài."
+
+“Có tài mà cậy chi tài,
+Chữ tài liền với chữ tai một vần.”
+
+“Khôn ngoan đến cửa quan mới biết, giàu có ba mươi Tết mới hay.”
+
+“Ai ơi giữ chí cho bền,
+Dù ai xoay hướng đổi nền mặc ai.”
+
+"Một mai, một cuốc, một cần câu,
+Thơ thẩn dầu ai vui thú nào.
+Ta dại, ta tìm nơi vắng vẻ,
+Người khôn, người đến chốn lao xao."
+
+“Cảnh nào cảnh chẳng đeo sầu,
+Người buồn cảnh có vui đâu bao giờ.”
+
+“Đã mang lấy nghiệp vào thân,
+Cũng đừng trách lẫn trời gần trời xa.”
+
+“Được mất dương dương người tái thượng,
+Khen chê phơi phới ngọn đông phong.”
+
+“Bầu ơi thương lấy bí cùng,
+Tuy rằng khác giống nhưng chung một giàn.”
+
+“Nhiễu điều phủ lấy giá gương,
+Người trong một nước phải thương nhau cùng.”
+
+“Ta về ta tắm ao ta,
+Dù trong dù đục ao nhà vẫn hơn.”
+
+“Nói lời phải giữ lấy lời,
+Đừng như con bướm đậu rồi lại bay.”
+
+“Một lần bất tín, vạn lần bất tin.”
+
+“Những người tính nết thật thà,
+Đi đâu cũng được người ta tin dùng.”
+
+“Thuốc đắng giã tật, sự thật mất lòng.”
+
+"Tôi muốn tắt nắng đi
+Cho màu đừng nhạt mất;
+Tôi muốn buộc gió lại
+Cho hương đừng bay đi."
+
+"Thôn Đoài ngồi nhớ thôn Đông,
+Một người chín nhớ mười mong một người.
+Gió mưa là bệnh của giời,
+Tương tư là bệnh của tôi yêu nàng."
+
+"Người đâu gặp gỡ làm chi,
+Trăm năm biết có duyên gì hay không?"
+
+"Nhớ nước đau lòng con quốc quốc,
+Thương nhà mỏi miệng cái gia gia.
+Dừng chân đứng lại, trời, non, nước,
+Một mảnh tình riêng, ta với ta."
+
+"Sóng gợn tràng giang buồn điệp điệp,
+Con thuyền xuôi mái nước song song.
+Thuyền về nước lại, sầu trăm ngả;
+Củi một cành khô lạc mấy dòng."
+
+"Sao anh không về chơi thôn Vĩ?
+Nhìn nắng hàng cau nắng mới lên.
+Vườn ai mướt quá xanh như ngọc,
+Lá trúc che ngang mặt chữ điền."
+
+"Tạo hóa gây chi cuộc hí trường,
+Đến nay thấm thoắt mấy tinh sương.
+Lối xưa xe ngựa hồn thu thảo,
+Nền cũ lâu đài bóng tịch dương."
+
+"Trăm năm trong cõi người ta,
+Chữ tài chữ mệnh khéo là ghét nhau.
+Trải qua một cuộc bể dâu,
+Những điều trông thấy mà đau đớn lòng."
+
+"Thôn Đoài thì nhớ thôn Đông,
+Cau thôn Đoài nhớ trầu không thôn nào?"
+
+"Thân em vừa trắng lại vừa tròn,
+Bảy nổi ba chìm với nước non.
+Rắn nát mặc dầu tay kẻ nặn,
+Mà em vẫn giữ tấm lòng son."
+
+"Thu ăn măng trúc, đông ăn giá,
+Xuân tắm hồ sen, hạ tắm ao."
+
+"Người lên ngựa, kẻ chia bào,
+Rừng phong thu đã nhuốm màu quan san."
+
+"死生契阔，与子成说。
+执子之手，与子偕老。"
+> Dẫu sinh tử chia lìa, ta vẫn cùng nhau hẹn ước. Nắm tay người, cùng người đi đến bạc đầu."
+
+"有一美人兮，见之不忘。
+一日不见兮，思之如狂。"
+> Có một người đẹp, chỉ gặp một lần đã chẳng thể quên. Một ngày không gặp, nỗi nhớ hóa cuồng si.
+
+"山无陵，江水为竭，
+冬雷震震，夏雨雪，
+天地合，乃敢与君绝！"
+> Núi không còn đỉnh, sông cạn dòng; mùa đông sấm vang, mùa hạ tuyết rơi; trời đất hợp làm một — khi ấy thiếp mới đành đoạn tuyệt cùng chàng.
+
+"我住长江头，君住长江尾。
+日日思君不见君，共饮长江水。"
+> Thiếp ở đầu Trường Giang, chàng ở cuối Trường Giang. Ngày ngày nhớ chàng chẳng thể gặp, chỉ cùng uống chung dòng nước sông.
+
+"两情若是久长时，又岂在朝朝暮暮。"
+> Nếu tình yêu của hai người có thể bền lâu, hà cớ gì phải ở bên nhau sớm tối mỗi ngày?
+
+"曾经沧海难为水，除却巫山不是云。"
+> Đã từng thấy biển lớn thì nước nơi khác chẳng còn đáng kể; đã thấy mây Vu Sơn thì mây nơi khác chẳng còn sánh được.
+
+"此水几时休，此恨何时已。
+只愿君心似我心，定不负相思意。"
+> Dòng nước này bao giờ mới ngừng chảy, nỗi nhớ này đến bao giờ mới dứt? Chỉ mong lòng chàng giống lòng thiếp, để không phụ tấm chân tình nhớ thương nhau.
+
+"Xin chào bạn, tôi là nhà tuyển dụng của tập đoàn giải trí Rạp xiếc Trung Ương Group. Trong quá trình tìm kiếm và đào tạo những người hài hước của chúng tôi (đi săn chất xám và nhân tài) tôi nhận thấy bạn là người có khiếu hài hước, tập đoàn chúng tôi thật sự cần một chú hề đúng nghĩa, tôi đã thấy bạn vừa mở mồm là mọi người đã cười ầm lên, không cần phải biểu diễn. Đặc biệt đối với chúng tôi thì những vị trí lãnh đạo rạp xiếc cấp cao phải tìm người "có tâm, có tầm". Một môi trường của những thiên tài hề, xung quanh bạn là những nhân vật: cha đẻ của tiếng cười, nhà khoa học hề, chúa hề địa phương, bait đồ tể, chúa tể rạp xiết. Môi trường làm việc năng động, hài hước."
+
+"Bạn thực sự là một quái vật nhà quê, kẻ hủy diệt lòng tự trọng, tổng tư lệnh xấu hổ, chiến thần hề, country god, chúa tể đội quần, tù trưởng hài hước, đại đội trưởng trung đoàn nông thôn, thần thoại nhục nhã, huyền thoại quê mùa, thần đồng quê kệch, lãnh chúa của các thế hệ đội giỏ Việt, người viết lên kịch bản phim người nhà quê, trùm chui xuống lỗ, tướng quân gáy lớn, thầy dạy phản biện, ông tổ ngành cãi, trùm trường luật, thiên tài tranh biện, người đột biến hệ nhột."
+
+"Nhiều người cứ thấy tôi ngắm trai sáu múi là vội kết luận rằng tôi mê trai, nhưng thật ra mọi chuyện không hề đơn giản như vậy. Việc ngắm trai sáu múi đối với tôi không chỉ là ngắm một ngoại hình đẹp mà còn là một phương pháp cải thiện sức khỏe tinh thần rất hiệu quả. Sau những giờ học tập và làm việc căng thẳng, nhìn thấy những người có thân hình săn chắc, khỏe mạnh khiến tâm trạng tôi trở nên vui vẻ hơn, đầu óc thư giãn hơn và cảm giác mệt mỏi cũng giảm đi đáng kể. Đó giống như một liều vitamin tinh thần giúp tôi có thêm năng lượng để tiếp tục hoàn thành công việc trong ngày.
+Bên cạnh đó, việc ngắm trai sáu múi còn giúp tôi có thêm động lực để chăm sóc bản thân. Mỗi lần nhìn thấy những múi cơ được rèn luyện bằng sự kiên trì và kỷ luật, tôi lại tự nhủ rằng mình cũng nên tập thể dục đều đặn, ăn uống lành mạnh và duy trì lối sống tích cực để có một cơ thể khỏe mạnh hơn. Vì vậy, việc ngắm trai sáu múi không hề vô bổ như nhiều người vẫn nghĩ, mà ngược lại còn góp phần khuyến khích tôi xây dựng những thói quen tốt cho sức khỏe.
+Hơn nữa, ai cũng có quyền thưởng thức cái đẹp theo cách văn minh. Có người thích ngắm phong cảnh, có người thích ngắm hoa, có người mê tranh nghệ thuật, còn tôi chỉ đơn giản là thấy những người chăm chỉ tập luyện với thân hình cân đối rất đáng ngưỡng mộ. Tôi chỉ ngắm bằng ánh mắt đầy sự trân trọng chứ không làm phiền hay ảnh hưởng đến bất kỳ ai. Nếu một chút ngắm nhìn có thể giúp tinh thần thoải mái hơn, giảm căng thẳng, tăng động lực tập luyện và khiến cuộc sống vui vẻ hơn thì tại sao lại không? Vì thế, tôi luôn khẳng định rằng việc ngắm trai sáu múi của mình hoàn toàn là vì sức khỏe, vừa tốt cho tinh thần, vừa truyền cảm hứng để sống tích cực hơn mỗi ngày. Cho nên, lần sau nếu bắt gặp tôi đang chăm chú ngắm trai sáu múi, xin đừng vội hiểu lầm, bởi biết đâu lúc đó tôi chỉ đang âm thầm "bồi bổ sức khỏe" theo cách rất riêng của mình mà thôi."
+
+"Văn mẫu dành cho ai thất nghiệp: 
+Ngày hôm nay anh làm điều này để những người đàn ông rình rập xung quanh em và những bánh bèo lãng vãng trước mặt anh sẽ quay mặt bỏ đi. Và ... và từ hôm nay tất cả mọi thứ gì của anh nhà cửa, xe cộ, tiền bạc kể cả những hơi thở của anh đều là của em. Từ hôm nay ... từ hôm nay em có thể gọi anh là chồng và hãy về nhà của anh. Nếu như hôm nay em không nhận thì ngày mai không ai thấy anh ở đâu nữa... Vì không có em là mọi thứ kết thúc!"
+
+"Văn mẫu dành cho ai thất nghiệp: 
+🙌xin chào các khán giả👥của Spotify, mình👈 là phúc nguyên, đến từ đội hình✨tân binh thăng cấp✨✅🔝 Các ca khúc 💬🎤của tân binh toàn năng ✨đã có mặt 😶trên 🔝Spotify rồi😮🥰, đây là👈 những bài hát🎵🔊 mà mình💁 rất trân trọng💝vì là kỉ niệm🤗 đẹp 😍và là hành trình🏃 trưởng thành 👀mà mình👈được đồng hành👥cùng các anh em 👯tại tân binh toàn năng✨. Với mình👈 mỗi sân khấu👨🎤là một kỉ niệm💬 khó quên, là những giây phút áp lực lẫn hạnh phúc 🤩mà mình tin 💗bạn sẽ cảm nhận 👀qua âm nhạc🎶"
+
+"Văn mẫu dành cho ai thất nghiệp: 
+Việc làm của bạn làm tôi rơi nước mắt. Biết khối lượng của giọt nước mắt là 0.05 g, thời gian giọt nước mắt rơi xuống đất là 6 giây, vận tốc ban đầu của giọt nước mắt là 0.4 m/s, gia tốc trọng trường tại địa phương g = 9.81 m/s^2, hệ số cản không khí Cd là 0.5 , diện tích mặt cắt ngang của giọt nước mắt là A = πr^2, với bán kính r = 1mm, mật độ không khí P_air = 1.225kg/m^3, nước mắt gồm 98% nước tinh khiết, 2% các chất và hợp chất, trong đó:0,0001% natri (Na⁺), 0,0002% lipit, 0,0003% kali (K⁺).
+Tính:
+a) Tính khoảng cách từ mắt đến mặt đất mà giọt nước mắt rơi xuống, với sự tác động của lực cản không khí. Sử dụng các phương trình động học có lực cản không khí. Giả sử giọt nước mắt bắt đầu rơi từ vận tốc 0.4 m/s và không có gió. b) Tính tốc độ cuối cùng của giọt nước mắt khi chạm đất, tính đến lực cản không khí. Xác định tốc độ này tại thời điểm giọt nước mắt rơi hết khoảng cách đã tính ở câu a
+c) Tính lượng kali có trong giọt nước mắt khi giọt rơi xuống đất, sau khi đã tính đến sự bay hơi và phân hủy của các chất hòa tan trong quá trình giọt nước mắt rơi. Giả sử tỉ lệ bay hơi của kali là 0.5% mỗi giây và 10% kali bị phân hủy do tác động của nhiệt độ môi trường (giả sử nhiệt độ môi trường là 25°C, độ ẩm không khí là 70%). d) Tính hiệu quả của sự bay hơi đối với các hợp chất hòa tan trong giọt nước mắt, bao gồm natri và lipit.
+Giả sử tỉ lệ bay hơi của natri và lipit lần lượt là 0.3% mỗi giây và 0.1% mỗi giây trong suốt quá trình giọt nước mắt rơi xuống đất. Tính toán mức độ giảm của các thành phần này khi giọt nước mắt chạm đất, và so sánh với các thành phần còn lại trong nước mắt."
+
+"Văn mẫu dành cho ai thất nghiệp:
+Tao đây không thích tỏ vẻ, tao đây chỉ thích một lòng ngầu thôi. Tao đây không thích nói nhiều, tao đây rất là một lòng ngầu lòi. Ngầu không bây giờ ngầu nhiều, bây giờ ngầu lắm, ngầu này ngầu ơi. Đừng có tỏ vẻ dễ thương, tôi đây chỉ có ngầu ngầu mà thôi. Bớt bớt dùm cái đi trời, tối ngày nói nói người ta vậy trời. Nói nói thì xem lại mình, mình đang hơn ai, hơn ài, hơn ai. Tao đây ngầu từ xưa giờ, từ lúc mới đẻ đến giờ đây nha, đừng có mà nói tao này kia, tao đây không thích tỏ vẻ đâu nha."
+
+"Văn mẫu dành cho ai thất nghiệp:
+Xin chào, tài khoản của bạn có những phát ngôn không mấy văn minh trên nền tảng này.
+Vui lòng tắt thiết bị điện tử và làm điều gì có ích hơn cho cuộc sống.
+Tránh làm phiền những người dùng khác, gây ảnh hưởng đến trải nghiệm của họ.
+Xin cảm ơn."
+
+"Văn mẫu dành cho ai thất nghiệp:
+Bình thường hoá việc tôi hay xoá bài viết và bình luận, vì tôi của 30 giây sau chắc gì đã hài lòng với tôi của 30 giây trước."
+
+"Văn mẫu dành cho ai thất nghiệp:
+Đi làm rồi tao mới biết, ngoài rắn ra tao còn gặp đc thêm vài con nữa.
+Con bò: có thể nhai đi nhai lại 1 câu chuyện trong 1 thời gian.
+Con lươn: lươn lẹo để tránh sự sai sót ập vô bản thân.
+Con chồn hôi: hiện diện bản thân bằng mùi hương “quyến gũ”, có thể khiến lỗ mũi chớt lâm sàng vài giây.
+Con chó điên: có chuyện đụng vô bản thân không cần biết đúng hay sai là chan.
+Con sư tử: có thể gầm rú lên khi thấy chuyện không vừa ý với bản thân.
+Con nai: “ngơ ngác” quá mức biến thành zô ziên.
+Con vẹt: cực nhiều chuyện, nhiều chuyện không thể tả, chuyện không phải của mình cứ thích bàn.
+Con heo: tham ăn, tham lam đồ người khác.
+Còn con gì nữa không ta?"
+
+"Văn mẫu dành cho ai thất nghiệp:
+Các em ơi, các em lớn rồi, đi học thành tài, đi kiếm sống được rồi. Làm ơn banh cái đầu chó của mình ra đó, nha, để mà hiểu và làm người lớn một chút xíu. Đừng có cái kiểu như vậy nữa. Tụi em không bao giờ làm được chuyện gì lớn trên cuộc đời này. Ha. Không bao giờ thành công được. Còn ở trên á, con nít nó ngu thì cũng còn có người lớn mà dạy. Ở đâu mà cả một chùm một lũ ngu theo như vậy, hả? Tụi bay sống bằng cái kiểu này hả? Hay sao? Đây là cái nồi cơm của tụi bay hay sao?"
+
+"Văn mẫu dành cho ai thất nghiệp:
+OÁN ƠIII 😭❤️🔥 ỐHHHHH 💥🔥☄️ ĐỨNG TRƯỚC 10 ĐIỂM TOÁN MỚI BIẾT MÌNH NHỎ BÉ THẾ LÀO MỌI NGỪOI ƠIII 🫯🙌💃🏻 TOÁN ƠYYYYYYYYYY 🗣️🗣️🗣️ HỌC TOÁN ĐI MỌI NGƯỜI ƠI 🏊♂️🏄♂️🌊 ỐI GIỜI ƠI 😭😧😰 ĐỨNG TRƯỚC 10 ĐIỂM TOÁN MỚI THẤY MÌNH THẬT NHỎ BÉ MỌI NGƯỜI ƠI! ÔHHH TOÁN ƠIIII 🌊🌊🌊"
+
+"Văn mẫu dành cho ai thất nghiệp:
+‼️Sau đây là bảng xếp hạng những bài hát mình yêu thích ‼️💐❤️
+1. Bài ca hoá trị 🧑🏻🔬⚗️🧪
+2. Hồn lá me bay 🌿🍃
+3. Sóng gió 🌊🌬️🍃
+4. Trú mưa 🌧️☔🌦️
+5. Cắm sừng ai thì cắm chứ anh đừng cắm sừng em ‼️😈🦏
+6. Hoa cỏ lau 🌷❇️☘️
+7. Kẹo bông gòn 🍭🌨️🍬
+8. Anh em tốt 
+9. Hero đại chiến 🤛🏻⚡😈🧑🏻🎤
+10. Em đừng đi‼️ em phải đi .... 😭😥🥀🖤"
+
+"Văn mẫu dành cho ai thất nghiệp:
+🎉 CHÚC MỪNG BẠN ĐÃ TRÚNG THƯỞNG 🎉
+Xin chúc mừng bạn đã may mắn trúng giải thưởng gồm:
+🎁 01 iPhone 18
+💵 10.000.000 VNĐ tiền mặt
+Để xác nhận thông tin nhận thưởng, vui lòng cung cấp:
+Họ và tên:
+Địa chỉ:
+Số điện thoại:
+🥳 Một lần nữa, xin chúc mừng bạn! Chúc bạn luôn may mắn, vui vẻ và gặp thật nhiều điều tốt đẹp trong cuộc sống. ❤️"
+
+"Văn mẫu dành cho ai thất nghiệp:
+Ủa ごめんなさい、làm wibu thì có 何là saiですか？bộ ファンアニメ thiずっとphải thân thiện còn wibu thì 悪いà? Xàmマンコquá vậy nè, chắc gìファンアニメ đã sẵn sàng守るbạn như wibu?? Tuy我ら(?)có thể nói tiếngロマジ(???)nhưng ít ra我ら(?)có thể hy sinh cả世界. Bớt khinh人 lại đi mấy友達,さすが口lưỡi人đời, haizzzz. Họ好きlàm wibu, là quyềnのhọ,誰 cấm? 誰分かるđược心の中họ đã phải trải qua những 何..."
+
+"Văn mẫu dành cho ai thất nghiệp:
+Tôi đánh máy lộn, và tôi đã sửa rồi. Tôi sẽ block bạn vì bạn ác độc và vô liêm sỉ, thay vì bạn góp ý xây dựng, nói tôi sửa lại, thì bạn lại lên giọng mỉa mai, xỏ lá. Tôi không chấp nhận thành phần nhỏ mọn, hèn hạ, cố chấp trong Facebook tôi. Bạn có 5 phút xin lỗi và rút lời trước khi block. Chúc bạn thân tâm an lạc và bao dung."
+
+"Văn mẫu dành cho ai thất nghiệp:
+Gửi những cá nhân thành kiến với quý bửu
+Ủa gomen nasai ???😄Lm wibu thì có nani là sai desuka ???😄Bộ fan anime thì zutto phải thân thiện còn wibu thì warui à?😁Xàm manko quá v nè, chắc j fan anime đã sẵn sàng mamoru bn như wibu??Tuy karera có thể nói tiếng romaji, nhưg ít ra karera có thể hi sinh cả sekai 🙂bớt khinh hito lại ik mấy tomodachi, sasuga kuchi lưỡi hito đời, haizzz😲họ suki làm wibu, là quyền no họ, dare cấm???🙂🙂dare wakaru đc kokoro no naka họ đã trãi qua nhữg nani..."
+
+"Văn mẫu dành cho ai thất nghiệp:
+Siêu hài hước, tôi đã cười sau khi đọc cap của bạn, sau đó tôi đưa cho bạn bè tôi, họ cũng cười, gọi tôi là cây hài của lớp. Khi tôi đưa cho crush, ngay lập tức tài khoản của cô ấy biến thành chữ Người dùng Facebook. Khi bị các chú cảnh sát giao thông gọi vào, tôi không xuất trình giấy tờ xe hay bằng lái, mà thay vào đó tôi đưa các chú bài viết của bạn, tôi đã được thả đi ngay sau khi nộp trà đá 500k cho các chú. Khi bị gọi đi nghĩa vụ quân sự, tôi đã được miễn nghĩa vụ bằng cách đưa người ta xem."
+
+"Văn mẫu dành cho ai thất nghiệp:
+🍀🍀🍀🍀🍀🍀🍀🍀🍀🍀xả xui cho bản thân và gia đình ạ🍀🍀🍀🍀🍀🍀🍀🍀🍀🍀🍀xả xui cho bản thân và gia đình ạ🍀🍀🍀🍀🍀🍀🍀🍀🍀🍀🍀xả xui cho bản thân và gia đình ạ🍀🍀🍀🍀🍀🍀🍀🍀🍀🍀🍀xả xui cho bản thân và gia đình ạ🍀🍀🍀🍀🍀🍀🍀🍀🍀🍀🍀xả xui cho bản thân và gia đình ạ🍀🍀🍀🍀🍀🍀🍀🍀🍀🍀🍀xả xui cho bản thân và gia đình ạ🍀🍀🍀🍀🍀🍀🍀🍀🍀🍀🍀xả xui cho bản thân và gia đình ạ🍀"
+
+"Văn mẫu dành cho ai thất nghiệp:
+Đẹp trai quá! Nhìn từ chính diện, đẹp trai! Nhìn từ phía sau, đẹp trai! Nhìn từ bên trái, đẹp trai!
+Nhìn từ bên phải, đẹp trai! Nhìn từ trên cao, đẹp trai! Nhìn từ bên dưới, đẹp trai! Cười, đẹp trai! Không cười, đẹp trai! Đứng im, đẹp trai!
+Bước đi, đẹp trai! Xem trên iPhone, đẹp trai!
+Xem trên Huawei, đẹp trai! Xem trên Samsung, đẹp trai! Xem trên Oppo, đẹp trai! Xem trên Xiaomi, đẹp trai! Xem trên điện thoại bàn, đẹp trai!"
+
+"Văn mẫu dành cho ai thất nghiệp:
+Không hiểu sao mình cảm giác mình giống như một cô nàng anime vậy á. Thích dán băng cá nhân lên mũi, thích nói tiếng nhật và làm biểu cảm anime. ><
+Mỗi khi buồn là mình lại tưởng tượng trời mưa kiểu trong mấy cảnh phim, tóc ướt, mắt long lanh, tim thì nặng nề nhưng vẫn cố mỉm cười. ^^
+Có lúc chỉ muốn ngồi bên cửa sổ, ôm ly trà nóng, nhìn đèn đường vàng vọt rồi thở dài như mấy nhân vật chính đang chờ một điều gì đó rất xa..."
+
+"Văn mẫu dành cho ai thất nghiệp:
+Chỉ với một tiếng ''Gà'' mà nó đã khiến trái tim toi thổn thức, muốn vỡ ra làm từng mảnh, khóe mắt muốn ứa lệ... Sao ông lại có thể nặng lời với tôi như thế? Ông thật phũ phàng, ông có biết lời nói của ông như con dao đâm vào trái tym mỏng manh íu đíu này không hiccc..."
+
+"Văn mẫu dành cho ai thất nghiệp:
+Tại hạ lại nghe nói có một loại bao da, sâu tầm tấc bảy, mềm mượt vô cùng, xung quanh phát khí chí âm chí hàn, tuy vô cương vô lực nhưng lại hấp thụ dương khí, tỏa ra một mãnh lực vô hình khiến thần binh trong thiên hạ vạn dặm quy tông. Vật này tuy không cương nhu phối hợp như thần côn của các hạ, giết người ngoài quan ải trong chớp mắt nhưng lại khiến cho kẻ địch mất dần sinh lực rồi hạ binh chịu hàng, lại nghe kỳ truyện rằng vì bảo vật này mà a hùng trong thiên hạ tranh giành chém giết, kẻ giành được thì tâm thần điên loạn bỏ mặc anh em. Quả thật là vạn phần nguy hiểm hơn thần binh của ta nhiều."
+
+"Văn mẫu dành cho ai thất nghiệp:
+Vị cô nương! Tại hạ có một thanh đoản côn, dài tầm tấc rưỡi, đầu không nhọn không sắc, xung quanh phát khí chí dương, vật này cương nhu tùy lúc. Lúc nhu nhìn yếu ớt vô hại, thực ra đang ẩn giấu sát khí, tích tụ công lực để lúc cương thì uy lực vô cùng, dũng mãnh vô song, giết người ngoài quan ải, có thể cách sơn đả ngưu, dẫn dụ kẻ địch vào bồng lai tiên cảnh hoặc địa ngục a tỳ, là bảo bối thần kì, vật bất ly thân, người còn vật còn, người vong vật mất. Nhược điểm là vật này có thần tính riêng,  thường thì tùy nghi sử dụng nhưng khi đến cực hạn lại tự ý sát địch không thể kìm hãm... Có thể gọi nó là “tuyệt thế thần binh”, vị cô nương đây muốn dùng thử một lần chăng?"
+
+# ==========================================
+# 🌸 BỂ QUOTES MỚI CỦA VỢ CỦA KIM NONG
+# ==========================================
+
+"Người với người sống để yêu nhau."
+
+"Đời người chỉ sống có một lần. Phải sống sao cho khỏi xót xa, ân hận vì những năm tháng đã sống hoài, sống phí..."
+
+"Nghệ thuật không cần phải là ánh trăng lừa dối, nghệ thuật không nên là ánh trăng lừa dối; nghệ thuật có thể chỉ là tiếng đau khổ kia, thoát ra từ những kiếp lầm than."
+
+"Cái đẹp cứu rỗi thế giới, nhưng trước hết con người phải có lòng trắc ẩn để nhìn thấy nó."
+
+"Kẻ mạnh không phải là kẻ giẫm lên vai kẻ khác để thỏa mãn lòng ích kỉ. Kẻ mạnh chính là kẻ giúp đỡ kẻ khác trên đôi vai mình."
+
+"Hôm nay trời nhẹ lên cao
+Tôi buồn không hiểu vì sao tôi buồn."
+
+"To live is the rarest thing in the world. Most people exist, that is all."
+> Sống là điều hiếm hoi nhất trên thế giới này. Đa số mọi người chỉ đơn thuần là đang tồn tại mà thôi.
+
+"We accept the love we think we deserve."
+> Chúng ta chấp nhận thứ tình cảm mà ta nghĩ mình xứng đáng nhận được.
+
+"Whatever our souls are made of, his and mine are the same."
+> Dù tâm hồn của chúng ta được tạo nên từ điều gì, thì của chàng và của em đều cùng một bản thể.
+
+"In the depth of winter, I finally learned that within me there lay an invincible summer."
+> Giữa mùa đông buốt giá nhất, cuối cùng tôi nhận ra bên trong mình vẫn ngự trị một mùa hè bất khả chiến bại.
+
+"Not all those who wander are lost."
+> Không phải bất kỳ ai lang thang cũng đều lạc lối.
+
+"It does not do to dwell on dreams and forget to live."
+> Đừng chìm đắm mãi trong những giấc mơ mà quên mất phải sống.
+
+"愿得一人心，白首不相离。"
+> Nguyện có được trái tim một người, để bạc đầu cũng chẳng rời xa.
+
+"人生若只如初见，何事秋风悲画扇。"
+> Đời người nếu chỉ đẹp như thuở ban đầu gặp gỡ, thì cớ sao gió thu lại làm buồn chiếc quạt vẽ.
+
+"斯人若彩虹，遇上方知有。"
+> Người ấy tựa như dải cầu vồng, gặp gỡ rồi mới hay trên đời thực sự có điều kỳ diệu đến thế.
+
+"世间所有的相遇，都是久别重逢。"
+> Mọi cuộc hội ngộ trên nhân gian thực chất đều là tái ngộ sau những tháng ngày xa cách dài đằng đẵng.
+
+"千里之行，始于足下。"
+> Hành trình ngàn dặm bắt đầu từ một bước chân.
+
+"山有木兮木有枝，心悦君兮君不知。"
+> Núi có cây rồi cây có cành, lòng ta hướng về người mà người chẳng hề hay biết.
+
+"Tiền không tự sinh ra và cũng không tự mất đi, nó chỉ chuyển từ ví của mình sang tài khoản shopee."
+
+"Người ta bảo tình yêu là mù quáng, nhưng nghèo thì mắt sáng ra ngay."
+
+"Behind every great person is a substantial amount of coffee."
+> Đứng sau mỗi con người vĩ đại là một lượng cà phê khổng lồ.
+
+"Người không vì mình trời tru đất diệt, người ăn hoài không mập chắc chắn là có phước."
+
+"Học, học nữa, học mãi, mệt thì đi ngủ."
+
+"Tình cảm chỉ là một phần, số dư tài khoản mới giúp tâm hồn bình an."
+
+"Em trở về đúng nghĩa trái-tim-em
+Là máu thịt, đời thường ai chẳng có
+Vẫn ngừng đập lúc cuộc đời không còn nữa
+Nhưng biết yêu anh cả khi chết đi rồi."
+
+"Người đi một nửa hồn tôi mất
+Một nửa hồn tôi bỗng dại khờ."
+
+"Tôi yêu người khác rồi, đừng chờ đợi tôi nữa
+Một người chỉ vừa đủ làm tôi quên đi quá khứ."
+
+"Người ta khổ vì cố chen chân vào thế giới của kẻ khác, rồi lại quên mất tự xây lấy khu vườn bình yên của chính mình."
+
+"Ta yêu người bằng tất cả những gì vụn vặt nhất của đời thường, không màu mè, không hứa hẹn viển vông."
+
+"Trăm năm bia đá thì mòn
+Nghìn năm bia miệng vẫn còn trơ trơ."
+
+"Có những ngày mây xám giăng ngang đầu, ta chỉ thèm một bàn tay nắm chặt để biết mình không đơn độc giữa phố xá thênh thang."
+
+"You only live once, but if you do it right, once is enough." — Mae West
+> Bạn chỉ sống một lần, nhưng nếu sống trọn vẹn thì một lần là quá đủ rồi.
+
+"The only way out of the labyrinth of suffering is to forgive."
+> Cách duy nhất để thoát khỏi mê cung của nỗi đau chính là tha thứ.
+
+"There is some good in this world, and it's worth fighting for."
+> Thế giới này vẫn còn những điều tốt đẹp, và chúng hoàn toàn xứng đáng để ta chiến đấu bảo vệ.
+
+"Until I feared I would lose it, I never loved to read. One does not love breathing."
+> Cho đến khi sợ đánh mất nó, tôi chưa từng nghĩ mình yêu việc đọc sách. Người ta đâu có ý thức rằng mình yêu hơi thở.
+
+"If you want to know what a man's like, take a good look at how he treats his inferiors, not his equals."
+> Muốn biết nhân cách một con người, hãy nhìn cách họ đối xử với những kẻ yếu thế hơn mình, chứ không phải với người ngang hàng.
+
+"So we beat on, boats against the current, borne back ceaselessly into the past."
+> Thế là chúng tôi cứ tiếp tục chèo, những con thuyền ngược dòng nước xiết, không ngừng bị đẩy lùi về quá khứ.
+
+"Love looks not with the eyes, but with the mind, and therefore is winged Cupid painted blind."
+> Tình yêu không nhìn bằng mắt mà cảm bằng tâm tưởng, bởi thế thần Cupid có cánh mới được vẽ với đôi mắt mù lòa.
+
+"The heart wants what it wants - or else it does not care."
+> Trái tim chỉ muốn thứ nó muốn – bằng không, nó chẳng mảy may bận tâm.
+
+"玲珑骰子安红豆，入骨相思知不知。"
+> Xúc xắc khảm hồng đậu tinh xảo, nỗi tương tư thấm vào tận xương tủy người có thấu chăng.
+
+"与君初相识，犹如故人归。"
+> Mới đầu gặp gỡ người, mà ngỡ như tri kỷ xưa trở về.
+
+"静以修身，俭以养德。"
+> Lấy sự tĩnh lặng để tu dưỡng thân tâm, lấy đức tính cần kiệm để bồi dưỡng đạo đức.
+
+"知人者智，自知者明。胜人者有力，自胜者强。"
+> Hiểu được người là kẻ có trí, tự hiểu mình mới là bậc sáng suốt. Thắng được người là có sức mạnh, tự chiến thắng chính mình mới thực sự là kẻ mạnh.
+
+"不乱于心，不困于情。不畏将来，不念过往。如此，安好。"
+> Tâm không rối loạn, tình chẳng vướng vương. Không sợ tương lai, không hoài niệm quá khứ. Được như thế, ắt bình an.
+
+"愿你历尽千帆，归来仍是少年。"
+> Mong bạn trải qua ngàn trùng sóng gió, ngày trở về lòng vẫn vẹn nguyên nét thiếu niên.
+
+"Người ta bảo im lặng là vàng, nhưng khi tôi im lặng thì người ta tưởng tôi bị rớt mạng."
+
+"Gần mực thì đen, gần người hay ngủ thì buồn ngủ lây."
+
+"Không có việc gì khó, chỉ sợ lòng không bền... và không có tiền."
+
+"I’m not lazy, I’m just on energy saving mode."
+> Tôi không có lười đâu, tôi chỉ đang bật chế độ tiết kiệm năng lượng thôi.
+
+"Cuộc sống có hai điều khó khăn nhất: Một là nhét tiền vào ví mình, hai là nhét kiến thức vào đầu mình."
+
+"Đừng buồn vì bản thân chưa giàu, vì ít nhất bạn vẫn còn nghèo đều đặn mỗi tháng."
+
+"My wallet is like an onion, opening it makes me cry."
+> Cái ví của tôi y hệt củ hành tây, mỗi lần mở ra là một lần rơi nước mắt.
+
+"Người thành công luôn có lối đi riêng, còn tôi thì đi lạc."

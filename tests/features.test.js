@@ -13,8 +13,14 @@ const { default: loadInteractions } = await import('../src/handlers/loaders/inte
 const { getUserMarriage, createMarriage } = await import('../src/services/marriageService.js');
 
 const EXPECTED_COMMANDS = [
+  'boc-que',
+  'dot-via',
+  'laudon',
   'marry',
+  'phattu',
+  'thatu',
   'tts',
+  'xin-nghi',
   'xoatinnhan',
 ];
 

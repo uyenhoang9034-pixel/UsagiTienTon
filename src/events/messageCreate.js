@@ -10,6 +10,8 @@ import { resolveCommandAlias } from '../config/commands/commandAliases.js';
 import { getCommandPrefix } from '../config/bot.js';
 import { handleTTSMessage } from '../services/tts/ttsManager.js';
 import { handleAIChatMessage } from '../services/ai/aiChatManager.js';
+import { handleThanVanTuBan } from '../services/thanVanTuBanService.js';
+import { handleQuoteTrigger } from '../services/quotes/quoteService.js';
 
 export default {
   name: Events.MessageCreate,
@@ -35,6 +37,24 @@ export default {
       }
     } catch (ttsError) {
       logger.error('Error handling TTS message:', ttsError);
+    }
+
+    try {
+      const thanVanProcessed = await handleThanVanTuBan(message);
+      if (thanVanProcessed) {
+        return;
+      }
+    } catch (thanVanError) {
+      logger.error('Error handling Than Van Tu Ban:', thanVanError);
+    }
+
+    try {
+      const quoteProcessed = await handleQuoteTrigger(message, client);
+      if (quoteProcessed) {
+        return;
+      }
+    } catch (quoteError) {
+      logger.error('Error handling Quote trigger:', quoteError);
     }
 
     await handlePrefixCommand(message, client);

@@ -19,6 +19,8 @@ const interactionTypes = ['buttons', 'selectMenus'];
 const ALLOWED_INTERACTION_PATTERNS = [
   /^buttons\/tts.*\.js$/,
   /^buttons\/tts\/.*\.js$/,
+  /^buttons\/excuse.*\.js$/,
+  /^buttons\/excuse\/.*\.js$/,
   /^selectMenus\/tts.*\.js$/,
   /^selectMenus\/tts\/.*\.js$/,
 ];
