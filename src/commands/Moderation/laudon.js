@@ -101,7 +101,7 @@ export default {
       : [
           `<@${interaction.user.id}> đang cặm cụi lau dọn nhà tù...`,
           '',
-          '<a:trangtrig31:1546905996893626440> Hoàn thành **1 lần lao động**.`,
+          '<a:trangtrig31:1546905996893626440> Hoàn thành **1 lần lao động**.',
           `<a:capybarag1:1546058369566122015> Còn lại: **${record.remainingLabor} lần**`,
           '',
           bar,
