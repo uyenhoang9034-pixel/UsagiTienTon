@@ -10,7 +10,6 @@ import {
   BOOKING_EMOJIS,
   HEALING_WHISPER_PROFILES,
   BOOKING_ADMIN_ROLE_ID,
-  BOOKING_SUPPORT_ROLE_ID,
   BOOKING_CATEGORY_ID,
   BOOKING_LOG_CHANNEL_ID,
 } from '../config/bookingConfig.js';
@@ -65,35 +64,24 @@ export function saveStoredBookingData(data) {
  *
  * Không tự động cấp quyền theo Administrator/ManageChannels hoặc role support cũ.
  */
-export async function isBookingAdmin(member, userId, client = null) {
-  if (isBotOwner(userId) || (member?.guild?.ownerId && member.guild.ownerId === String(userId))) {
-    return true;
-  }
-  if (!member) return false;
-
-  const hasRole = (roleId) => {
-    if (!roleId) return false;
-    if (member.roles?.cache?.has?.(roleId)) return true;
-    if (Array.isArray(member._roles) && member._roles.includes(roleId)) return true;
-    if (Array.isArray(member.roles) && member.roles.includes(roleId)) return true;
-    return false;
-  };
-
-  if (hasRole(BOOKING_ADMIN_ROLE_ID)) return true;
-
-  // Lấy role quản lý từ cấu hình server đã thiết lập (modRole).
-  const guildId = member.guild?.id;
-  if (guildId) {
-    const guildConfig = await getDatabaseValue(client, getGuildConfigKey(guildId), {});
-    const configuredManagerRole = typeof guildConfig?.modRole === 'string'
-      ? guildConfig.modRole
-      : guildConfig?.modRole?.id;
-    if (hasRole(configuredManagerRole)) return true;
-  }
-
-  return false;
+export async function getConfiguredBookingManagerRoleId(client, guildId) {
+  if (!guildId) return null;
+  const guildConfig = await getDatabaseValue(client, getGuildConfigKey(guildId), {});
+  const role = guildConfig?.modRole;
+  return typeof role === 'string' ? role : (role?.id || null);
 }
 
+export async function isBookingAdmin(member, userId, client = null) {
+  if (isBotOwner(userId) || (member?.guild?.ownerId && member.guild.ownerId === String(userId))) return true;
+  if (!member) return false;
+  const hasRole = (roleId) => Boolean(roleId && (
+    member.roles?.cache?.has?.(roleId) ||
+    (Array.isArray(member._roles) && member._roles.includes(roleId)) ||
+    (Array.isArray(member.roles) && member.roles.includes(roleId))
+  ));
+  if (hasRole(BOOKING_ADMIN_ROLE_ID)) return true;
+  return hasRole(await getConfiguredBookingManagerRoleId(client, member.guild?.id));
+}
 /**
  * Cache lưu trạng thái runtime của các profile (lượt tim, ảnh hiện tại, điểm sao)
  */
@@ -674,7 +662,6 @@ export async function findRenterIdFromChannel(channel, client, profile, closerId
   if (channel.permissionOverwrites?.cache) {
     const excludedIds = new Set([
       BOOKING_ADMIN_ROLE_ID,
-      BOOKING_SUPPORT_ROLE_ID,
       client?.user?.id,
       profile?.userId,
     ]);
@@ -937,7 +924,7 @@ export async function sendBookingTicketLog(guild, payload, files = []) {
 /**
  * Thực hiện quy trình đóng ticket hoàn chỉnh:
  * 1. Ẩn kênh với khách (ViewChannel: false, SendMessages: false)
- * 2. Giữ quyền xem cho 2 role 1568554130371383306 & 1545295139390619768 và quản lý server
+  // Chỉ giữ quyền cho role Admin Booking mới và role quản lý đã cấu hình
  * 3. Kênh vẫn nằm trong danh mục 1568554690923331695
  * 4. Sinh một transcript HTML
  * 5. Gửi thông báo đóng vào kênh ticket
@@ -960,8 +947,9 @@ export async function closeBookingTicket({ channel, closer, client, reason = 'Đ
     }).catch((err) => logger.warn('[Booking] Lỗi ẩn quyền xem của khách:', err));
   }
 
-  // Đảm bảo 2 role 1568554130371383306 & 1545295139390619768 vẫn xem được
-  const staffRoleIds = [BOOKING_ADMIN_ROLE_ID, BOOKING_SUPPORT_ROLE_ID];
+  // Chỉ giữ quyền cho role Admin Booking mới và role quản lý đã cấu hình
+  const managerRoleId = await getConfiguredBookingManagerRoleId(client, channel.guild?.id);
+  const staffRoleIds = [BOOKING_ADMIN_ROLE_ID, managerRoleId].filter(Boolean);
   for (const roleId of staffRoleIds) {
     if (channel.permissionOverwrites?.edit) {
       await channel.permissionOverwrites.edit(roleId, {
@@ -1071,8 +1059,9 @@ export async function reopenBookingTicket({ channel, executor, client, sendTrans
     }).catch((err) => logger.warn('[Booking] Lỗi khôi phục quyền cho khách:', err));
   }
 
-  // Đảm bảo 2 role 1568554130371383306 & 1545295139390619768 vẫn có quyền
-  const staffRoleIds = [BOOKING_ADMIN_ROLE_ID, BOOKING_SUPPORT_ROLE_ID];
+  // Chỉ giữ quyền cho role Admin Booking mới và role quản lý đã cấu hình
+  const managerRoleId = await getConfiguredBookingManagerRoleId(client, channel.guild?.id);
+  const staffRoleIds = [BOOKING_ADMIN_ROLE_ID, managerRoleId].filter(Boolean);
   for (const roleId of staffRoleIds) {
     if (channel.permissionOverwrites?.edit) {
       await channel.permissionOverwrites.edit(roleId, {
@@ -1459,7 +1448,7 @@ export async function handleBookingMessage(message, client) {
         deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect],
       },
       {
-        id: BOOKING_SUPPORT_ROLE_ID,
+        id: BOOKING_ADMIN_ROLE_ID,
         type: OverwriteType?.Role ?? 0,
         allow: [
           PermissionFlagsBits.ViewChannel,
