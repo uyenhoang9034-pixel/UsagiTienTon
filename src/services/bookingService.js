@@ -1171,6 +1171,91 @@ export async function handleBookingMessage(message, client) {
 
   const trimmed = message.content.trim();
 
+  // &giabk — công khai bảng giá Booking bằng một tin nhắn Components V2.
+  // Ba Container được xếp nối tiếp: giới thiệu, ảnh bảng giá, ảnh quy định.
+  const bookingPriceMatch = trimmed.match(/^[&!]giabk$/i);
+  if (bookingPriceMatch) {
+    const page1Url = 'https://raw.githubusercontent.com/uyenhoang9034-pixel/UsagiTienTon/main/assets/booking/Healing_Whisper_Booking_Page_1.png';
+    const page2Url = 'https://raw.githubusercontent.com/uyenhoang9034-pixel/UsagiTienTon/main/assets/booking/Healing_Whisper_Booking_Page_2.png';
+
+    try {
+      await message.channel.send({
+        flags: IS_COMPONENTS_V2,
+        components: [
+          {
+            type: 17,
+            components: [
+              {
+                type: 10,
+                content: `${BOOKING_EMOJIS.LOG_HEADER_L} **BOOKING PRICE LIST** ${BOOKING_EMOJIS.LOG_HEADER_R}`,
+              },
+              {
+                type: 14,
+                divider: true,
+                spacing: 1,
+              },
+              {
+                type: 10,
+                content: 'Chào bạn, đây là bảng giá Booking Healing Whisper của server.\\n\\n> - Mong bạn check kĩ giá và đọc kĩ rules trước khi book! Nếu cần đọc lại rules, xin hãy ấn vào nút bên dưới.\\n> - Mọi thắc mắc vui lòng liên hệ trực tiếp <@&1568554130371383306> ngay tại ticket này. Xin cảm ơn!',
+              },
+            ],
+          },
+          {
+            type: 17,
+            components: [
+              {
+                type: 12,
+                items: [
+                  {
+                    media: { url: page1Url },
+                    description: 'Bảng giá Booking Healing Whisper — trang 1',
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            type: 17,
+            components: [
+              {
+                type: 12,
+                items: [
+                  {
+                    media: { url: page2Url },
+                    description: 'Quy định Booking Healing Whisper — trang 2',
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                style: 5,
+                label: 'Đọc Rules',
+                url: 'https://discord.com/channels/1541279801183178754/1568549463109148743',
+              },
+            ],
+          },
+        ],
+        allowedMentions: {
+          parse: [],
+          roles: ['1568554130371383306'],
+        },
+      });
+
+      await message.delete().catch(() => {});
+    } catch (err) {
+      logger.error('[Booking] Không thể gửi bảng giá Booking:', err);
+      await message.delete().catch(() => {});
+      await message.channel.send('❌ Không thể hiển thị bảng giá Booking lúc này. Vui lòng thử lại sau.').catch(() => {});
+    }
+
+    return true;
+  }
+
   // Tất cả lệnh prefix thuộc hệ thống Booking đều chỉ dành cho Owner,
   // role quản lý đã cấu hình hoặc role Admin Booking mới.
   const bookingCommandMatch = trimmed.match(/^[&!](?:tip(?:\s|$)|pro5(?:\s|$)|profile(?:\s|$)|danhgia\b|feedback\b|close\b|dongticket\b|clear\b|xoaticket\b|deleteticket\b|moticket\b|reopen\b|transcripts?\b|taokenhvoice\b|createvoice\b|voice\b|taovoice\b)/i);
