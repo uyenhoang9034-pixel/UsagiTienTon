@@ -247,7 +247,7 @@ export default [
     name: 'hw_close_ticket',
     async execute(interaction, client, args) {
       try {
-        if (!isBookingAdmin(interaction.member, interaction.user.id)) {
+        if (!(await isBookingAdmin(interaction.member, interaction.user.id, client))) {
           return interaction.reply({
             content: '❌ Chỉ Admin mới có quyền đóng ticket!',
             flags: MessageFlags.Ephemeral,
