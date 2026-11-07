@@ -1263,14 +1263,14 @@ export async function handleBookingMessage(message, client) {
     }
 
     const amount = amountText ? Number(amountText) : null;
-    if (amountText && (!Number.isSafeInteger(amount) || amount < 1000 || amount > 500000000)) {
-      await message.channel.send('❌ Số tiền tip phải từ 1.000đ đến 500.000.000đ. Hoặc bỏ trống số tiền để tự nhập khi quét QR.').catch(() => {});
+    if (amountText && (!Number.isSafeInteger(amount) || amount < 1 || amount > 500000000)) {
+      await message.channel.send('❌ Số tiền tip phải từ 1đ đến 500.000.000đ. Hoặc bỏ trống số tiền để tự nhập khi quét QR.').catch(() => {});
       return true;
     }
 
     const account = getStaffTipAccount(targetId);
     if (!account) {
-      await message.channel.send(`ℹ️ <@${targetId}> chưa thiết lập tài khoản nhận tip. Vui lòng liên hệ quản lý Booking.`, { allowedMentions: { parse: [] } }).catch(() => {});
+      await message.channel.send({ content: `ℹ️ <@${targetId}> chưa thiết lập tài khoản nhận tip. Vui lòng liên hệ quản lý Booking.`, allowedMentions: { parse: [] } }).catch(() => {});
       return true;
     }
 
