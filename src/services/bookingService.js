@@ -42,60 +42,6 @@ export function loadStoredBookingData() {
 /**
  * Ghi dữ liệu profile lưu trữ bền vững vào bookingData.json
  */
-/**
- * Kiểm tra thành viên có thuộc đội ngũ Booking hay không.
- */
-function hasBookingStaffRole(member) {
-  return [BOOKING_ADMIN_ROLE_ID, BOOKING_SUPPORT_ROLE_ID].some((roleId) =>
-    member?.roles?.cache?.has?.(roleId) ||
-    (Array.isArray(member?._roles) && member._roles.includes(roleId)) ||
-    (Array.isArray(member?.roles) && member.roles.includes(roleId)),
-  );
-}
-
-/**
- * Lấy thông tin nhận tip của một nhân viên.
- */
-export function getStaffTipAccount(userId) {
-  const stored = loadStoredBookingData();
-  return stored?.staffTips?.[String(userId)] || null;
-}
-
-/**
- * Lưu thông tin ngân hàng nhận tip theo từng nhân viên.
- */
-export function setStaffTipAccount(userId, account, updatedBy) {
-  const stored = loadStoredBookingData();
-  stored.staffTips = stored.staffTips || {};
-  stored.staffTips[String(userId)] = {
-    bankId: String(account.bankId).trim(),
-    accountNumber: String(account.accountNumber).trim(),
-    accountName: String(account.accountName).trim().toUpperCase(),
-    updatedBy: String(updatedBy),
-    updatedAt: new Date().toISOString(),
-  };
-  return saveStoredBookingData(stored);
-}
-
-/**
- * Xóa thông tin nhận tip của một nhân viên.
- */
-export function removeStaffTipAccount(userId) {
-  const stored = loadStoredBookingData();
-  if (!stored.staffTips?.[String(userId)]) return false;
-  delete stored.staffTips[String(userId)];
-  return saveStoredBookingData(stored);
-}
-
-function buildStaffTipQrUrl(account, amount, addInfo) {
-  const base = `https://img.vietqr.io/image/${encodeURIComponent(account.bankId)}-${encodeURIComponent(account.accountNumber)}-compact2.png`;
-  const params = new URLSearchParams({ addInfo, accountName: account.accountName });
-  if (Number.isSafeInteger(amount) && amount > 0) {
-    params.set('amount', String(amount));
-  }
-  return `${base}?${params.toString()}`;
-}
-
 export function saveStoredBookingData(data) {
   try {
     const dir = path.dirname(DATA_FILE_PATH);
@@ -1189,113 +1135,107 @@ export async function handleBookingMessage(message, client) {
 
   const trimmed = message.content.trim();
 
-  // &tipset @Staff BANK_ID ACCOUNT_NUMBER ACCOUNT_NAME — admin cấu hình QR nhận tip.
-  const tipSetMatch = trimmed.match(/^[&!](?:tipset|settip)\s+<@!?(\d+)>\s+([A-Za-z0-9_-]{2,12})\s+(\d{6,25})\s+(.+)$/i);
-  if (tipSetMatch) {
-    if (!isBookingAdmin(message.member, message.author.id)) {
-      await message.delete().catch(() => {});
-      return true;
-    }
-
-    await message.delete().catch(() => {});
-    const [, targetId, bankId, accountNumber, rawAccountName] = tipSetMatch;
-    const accountName = rawAccountName.replace(/^["']|["']$/g, '').trim();
-    let targetMember = message.mentions.members?.get(targetId);
-    if (!targetMember) {
-      targetMember = await message.guild.members.fetch(targetId).catch(() => null);
-    }
-
-    if (!targetMember || !hasBookingStaffRole(targetMember)) {
-      await message.channel.send('❌ Người được chọn chưa thuộc đội ngũ Booking (Admin/Support), không thể cấu hình nhận tip.').catch(() => {});
-      return true;
-    }
-
-    if (accountName.length < 3 || accountName.length > 70 || !/[A-Za-zÀ-ỹ]/.test(accountName)) {
-      await message.channel.send('❌ Tên chủ tài khoản không hợp lệ. Hãy nhập tên từ 3–70 ký tự.').catch(() => {});
-      return true;
-    }
-
-    const saved = setStaffTipAccount(targetId, { bankId, accountNumber, accountName }, message.author.id);
-    if (!saved) {
-      await message.channel.send('❌ Không thể lưu thông tin ngân hàng. Vui lòng kiểm tra quyền ghi dữ liệu của bot.').catch(() => {});
-      return true;
-    }
-
-    await message.channel.send({
-      content: `✅ Đã thiết lập mã QR nhận tip cho <@${targetId}>. Dùng lệnh &tip để xem mã QR.`,
-      allowedMentions: { parse: [] },
-    }).catch(() => {});
-    return true;
-  }
-
-  // &tipremove @Staff — admin xóa thông tin QR đã đăng ký.
-  const tipRemoveMatch = trimmed.match(/^[&!](?:tipremove|removetip)\s+<@!?(\d+)>$/i);
-  if (tipRemoveMatch) {
-    if (!isBookingAdmin(message.member, message.author.id)) {
-      await message.delete().catch(() => {});
-      return true;
-    }
-
-    await message.delete().catch(() => {});
-    const targetId = tipRemoveMatch[1];
-    if (!removeStaffTipAccount(targetId)) {
-      await message.channel.send('ℹ️ Nhân viên này chưa có thông tin nhận tip.').catch(() => {});
-      return true;
-    }
-    await message.channel.send({ content: `✅ Đã xóa thông tin nhận tip của <@${targetId}>.`, allowedMentions: { parse: [] } }).catch(() => {});
-    return true;
-  }
-
-  // &tip @Staff [số_tiền] — khách xem QR tip của nhân viên trong ticket.
-  const tipMatch = trimmed.match(/^[&!](?:tip)\s+<@!?(\d+)>(?:\s+(\d{1,9}))?$/i);
+  // &tip @Staff — hiển thị ảnh QR tip đã được gắn sẵn theo Discord ID.
+  const tipMatch = trimmed.match(/^[&!]tip\\s+<@!?(\\d+)>$/i);
   if (tipMatch) {
     await message.delete().catch(() => {});
+
     if (!message.channel.name?.startsWith('ticket-')) {
       await message.channel.send('ℹ️ Lệnh `&tip` chỉ sử dụng được trong ticket Booking.').catch(() => {});
       return true;
     }
 
-    const [, targetId, amountText] = tipMatch;
+    const targetId = tipMatch[1];
+    const staffQrImages = {
+      '852947314481299516': 'https://raw.githubusercontent.com/uyenhoang9034-pixel/UsagiTienTon/main/assets/booking/tip_852947314481299516.jpg',
+    };
+    const qrImageUrl = staffQrImages[targetId];
+
+    if (!qrImageUrl) {
+      await message.channel.send('ℹ️ Nhân viên này chưa có ảnh QR nhận tip.').catch(() => {});
+      return true;
+    }
+
     const targetMember = await message.guild.members.fetch(targetId).catch(() => null);
-    if (!targetMember || !hasBookingStaffRole(targetMember)) {
-      await message.channel.send('❌ Bạn chỉ có thể tip cho nhân viên thuộc đội ngũ Booking.').catch(() => {});
+    if (!targetMember) {
+      await message.channel.send('❌ Không tìm thấy nhân viên được chọn trong máy chủ.').catch(() => {});
       return true;
     }
 
-    const amount = amountText ? Number(amountText) : null;
-    if (amountText && (!Number.isSafeInteger(amount) || amount < 1 || amount > 500000000)) {
-      await message.channel.send('❌ Số tiền tip phải từ 1đ đến 500.000.000đ. Hoặc bỏ trống số tiền để tự nhập khi quét QR.').catch(() => {});
-      return true;
-    }
-
-    const account = getStaffTipAccount(targetId);
-    if (!account) {
-      await message.channel.send({ content: `ℹ️ <@${targetId}> chưa thiết lập tài khoản nhận tip. Vui lòng liên hệ quản lý Booking.`, allowedMentions: { parse: [] } }).catch(() => {});
-      return true;
-    }
-
-    const addInfo = `TIP ${String(targetMember.displayName || targetMember.user.username).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9 ]/g, '').trim().toUpperCase().slice(0, 20) || targetId.slice(-6)}`;
-    const qrUrl = buildStaffTipQrUrl(account, amount, addInfo);
-    const fields = [
-      { name: 'Người nhận', value: `<@${targetId}>`, inline: true },
-      { name: 'Ngân hàng', value: account.bankId, inline: true },
-      { name: 'Số tài khoản', value: account.accountNumber, inline: true },
-      { name: 'Chủ tài khoản', value: account.accountName, inline: true },
-      { name: 'Số tiền', value: amount ? `${amount.toLocaleString('vi-VN')}đ` : 'Tùy chọn – nhập số tiền khi quét QR', inline: false },
-      { name: 'Nội dung chuyển khoản', value: addInfo, inline: false },
-    ];
+    const avatarUrl = targetMember.displayAvatarURL({ extension: 'png', size: 256 });
+    const heartEmoji = BOOKING_EMOJIS.HEART_BUTTON;
+    const heartTag = `<a:${heartEmoji.name}:${heartEmoji.id}>`;
 
     await message.channel.send({
-      embeds: [{
-        color: 0xFCEEC9,
-        title: '💗 THANK YOU FOR YOUR SUPPORT',
-        description: `Bạn đang gửi tip trực tiếp cho <@${targetId}>. Quét mã QR bên dưới bằng ứng dụng ngân hàng để chuyển khoản.\n\n*Tiền được chuyển thẳng đến tài khoản của nhân viên; bot không giữ tiền và không tự xác nhận giao dịch.*`,
-        fields,
-        image: { url: qrUrl },
-        footer: { text: 'USAGI · STAFF TIPPING' },
-      }],
+      flags: IS_COMPONENTS_V2,
+      components: [
+        {
+          type: 17,
+          components: [
+            {
+              type: 10,
+              content: `${BOOKING_EMOJIS.HEADER_L1}${BOOKING_EMOJIS.HEADER_L2} **STAFF TIPPING** ${BOOKING_EMOJIS.HEADER_R1}${BOOKING_EMOJIS.HEADER_R2}`,
+            },
+            {
+              type: 14,
+              divider: true,
+              spacing: 1,
+            },
+            {
+              type: 10,
+              content: 'Bạn muốn gửi một chút yêu thương đến:',
+            },
+            {
+              type: 9,
+              components: [
+                {
+                  type: 10,
+                  content: `<@!${targetId}>`,
+                },
+              ],
+              accessory: {
+                type: 11,
+                media: {
+                  url: avatarUrl,
+                },
+                description: `Avatar của ${targetMember.user.username}`,
+              },
+            },
+            {
+              type: 14,
+              divider: true,
+              spacing: 1,
+            },
+            {
+              type: 10,
+              content: 'Quét mã QR để gửi tip',
+            },
+            {
+              type: 12,
+              items: [
+                {
+                  media: {
+                    url: qrImageUrl,
+                  },
+                  description: 'Ảnh QR tip đầy đủ của nhân viên',
+                },
+              ],
+            },
+            {
+              type: 14,
+              divider: true,
+              spacing: 1,
+            },
+            {
+              type: 10,
+              content: `${heartTag} Cảm ơn bạn đã tip cho Healing Whisper! Chúc bạn một ngày an lành!`,
+            },
+          ],
+        },
+      ],
       allowedMentions: { parse: [] },
-    }).catch((err) => logger.error('[Booking] Không thể gửi mã QR tip:', err));
+    }).catch((err) => logger.error('[Booking] Không thể gửi giao diện tip:', err));
+
     return true;
   }
 
