@@ -17,6 +17,7 @@ import {
 } from '../config/bookingConfig.js';
 import { isBotOwner } from '../config/bot.js';
 import { logger } from '../utils/logger.js';
+import { generateTranscriptFiles } from '../utils/ticket/ticketTranscript.js';
 
 export const IS_COMPONENTS_V2 = 1 << 15; // 32768
 
@@ -907,17 +908,7 @@ export async function sendBookingTicketLog(guild, payload, files = []) {
       options.files = files;
     }
 
-    const logMsg = await logChannel.send(options);
-
-    // Gửi file transcript riêng biệt để Discord mobile & desktop hiển thị box tải file chuẩn
-    if (files && files.length > 0) {
-      await logChannel.send({
-        content: `📁 **File transcript lưu trữ:**`,
-        files: files,
-      }).catch((err) => logger.error('[Booking] Lỗi gửi file transcript vào kênh log:', err));
-    }
-
-    return logMsg;
+    return await logChannel.send(options);
   } catch (err) {
     logger.error('[Booking] Lỗi gửi log ticket vào kênh log:', err);
     return null;
@@ -962,24 +953,22 @@ export async function closeBookingTicket({ channel, closer, client, reason = 'Đ
     }
   }
 
-  // 3. Sinh transcript HTML
-  const html = await generateTranscriptHtml(channel);
-  const transcriptAttachment = new AttachmentBuilder(Buffer.from(html, 'utf-8'), {
-    name: `transcript-${channel.name}.html`,
+  // 3. Tạo một bản transcript HTML theo giao diện lưu trữ thống nhất.
+  const transcriptFiles = await generateTranscriptFiles(channel, {
+    number: channel.name,
+    userId: renterId,
+    createdAt: channel.createdAt,
+    closedAt: Date.now(),
+    closeReason: reason,
   });
 
-  // 4. Gửi thông báo đóng vào chính kênh ticket kèm file transcript
+  // 4. Gửi thông báo đóng vào kênh ticket (không đính kèm transcript lần nữa).
   const closedPayload = buildClosedTicketPayloadV2(profile, closer.id);
-  closedPayload.files = [transcriptAttachment];
   if (channel.send) {
     await channel.send(closedPayload).catch((err) => logger.error('[Booking] Lỗi gửi thông báo đóng ticket:', err));
-    await channel.send({
-      content: `📁 **File transcript lưu trữ của ticket \`#${channel.name}\`:**`,
-      files: [transcriptAttachment],
-    }).catch((err) => logger.error('[Booking] Lỗi gửi file transcript vào kênh ticket:', err));
   }
 
-  // 5. Gửi log ticket V2 + transcript vào kênh lưu trữ 1568555066976116827
+  // 5. Gửi log đóng ticket và duy nhất một file transcript vào kênh lưu trữ.
   const logPayload = buildTicketCloseLogV2({
     channel,
     channelName: channel.name,
@@ -988,7 +977,7 @@ export async function closeBookingTicket({ channel, closer, client, reason = 'Đ
     closerId: closer.id,
     reason,
   });
-  await sendBookingTicketLog(channel.guild, logPayload, [transcriptAttachment]);
+  await sendBookingTicketLog(channel.guild, logPayload, transcriptFiles);
 
   return {
     success: true,
@@ -1007,13 +996,7 @@ export async function deleteBookingTicket({ channel, executor, client, reason = 
   const profile = getProfileData(profileId);
   const renterId = await findRenterIdFromChannel(channel, client, profile, executor?.id);
 
-  // 1. Sinh transcript lưu trữ trước khi xóa kênh để không bao giờ mất dữ liệu
-  const html = await generateTranscriptHtml(channel);
-  const transcriptAttachment = new AttachmentBuilder(Buffer.from(html, 'utf-8'), {
-    name: `transcript-${channel.name}.html`,
-  });
-
-  // 2. Gửi log TICKET DELETED + file transcript vào kênh log 1568555066976116827
+  // 1. Chỉ ghi log xóa ticket, không tạo hoặc gửi transcript.
   const deleteLog = buildTicketDeleteLogV2({
     channel,
     channelName: channel.name,
@@ -1022,7 +1005,7 @@ export async function deleteBookingTicket({ channel, executor, client, reason = 
     executorId: executor?.id,
     reason,
   });
-  await sendBookingTicketLog(channel.guild, deleteLog, [transcriptAttachment]);
+  await sendBookingTicketLog(channel.guild, deleteLog);
 
   // 3. Dọn dẹp kênh voice đi kèm (nếu có)
   const safeName = channel.name?.replace(/^ticket-/, '');
@@ -1114,9 +1097,11 @@ export async function sendTicketTranscriptBackup({ channel, executor, client }) 
   const profile = getProfileData(profileId);
   const renterId = await findRenterIdFromChannel(channel, client, profile, executor?.id);
 
-  const html = await generateTranscriptHtml(channel);
-  const transcriptAttachment = new AttachmentBuilder(Buffer.from(html, 'utf-8'), {
-    name: `transcript-${channel.name}.html`,
+  const transcriptFiles = await generateTranscriptFiles(channel, {
+    number: channel.name,
+    userId: renterId,
+    createdAt: channel.createdAt,
+    closedAt: Date.now(),
   });
 
   const backupLog = buildTicketTranscriptLogV2({
@@ -1128,13 +1113,13 @@ export async function sendTicketTranscriptBackup({ channel, executor, client }) 
   });
 
   // Gửi vào kênh log 1568555066976116827
-  await sendBookingTicketLog(channel.guild, backupLog, [transcriptAttachment]);
+  await sendBookingTicketLog(channel.guild, backupLog, transcriptFiles);
 
   // Gửi thông báo vào kênh hiện tại
   if (channel.send) {
     await channel.send({
       content: `📄 **Transcript dự phòng** đã được xuất và lưu trữ vào <#${BOOKING_LOG_CHANNEL_ID}> bởi <@${executor?.id}>!`,
-      files: [transcriptAttachment],
+      files: transcriptFiles,
     }).catch(() => {});
   }
 
@@ -1232,7 +1217,7 @@ export async function handleBookingMessage(message, client) {
 
     await message.delete().catch(() => {});
 
-    await message.channel.send('🗑️ Đang tiến hành lưu transcript và xóa kênh ticket trong giây lát...').catch(() => {});
+    await message.channel.send('🗑️ Đang tiến hành xóa kênh ticket trong giây lát...').catch(() => {});
 
     await deleteBookingTicket({
       channel: message.channel,
