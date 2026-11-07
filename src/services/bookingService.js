@@ -1190,7 +1190,7 @@ export async function handleBookingMessage(message, client) {
   const trimmed = message.content.trim();
 
   // &tipset @Staff BANK_ID ACCOUNT_NUMBER ACCOUNT_NAME — admin cấu hình QR nhận tip.
-  const tipSetMatch = trimmed.match(/^[&!](?:tipset|settip)\\s+<@!?(\\d+)>\\s+([A-Za-z0-9_-]{2,12})\\s+(\\d{6,25})\\s+(.+)$/i);
+  const tipSetMatch = trimmed.match(/^[&!](?:tipset|settip)\s+<@!?(\d+)>\s+([A-Za-z0-9_-]{2,12})\s+(\d{6,25})\s+(.+)$/i);
   if (tipSetMatch) {
     if (!isBookingAdmin(message.member, message.author.id)) {
       await message.delete().catch(() => {});
@@ -1222,14 +1222,14 @@ export async function handleBookingMessage(message, client) {
     }
 
     await message.channel.send({
-      content: `✅ Đã thiết lập mã QR nhận tip cho <@${targetId}>. Dùng `&tip <@${targetId}>` để xem mã QR.`,
+      content: `✅ Đã thiết lập mã QR nhận tip cho <@${targetId}>. Dùng lệnh &tip để xem mã QR.`,
       allowedMentions: { parse: [] },
     }).catch(() => {});
     return true;
   }
 
   // &tipremove @Staff — admin xóa thông tin QR đã đăng ký.
-  const tipRemoveMatch = trimmed.match(/^[&!](?:tipremove|removetip)\\s+<@!?(\\d+)>$/i);
+  const tipRemoveMatch = trimmed.match(/^[&!](?:tipremove|removetip)\s+<@!?(\d+)>$/i);
   if (tipRemoveMatch) {
     if (!isBookingAdmin(message.member, message.author.id)) {
       await message.delete().catch(() => {});
@@ -1242,12 +1242,12 @@ export async function handleBookingMessage(message, client) {
       await message.channel.send('ℹ️ Nhân viên này chưa có thông tin nhận tip.').catch(() => {});
       return true;
     }
-    await message.channel.send(`✅ Đã xóa thông tin nhận tip của <@${targetId}>.`, { allowedMentions: { parse: [] } }).catch(() => {});
+    await message.channel.send({ content: `✅ Đã xóa thông tin nhận tip của <@${targetId}>.`, allowedMentions: { parse: [] } }).catch(() => {});
     return true;
   }
 
   // &tip @Staff [số_tiền] — khách xem QR tip của nhân viên trong ticket.
-  const tipMatch = trimmed.match(/^[&!](?:tip)\\s+<@!?(\\d+)>(?:\\s+(\\d{1,9}))?$/i);
+  const tipMatch = trimmed.match(/^[&!](?:tip)\s+<@!?(\d+)>(?:\s+(\d{1,9}))?$/i);
   if (tipMatch) {
     await message.delete().catch(() => {});
     if (!message.channel.name?.startsWith('ticket-')) {
@@ -1274,7 +1274,7 @@ export async function handleBookingMessage(message, client) {
       return true;
     }
 
-    const addInfo = `TIP ${String(targetMember.displayName || targetMember.user.username).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^A-Za-z0-9 ]/g, '').trim().toUpperCase().slice(0, 20) || targetId.slice(-6)}`;
+    const addInfo = `TIP ${String(targetMember.displayName || targetMember.user.username).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9 ]/g, '').trim().toUpperCase().slice(0, 20) || targetId.slice(-6)}`;
     const qrUrl = buildStaffTipQrUrl(account, amount, addInfo);
     const fields = [
       { name: 'Người nhận', value: `<@${targetId}>`, inline: true },
@@ -1289,7 +1289,7 @@ export async function handleBookingMessage(message, client) {
       embeds: [{
         color: 0xFCEEC9,
         title: '💗 THANK YOU FOR YOUR SUPPORT',
-        description: `Bạn đang gửi tip trực tiếp cho <@${targetId}>. Quét mã QR bên dưới bằng ứng dụng ngân hàng để chuyển khoản.\\n\\n*Tiền được chuyển thẳng đến tài khoản của nhân viên; bot không giữ tiền và không tự xác nhận giao dịch.*`,
+        description: `Bạn đang gửi tip trực tiếp cho <@${targetId}>. Quét mã QR bên dưới bằng ứng dụng ngân hàng để chuyển khoản.\n\n*Tiền được chuyển thẳng đến tài khoản của nhân viên; bot không giữ tiền và không tự xác nhận giao dịch.*`,
         fields,
         image: { url: qrUrl },
         footer: { text: 'USAGI · STAFF TIPPING' },
