@@ -987,7 +987,7 @@ export async function closeBookingTicket({ channel, closer, client, reason = 'Đ
 }
 
 /**
- * Xóa vĩnh viễn kênh ticket sau khi đã sao lưu transcript vào kênh log
+ * Xóa vĩnh viễn kênh ticket mà không tạo hoặc gửi transcript
  */
 export async function deleteBookingTicket({ channel, executor, client, reason = 'Hoàn tất và xóa kênh ticket' }) {
   const hwMatch = channel.name?.match(/ticket-hw(\d+)/i);
@@ -1006,7 +1006,7 @@ export async function deleteBookingTicket({ channel, executor, client, reason = 
   });
   await sendBookingTicketLog(channel.guild, deleteLog);
 
-  // 3. Dọn dẹp kênh voice đi kèm (nếu có)
+  // 2. Dọn dẹp kênh voice đi kèm (nếu có)
   const safeName = channel.name?.replace(/^ticket-/, '');
   if (safeName && channel.guild?.channels?.cache) {
     const expectedVoiceName = `🔊・voice-${safeName}`;
@@ -1018,7 +1018,7 @@ export async function deleteBookingTicket({ channel, executor, client, reason = 
     }
   }
 
-  // 4. Xóa kênh (chờ 1.5s để interaction/command hoàn tất mượt mà)
+  // 3. Xóa kênh (chờ 1.5s để interaction/command hoàn tất mượt mà)
   setTimeout(async () => {
     try {
       if (typeof channel.delete === 'function') {
