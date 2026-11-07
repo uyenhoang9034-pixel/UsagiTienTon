@@ -15,6 +15,7 @@ import {
   BOOKING_LOG_CHANNEL_ID,
 } from '../config/bookingConfig.js';
 import { isBotOwner } from '../config/bot.js';
+import { getDatabaseValue, getGuildConfigKey } from '../utils/database.js';
 import { logger } from '../utils/logger.js';
 import { generateTranscriptFiles } from '../utils/ticket/ticketTranscript.js';
 
@@ -57,21 +58,40 @@ export function saveStoredBookingData(data) {
 }
 
 /**
- * Kiểm tra quyền Admin (Owner bot, Role admin 1545295139390619768, Role support 1568554130371383306, hoặc quyền Administrator/ManageChannels)
+ * Quyền sử dụng lệnh Booking:
+ * - Bot owner hoặc chủ server
+ * - Role admin Booking mới
+ * - Role quản lý (modRole) đã cấu hình trong phần cài đặt server
+ *
+ * Không tự động cấp quyền theo Administrator/ManageChannels hoặc role support cũ.
  */
-export function isBookingAdmin(member, userId) {
-  if (isBotOwner(userId)) return true;
+export async function isBookingAdmin(member, userId, client = null) {
+  if (isBotOwner(userId) || (member?.guild?.ownerId && member.guild.ownerId === String(userId))) {
+    return true;
+  }
   if (!member) return false;
-  const staffRoleIds = [BOOKING_ADMIN_ROLE_ID, BOOKING_SUPPORT_ROLE_ID];
-  for (const roleId of staffRoleIds) {
+
+  const hasRole = (roleId) => {
+    if (!roleId) return false;
     if (member.roles?.cache?.has?.(roleId)) return true;
     if (Array.isArray(member._roles) && member._roles.includes(roleId)) return true;
     if (Array.isArray(member.roles) && member.roles.includes(roleId)) return true;
+    return false;
+  };
+
+  if (hasRole(BOOKING_ADMIN_ROLE_ID)) return true;
+
+  // Lấy role quản lý từ cấu hình server đã thiết lập (modRole).
+  const guildId = member.guild?.id;
+  if (guildId) {
+    const guildConfig = await getDatabaseValue(client, getGuildConfigKey(guildId), {});
+    const configuredManagerRole = typeof guildConfig?.modRole === 'string'
+      ? guildConfig.modRole
+      : guildConfig?.modRole?.id;
+    if (hasRole(configuredManagerRole)) return true;
   }
-  return Boolean(
-    member.permissions?.has?.('Administrator') ||
-    member.permissions?.has?.('ManageChannels'),
-  );
+
+  return false;
 }
 
 /**
@@ -1135,6 +1155,14 @@ export async function handleBookingMessage(message, client) {
 
   const trimmed = message.content.trim();
 
+  // Tất cả lệnh prefix thuộc hệ thống Booking đều chỉ dành cho Owner,
+  // role quản lý đã cấu hình hoặc role Admin Booking mới.
+  const bookingCommandMatch = trimmed.match(/^[&!](?:tip(?:\\s|$)|pro5(?:\\s|$)|profile(?:\\s|$)|danhgia\\b|feedback\\b|close\\b|dongticket\\b|clear\\b|xoaticket\\b|deleteticket\\b|moticket\\b|reopen\\b|transcripts?\\b|taokenhvoice\\b|createvoice\\b|voice\\b|taovoice\\b)/i);
+  if (bookingCommandMatch && !(await isBookingAdmin(message.member, message.author.id, client))) {
+    await message.delete().catch(() => {});
+    return true;
+  }
+
   // &tip @Staff — hiển thị ảnh QR tip đã được gắn sẵn theo Discord ID.
   const tipMatch = trimmed.match(/^[&!]tip\s+<@!?(\d+)>$/i);
   if (tipMatch) {
@@ -1260,7 +1288,7 @@ export async function handleBookingMessage(message, client) {
       return false;
     }
 
-    const hasAdmin = isBookingAdmin(message.member, message.author.id);
+    const hasAdmin = await isBookingAdmin(message.member, message.author.id, client);
 
     if (!hasAdmin) {
       await message.delete().catch(() => {});
@@ -1287,7 +1315,7 @@ export async function handleBookingMessage(message, client) {
       return false;
     }
 
-    const hasAdmin = isBookingAdmin(message.member, message.author.id);
+    const hasAdmin = await isBookingAdmin(message.member, message.author.id, client);
 
     if (!hasAdmin) {
       return true;
@@ -1312,7 +1340,7 @@ export async function handleBookingMessage(message, client) {
       return false;
     }
 
-    const hasAdmin = isBookingAdmin(message.member, message.author.id);
+    const hasAdmin = await isBookingAdmin(message.member, message.author.id, client);
 
     if (!hasAdmin) {
       return true;
@@ -1339,7 +1367,7 @@ export async function handleBookingMessage(message, client) {
       return false;
     }
 
-    const hasAdmin = isBookingAdmin(message.member, message.author.id);
+    const hasAdmin = await isBookingAdmin(message.member, message.author.id, client);
 
     if (!hasAdmin) {
       return true;
@@ -1364,7 +1392,7 @@ export async function handleBookingMessage(message, client) {
       return false;
     }
 
-    const hasAdmin = isBookingAdmin(message.member, message.author.id);
+    const hasAdmin = await isBookingAdmin(message.member, message.author.id, client);
 
     if (!hasAdmin) {
       return true;
@@ -1393,7 +1421,7 @@ export async function handleBookingMessage(message, client) {
     const profile = getProfileData(profileId);
     const renterId = (await findRenterIdFromChannel(message.channel, client, profile, message.author.id)) || message.author.id;
 
-    const hasAdmin = isBookingAdmin(message.member, message.author.id);
+    const hasAdmin = await isBookingAdmin(message.member, message.author.id, client);
     const isIdol = message.author.id === profile?.userId;
     const isRenter = message.author.id === renterId;
 
