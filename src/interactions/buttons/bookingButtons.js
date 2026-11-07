@@ -270,5 +270,23 @@ export default [
       }
     },
   },
+
+  // 8. Trạng thái phòng voice &taokenhvoice
+  {
+    name: 'hw_voice_ready',
+    async execute(interaction) {
+      try {
+        const channelId = interaction.customId.split(':')[1];
+        await interaction.reply({
+          content: channelId && channelId !== 'voice'
+            ? `<a:trangtrig6:1546043036390260756> Kênh voice <#${channelId}> đã sẵn sàng! Chúc hai bạn tâm sự thật vui vẻ và ngọt ngào nha! <a:heartg1:1545307544808071258>`
+            : `<a:trangtrig6:1546043036390260756> Kênh voice đã sẵn sàng! Chúc hai bạn tâm sự thật ngọt ngào nha! <a:heartg1:1545307544808071258>`,
+          flags: MessageFlags.Ephemeral,
+        });
+      } catch (err) {
+        logger.error('[BookingButtons] Lỗi hw_voice_ready:', err);
+      }
+    },
+  },
 ];
 

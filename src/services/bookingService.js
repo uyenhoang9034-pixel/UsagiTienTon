@@ -449,6 +449,60 @@ export function buildClosedTicketPayloadV2(profile, adminId) {
 }
 
 /**
+ * Build payload V2 cho thông báo Tạo Kênh Voice Tâm Sự Thân Mật
+ */
+export function buildVoiceReadyPayloadV2({ profile, renterId, voiceChannelId }) {
+  const channelMention = voiceChannelId ? `<#${voiceChannelId}>` : '#phòng-voice';
+  const renterMention = renterId ? `<@${renterId}>` : 'Khách';
+  const idolMention = profile?.userId ? `<@${profile.userId}>` : 'Healing Whisper';
+
+  return {
+    flags: IS_COMPONENTS_V2,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content: `${BOOKING_EMOJIS.HEADER_L1}${BOOKING_EMOJIS.HEADER_L2} **KÊNH VOICE TÂM SỰ ĐÃ SẴN SÀNG** ${BOOKING_EMOJIS.HEADER_R1}${BOOKING_EMOJIS.HEADER_R2}`,
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 1,
+          },
+          {
+            type: 10,
+            content: `${BOOKING_EMOJIS.STATUS_CONNECTING} **Phòng voice:** ${channelMention}\n${BOOKING_EMOJIS.BULLET} **Quyền riêng tư:** Kênh chỉ hiển thị cho ${renterMention} và Healing Whisper ${idolMention} để đảm bảo không bị người khác làm phiền.\n\n<a:heartg1:1545307544808071258> Chúc hai bạn có những giây phút kết nối thật ngọt ngào và riêng tư nha! <a:ilyg1:1546041656648929380>`,
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 1,
+          },
+          {
+            type: 1, // Action row
+            components: [
+              {
+                type: 2,
+                style: 2, // Secondary
+                label: 'Đã kết nối phòng',
+                emoji: {
+                  name: 'trangtrig6',
+                  id: '1546043036390260756',
+                  animated: true,
+                },
+                custom_id: `hw_voice_ready:${voiceChannelId || 'voice'}`,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/**
  * Sinh file HTML Transcript từ tin nhắn trong kênh
  */
 export async function generateTranscriptHtml(channel) {
@@ -1273,9 +1327,12 @@ export async function handleBookingMessage(message, client) {
     );
 
     if (existingVoice) {
-      await message.channel.send({
-        content: `🔊 **Phòng voice riêng tư đã sẵn sàng tại:** <#${existingVoice.id}>\nHai bạn có thể vào phòng để tâm sự thân mật nhé! 🌸`,
+      const payload = buildVoiceReadyPayloadV2({
+        profile,
+        renterId,
+        voiceChannelId: existingVoice.id,
       });
+      await message.channel.send(payload);
       return true;
     }
 
@@ -1356,9 +1413,12 @@ export async function handleBookingMessage(message, client) {
       return true;
     }
 
-    await message.channel.send({
-      content: `🌸 **Kênh Voice Tâm Sự Thân Mật Đã Được Tạo!**\n> 🔊 Kênh voice riêng: <#${voiceChannel.id}>\n> 🔒 Kênh chỉ hiển thị cho <@${renterId}>, Healing Whisper <@${profile.userId}> và Ban Quản Trị để đảm bảo không bị người khác làm phiền. Chúc hai bạn có những giây phút kết nối thật ngọt ngào! 💕`,
+    const payload = buildVoiceReadyPayloadV2({
+      profile,
+      renterId,
+      voiceChannelId: voiceChannel.id,
     });
+    await message.channel.send(payload);
 
     return true;
   }

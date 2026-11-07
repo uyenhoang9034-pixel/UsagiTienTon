@@ -636,7 +636,21 @@ test('Yêu cầu 4: Lệnh &taokenhvoice tự động tạo kênh voice riêng t
   assert.equal(createdVoiceOptions.name, '🔊・voice-hw1-customer');
   assert.equal(createdVoiceOptions.parent, BOOKING_CATEGORY_ID);
   assert.ok(createdVoiceOptions.permissionOverwrites[0].type !== undefined);
-  assert.ok(sentReply.content.includes('voice_room_123'));
+
+  // Kiểm tra giao diện V2, emoji custom và loại bỏ Ban Quản Trị
+  assert.equal(sentReply.flags, IS_COMPONENTS_V2);
+  const container = sentReply.components[0];
+  assert.equal(container.type, 17);
+  const textContent = container.components[2].content;
+  assert.ok(textContent.includes('voice_room_123'));
+  assert.ok(!textContent.includes('Ban Quản Trị'), 'Không được chứa Ban Quản Trị trong thông báo V2');
+  assert.ok(textContent.includes(BOOKING_EMOJIS.STATUS_CONNECTING));
+  assert.ok(textContent.includes(BOOKING_EMOJIS.BULLET));
+  
+  // Nút đã kết nối phòng dùng custom emoji của server
+  const actionBtn = container.components[4].components[0];
+  assert.equal(actionBtn.label, 'Đã kết nối phòng');
+  assert.equal(actionBtn.emoji.id, '1546043036390260756');
 });
 
 
