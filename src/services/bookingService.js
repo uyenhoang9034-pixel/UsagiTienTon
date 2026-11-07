@@ -1,11 +1,27 @@
 import {
   BOOKING_EMOJIS,
   HEALING_WHISPER_PROFILES,
+  BOOKING_ADMIN_ROLE_ID,
 } from '../config/bookingConfig.js';
 import { isBotOwner } from '../config/bot.js';
 import { logger } from '../utils/logger.js';
 
 export const IS_COMPONENTS_V2 = 1 << 15; // 32768
+
+/**
+ * Kiểm tra quyền Admin (Owner bot, Role admin 1545295139390619768, hoặc quyền Administrator/ManageChannels)
+ */
+export function isBookingAdmin(member, userId) {
+  if (isBotOwner(userId)) return true;
+  if (!member) return false;
+  if (member.roles?.cache?.has?.(BOOKING_ADMIN_ROLE_ID)) return true;
+  if (Array.isArray(member._roles) && member._roles.includes(BOOKING_ADMIN_ROLE_ID)) return true;
+  if (Array.isArray(member.roles) && member.roles.includes(BOOKING_ADMIN_ROLE_ID)) return true;
+  return Boolean(
+    member.permissions?.has?.('Administrator') ||
+    member.permissions?.has?.('ManageChannels'),
+  );
+}
 
 /**
  * Cache lưu trạng thái runtime của các profile (lượt tim, ảnh hiện tại, điểm sao)
@@ -90,7 +106,7 @@ export function buildProfilePayloadV2(profile, currentIdx = 0) {
                 type: 2,
                 style: 2, // Xám
                 label: '❮❮',
-                custom_id: `hw_flip:${profile.id}:${currentIdx}`,
+                custom_id: `hw_prev:${profile.id}:${currentIdx}`,
               },
               {
                 type: 2,
@@ -103,7 +119,7 @@ export function buildProfilePayloadV2(profile, currentIdx = 0) {
                 type: 2,
                 style: 2, // Xám
                 label: '❯❯',
-                custom_id: `hw_flip:${profile.id}:${currentIdx}`,
+                custom_id: `hw_next:${profile.id}:${currentIdx}`,
               },
               {
                 type: 2,
@@ -383,10 +399,7 @@ export async function handleBookingMessage(message, client) {
       return false;
     }
 
-    const hasAdmin =
-      message.member?.permissions?.has('Administrator') ||
-      message.member?.permissions?.has('ManageChannels') ||
-      isBotOwner(message.author.id);
+    const hasAdmin = isBookingAdmin(message.member, message.author.id);
 
     if (!hasAdmin) {
       await message.delete().catch(() => {});
@@ -416,10 +429,7 @@ export async function handleBookingMessage(message, client) {
       return false;
     }
 
-    const hasAdmin =
-      message.member?.permissions?.has('Administrator') ||
-      message.member?.permissions?.has('ManageChannels') ||
-      isBotOwner(message.author.id);
+    const hasAdmin = isBookingAdmin(message.member, message.author.id);
 
     if (!hasAdmin) {
       return true;

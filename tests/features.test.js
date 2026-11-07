@@ -113,6 +113,8 @@ test('loads only scoped events and scoped interactions', async () => {
   assert.ok(client.buttons.has('tts_button'));
   assert.ok(client.buttons.has('rd_reroll_num'));
   assert.ok(client.buttons.has('rd_reroll_choice'));
+  assert.ok(client.buttons.has('hw_prev'));
+  assert.ok(client.buttons.has('hw_next'));
   assert.ok(client.buttons.has('hw_flip'));
   assert.ok(client.buttons.has('hw_heart'));
   assert.ok(client.buttons.has('hw_book'));

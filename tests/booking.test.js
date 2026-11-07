@@ -60,8 +60,11 @@ test('Giao diện V2 Profile Card: màu gốc, không title, không footer, đú
   // Action Row 1: Lướt ảnh và 5/5
   const row1 = container.components[5];
   assert.equal(row1.components[0].label, '❮❮');
+  assert.ok(row1.components[0].custom_id.startsWith('hw_prev:'));
   assert.equal(row1.components[1].label, '1/2');
   assert.equal(row1.components[2].label, '❯❯');
+  assert.ok(row1.components[2].custom_id.startsWith('hw_next:'));
+  assert.notEqual(row1.components[0].custom_id, row1.components[2].custom_id, 'Custom ID phải khác nhau không bị trùng');
   assert.equal(row1.components[3].label, '5/5');
   assert.deepEqual(row1.components[3].emoji, BOOKING_EMOJIS.HEART_BUTTON);
 
@@ -70,6 +73,14 @@ test('Giao diện V2 Profile Card: màu gốc, không title, không footer, đú
   assert.equal(row2.components[0].label, 'Book');
   assert.deepEqual(row2.components[0].emoji, BOOKING_EMOJIS.HEART_BUTTON);
   assert.deepEqual(row2.components[1].emoji, BOOKING_EMOJIS.HEART_BUTTON);
+
+  // Kiểm tra tính duy nhất tuyệt đối của tất cả custom_id
+  const allCustomIds = [
+    ...row1.components.map((c) => c.custom_id),
+    ...row2.components.map((c) => c.custom_id),
+  ];
+  const uniqueIds = new Set(allCustomIds);
+  assert.equal(uniqueIds.size, allCustomIds.length, 'Tất cả custom_id trong component phải là duy nhất');
 });
 
 test('Giao diện V2 Booking Thành Công: chuẩn emoji và 3 nút xám', () => {
@@ -160,3 +171,37 @@ test('MessageCreate Trigger: &pro5 xóa tin nhắn lệnh và gửi card profile
   assert.ok(sentPayload);
   assert.equal(sentPayload.flags, IS_COMPONENTS_V2);
 });
+
+test('Quyền Admin Booking: nhận diện chuẩn role 1545295139390619768 và Bot Owner', async () => {
+  const { isBookingAdmin } = await import('../src/services/bookingService.js');
+  const { BOOKING_ADMIN_ROLE_ID } = await import('../src/config/bookingConfig.js');
+
+  assert.equal(BOOKING_ADMIN_ROLE_ID, '1545295139390619768');
+
+  // Member có role admin trong cache
+  const memberWithRole = {
+    roles: {
+      cache: new Set([BOOKING_ADMIN_ROLE_ID]),
+    },
+  };
+  assert.equal(isBookingAdmin(memberWithRole, 'normalUser'), true);
+
+  // Member có role admin trong mảng _roles
+  const memberWithRawRoles = {
+    _roles: [BOOKING_ADMIN_ROLE_ID],
+  };
+  assert.equal(isBookingAdmin(memberWithRawRoles, 'normalUser'), true);
+
+  // User không có quyền
+  const normalMember = {
+    roles: {
+      cache: new Set(['otherRole']),
+    },
+    permissions: {
+      has: () => false,
+    },
+  };
+  assert.equal(isBookingAdmin(normalMember, 'normalUser'), false);
+});
+
+

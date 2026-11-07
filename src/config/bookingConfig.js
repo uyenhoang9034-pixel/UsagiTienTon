@@ -2,6 +2,8 @@
  * Configuration & Data for Healing Whisper Booking System (J4F)
  */
 
+export const BOOKING_ADMIN_ROLE_ID = '1545295139390619768';
+
 export const BOOKING_EMOJIS = {
   HEADER_L1: '<a:trangtrig50:1567818385306165301>',
   HEADER_L2: '<a:trangtrig53:1567819189866201219>',
@@ -48,3 +50,4 @@ export const HEALING_WHISPER_PROFILES = {
     ],
   },
 };
+

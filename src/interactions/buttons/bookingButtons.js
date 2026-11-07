@@ -4,7 +4,6 @@ import {
   TextInputBuilder,
   TextInputStyle,
   MessageFlags,
-  PermissionFlagsBits,
 } from 'discord.js';
 import {
   getProfileData,
@@ -13,20 +12,51 @@ import {
   buildRefusalPayloadV2,
   buildClosedTicketPayloadV2,
   generateTranscriptHtml,
+  isBookingAdmin,
 } from '../../services/bookingService.js';
 import { BOOKING_EMOJIS } from '../../config/bookingConfig.js';
-import { isBotOwner } from '../../config/bot.js';
 import { logger } from '../../utils/logger.js';
 
-function isAdmin(member, userId) {
-  if (isBotOwner(userId)) return true;
-  if (!member) return false;
-  return member.permissions?.has(PermissionFlagsBits.Administrator) ||
-    member.permissions?.has(PermissionFlagsBits.ManageChannels);
-}
-
 export default [
-  // 1. Lật ảnh qua lại 1/2 <-> 2/2
+  // 1a. Lướt ảnh trước (❮❮)
+  {
+    name: 'hw_prev',
+    async execute(interaction, client, args) {
+      try {
+        const profileId = args?.[0] || '1';
+        const currentIdx = parseInt(args?.[1] || '0', 10);
+        const nextIdx = currentIdx === 0 ? 1 : 0;
+
+        const profile = getProfileData(profileId);
+        const payload = buildProfilePayloadV2(profile, nextIdx);
+
+        await interaction.update(payload);
+      } catch (err) {
+        logger.error('[BookingButtons] Lỗi lật ảnh hw_prev:', err);
+      }
+    },
+  },
+
+  // 1b. Lướt ảnh sau (❯❯)
+  {
+    name: 'hw_next',
+    async execute(interaction, client, args) {
+      try {
+        const profileId = args?.[0] || '1';
+        const currentIdx = parseInt(args?.[1] || '0', 10);
+        const nextIdx = currentIdx === 0 ? 1 : 0;
+
+        const profile = getProfileData(profileId);
+        const payload = buildProfilePayloadV2(profile, nextIdx);
+
+        await interaction.update(payload);
+      } catch (err) {
+        logger.error('[BookingButtons] Lỗi lật ảnh hw_next:', err);
+      }
+    },
+  },
+
+  // 1c. Dự phòng hw_flip
   {
     name: 'hw_flip',
     async execute(interaction, client, args) {
@@ -102,7 +132,7 @@ export default [
     name: 'hw_open_rate',
     async execute(interaction, client, args) {
       try {
-        if (!isAdmin(interaction.member, interaction.user.id)) {
+        if (!isBookingAdmin(interaction.member, interaction.user.id)) {
           return interaction.reply({
             content: '❌ Chỉ Admin mới có quyền mở bảng đánh giá!',
             flags: MessageFlags.Ephemeral,
@@ -136,7 +166,7 @@ export default [
         const profile = getProfileData(profileId);
 
         const isIdol = interaction.user.id === profile.userId;
-        const hasAdmin = isAdmin(interaction.member, interaction.user.id);
+        const hasAdmin = isBookingAdmin(interaction.member, interaction.user.id);
 
         if (!isIdol && !hasAdmin) {
           return interaction.reply({
@@ -172,7 +202,7 @@ export default [
         const renterId = args?.[1];
         const stars = parseInt(args?.[2] || '5', 10);
 
-        if (renterId && interaction.user.id !== renterId && !isAdmin(interaction.member, interaction.user.id)) {
+        if (renterId && interaction.user.id !== renterId && !isBookingAdmin(interaction.member, interaction.user.id)) {
           return interaction.reply({
             content: `❌ Chỉ người đặt lịch (<@${renterId}>) mới có quyền chấm điểm đánh giá!`,
             flags: MessageFlags.Ephemeral,
@@ -206,7 +236,7 @@ export default [
     name: 'hw_close_ticket',
     async execute(interaction, client, args) {
       try {
-        if (!isAdmin(interaction.member, interaction.user.id)) {
+        if (!isBookingAdmin(interaction.member, interaction.user.id)) {
           return interaction.reply({
             content: '❌ Chỉ Admin mới có quyền đóng ticket!',
             flags: MessageFlags.Ephemeral,
@@ -248,3 +278,4 @@ export default [
     },
   },
 ];
+
