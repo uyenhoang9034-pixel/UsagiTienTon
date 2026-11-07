@@ -7,6 +7,7 @@ import {
 import {
   getProfileData,
   getConfiguredBookingManagerRoleId,
+  nextBookingTicketNumber,
   buildTicketWelcomePayloadV2,
   buildTicketOpenLogV2,
   sendBookingTicketLog,
@@ -34,8 +35,12 @@ export default [
           });
         }
 
-        const safeUsername = interaction.user.username.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10) || 'user';
-        const channelName = `ticket-hw${profile.id}-${safeUsername}`;
+        const safeUsername = interaction.user.username
+          .toLowerCase()
+          .replace(/[^a-z0-9.-]/g, '')
+          .slice(0, 32) || 'user';
+        const ticketNumber = await nextBookingTicketNumber(client, guild.id);
+        const channelName = `mw${ticketNumber}-hw${profile.id}-${safeUsername}`;
 
         // Thiết lập quyền: Khách, role Admin Booking mới, role quản lý, Idol và Bot
         const permissionOverwrites = [
