@@ -136,18 +136,23 @@ test('Giao diện V2 Booking Thành Công: chuẩn emoji và 3 nút xám', () =>
   assert.deepEqual(row.components[2].emoji, BOOKING_EMOJIS.ACTION_BUTTON);
 });
 
-test('Giao diện V2 Từ Chối Khách: Trôn Trôn Việt Nam Hihi', () => {
-  const payload = buildRefusalPayloadV2();
+test('Giao diện V2 Từ Chối Khách: Giống bảng đánh giá khi kết thúc ticket', () => {
+  const profile = getProfileData('1');
+  const payload = buildRefusalPayloadV2(profile, '999888');
   assert.equal(payload.flags, IS_COMPONENTS_V2);
 
   const container = payload.components[0];
   const text1 = container.components[0];
-  assert.ok(text1.content.includes('**TRÔN TRÔN VIỆT NAM HIHI**'));
+  assert.ok(text1.content.includes('**ĐÁNH GIÁ**'));
 
   const text2 = container.components[2];
-  assert.ok(text2.content.includes('Trạng thái: Đã ngắt phiên kết nối'));
-  assert.ok(text2.content.includes('vì bạn đã bị trôn. =))))'));
-  assert.ok(text2.content.includes('Dù bị trôn cũng không được cay nha ní'));
+  assert.ok(text2.content.includes('xin mời <@999888> feedback cho Healing Whisper - 1'));
+  assert.ok(text2.content.includes('Nếu không đánh giá bạn sẽ bị vào blacklist và bị ban khỏi server!'));
+
+  const row = container.components[3];
+  assert.equal(row.components.length, 5);
+  assert.equal(row.components[0].label, '1 ⭐');
+  assert.equal(row.components[4].label, '5 ⭐');
 });
 
 test('Giao diện V2 Bảng Đánh Giá: lời nhắn cảnh báo blacklist & 5 nút sao xám', () => {
@@ -486,6 +491,104 @@ test('deleteBookingTicket: lưu transcript trước khi xóa kênh', async () =>
   assert.ok(logSentMessage.components[0].components[0].content.includes('TICKET DELETED'));
   assert.equal(logSentMessage.files?.length, 1);
   assert.ok(logSentMessage.files[0].name.includes('transcript-ticket-hw1-delete.html'));
+});
+
+test('Yêu cầu 1: Thứ tự emoji chuẩn trong tất cả title booking', async () => {
+  const { BOOKING_EMOJIS } = await import('../src/config/bookingConfig.js');
+  const profile = getProfileData('1');
+  const payload = buildProfilePayloadV2(profile, 0);
+
+  const titleContent = payload.components[0].components[0].content;
+  const expectedPrefix = `${BOOKING_EMOJIS.HEADER_L1}${BOOKING_EMOJIS.HEADER_L2}`;
+  const expectedSuffix = `${BOOKING_EMOJIS.HEADER_R1}${BOOKING_EMOJIS.HEADER_R2}`;
+
+  assert.ok(titleContent.startsWith(expectedPrefix));
+  assert.ok(titleContent.endsWith(expectedSuffix));
+  assert.ok(expectedSuffix.includes('<a:trangtrig53:1567819189866201219><a:trangtrig51:1567818549794439229>'));
+});
+
+test('Yêu cầu 5: findRenterIdFromChannel nhận diện đúng chủ ticket ngay cả khi executor là người tạo', async () => {
+  const { findRenterIdFromChannel } = await import('../src/services/bookingService.js');
+  const profile = getProfileData('2');
+  const client = { user: { id: 'bot_123' } };
+
+  // Trường hợp như trong ảnh: East (872792190651334707) tạo ticket và chính East xóa bằng /clear
+  const channelWithTopic = {
+    name: 'ticket-hw2-emchanh9',
+    topic: 'Ticket của <@872792190651334707> | RenterID: 872792190651334707 | HW: 2',
+    permissionOverwrites: {
+      cache: [
+        { type: 1, id: '872792190651334707' },
+      ],
+    },
+  };
+
+  const renterId1 = await findRenterIdFromChannel(channelWithTopic, client, profile, '872792190651334707');
+  assert.equal(renterId1, '872792190651334707');
+
+  // Trường hợp không có topic nhưng có permissionOverwrites và closer trùng renter
+  const channelWithoutTopic = {
+    name: 'ticket-hw2-emchanh9',
+    permissionOverwrites: {
+      cache: [
+        { type: 1, id: '872792190651334707' },
+      ],
+    },
+  };
+  const renterId2 = await findRenterIdFromChannel(channelWithoutTopic, client, profile, '872792190651334707');
+  assert.equal(renterId2, '872792190651334707');
+});
+
+test('Yêu cầu 4: Lệnh &taokenhvoice tự động tạo kênh voice riêng trong danh mục', async () => {
+  const { handleBookingMessage } = await import('../src/services/bookingService.js');
+  const { BOOKING_CATEGORY_ID } = await import('../src/config/bookingConfig.js');
+
+  let createdVoiceOptions = null;
+  let sentReply = null;
+
+  const mockChannel = {
+    name: 'ticket-hw1-customer',
+    parentId: BOOKING_CATEGORY_ID,
+    topic: 'RenterID: 999888 | HW: 1',
+    guild: {
+      id: 'guild_test',
+      channels: {
+        cache: new Map(),
+        create: async (opts) => {
+          createdVoiceOptions = opts;
+          return { id: 'voice_room_123', name: opts.name };
+        },
+      },
+    },
+    permissionOverwrites: {
+      cache: [{ type: 1, id: '999888' }],
+    },
+    send: async (msg) => {
+      sentReply = msg;
+      return msg;
+    },
+  };
+
+  const mockMessage = {
+    content: '&taokenhvoice',
+    channel: mockChannel,
+    guild: mockChannel.guild,
+    author: { id: '999888' }, // Chính người thuê gõ lệnh
+    member: {
+      roles: { cache: new Set() },
+      permissions: { has: () => false },
+    },
+    delete: async () => {},
+  };
+
+  const client = { user: { id: 'bot_123' } };
+
+  const handled = await handleBookingMessage(mockMessage, client);
+  assert.equal(handled, true);
+  assert.ok(createdVoiceOptions);
+  assert.equal(createdVoiceOptions.name, '🔊・voice-hw1-customer');
+  assert.equal(createdVoiceOptions.parent, BOOKING_CATEGORY_ID);
+  assert.ok(sentReply.content.includes('voice_room_123'));
 });
 
 

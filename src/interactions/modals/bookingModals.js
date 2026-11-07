@@ -95,12 +95,14 @@ export default [
         }
 
         // Tạo kênh ticket trực thuộc danh mục 1568554690923331695
+        const ticketTopic = `Ticket của <@${interaction.user.id}> | RenterID: ${interaction.user.id} | HW: ${profile.id}`;
         let ticketChannel;
         try {
           ticketChannel = await guild.channels.create({
             name: channelName,
             type: ChannelType.GuildText,
             parent: BOOKING_CATEGORY_ID,
+            topic: ticketTopic,
             permissionOverwrites,
           });
         } catch (catErr) {
@@ -108,6 +110,7 @@ export default [
           ticketChannel = await guild.channels.create({
             name: channelName,
             type: ChannelType.GuildText,
+            topic: ticketTopic,
             permissionOverwrites,
           });
         }

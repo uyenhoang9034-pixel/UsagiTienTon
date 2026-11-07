@@ -14,6 +14,7 @@ import {
   generateTranscriptHtml,
   isBookingAdmin,
   closeBookingTicket,
+  findRenterIdFromChannel,
 } from '../../services/bookingService.js';
 import { BOOKING_EMOJIS } from '../../config/bookingConfig.js';
 import { logger } from '../../utils/logger.js';
@@ -141,8 +142,11 @@ export default [
         }
 
         const profileId = args?.[0] || '1';
-        const renterId = args?.[1] || interaction.user.id;
         const profile = getProfileData(profileId);
+        const renterId =
+          (await findRenterIdFromChannel(interaction.channel, client, profile, interaction.user.id)) ||
+          args?.[1] ||
+          interaction.user.id;
 
         const payload = buildRatingPayloadV2(profile, renterId);
         await interaction.channel.send(payload);
@@ -157,14 +161,17 @@ export default [
     },
   },
 
-  // 5. Từ chối khách (Idol hoặc Admin) -> Trôn trôn Việt Nam + hiện đánh giá
+  // 5. Từ chối khách (Idol hoặc Admin) -> Bảng đánh giá giống khi end ticket
   {
     name: 'hw_refuse',
     async execute(interaction, client, args) {
       try {
         const profileId = args?.[0] || '1';
-        const renterId = args?.[1] || interaction.user.id;
         const profile = getProfileData(profileId);
+        const renterId =
+          (await findRenterIdFromChannel(interaction.channel, client, profile, interaction.user.id)) ||
+          args?.[1] ||
+          interaction.user.id;
 
         const isIdol = interaction.user.id === profile.userId;
         const hasAdmin = isBookingAdmin(interaction.member, interaction.user.id);
@@ -176,16 +183,12 @@ export default [
           });
         }
 
-        // Gửi thông báo Trôn Trôn Việt Nam
-        const refusePayload = buildRefusalPayloadV2();
-        await interaction.channel.send(refusePayload);
-
-        // Lập tức hiện bảng đánh giá ngay bên dưới
+        // Bảng đánh giá khi từ chối nhận booking giống bảng đánh giá khi xong trò chuyện muốn end ticket
         const ratePayload = buildRatingPayloadV2(profile, renterId);
         await interaction.channel.send(ratePayload);
 
         await interaction.reply({
-          content: '✅ Đã kích hoạt trạng thái từ chối phiên kết nối và mở đánh giá!',
+          content: '✅ Đã kích hoạt trạng thái từ chối phiên kết nối và mở bảng đánh giá dịch vụ!',
           flags: MessageFlags.Ephemeral,
         });
       } catch (err) {
