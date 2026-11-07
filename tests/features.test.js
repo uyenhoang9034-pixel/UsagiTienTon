@@ -14,9 +14,11 @@ const { getUserMarriage, createMarriage } = await import('../src/services/marria
 
 const EXPECTED_COMMANDS = [
   'boc-que',
+  'clear',
   'dot-via',
   'laudon',
   'marry',
+  'moticket',
   'phattu',
   'random',
   'thatu',

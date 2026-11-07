@@ -359,5 +359,135 @@ test('closeBookingTicket: ẩn quyền xem của khách, giữ quyền 2 role, g
   assert.ok(logSentMessage.files[0].name.includes('transcript-ticket-hw1-alice.html'));
 });
 
+test('reopenBookingTicket: khôi phục quyền cho khách và gửi log V2', async () => {
+  const { reopenBookingTicket } = await import('../src/services/bookingService.js');
+  const { BOOKING_LOG_CHANNEL_ID } = await import('../src/config/bookingConfig.js');
+
+  const restoredPerms = new Map();
+  let ticketSentMessage = null;
+  let logSentMessage = null;
+
+  const mockChannel = {
+    name: 'ticket-hw2-bob',
+    id: 'ticket_channel_456',
+    guild: {
+      id: 'guild123',
+      channels: {
+        cache: new Map([
+          [
+            BOOKING_LOG_CHANNEL_ID,
+            {
+              id: BOOKING_LOG_CHANNEL_ID,
+              send: async (msg) => {
+                logSentMessage = msg;
+                return msg;
+              },
+            },
+          ],
+        ]),
+      },
+    },
+    permissionOverwrites: {
+      cache: [
+        { type: 1, id: 'renter_bob_id' },
+      ],
+      edit: async (targetId, perms) => {
+        restoredPerms.set(targetId, perms);
+      },
+    },
+    send: async (msg) => {
+      ticketSentMessage = msg;
+      return msg;
+    },
+  };
+
+  const executor = { id: 'admin_user_id' };
+  const client = { user: { id: 'bot_id' } };
+
+  const result = await reopenBookingTicket({
+    channel: mockChannel,
+    executor,
+    client,
+    sendTranscriptBackup: false,
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.renterId, 'renter_bob_id');
+
+  // Khách được cấp lại quyền đầy đủ
+  assert.deepEqual(restoredPerms.get('renter_bob_id'), {
+    ViewChannel: true,
+    SendMessages: true,
+    ReadMessageHistory: true,
+    AttachFiles: true,
+  });
+
+  // Thông báo mở lại gửi vào ticket
+  assert.ok(ticketSentMessage);
+  assert.equal(ticketSentMessage.flags, IS_COMPONENTS_V2);
+  assert.ok(ticketSentMessage.components[0].components[0].content.includes('TICKET ĐÃ ĐƯỢC MỞ LẠI'));
+
+  // Log gửi vào kênh log 1568555066976116827
+  assert.ok(logSentMessage);
+  assert.equal(logSentMessage.flags, IS_COMPONENTS_V2);
+  assert.ok(logSentMessage.components[0].components[0].content.includes('TICKET REOPENED'));
+});
+
+test('deleteBookingTicket: lưu transcript trước khi xóa kênh', async () => {
+  const { deleteBookingTicket } = await import('../src/services/bookingService.js');
+  const { BOOKING_LOG_CHANNEL_ID } = await import('../src/config/bookingConfig.js');
+
+  let logSentMessage = null;
+
+  const mockChannel = {
+    name: 'ticket-hw1-delete',
+    id: 'ticket_channel_del',
+    guild: {
+      id: 'guild123',
+      channels: {
+        cache: new Map([
+          [
+            BOOKING_LOG_CHANNEL_ID,
+            {
+              id: BOOKING_LOG_CHANNEL_ID,
+              send: async (msg) => {
+                logSentMessage = msg;
+                return msg;
+              },
+            },
+          ],
+        ]),
+      },
+    },
+    permissionOverwrites: {
+      cache: [
+        { type: 1, id: 'renter_del_id' },
+      ],
+    },
+    messages: {
+      fetch: async () => new Map(),
+    },
+    delete: async () => {},
+  };
+
+  const executor = { id: 'admin_user_id' };
+  const client = { user: { id: 'bot_id' } };
+
+  const result = await deleteBookingTicket({
+    channel: mockChannel,
+    executor,
+    client,
+    reason: 'Đã hoàn tất phiên',
+  });
+
+  assert.equal(result.success, true);
+  assert.ok(logSentMessage);
+  assert.equal(logSentMessage.flags, IS_COMPONENTS_V2);
+  assert.ok(logSentMessage.components[0].components[0].content.includes('TICKET DELETED'));
+  assert.equal(logSentMessage.files?.length, 1);
+  assert.ok(logSentMessage.files[0].name.includes('transcript-ticket-hw1-delete.html'));
+});
+
+
 
 
