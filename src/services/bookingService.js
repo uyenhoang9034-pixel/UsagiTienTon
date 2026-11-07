@@ -1157,7 +1157,7 @@ export async function handleBookingMessage(message, client) {
 
   // Tất cả lệnh prefix thuộc hệ thống Booking đều chỉ dành cho Owner,
   // role quản lý đã cấu hình hoặc role Admin Booking mới.
-  const bookingCommandMatch = trimmed.match(/^[&!](?:tip(?:\\s|$)|pro5(?:\\s|$)|profile(?:\\s|$)|danhgia\\b|feedback\\b|close\\b|dongticket\\b|clear\\b|xoaticket\\b|deleteticket\\b|moticket\\b|reopen\\b|transcripts?\\b|taokenhvoice\\b|createvoice\\b|voice\\b|taovoice\\b)/i);
+  const bookingCommandMatch = trimmed.match(/^[&!](?:tip(?:\s|$)|pro5(?:\s|$)|profile(?:\s|$)|danhgia\b|feedback\b|close\b|dongticket\b|clear\b|xoaticket\b|deleteticket\b|moticket\b|reopen\b|transcripts?\b|taokenhvoice\b|createvoice\b|voice\b|taovoice\b)/i);
   if (bookingCommandMatch && !(await isBookingAdmin(message.member, message.author.id, client))) {
     await message.delete().catch(() => {});
     return true;
