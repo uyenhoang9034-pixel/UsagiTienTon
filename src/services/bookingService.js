@@ -1147,7 +1147,7 @@ export async function handleBookingMessage(message, client) {
 
     const targetId = tipMatch[1];
     const staffQrImages = {
-      '852947314481299516': 'https://raw.githubusercontent.com/uyenhoang9034-pixel/UsagiTienTon/main/assets/booking/tip_852947314481299516.jpg',
+      '852947314481299516': 'https://raw.githubusercontent.com/uyenhoang9034-pixel/UsagiTienTon/main/assets/booking/tip_852947314481299516.webp',
     };
     const qrImageUrl = staffQrImages[targetId];
 
