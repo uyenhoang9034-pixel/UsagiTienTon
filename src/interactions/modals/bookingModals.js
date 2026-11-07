@@ -6,13 +6,13 @@ import {
 } from 'discord.js';
 import {
   getProfileData,
+  getConfiguredBookingManagerRoleId,
   buildTicketWelcomePayloadV2,
   buildTicketOpenLogV2,
   sendBookingTicketLog,
 } from '../../services/bookingService.js';
 import {
   BOOKING_ADMIN_ROLE_ID,
-  BOOKING_SUPPORT_ROLE_ID,
   BOOKING_CATEGORY_ID,
 } from '../../config/bookingConfig.js';
 import { logger } from '../../utils/logger.js';
@@ -37,7 +37,7 @@ export default [
         const safeUsername = interaction.user.username.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10) || 'user';
         const channelName = `ticket-hw${profile.id}-${safeUsername}`;
 
-        // Thiết lập quyền: Khách, 2 Role (1568554130371383306 & 1545295139390619768), Idol và Bot
+        // Thiết lập quyền: Khách, role Admin Booking mới, role quản lý, Idol và Bot
         const permissionOverwrites = [
           {
             id: guild.id, // @everyone
@@ -45,17 +45,7 @@ export default [
             deny: [PermissionFlagsBits.ViewChannel],
           },
           {
-            id: BOOKING_SUPPORT_ROLE_ID, // 1568554130371383306
-            type: OverwriteType?.Role ?? 0,
-            allow: [
-              PermissionFlagsBits.ViewChannel,
-              PermissionFlagsBits.SendMessages,
-              PermissionFlagsBits.ReadMessageHistory,
-              PermissionFlagsBits.AttachFiles,
-            ],
-          },
-          {
-            id: BOOKING_ADMIN_ROLE_ID, // 1545295139390619768
+            id: BOOKING_ADMIN_ROLE_ID, // 1568554130371383306
             type: OverwriteType?.Role ?? 0,
             allow: [
               PermissionFlagsBits.ViewChannel,
@@ -86,6 +76,21 @@ export default [
             ],
           },
         ];
+
+        // Cấp quyền cho role quản lý đã cấu hình trong server.
+        const managerRoleId = await getConfiguredBookingManagerRoleId(client, guild.id);
+        if (managerRoleId && managerRoleId !== BOOKING_ADMIN_ROLE_ID) {
+          permissionOverwrites.push({
+            id: managerRoleId,
+            type: OverwriteType?.Role ?? 0,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ReadMessageHistory,
+              PermissionFlagsBits.AttachFiles,
+            ],
+          });
+        }
 
         // Cấp quyền cho Idol nếu Idol là thành viên trong server
         if (profile.userId && profile.userId !== interaction.user.id) {
