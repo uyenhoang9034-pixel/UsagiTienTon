@@ -1,0 +1,16 @@
+{
+  "profiles": {
+    "1": {
+      "likes": 0,
+      "rating": "5/5",
+      "fiveStarCount": 0,
+      "userLikes": {}
+    },
+    "2": {
+      "likes": 0,
+      "rating": "5/5",
+      "fiveStarCount": 0,
+      "userLikes": {}
+    }
+  }
+}

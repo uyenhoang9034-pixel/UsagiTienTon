@@ -4,6 +4,9 @@ import {
   PermissionFlagsBits,
   OverwriteType,
 } from 'discord.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   BOOKING_EMOJIS,
   HEALING_WHISPER_PROFILES,
@@ -16,6 +19,42 @@ import { isBotOwner } from '../config/bot.js';
 import { logger } from '../utils/logger.js';
 
 export const IS_COMPONENTS_V2 = 1 << 15; // 32768
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DATA_FILE_PATH = path.resolve(__dirname, '../data/bookingData.json');
+
+/**
+ * Đọc dữ liệu profile lưu trữ bền vững từ bookingData.json
+ */
+export function loadStoredBookingData() {
+  try {
+    if (fs.existsSync(DATA_FILE_PATH)) {
+      const raw = fs.readFileSync(DATA_FILE_PATH, 'utf-8');
+      return JSON.parse(raw);
+    }
+  } catch (err) {
+    logger.warn('[Booking] Không thể đọc bookingData.json:', err);
+  }
+  return { profiles: {} };
+}
+
+/**
+ * Ghi dữ liệu profile lưu trữ bền vững vào bookingData.json
+ */
+export function saveStoredBookingData(data) {
+  try {
+    const dir = path.dirname(DATA_FILE_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(DATA_FILE_PATH, JSON.stringify(data, null, 2), 'utf-8');
+    return true;
+  } catch (err) {
+    logger.error('[Booking] Không thể ghi bookingData.json:', err);
+    return false;
+  }
+}
 
 /**
  * Kiểm tra quyền Admin (Owner bot, Role admin 1545295139390619768, Role support 1568554130371383306, hoặc quyền Administrator/ManageChannels)
@@ -43,14 +82,91 @@ const profileState = new Map();
 export function getProfileData(profileId = '1') {
   const base = HEALING_WHISPER_PROFILES[String(profileId)] || HEALING_WHISPER_PROFILES['1'];
   if (!profileState.has(base.id)) {
+    const stored = loadStoredBookingData();
+    const profData = stored?.profiles?.[String(base.id)] || {};
     profileState.set(base.id, {
       ...base,
-      likes: base.likes || 12,
-      rating: base.rating || '5/5',
-      fiveStarCount: 48,
+      likes: typeof profData.likes === 'number' ? profData.likes : (typeof base.likes === 'number' ? base.likes : 0),
+      rating: profData.rating || base.rating || '5/5',
+      fiveStarCount: typeof profData.fiveStarCount === 'number' ? profData.fiveStarCount : 0,
+      userLikes: profData.userLikes || {},
     });
   }
   return profileState.get(base.id);
+}
+
+/**
+ * Thả tim tích lũy cho profile (giới hạn tối đa 10 lần/user vĩnh viễn)
+ */
+export function addProfileLike(profileId = '1', userId) {
+  const profile = getProfileData(profileId);
+  if (!profile) return { success: false, reason: 'NOT_FOUND' };
+
+  if (!profile.userLikes || typeof profile.userLikes !== 'object') {
+    profile.userLikes = {};
+  }
+
+  const currentCount = Number(profile.userLikes[userId]) || 0;
+  if (currentCount >= 10) {
+    return {
+      success: false,
+      reason: 'MAX_REACHED',
+      currentLikes: typeof profile.likes === 'number' ? profile.likes : 0,
+      userLikes: currentCount,
+      max: 10,
+    };
+  }
+
+  const nextCount = currentCount + 1;
+  profile.userLikes[userId] = nextCount;
+  profile.likes = (typeof profile.likes === 'number' ? profile.likes : 0) + 1;
+
+  // Cập nhật và lưu vào file bookingData.json ngay lập tức
+  const stored = loadStoredBookingData();
+  stored.profiles = stored.profiles || {};
+  stored.profiles[String(profile.id)] = {
+    likes: profile.likes,
+    rating: profile.rating || '5/5',
+    fiveStarCount: profile.fiveStarCount || 0,
+    userLikes: profile.userLikes,
+  };
+  saveStoredBookingData(stored);
+
+  return {
+    success: true,
+    currentLikes: profile.likes,
+    userLikes: nextCount,
+    max: 10,
+  };
+}
+
+/**
+ * Thêm đánh giá 5 sao cho profile và lưu trữ bền vững
+ */
+export function addProfileRating(profileId = '1', stars = 5) {
+  const profile = getProfileData(profileId);
+  if (!profile) return { success: false, reason: 'NOT_FOUND' };
+
+  if (stars === 5) {
+    profile.fiveStarCount = (typeof profile.fiveStarCount === 'number' ? profile.fiveStarCount : 0) + 1;
+    profile.rating = '5/5';
+  }
+
+  const stored = loadStoredBookingData();
+  stored.profiles = stored.profiles || {};
+  stored.profiles[String(profile.id)] = {
+    likes: typeof profile.likes === 'number' ? profile.likes : 0,
+    rating: profile.rating || '5/5',
+    fiveStarCount: profile.fiveStarCount || 0,
+    userLikes: profile.userLikes || {},
+  };
+  saveStoredBookingData(stored);
+
+  return {
+    success: true,
+    rating: profile.rating,
+    fiveStarCount: profile.fiveStarCount,
+  };
 }
 
 export function findProfileByQuery(query) {
@@ -156,7 +272,7 @@ export function buildProfilePayloadV2(profile, currentIdx = 0) {
               {
                 type: 2,
                 style: 2, // Xám
-                label: String(profile.likes || 12),
+                label: String(typeof profile.likes === 'number' ? profile.likes : (profile.likes ?? 0)),
                 emoji: BOOKING_EMOJIS.HEART_BUTTON,
                 custom_id: `hw_heart:${profile.id}`,
               },

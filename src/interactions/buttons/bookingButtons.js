@@ -7,6 +7,8 @@ import {
 } from 'discord.js';
 import {
   getProfileData,
+  addProfileLike,
+  addProfileRating,
   buildProfilePayloadV2,
   buildRatingPayloadV2,
   buildRefusalPayloadV2,
@@ -77,14 +79,21 @@ export default [
     },
   },
 
-  // 2. Thả tim tích lũy
+  // 2. Thả tim tích lũy (tối đa 10 lần/user vĩnh viễn)
   {
     name: 'hw_heart',
     async execute(interaction, client, args) {
       try {
         const profileId = args?.[0] || '1';
+        const result = addProfileLike(profileId, interaction.user.id);
         const profile = getProfileData(profileId);
-        profile.likes = (profile.likes || 12) + 1;
+
+        if (!result.success) {
+          return interaction.reply({
+            content: `💖 Bạn đã thả tim tối đa **10/10 lần** cho **Healing Whisper - ${profile.id}** rồi nha! Cảm ơn tình cảm to bự của bạn! 🥰`,
+            flags: MessageFlags.Ephemeral,
+          });
+        }
 
         const payload = buildProfilePayloadV2(profile, 0);
         await interaction.update(payload);
@@ -220,10 +229,8 @@ export default [
           });
         }
 
-        // Cập nhật dữ liệu profile khi được 5 sao
-        const profile = getProfileData(profileId);
-        profile.fiveStarCount = (profile.fiveStarCount || 48) + 1;
-        profile.rating = '5/5';
+        // Cập nhật dữ liệu profile khi được 5 sao và lưu trữ bền vững
+        addProfileRating(profileId, 5);
 
         return interaction.reply({
           content: `${BOOKING_EMOJIS.ROLEICON_SUCCESS} Cảm ơn đánh giá 5 sao của bạn nhé, chúc bạn một ngày tốt lành ạ!`,

@@ -48,7 +48,7 @@ export const HEALING_WHISPER_PROFILES = {
     game: 'Nhận mọi game - Kéo rank thua có quạu, test tướng có toxic, chết thì không nhận lỗi giùm, thanks.',
     price: 'Deal',
     rating: '5/5',
-    likes: 12,
+    likes: 0,
     images: [
       'https://raw.githubusercontent.com/uyenhoang9034-pixel/UsagiTienTon/main/assets/booking/hw1anh1.jpg',
       'https://raw.githubusercontent.com/uyenhoang9034-pixel/UsagiTienTon/main/assets/booking/hw1anh2.jpg',
@@ -65,7 +65,7 @@ export const HEALING_WHISPER_PROFILES = {
     game: 'Only LOL/TFT, mãi mãi FAN T1 - Thịt càng nướng càng khét gái càng les càng xink.',
     price: 'Deal',
     rating: '5/5',
-    likes: 12,
+    likes: 0,
     images: [
       'https://raw.githubusercontent.com/uyenhoang9034-pixel/UsagiTienTon/main/assets/booking/hw2anh1.jpg',
       'https://raw.githubusercontent.com/uyenhoang9034-pixel/UsagiTienTon/main/assets/booking/hw2anh2.jpg',

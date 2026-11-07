@@ -507,6 +507,53 @@ test('Yêu cầu 1: Thứ tự emoji chuẩn trong tất cả title booking', as
   assert.ok(expectedSuffix.includes('<a:trangtrig53:1567819189866201219><a:trangtrig51:1567818549794439229>'));
 });
 
+test('Yêu cầu 1 mới: Khoảng cách emoji đối xứng và sát nhau chuẩn xác ở cả 2 phía', () => {
+  const profile = getProfileData('1');
+  const payload = buildProfilePayloadV2(profile, 0);
+  const title = payload.components[0].components[0].content;
+
+  const leftPair = `${BOOKING_EMOJIS.HEADER_L1}${BOOKING_EMOJIS.HEADER_L2}`;
+  const rightPair = `${BOOKING_EMOJIS.HEADER_R1}${BOOKING_EMOJIS.HEADER_R2}`;
+
+  assert.ok(title.startsWith(`${leftPair} `));
+  assert.ok(title.endsWith(` ${rightPair}`));
+  assert.equal(rightPair, '<a:trangtrig53:1567819189866201219><a:trangtrig51:1567818549794439229>');
+});
+
+test('Yêu cầu 2 mới: Bắt đầu từ 0 tim, giới hạn 10 tim/user vĩnh viễn và lưu trữ dữ liệu bền vững', async () => {
+  const { addProfileLike, addProfileRating } = await import('../src/services/bookingService.js');
+  const profile = getProfileData('1');
+
+  // Khởi tạo nhãn nút tim là '0'
+  const payload = buildProfilePayloadV2(profile, 0);
+  const heartButton = payload.components[0].components[6].components[1];
+  assert.equal(heartButton.label, '0');
+
+  // User 1 thả tim 10 lần liên tiếp -> Đều thành công
+  const testUserId = 'test_user_999';
+  for (let i = 1; i <= 10; i++) {
+    const res = addProfileLike('1', testUserId);
+    assert.equal(res.success, true);
+    assert.equal(res.userLikes, i);
+  }
+
+  // Thả lần 11 -> Bị từ chối do đạt giới hạn tối đa
+  const res11 = addProfileLike('1', testUserId);
+  assert.equal(res11.success, false);
+  assert.equal(res11.reason, 'MAX_REACHED');
+  assert.equal(res11.userLikes, 10);
+
+  // User khác vẫn có thể thả tim bình thường
+  const resOther = addProfileLike('1', 'another_user_888');
+  assert.equal(resOther.success, true);
+  assert.equal(resOther.userLikes, 1);
+
+  // Thử nghiệm đánh giá 5 sao
+  const rateRes = addProfileRating('1', 5);
+  assert.equal(rateRes.success, true);
+  assert.equal(rateRes.rating, '5/5');
+});
+
 test('Yêu cầu 5: findRenterIdFromChannel nhận diện đúng chủ ticket ngay cả khi executor là người tạo', async () => {
   const { findRenterIdFromChannel } = await import('../src/services/bookingService.js');
   const profile = getProfileData('2');
