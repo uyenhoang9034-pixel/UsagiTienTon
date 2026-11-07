@@ -30,6 +30,28 @@ test('Booking Config: Profile 1 khởi tạo chính xác theo yêu cầu', () =>
   assert.equal(byName.id, '1');
 });
 
+test('Booking Config: Profile 2 (Ăn Thịt Bé Trai) khởi tạo chính xác theo yêu cầu', () => {
+  const profile = getProfileData('2');
+  assert.equal(profile.id, '2');
+  assert.equal(profile.userId, '1212972766752542753');
+  assert.equal(profile.nickname, 'Ăn Thịt Bé Trai');
+  assert.ok(profile.game.includes('Only LOL/TFT, mãi mãi FAN T1'));
+  assert.equal(profile.price, 'Deal');
+  assert.equal(profile.images.length, 2);
+  assert.ok(profile.images[0].includes('hw2anh1.jpg'));
+  assert.ok(profile.images[1].includes('hw2anh2.jpg'));
+
+  // Tìm kiếm theo query linh hoạt
+  const byMention = findProfileByQuery('<@1212972766752542753>');
+  assert.equal(byMention.id, '2');
+
+  const byName = findProfileByQuery('Ăn Thịt Bé Trai');
+  assert.equal(byName.id, '2');
+
+  const byId = findProfileByQuery('2');
+  assert.equal(byId.id, '2');
+});
+
 test('Giao diện V2 Profile Card: màu gốc, không title, không footer, đúng emoji', () => {
   const profile = getProfileData('1');
   const payload = buildProfilePayloadV2(profile, 0);
