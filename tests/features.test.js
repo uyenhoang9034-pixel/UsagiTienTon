@@ -113,12 +113,15 @@ test('loads only scoped events and scoped interactions', async () => {
   assert.ok(client.buttons.has('tts_button'));
   assert.ok(client.buttons.has('rd_reroll_num'));
   assert.ok(client.buttons.has('rd_reroll_choice'));
+  assert.ok(client.buttons.has('hw_flip'));
+  assert.ok(client.buttons.has('hw_heart'));
+  assert.ok(client.buttons.has('hw_book'));
   assert.ok(client.selectMenus.has('tts_select_voice'));
-  assert.equal(client.modals.size, 0);
+  assert.ok(client.modals.has('hw_modal_book'));
 
   for (const name of client.buttons.keys()) {
     assert.ok(
-      name.startsWith('tts') || name.startsWith('excuse') || name.startsWith('rd'),
+      name.startsWith('tts') || name.startsWith('excuse') || name.startsWith('rd') || name.startsWith('hw'),
       `Unexpected non-scoped button loaded: ${name}`,
     );
   }

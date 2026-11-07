@@ -14,7 +14,7 @@ const __dirname = dirname(__filename);
  *
  * Loader không được để 1 file interaction lỗi kéo sập toàn bộ hệ thống.
  */
-const interactionTypes = ['buttons', 'selectMenus'];
+const interactionTypes = ['buttons', 'selectMenus', 'modals'];
 
 const ALLOWED_INTERACTION_PATTERNS = [
   /^buttons\/tts.*\.js$/,
@@ -23,8 +23,12 @@ const ALLOWED_INTERACTION_PATTERNS = [
   /^buttons\/excuse\/.*\.js$/,
   /^buttons\/random.*\.js$/,
   /^buttons\/random\/.*\.js$/,
+  /^buttons\/booking.*\.js$/,
+  /^buttons\/booking\/.*\.js$/,
   /^selectMenus\/tts.*\.js$/,
   /^selectMenus\/tts\/.*\.js$/,
+  /^modals\/booking.*\.js$/,
+  /^modals\/booking\/.*\.js$/,
 ];
 
 function isAllowedInteraction(relativePath) {

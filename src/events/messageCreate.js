@@ -13,6 +13,7 @@ import { handleAIChatMessage } from '../services/ai/aiChatManager.js';
 import { handleThanVanTuBan } from '../services/thanVanTuBanService.js';
 import { handleQuoteTrigger } from '../services/quotes/quoteService.js';
 import { handleRandomMessage } from '../services/randomService.js';
+import { handleBookingMessage } from '../services/bookingService.js';
 
 export default {
   name: Events.MessageCreate,
@@ -65,6 +66,15 @@ export default {
       }
     } catch (randomError) {
       logger.error('Error handling Random trigger:', randomError);
+    }
+
+    try {
+      const bookingProcessed = await handleBookingMessage(message, client);
+      if (bookingProcessed) {
+        return;
+      }
+    } catch (bookingError) {
+      logger.error('Error handling Booking trigger:', bookingError);
     }
 
     await handlePrefixCommand(message, client);
