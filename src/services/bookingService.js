@@ -1,5 +1,4 @@
 import {
-  AttachmentBuilder,
   ChannelType,
   PermissionFlagsBits,
   OverwriteType,
@@ -920,9 +919,9 @@ export async function sendBookingTicketLog(guild, payload, files = []) {
  * 1. Ẩn kênh với khách (ViewChannel: false, SendMessages: false)
  * 2. Giữ quyền xem cho 2 role 1568554130371383306 & 1545295139390619768 và quản lý server
  * 3. Kênh vẫn nằm trong danh mục 1568554690923331695
- * 4. Sinh transcript HTML
- * 5. Gửi thông báo đóng + đính kèm transcript vào kênh ticket
- * 6. Gửi log ticket V2 + đính kèm transcript vào kênh 1568555066976116827
+ * 4. Sinh một transcript HTML
+ * 5. Gửi thông báo đóng vào kênh ticket
+ * 6. Gửi log đóng kèm duy nhất một transcript vào kênh lưu trữ 1568555066976116827
  * 7. Tuyệt đối KHÔNG DM khách
  */
 export async function closeBookingTicket({ channel, closer, client, reason = 'Đóng qua lệnh / nút quản trị' }) {
@@ -983,7 +982,7 @@ export async function closeBookingTicket({ channel, closer, client, reason = 'Đ
     success: true,
     profile,
     renterId,
-    html,
+    transcriptFiles,
   };
 }
 
@@ -1123,7 +1122,7 @@ export async function sendTicketTranscriptBackup({ channel, executor, client }) 
     }).catch(() => {});
   }
 
-  return { success: true, html };
+  return { success: true, transcriptFiles };
 }
 
 /**
