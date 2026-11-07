@@ -128,8 +128,7 @@ export function buildNumberPayloadV2(result, min, max, userId) {
     flags: IS_COMPONENTS_V2,
     components: [
       {
-        type: 17, // Container
-        accent_color: USAGI_COLOR,
+        type: 17, // Container (màu gốc, không thanh màu accent bên trái)
         components: [
           {
             type: 10, // Text Display
@@ -181,8 +180,7 @@ export function buildChoicePayloadV2(chosen, items, userId, sessionId = null) {
     flags: IS_COMPONENTS_V2,
     components: [
       {
-        type: 17, // Container
-        accent_color: USAGI_COLOR,
+        type: 17, // Container (màu gốc, không thanh màu accent bên trái)
         components: [
           {
             type: 10, // Text Display
@@ -223,8 +221,7 @@ export function buildGuidePayloadV2() {
     flags: IS_COMPONENTS_V2,
     components: [
       {
-        type: 17, // Container
-        accent_color: WARNING_COLOR,
+        type: 17, // Container (màu gốc, không thanh màu accent bên trái)
         components: [
           {
             type: 10, // Text Display
@@ -314,3 +311,4 @@ export async function handleRandomMessage(message, client) {
   await message.reply(payload);
   return true;
 }
+

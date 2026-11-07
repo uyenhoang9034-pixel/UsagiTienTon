@@ -83,7 +83,7 @@ test('Giao diện V2 Random Số: tuân thủ 100% cấu trúc Discord Component
   // 2. Kiểm tra Container
   const container = payload.components[0];
   assert.equal(container.type, 17); // Container type
-  assert.equal(container.accent_color, USAGI_COLOR);
+  assert.equal(container.accent_color, undefined); // Màu gốc, không có thanh màu viền trái
 
   // 3. Kiểm tra Text Display 1: Kết quả
   const text1 = container.components[0];
