@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
-import { isBookingAdmin, reopenBookingTicket } from '../../services/bookingService.js';
+import { isBookingAdmin, isBookingTicketChannelName, reopenBookingTicket } from '../../services/bookingService.js';
 import { logger } from '../../utils/logger.js';
 
 export default {
@@ -16,14 +16,14 @@ export default {
 
   async execute(interaction, config, client) {
     try {
-      if (!isBookingAdmin(interaction.member, interaction.user.id)) {
+      if (!(await isBookingAdmin(interaction.member, interaction.user.id, client))) {
         return interaction.reply({
           content: '❌ Chỉ Admin / Staff mới có quyền mở lại ticket!',
           flags: MessageFlags.Ephemeral,
         });
       }
 
-      if (!interaction.channel?.name?.startsWith('ticket-')) {
+      if (!isBookingTicketChannelName(interaction.channel?.name)) {
         return interaction.reply({
           content: '❌ Lệnh **/moticket** chỉ có thể sử dụng bên trong các kênh ticket!',
           flags: MessageFlags.Ephemeral,
