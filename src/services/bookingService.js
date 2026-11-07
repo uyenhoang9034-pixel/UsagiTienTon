@@ -1196,7 +1196,7 @@ export async function handleBookingMessage(message, client) {
               },
               {
                 type: 10,
-                content: 'Chào bạn, đây là bảng giá Booking Healing Whisper của server.\\n\\n> - Mong bạn check kĩ giá và đọc kĩ rules trước khi book! Nếu cần đọc lại rules, xin hãy ấn vào nút bên dưới.\\n> - Mọi thắc mắc vui lòng liên hệ trực tiếp <@&1568554130371383306> ngay tại ticket này. Xin cảm ơn!',
+                content: 'Chào bạn, đây là bảng giá Booking Healing Whisper của server.\n\n> - Mong bạn check kĩ giá và đọc kĩ rules trước khi book! Nếu cần đọc lại rules, xin hãy ấn vào nút bên dưới.\n> - Mọi thắc mắc vui lòng liên hệ trực tiếp <@&1568554130371383306> ngay tại ticket này. Xin cảm ơn!',
               },
             ],
           },
