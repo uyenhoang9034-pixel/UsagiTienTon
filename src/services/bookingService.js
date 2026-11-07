@@ -14,11 +14,38 @@ import {
   BOOKING_LOG_CHANNEL_ID,
 } from '../config/bookingConfig.js';
 import { isBotOwner } from '../config/bot.js';
-import { getDatabaseValue, getGuildConfigKey } from '../utils/database.js';
+import { getDatabaseValue, setDatabaseValue, getGuildConfigKey } from '../utils/database.js';
 import { logger } from '../utils/logger.js';
 import { generateTranscriptFiles } from '../utils/ticket/ticketTranscript.js';
 
 export const IS_COMPONENTS_V2 = 1 << 15; // 32768
+
+const bookingTicketSequenceQueues = new Map();
+
+export function isBookingTicketChannelName(name) {
+  return /^(?:mw\\d+-hw\\d+|ticket-hw\\d+)-/i.test(String(name || ''));
+}
+
+export function getBookingProfileIdFromChannelName(name) {
+  const match = String(name || '').match(/^(?:mw\\d+-hw|ticket-hw)(\\d+)-/i);
+  return match ? match[1] : '1';
+}
+
+export async function nextBookingTicketNumber(client, guildId) {
+  if (!guildId) throw new Error('Không xác định được server để cấp số ticket.');
+  const key = `booking:ticket-sequence:${guildId}`;
+  const previous = bookingTicketSequenceQueues.get(key) || Promise.resolve();
+  const task = previous.then(async () => {
+    const current = Number(await getDatabaseValue(client, key, 0)) || 0;
+    const next = current + 1;
+    const saved = await setDatabaseValue(client, key, next);
+    if (!saved) throw new Error('Không thể lưu số thứ tự ticket Booking vào database.');
+    return next;
+  });
+  bookingTicketSequenceQueues.set(key, task.catch(() => {}));
+  return task;
+}
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -710,9 +737,9 @@ export async function findRenterIdFromChannel(channel, client, profile, closerId
   if (channel.name && channel.guild?.members?.cache) {
     const parts = channel.name.split('-');
     if (parts.length >= 3) {
-      const usernameHint = parts.slice(2).join('');
+      const usernameHint = parts.slice(2).join('-');
       const member = channel.guild.members.cache.find(
-        (m) => m.user?.username?.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10) === usernameHint,
+        (m) => m.user?.username?.toLowerCase().replace(/[^a-z0-9.-]/g, '').slice(0, 32) === usernameHint,
       );
       if (member) return member.id;
     }
@@ -1015,7 +1042,7 @@ export async function deleteBookingTicket({ channel, executor, client, reason = 
   await sendBookingTicketLog(channel.guild, deleteLog);
 
   // 2. Dọn dẹp kênh voice đi kèm (nếu có)
-  const safeName = channel.name?.replace(/^ticket-/, '');
+  const safeName = channel.name?.replace(/^(?:mw\\d+-|ticket-)/i, '');
   if (safeName && channel.guild?.channels?.cache) {
     const expectedVoiceName = `🔊・voice-${safeName}`;
     const matchedVoice = channel.guild.channels.cache.find(
@@ -1157,7 +1184,7 @@ export async function handleBookingMessage(message, client) {
   if (tipMatch) {
     await message.delete().catch(() => {});
 
-    if (!message.channel.name?.startsWith('ticket-')) {
+    if (!isBookingTicketChannelName(message.channel.name)) {
       await message.channel.send('ℹ️ Lệnh `&tip` chỉ sử dụng được trong ticket Booking.').catch(() => {});
       return true;
     }
@@ -1274,7 +1301,7 @@ export async function handleBookingMessage(message, client) {
   // 2. Lệnh mở đánh giá trực tiếp trong ticket: &danhgia hoặc &feedback
   const rateMatch = trimmed.match(/^[&!](?:danhgia|feedback)\b/i);
   if (rateMatch) {
-    if (!message.channel.name?.startsWith('ticket-')) {
+    if (!isBookingTicketChannelName(message.channel.name)) {
       return false;
     }
 
@@ -1301,7 +1328,7 @@ export async function handleBookingMessage(message, client) {
   // 3. Lệnh đóng ticket: &close hoặc &dongticket
   const closeMatch = trimmed.match(/^[&!](?:close|dongticket)\b/i);
   if (closeMatch) {
-    if (!message.channel.name?.startsWith('ticket-')) {
+    if (!isBookingTicketChannelName(message.channel.name)) {
       return false;
     }
 
@@ -1326,7 +1353,7 @@ export async function handleBookingMessage(message, client) {
   // 4. Lệnh xóa ticket: &clear, &xoaticket, &deleteticket
   const clearMatch = trimmed.match(/^[&!](?:clear|xoaticket|deleteticket)\b/i);
   if (clearMatch) {
-    if (!message.channel.name?.startsWith('ticket-')) {
+    if (!isBookingTicketChannelName(message.channel.name)) {
       return false;
     }
 
@@ -1353,7 +1380,7 @@ export async function handleBookingMessage(message, client) {
   // 5. Lệnh mở lại ticket: &moticket, &reopen
   const reopenMatch = trimmed.match(/^[&!](?:moticket|reopen)\b/i);
   if (reopenMatch) {
-    if (!message.channel.name?.startsWith('ticket-')) {
+    if (!isBookingTicketChannelName(message.channel.name)) {
       return false;
     }
 
@@ -1378,7 +1405,7 @@ export async function handleBookingMessage(message, client) {
   // 6. Lệnh xuất transcript dự phòng: &transcript, &transcripts
   const transcriptMatch = trimmed.match(/^[&!](?:transcript|transcripts)\b/i);
   if (transcriptMatch) {
-    if (!message.channel.name?.startsWith('ticket-')) {
+    if (!isBookingTicketChannelName(message.channel.name)) {
       return false;
     }
 
@@ -1402,7 +1429,7 @@ export async function handleBookingMessage(message, client) {
   // 7. Lệnh tự động tạo kênh voice tâm sự riêng tư: &taokenhvoice, !taokenhvoice, &voice, &taovoice
   const voiceMatch = trimmed.match(/^[&!](?:taokenhvoice|createvoice|voice|taovoice)\b/i);
   if (voiceMatch) {
-    if (!message.channel.name?.startsWith('ticket-')) {
+    if (!isBookingTicketChannelName(message.channel.name)) {
       return false;
     }
 
@@ -1422,7 +1449,7 @@ export async function handleBookingMessage(message, client) {
 
     await message.delete().catch(() => {});
 
-    const safeName = message.channel.name.replace(/^ticket-/, '');
+    const safeName = message.channel.name.replace(/^(?:mw\\d+-|ticket-)/i, '');
     const voiceChannelName = `🔊・voice-${safeName}`;
 
     // Kiểm tra xem kênh voice đã tồn tại trong danh mục chưa
