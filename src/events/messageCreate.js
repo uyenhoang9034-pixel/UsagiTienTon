@@ -12,6 +12,7 @@ import { handleTTSMessage } from '../services/tts/ttsManager.js';
 import { handleAIChatMessage } from '../services/ai/aiChatManager.js';
 import { handleThanVanTuBan } from '../services/thanVanTuBanService.js';
 import { handleQuoteTrigger } from '../services/quotes/quoteService.js';
+import { handleRandomMessage } from '../services/randomService.js';
 
 export default {
   name: Events.MessageCreate,
@@ -55,6 +56,15 @@ export default {
       }
     } catch (quoteError) {
       logger.error('Error handling Quote trigger:', quoteError);
+    }
+
+    try {
+      const randomProcessed = await handleRandomMessage(message, client);
+      if (randomProcessed) {
+        return;
+      }
+    } catch (randomError) {
+      logger.error('Error handling Random trigger:', randomError);
     }
 
     await handlePrefixCommand(message, client);

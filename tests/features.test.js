@@ -18,6 +18,7 @@ const EXPECTED_COMMANDS = [
   'laudon',
   'marry',
   'phattu',
+  'random',
   'thatu',
   'tts',
   'xin-nghi',
@@ -110,12 +111,14 @@ test('loads only scoped events and scoped interactions', async () => {
   await loadInteractions(client);
 
   assert.ok(client.buttons.has('tts_button'));
+  assert.ok(client.buttons.has('rd_reroll_num'));
+  assert.ok(client.buttons.has('rd_reroll_choice'));
   assert.ok(client.selectMenus.has('tts_select_voice'));
   assert.equal(client.modals.size, 0);
 
   for (const name of client.buttons.keys()) {
     assert.ok(
-      name.startsWith('tts'),
+      name.startsWith('tts') || name.startsWith('excuse') || name.startsWith('rd'),
       `Unexpected non-scoped button loaded: ${name}`,
     );
   }

@@ -90,7 +90,7 @@ export async function jailMember(client, member, { laborRequired, reason, modera
     throw new Error('Bot không thể cấp role Tù Nhân. Hãy kéo role của bot lên trên role Tù Nhân.');
   }
 
-  const freshMember = await guild.members.fetch(member.id);
+  const freshMember = await guild.members.fetch({ user: member.id, force: true }).catch(() => member);
 
   // Lọc toàn bộ role hiện tại của thành viên (trừ @everyone)
   const currentMemberRoles = freshMember.roles.cache.filter(role => role.id !== guild.id);
@@ -167,21 +167,14 @@ export async function jailMember(client, member, { laborRequired, reason, modera
 export async function releaseMember(client, member, record) {
   const guild = member.guild;
   const botMember = guild.members.me || await guild.members.fetchMe();
-  const freshMember = await guild.members.fetch(member.id).catch(() => member);
+  const freshMember = await guild.members.fetch({ user: member.id, force: true }).catch(() => member);
 
-  // 1. Gỡ role Tù Nhân
-  if (freshMember.roles.cache.has(PRISON_ROLE_ID)) {
-    await freshMember.roles.remove(PRISON_ROLE_ID, 'Usagi Prison: mãn hạn tù').catch((err) => {
-      logger.warn('[Prison] Lỗi gỡ role Tù Nhân:', err.message);
-    });
-  }
-
-  // 2. Fetch toàn bộ roles trong guild để tránh cache thiếu
+  // 1. Fetch toàn bộ roles trong guild để tránh cache thiếu
   const guildRoles = await guild.roles.fetch().catch(() => guild.roles.cache);
 
   const roleIdsToRestore = record?.originalRoleIds || [];
   const validRolesToRestore = roleIdsToRestore
-    .map(id => guildRoles.get(id))
+    .map(id => (typeof id === 'string' ? guildRoles.get(id) : id))
     .filter(role =>
       role &&
       role.id !== guild.id &&
@@ -194,23 +187,59 @@ export async function releaseMember(client, member, record) {
   const restoredRoleNames = [];
   const failedRoleNames = [];
 
-  // 3. Khôi phục lại các role cũ cho thành viên
-  if (validRolesToRestore.length > 0) {
+  // Lấy các role hiện có của member (loại bỏ hoàn toàn @everyone và PRISON_ROLE_ID)
+  const currentRoleIds = freshMember.roles.cache
+    .filter(role => role.id !== guild.id && role.id !== PRISON_ROLE_ID)
+    .map(role => role.id);
+
+  // Danh sách role mục tiêu: các role hiện tại được giữ lại + các role cần phục hồi
+  // Tuyệt đối không bao gồm PRISON_ROLE_ID
+  const targetRoleIds = [...new Set([...currentRoleIds, ...validRolesToRestore.map(r => r.id)])]
+    .filter(id => id !== PRISON_ROLE_ID && id !== guild.id);
+
+  let setSuccess = false;
+  try {
+    // Phương án 1: Dùng roles.set thay đổi toàn bộ role trong 1 request duy nhất:
+    // - Discord sẽ tự động gỡ PRISON_ROLE_ID (vì không nằm trong targetRoleIds)
+    // - Khôi phục toàn bộ role cũ hợp lệ
+    // - Giữ nguyên các role cấp độ / managed / role cao hơn bot
+    await freshMember.roles.set(targetRoleIds, 'Usagi Prison: mãn hạn tù và khôi phục role cũ');
+    restoredRoleNames.push(...validRolesToRestore.map(r => r.name));
+    setSuccess = true;
+  } catch (setErr) {
+    logger.warn('[Prison] roles.set lỗi khi release, fallback sang xử lý từng role:', setErr.message);
+  }
+
+  // Phương án 2: Fallback an toàn nếu roles.set gặp trục trặc (ví dụ do role hierarchy)
+  if (!setSuccess) {
+    // 1. Gỡ dứt điểm role Tù Nhân bằng DELETE request
     try {
-      await freshMember.roles.add(validRolesToRestore.map(r => r.id), 'Usagi Prison: khôi phục role sau mãn hạn');
-      restoredRoleNames.push(...validRolesToRestore.map(r => r.name));
-    } catch (batchErr) {
-      logger.warn('[Prison] roles.add batch lỗi, khôi phục tuần tự từng role:', batchErr.message);
-      for (const role of validRolesToRestore) {
-        try {
-          await freshMember.roles.add(role.id, 'Usagi Prison: khôi phục role sau mãn hạn');
-          restoredRoleNames.push(role.name);
-        } catch (singleErr) {
-          logger.error(`[Prison] Không thể cấp lại role ${role.name} (${role.id}):`, singleErr.message);
-          failedRoleNames.push(role.name);
-        }
+      await freshMember.roles.remove(PRISON_ROLE_ID, 'Usagi Prison: mãn hạn tù');
+    } catch (removeErr) {
+      logger.warn('[Prison] Lỗi gỡ role Tù Nhân fallback:', removeErr.message);
+    }
+
+    // 2. Cấp lại từng role tuần tự bằng PUT request (Dùng role.id riêng lẻ, KHÔNG truyền mảng
+    // để tránh discord.js gọi set() với cache cũ làm dính lại PRISON_ROLE_ID)
+    for (const role of validRolesToRestore) {
+      try {
+        await freshMember.roles.add(role.id, 'Usagi Prison: khôi phục role sau mãn hạn');
+        restoredRoleNames.push(role.name);
+      } catch (singleErr) {
+        logger.error(`[Prison] Không thể cấp lại role ${role.name} (${role.id}):`, singleErr.message);
+        failedRoleNames.push(role.name);
       }
     }
+  }
+
+  // Kiểm tra & dọn dẹp triệt để: Đảm bảo không còn sót role Tù Nhân
+  try {
+    const verifiedMember = await guild.members.fetch({ user: member.id, force: true }).catch(() => null);
+    if (verifiedMember && verifiedMember.roles.cache.has(PRISON_ROLE_ID)) {
+      await verifiedMember.roles.remove(PRISON_ROLE_ID, 'Usagi Prison: xóa role tù nhân triệt để').catch(() => {});
+    }
+  } catch (cleanErr) {
+    logger.debug('[Prison] Bỏ qua lỗi kiểm tra role cuối:', cleanErr.message);
   }
 
   const released = {

@@ -21,6 +21,8 @@ const ALLOWED_INTERACTION_PATTERNS = [
   /^buttons\/tts\/.*\.js$/,
   /^buttons\/excuse.*\.js$/,
   /^buttons\/excuse\/.*\.js$/,
+  /^buttons\/random.*\.js$/,
+  /^buttons\/random\/.*\.js$/,
   /^selectMenus\/tts.*\.js$/,
   /^selectMenus\/tts\/.*\.js$/,
 ];

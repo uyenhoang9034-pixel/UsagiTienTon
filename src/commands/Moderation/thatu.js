@@ -19,7 +19,8 @@ export default {
 
     try {
       const user = interaction.options.getUser('thanhvien');
-      const member = interaction.options.getMember('thanhvien') || (user ? await interaction.guild.members.fetch(user.id).catch(() => null) : null);
+      const member = (user ? await interaction.guild.members.fetch({ user: user.id, force: true }).catch(() => null) : null)
+        || interaction.options.getMember('thanhvien');
 
       if (!member || !user) {
         return InteractionHelper.safeEditReply(interaction, {
@@ -37,17 +38,19 @@ export default {
       }
 
       // Chuẩn bị record giải phóng: ưu tiên lấy originalRoleIds đã lưu từ trước
-      const releaseRecord = record || {
-        active: true,
-        guildId: interaction.guildId,
-        userId: user.id,
-        originalRoleIds: [],
-        totalLabor: 0,
-        completedLabor: 0,
-        remainingLabor: 0,
-        reason: 'Thả tù thủ công',
-        jailedAt: Date.now(),
-      };
+      const releaseRecord = (record && record.active)
+        ? record
+        : {
+            active: true,
+            guildId: interaction.guildId,
+            userId: user.id,
+            originalRoleIds: record?.originalRoleIds || [],
+            totalLabor: record?.totalLabor || 0,
+            completedLabor: record?.completedLabor || 0,
+            remainingLabor: 0,
+            reason: record?.reason || 'Thả tù thủ công',
+            jailedAt: record?.jailedAt || Date.now(),
+          };
 
       const released = await releaseMember(client, member, releaseRecord);
 

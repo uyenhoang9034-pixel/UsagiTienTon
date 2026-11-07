@@ -6,6 +6,7 @@ export const commandAliases = {
   bocque: 'boc-que',
   xinnghi: 'xin-nghi',
   dotvia: 'dot-via',
+  rd: 'random',
 };
 
 export const subcommandAliases = {};
