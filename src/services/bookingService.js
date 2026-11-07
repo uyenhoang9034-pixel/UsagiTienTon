@@ -23,11 +23,11 @@ export const IS_COMPONENTS_V2 = 1 << 15; // 32768
 const bookingTicketSequenceQueues = new Map();
 
 export function isBookingTicketChannelName(name) {
-  return /^(?:mw\\d+-hw\\d+|ticket-hw\\d+)-/i.test(String(name || ''));
+  return /^(?:mw\d+-hw\d+|ticket-hw\d+)-/i.test(String(name || ''));
 }
 
 export function getBookingProfileIdFromChannelName(name) {
-  const match = String(name || '').match(/^(?:mw\\d+-hw|ticket-hw)(\\d+)-/i);
+  const match = String(name || '').match(/^(?:mw\d+-hw|ticket-hw)(\d+)-/i);
   return match ? match[1] : '1';
 }
 
@@ -733,7 +733,7 @@ export async function findRenterIdFromChannel(channel, client, profile, closerId
     logger.warn('[Booking] Lỗi quét tin nhắn để tìm renterId:', err);
   }
 
-  // 4. Nếu kênh có tên chứa username: vd: ticket-hw1-emchanh9
+  // 4. Hỗ trợ cả tên kênh cũ và mới, ví dụ: mw9-hw1-emchanh.9
   if (channel.name && channel.guild?.members?.cache) {
     const parts = channel.name.split('-');
     if (parts.length >= 3) {
@@ -959,8 +959,8 @@ export async function sendBookingTicketLog(guild, payload, files = []) {
  * 7. Tuyệt đối KHÔNG DM khách
  */
 export async function closeBookingTicket({ channel, closer, client, reason = 'Đóng qua lệnh / nút quản trị' }) {
-  const hwMatch = channel.name?.match(/ticket-hw(\d+)/i);
-  const profileId = hwMatch ? hwMatch[1] : '1';
+  const profileId = getBookingProfileIdFromChannelName(channel.name);
+
   const profile = getProfileData(profileId);
 
   // 1. Tìm ID của người mở ticket (renter)
@@ -1025,8 +1025,8 @@ export async function closeBookingTicket({ channel, closer, client, reason = 'Đ
  * Xóa vĩnh viễn kênh ticket mà không tạo hoặc gửi transcript
  */
 export async function deleteBookingTicket({ channel, executor, client, reason = 'Hoàn tất và xóa kênh ticket' }) {
-  const hwMatch = channel.name?.match(/ticket-hw(\d+)/i);
-  const profileId = hwMatch ? hwMatch[1] : '1';
+  const profileId = getBookingProfileIdFromChannelName(channel.name);
+
   const profile = getProfileData(profileId);
   const renterId = await findRenterIdFromChannel(channel, client, profile, executor?.id);
 
@@ -1042,7 +1042,7 @@ export async function deleteBookingTicket({ channel, executor, client, reason = 
   await sendBookingTicketLog(channel.guild, deleteLog);
 
   // 2. Dọn dẹp kênh voice đi kèm (nếu có)
-  const safeName = channel.name?.replace(/^(?:mw\\d+-|ticket-)/i, '');
+  const safeName = channel.name?.replace(/^(?:mw\d+-|ticket-)/i, '');
   if (safeName && channel.guild?.channels?.cache) {
     const expectedVoiceName = `🔊・voice-${safeName}`;
     const matchedVoice = channel.guild.channels.cache.find(
@@ -1071,8 +1071,8 @@ export async function deleteBookingTicket({ channel, executor, client, reason = 
  * Mở lại kênh ticket khi lỡ đóng nhầm (cấp lại quyền xem/gửi cho khách)
  */
 export async function reopenBookingTicket({ channel, executor, client, sendTranscriptBackup = false }) {
-  const hwMatch = channel.name?.match(/ticket-hw(\d+)/i);
-  const profileId = hwMatch ? hwMatch[1] : '1';
+  const profileId = getBookingProfileIdFromChannelName(channel.name);
+
   const profile = getProfileData(profileId);
   const renterId = await findRenterIdFromChannel(channel, client, profile, executor?.id);
 
@@ -1127,8 +1127,8 @@ export async function reopenBookingTicket({ channel, executor, client, sendTrans
  * Xuất và gửi transcript dự phòng vào kênh log lưu trữ và kênh hiện tại
  */
 export async function sendTicketTranscriptBackup({ channel, executor, client }) {
-  const hwMatch = channel.name?.match(/ticket-hw(\d+)/i);
-  const profileId = hwMatch ? hwMatch[1] : '1';
+  const profileId = getBookingProfileIdFromChannelName(channel.name);
+
   const profile = getProfileData(profileId);
   const renterId = await findRenterIdFromChannel(channel, client, profile, executor?.id);
 
@@ -1314,8 +1314,8 @@ export async function handleBookingMessage(message, client) {
 
     await message.delete().catch(() => {});
 
-    const hwMatch = message.channel.name.match(/ticket-hw(\d+)/i);
-    const profileId = hwMatch ? hwMatch[1] : '1';
+    const profileId = getBookingProfileIdFromChannelName(message.channel.name);
+
     const profile = getProfileData(profileId);
 
     const renterId = (await findRenterIdFromChannel(message.channel, client, profile, message.author.id)) || message.author.id;
@@ -1433,8 +1433,8 @@ export async function handleBookingMessage(message, client) {
       return false;
     }
 
-    const hwMatch = message.channel.name.match(/ticket-hw(\d+)/i);
-    const profileId = hwMatch ? hwMatch[1] : '1';
+    const profileId = getBookingProfileIdFromChannelName(message.channel.name);
+
     const profile = getProfileData(profileId);
     const renterId = (await findRenterIdFromChannel(message.channel, client, profile, message.author.id)) || message.author.id;
 
@@ -1449,7 +1449,7 @@ export async function handleBookingMessage(message, client) {
 
     await message.delete().catch(() => {});
 
-    const safeName = message.channel.name.replace(/^(?:mw\\d+-|ticket-)/i, '');
+    const safeName = message.channel.name.replace(/^(?:mw\d+-|ticket-)/i, '');
     const voiceChannelName = `🔊・voice-${safeName}`;
 
     // Kiểm tra xem kênh voice đã tồn tại trong danh mục chưa
