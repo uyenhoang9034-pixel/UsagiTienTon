@@ -658,7 +658,7 @@ export async function findRenterIdFromChannel(channel, client, profile, closerId
     }
   }
 
-  // 2. Kiểm tra cache permission overwrites (chỉ loại trừ Role Admin/Support, Bot và Idol; KHÔNG loại trừ closerId)
+  // 2. Kiểm tra cache permission overwrites (loại trừ role Admin, Bot và Idol)
   if (channel.permissionOverwrites?.cache) {
     const excludedIds = new Set([
       BOOKING_ADMIN_ROLE_ID,
@@ -1457,15 +1457,6 @@ export async function handleBookingMessage(message, client) {
         ],
       },
       {
-        id: BOOKING_ADMIN_ROLE_ID,
-        type: OverwriteType?.Role ?? 0,
-        allow: [
-          PermissionFlagsBits.ViewChannel,
-          PermissionFlagsBits.Connect,
-          PermissionFlagsBits.Speak,
-        ],
-      },
-      {
         id: client.user.id,
         type: OverwriteType?.Member ?? 1,
         allow: [
@@ -1475,6 +1466,19 @@ export async function handleBookingMessage(message, client) {
         ],
       },
     ];
+
+    const managerRoleId = await getConfiguredBookingManagerRoleId(client, message.guild.id);
+    if (managerRoleId && managerRoleId !== BOOKING_ADMIN_ROLE_ID) {
+      voiceOverwrites.splice(1, 0, {
+        id: managerRoleId,
+        type: OverwriteType?.Role ?? 0,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.Connect,
+          PermissionFlagsBits.Speak,
+        ],
+      });
+    }
 
     if (renterId && typeof renterId === 'string' && /^\d{16,21}$/.test(renterId)) {
       voiceOverwrites.push({
