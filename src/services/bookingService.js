@@ -2,6 +2,7 @@ import {
   AttachmentBuilder,
   ChannelType,
   PermissionFlagsBits,
+  OverwriteType,
 } from 'discord.js';
 import {
   BOOKING_EMOJIS,
@@ -1165,10 +1166,12 @@ export async function handleBookingMessage(message, client) {
     const voiceOverwrites = [
       {
         id: message.guild.id, // @everyone ẩn hoàn toàn không cho người ngoài thấy
+        type: OverwriteType?.Role ?? 0,
         deny: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect],
       },
       {
         id: BOOKING_SUPPORT_ROLE_ID,
+        type: OverwriteType?.Role ?? 0,
         allow: [
           PermissionFlagsBits.ViewChannel,
           PermissionFlagsBits.Connect,
@@ -1177,6 +1180,7 @@ export async function handleBookingMessage(message, client) {
       },
       {
         id: BOOKING_ADMIN_ROLE_ID,
+        type: OverwriteType?.Role ?? 0,
         allow: [
           PermissionFlagsBits.ViewChannel,
           PermissionFlagsBits.Connect,
@@ -1185,6 +1189,7 @@ export async function handleBookingMessage(message, client) {
       },
       {
         id: client.user.id,
+        type: OverwriteType?.Member ?? 1,
         allow: [
           PermissionFlagsBits.ViewChannel,
           PermissionFlagsBits.Connect,
@@ -1193,9 +1198,10 @@ export async function handleBookingMessage(message, client) {
       },
     ];
 
-    if (renterId) {
+    if (renterId && typeof renterId === 'string' && /^\d{16,21}$/.test(renterId)) {
       voiceOverwrites.push({
         id: renterId,
+        type: OverwriteType?.Member ?? 1,
         allow: [
           PermissionFlagsBits.ViewChannel,
           PermissionFlagsBits.Connect,
@@ -1206,9 +1212,10 @@ export async function handleBookingMessage(message, client) {
       });
     }
 
-    if (profile?.userId && profile.userId !== renterId) {
+    if (profile?.userId && profile.userId !== renterId && /^\d{16,21}$/.test(profile.userId)) {
       voiceOverwrites.push({
         id: profile.userId,
+        type: OverwriteType?.Member ?? 1,
         allow: [
           PermissionFlagsBits.ViewChannel,
           PermissionFlagsBits.Connect,

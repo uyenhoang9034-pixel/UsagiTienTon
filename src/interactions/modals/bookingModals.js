@@ -2,6 +2,7 @@ import {
   ChannelType,
   PermissionFlagsBits,
   MessageFlags,
+  OverwriteType,
 } from 'discord.js';
 import {
   getProfileData,
@@ -40,10 +41,12 @@ export default [
         const permissionOverwrites = [
           {
             id: guild.id, // @everyone
+            type: OverwriteType?.Role ?? 0,
             deny: [PermissionFlagsBits.ViewChannel],
           },
           {
             id: BOOKING_SUPPORT_ROLE_ID, // 1568554130371383306
+            type: OverwriteType?.Role ?? 0,
             allow: [
               PermissionFlagsBits.ViewChannel,
               PermissionFlagsBits.SendMessages,
@@ -53,6 +56,7 @@ export default [
           },
           {
             id: BOOKING_ADMIN_ROLE_ID, // 1545295139390619768
+            type: OverwriteType?.Role ?? 0,
             allow: [
               PermissionFlagsBits.ViewChannel,
               PermissionFlagsBits.SendMessages,
@@ -62,6 +66,7 @@ export default [
           },
           {
             id: interaction.user.id, // Người thuê
+            type: OverwriteType?.Member ?? 1,
             allow: [
               PermissionFlagsBits.ViewChannel,
               PermissionFlagsBits.SendMessages,
@@ -71,6 +76,7 @@ export default [
           },
           {
             id: client.user.id, // Bot
+            type: OverwriteType?.Member ?? 1,
             allow: [
               PermissionFlagsBits.ViewChannel,
               PermissionFlagsBits.SendMessages,
@@ -85,6 +91,7 @@ export default [
         if (profile.userId && profile.userId !== interaction.user.id) {
           permissionOverwrites.push({
             id: profile.userId,
+            type: OverwriteType?.Member ?? 1,
             allow: [
               PermissionFlagsBits.ViewChannel,
               PermissionFlagsBits.SendMessages,

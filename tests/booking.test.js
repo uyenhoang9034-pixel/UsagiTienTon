@@ -588,6 +588,7 @@ test('Yêu cầu 4: Lệnh &taokenhvoice tự động tạo kênh voice riêng t
   assert.ok(createdVoiceOptions);
   assert.equal(createdVoiceOptions.name, '🔊・voice-hw1-customer');
   assert.equal(createdVoiceOptions.parent, BOOKING_CATEGORY_ID);
+  assert.ok(createdVoiceOptions.permissionOverwrites[0].type !== undefined);
   assert.ok(sentReply.content.includes('voice_room_123'));
 });
 
