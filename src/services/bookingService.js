@@ -1136,7 +1136,7 @@ export async function handleBookingMessage(message, client) {
   const trimmed = message.content.trim();
 
   // &tip @Staff — hiển thị ảnh QR tip đã được gắn sẵn theo Discord ID.
-  const tipMatch = trimmed.match(/^[&!]tip\\s+<@!?(\\d+)>$/i);
+  const tipMatch = trimmed.match(/^[&!]tip\s+<@!?(\d+)>$/i);
   if (tipMatch) {
     await message.delete().catch(() => {});
 
