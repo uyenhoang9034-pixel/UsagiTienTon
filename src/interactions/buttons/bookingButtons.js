@@ -143,7 +143,7 @@ export default [
     name: 'hw_open_rate',
     async execute(interaction, client, args) {
       try {
-        if (!isBookingAdmin(interaction.member, interaction.user.id)) {
+        if (!(await isBookingAdmin(interaction.member, interaction.user.id, client))) {
           return interaction.reply({
             content: '❌ Chỉ Admin mới có quyền mở bảng đánh giá!',
             flags: MessageFlags.Ephemeral,
@@ -183,7 +183,7 @@ export default [
           interaction.user.id;
 
         const isIdol = interaction.user.id === profile.userId;
-        const hasAdmin = isBookingAdmin(interaction.member, interaction.user.id);
+        const hasAdmin = await isBookingAdmin(interaction.member, interaction.user.id, client);
 
         if (!isIdol && !hasAdmin) {
           return interaction.reply({
@@ -215,7 +215,7 @@ export default [
         const renterId = args?.[1];
         const stars = parseInt(args?.[2] || '5', 10);
 
-        if (renterId && interaction.user.id !== renterId && !isBookingAdmin(interaction.member, interaction.user.id)) {
+        if (renterId && interaction.user.id !== renterId && !(await isBookingAdmin(interaction.member, interaction.user.id, client))) {
           return interaction.reply({
             content: `❌ Chỉ người đặt lịch (<@${renterId}>) mới có quyền chấm điểm đánh giá!`,
             flags: MessageFlags.Ephemeral,
