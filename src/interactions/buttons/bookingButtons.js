@@ -13,6 +13,7 @@ import {
   buildClosedTicketPayloadV2,
   generateTranscriptHtml,
   isBookingAdmin,
+  closeBookingTicket,
 } from '../../services/bookingService.js';
 import { BOOKING_EMOJIS } from '../../config/bookingConfig.js';
 import { logger } from '../../utils/logger.js';
@@ -243,33 +244,15 @@ export default [
           });
         }
 
-        const profileId = args?.[0] || '1';
-        const renterId = args?.[1];
-        const profile = getProfileData(profileId);
-
-        // Khóa quyền chat của người thuê
-        if (renterId) {
-          await interaction.channel.permissionOverwrites.edit(renterId, {
-            SendMessages: false,
-          }).catch(() => {});
-        }
-
-        // Tạo transcript
-        const html = await generateTranscriptHtml(interaction.channel);
-
-        // Gửi thông báo đóng và đính kèm file transcript vào kênh (KHÔNG gửi vào DM khách)
-        const closedPayload = buildClosedTicketPayloadV2(profile, interaction.user.id);
-        closedPayload.files = [
-          {
-            attachment: Buffer.from(html, 'utf-8'),
-            name: `transcript-${interaction.channel.name}.html`,
-          },
-        ];
-
-        await interaction.channel.send(closedPayload);
+        await closeBookingTicket({
+          channel: interaction.channel,
+          closer: interaction.user,
+          client,
+          reason: 'Đóng bằng nút bấm trong ticket',
+        });
 
         await interaction.reply({
-          content: '🔒 Ticket đã được đóng thành công và lưu transcript. Bot không gửi bất kỳ tin nhắn nào vào DM khách.',
+          content: '🔒 Ticket đã được đóng thành công. Log và transcript đã được chuyển đến kênh lưu trữ!',
           flags: MessageFlags.Ephemeral,
         });
       } catch (err) {

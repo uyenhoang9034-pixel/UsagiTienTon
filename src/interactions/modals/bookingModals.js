@@ -6,7 +6,14 @@ import {
 import {
   getProfileData,
   buildTicketWelcomePayloadV2,
+  buildTicketOpenLogV2,
+  sendBookingTicketLog,
 } from '../../services/bookingService.js';
+import {
+  BOOKING_ADMIN_ROLE_ID,
+  BOOKING_SUPPORT_ROLE_ID,
+  BOOKING_CATEGORY_ID,
+} from '../../config/bookingConfig.js';
 import { logger } from '../../utils/logger.js';
 
 export default [
@@ -29,11 +36,29 @@ export default [
         const safeUsername = interaction.user.username.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10) || 'user';
         const channelName = `ticket-hw${profile.id}-${safeUsername}`;
 
-        // Thiết lập quyền: chỉ Khách, Idol, Admin và Bot mới thấy kênh
+        // Thiết lập quyền: Khách, 2 Role (1568554130371383306 & 1545295139390619768), Idol và Bot
         const permissionOverwrites = [
           {
             id: guild.id, // @everyone
             deny: [PermissionFlagsBits.ViewChannel],
+          },
+          {
+            id: BOOKING_SUPPORT_ROLE_ID, // 1568554130371383306
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ReadMessageHistory,
+              PermissionFlagsBits.AttachFiles,
+            ],
+          },
+          {
+            id: BOOKING_ADMIN_ROLE_ID, // 1545295139390619768
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ReadMessageHistory,
+              PermissionFlagsBits.AttachFiles,
+            ],
           },
           {
             id: interaction.user.id, // Người thuê
@@ -69,13 +94,23 @@ export default [
           });
         }
 
-        // Tạo kênh ticket
-        const ticketChannel = await guild.channels.create({
-          name: channelName,
-          type: ChannelType.GuildText,
-          parent: interaction.channel?.parentId || null,
-          permissionOverwrites,
-        });
+        // Tạo kênh ticket trực thuộc danh mục 1568554690923331695
+        let ticketChannel;
+        try {
+          ticketChannel = await guild.channels.create({
+            name: channelName,
+            type: ChannelType.GuildText,
+            parent: BOOKING_CATEGORY_ID,
+            permissionOverwrites,
+          });
+        } catch (catErr) {
+          logger.warn('[Booking] Lỗi tạo kênh trong danh mục, tạo không parent:', catErr);
+          ticketChannel = await guild.channels.create({
+            name: channelName,
+            type: ChannelType.GuildText,
+            permissionOverwrites,
+          });
+        }
 
         // Gửi tin nhắn chào mừng và hướng dẫn vào kênh ticket mới
         const welcomePayload = buildTicketWelcomePayloadV2(
@@ -84,6 +119,17 @@ export default [
           purpose,
         );
         await ticketChannel.send(welcomePayload);
+
+        // Gửi log tạo ticket V2 vào kênh lưu trữ 1568555066976116827
+        const openLogPayload = buildTicketOpenLogV2({
+          channel: ticketChannel,
+          channelId: ticketChannel.id,
+          channelName: ticketChannel.name,
+          profile,
+          renterId: interaction.user.id,
+          purpose,
+        });
+        await sendBookingTicketLog(guild, openLogPayload);
 
         // Phản hồi cho người dùng
         await interaction.reply({

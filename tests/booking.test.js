@@ -172,23 +172,34 @@ test('MessageCreate Trigger: &pro5 xóa tin nhắn lệnh và gửi card profile
   assert.equal(sentPayload.flags, IS_COMPONENTS_V2);
 });
 
-test('Quyền Admin Booking: nhận diện chuẩn role 1545295139390619768 và Bot Owner', async () => {
+test('Quyền Admin Booking: nhận diện chuẩn role 1545295139390619768, 1568554130371383306 và Bot Owner', async () => {
   const { isBookingAdmin } = await import('../src/services/bookingService.js');
-  const { BOOKING_ADMIN_ROLE_ID } = await import('../src/config/bookingConfig.js');
+  const { BOOKING_ADMIN_ROLE_ID, BOOKING_SUPPORT_ROLE_ID, BOOKING_CATEGORY_ID, BOOKING_LOG_CHANNEL_ID } = await import('../src/config/bookingConfig.js');
 
   assert.equal(BOOKING_ADMIN_ROLE_ID, '1545295139390619768');
+  assert.equal(BOOKING_SUPPORT_ROLE_ID, '1568554130371383306');
+  assert.equal(BOOKING_CATEGORY_ID, '1568554690923331695');
+  assert.equal(BOOKING_LOG_CHANNEL_ID, '1568555066976116827');
 
   // Member có role admin trong cache
-  const memberWithRole = {
+  const memberWithAdminRole = {
     roles: {
       cache: new Set([BOOKING_ADMIN_ROLE_ID]),
     },
   };
-  assert.equal(isBookingAdmin(memberWithRole, 'normalUser'), true);
+  assert.equal(isBookingAdmin(memberWithAdminRole, 'normalUser'), true);
 
-  // Member có role admin trong mảng _roles
+  // Member có role support trong cache
+  const memberWithSupportRole = {
+    roles: {
+      cache: new Set([BOOKING_SUPPORT_ROLE_ID]),
+    },
+  };
+  assert.equal(isBookingAdmin(memberWithSupportRole, 'normalUser'), true);
+
+  // Member có role support trong mảng _roles
   const memberWithRawRoles = {
-    _roles: [BOOKING_ADMIN_ROLE_ID],
+    _roles: [BOOKING_SUPPORT_ROLE_ID],
   };
   assert.equal(isBookingAdmin(memberWithRawRoles, 'normalUser'), true);
 
@@ -203,5 +214,128 @@ test('Quyền Admin Booking: nhận diện chuẩn role 1545295139390619768 và 
   };
   assert.equal(isBookingAdmin(normalMember, 'normalUser'), false);
 });
+
+test('Giao diện V2 Log Ticket Open & Close: đúng chuẩn V2, emoji server, không footer', async () => {
+  const { buildTicketOpenLogV2, buildTicketCloseLogV2 } = await import('../src/services/bookingService.js');
+  const { BOOKING_EMOJIS } = await import('../src/config/bookingConfig.js');
+  const profile = getProfileData('1');
+
+  // 1. Log Open
+  const openLog = buildTicketOpenLogV2({
+    channelId: '111222333',
+    channelName: 'ticket-hw1-customer',
+    profile,
+    renterId: '999888',
+    purpose: 'Kéo rank leo thách đấu',
+  });
+  assert.equal(openLog.flags, IS_COMPONENTS_V2);
+  const openContainer = openLog.components[0];
+  assert.equal(openContainer.type, 17);
+  assert.equal(openContainer.accent_color, undefined);
+  assert.ok(openContainer.components[0].content.includes('TICKET CREATED'));
+  assert.ok(openContainer.components[0].content.includes(BOOKING_EMOJIS.LOG_HEADER_L));
+  assert.ok(openContainer.components[2].content.includes('<@999888>'));
+  assert.ok(openContainer.components[4].content.includes('Kéo rank leo thách đấu'));
+
+  // 2. Log Close
+  const closeLog = buildTicketCloseLogV2({
+    channelName: 'ticket-hw1-customer',
+    profile,
+    renterId: '999888',
+    closerId: '123456',
+    reason: 'Đã hoàn thành phiên giao lưu',
+  });
+  assert.equal(closeLog.flags, IS_COMPONENTS_V2);
+  const closeContainer = closeLog.components[0];
+  assert.equal(closeContainer.type, 17);
+  assert.equal(closeContainer.accent_color, undefined);
+  assert.ok(closeContainer.components[0].content.includes('TICKET CLOSED'));
+  assert.ok(closeContainer.components[0].content.includes(BOOKING_EMOJIS.LOG_HEADER_L));
+  assert.ok(closeContainer.components[2].content.includes('#ticket-hw1-customer'));
+  assert.ok(closeContainer.components[2].content.includes('<@999888>'));
+  assert.ok(closeContainer.components[2].content.includes('<@123456>'));
+  assert.ok(closeContainer.components[4].content.includes('Đã hoàn thành phiên giao lưu'));
+});
+
+test('closeBookingTicket: ẩn quyền xem của khách, giữ quyền 2 role, gửi transcript vào kênh log', async () => {
+  const { closeBookingTicket } = await import('../src/services/bookingService.js');
+  const { BOOKING_LOG_CHANNEL_ID } = await import('../src/config/bookingConfig.js');
+
+  const overwrittenPerms = new Map();
+  let ticketSentMessage = null;
+  let logSentMessage = null;
+
+  const mockChannel = {
+    name: 'ticket-hw1-alice',
+    id: 'ticket_channel_123',
+    guild: {
+      id: 'guild123',
+      channels: {
+        cache: new Map([
+          [
+            BOOKING_LOG_CHANNEL_ID,
+            {
+              id: BOOKING_LOG_CHANNEL_ID,
+              send: async (msg) => {
+                logSentMessage = msg;
+                return msg;
+              },
+            },
+          ],
+        ]),
+      },
+    },
+    permissionOverwrites: {
+      cache: [
+        { type: 1, id: 'renter_user_id' }, // Khách thuê
+      ],
+      edit: async (targetId, perms) => {
+        overwrittenPerms.set(targetId, perms);
+      },
+    },
+    messages: {
+      fetch: async () => new Map(),
+    },
+    send: async (msg) => {
+      ticketSentMessage = msg;
+      return msg;
+    },
+  };
+
+  const closer = { id: 'admin_user_id' };
+  const client = { user: { id: 'bot_id' } };
+
+  const result = await closeBookingTicket({
+    channel: mockChannel,
+    closer,
+    client,
+    reason: 'Đóng ticket hoàn tất phiên',
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.renterId, 'renter_user_id');
+
+  // Khách bị ẩn quyền xem và gửi tin
+  assert.deepEqual(overwrittenPerms.get('renter_user_id'), {
+    ViewChannel: false,
+    SendMessages: false,
+  });
+
+  // 2 role 1568554130371383306 & 1545295139390619768 vẫn có quyền xem
+  assert.equal(overwrittenPerms.get('1545295139390619768').ViewChannel, true);
+  assert.equal(overwrittenPerms.get('1568554130371383306').ViewChannel, true);
+
+  // Kênh ticket nhận được thông báo đóng kèm file transcript
+  assert.ok(ticketSentMessage);
+  assert.equal(ticketSentMessage.files?.length, 1);
+  assert.ok(ticketSentMessage.files[0].name.includes('transcript-ticket-hw1-alice.html'));
+
+  // Kênh log nhận được log V2 kèm file transcript
+  assert.ok(logSentMessage);
+  assert.equal(logSentMessage.flags, IS_COMPONENTS_V2);
+  assert.equal(logSentMessage.files?.length, 1);
+  assert.ok(logSentMessage.files[0].name.includes('transcript-ticket-hw1-alice.html'));
+});
+
 
 

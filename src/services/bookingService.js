@@ -2,6 +2,9 @@ import {
   BOOKING_EMOJIS,
   HEALING_WHISPER_PROFILES,
   BOOKING_ADMIN_ROLE_ID,
+  BOOKING_SUPPORT_ROLE_ID,
+  BOOKING_CATEGORY_ID,
+  BOOKING_LOG_CHANNEL_ID,
 } from '../config/bookingConfig.js';
 import { isBotOwner } from '../config/bot.js';
 import { logger } from '../utils/logger.js';
@@ -9,14 +12,17 @@ import { logger } from '../utils/logger.js';
 export const IS_COMPONENTS_V2 = 1 << 15; // 32768
 
 /**
- * Kiểm tra quyền Admin (Owner bot, Role admin 1545295139390619768, hoặc quyền Administrator/ManageChannels)
+ * Kiểm tra quyền Admin (Owner bot, Role admin 1545295139390619768, Role support 1568554130371383306, hoặc quyền Administrator/ManageChannels)
  */
 export function isBookingAdmin(member, userId) {
   if (isBotOwner(userId)) return true;
   if (!member) return false;
-  if (member.roles?.cache?.has?.(BOOKING_ADMIN_ROLE_ID)) return true;
-  if (Array.isArray(member._roles) && member._roles.includes(BOOKING_ADMIN_ROLE_ID)) return true;
-  if (Array.isArray(member.roles) && member.roles.includes(BOOKING_ADMIN_ROLE_ID)) return true;
+  const staffRoleIds = [BOOKING_ADMIN_ROLE_ID, BOOKING_SUPPORT_ROLE_ID];
+  for (const roleId of staffRoleIds) {
+    if (member.roles?.cache?.has?.(roleId)) return true;
+    if (Array.isArray(member._roles) && member._roles.includes(roleId)) return true;
+    if (Array.isArray(member.roles) && member.roles.includes(roleId)) return true;
+  }
   return Boolean(
     member.permissions?.has?.('Administrator') ||
     member.permissions?.has?.('ManageChannels'),
@@ -369,6 +375,208 @@ export async function generateTranscriptHtml(channel) {
 }
 
 /**
+ * Build payload V2 cho log mở ticket (gửi vào kênh lưu trữ log 1568555066976116827)
+ */
+export function buildTicketOpenLogV2({ channel, channelId, channelName, profile, renterId, purpose }) {
+  const cId = channelId || channel?.id;
+  const cName = channelName || channel?.name || 'ticket';
+  const channelDisplay = cId ? `<#${cId}>` : `#${cName}`;
+  const ticketRef = `#${cName}`;
+  const nowTs = Math.floor(Date.now() / 1000);
+
+  return {
+    flags: IS_COMPONENTS_V2,
+    components: [
+      {
+        type: 17, // Container màu gốc
+        components: [
+          {
+            type: 10,
+            content: `${BOOKING_EMOJIS.LOG_HEADER_L} **TICKET CREATED** ${BOOKING_EMOJIS.LOG_HEADER_R}`,
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 1,
+          },
+          {
+            type: 10,
+            content: `${BOOKING_EMOJIS.LOG_BULLET} Ticket: ${ticketRef}\n${BOOKING_EMOJIS.LOG_BULLET} Người tạo: <@${renterId}> | ID: ${renterId}\n${BOOKING_EMOJIS.LOG_BULLET} Healing Whisper: ${profile?.id || '1'} - <@${profile?.userId || '852947314481299516'}>\n${BOOKING_EMOJIS.LOG_BULLET} Kênh: ${channelDisplay}\n${BOOKING_EMOJIS.LOG_BULLET} Thời gian tạo: <t:${nowTs}:F>`,
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 1,
+          },
+          {
+            type: 10,
+            content: `${BOOKING_EMOJIS.LOG_EXTRA} Lý do / Mục đích: "${purpose || 'Chơi game / Trò chuyện J4F'}"`,
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/**
+ * Build payload V2 cho log đóng ticket (gửi vào kênh lưu trữ log 1568555066976116827)
+ */
+export function buildTicketCloseLogV2({ channel, channelName, profile, renterId, closerId, reason }) {
+  const cName = channelName || channel?.name || 'ticket';
+  const ticketRef = `#${cName}`;
+  const closerMention = closerId ? `<@${closerId}>` : 'Admin';
+  const renterDisplay = renterId ? `<@${renterId}> | ID: ${renterId}` : 'Chưa rõ';
+  const channelDisplay = channel?.id ? `<#${channel.id}>` : ticketRef;
+  const nowTs = Math.floor(Date.now() / 1000);
+
+  return {
+    flags: IS_COMPONENTS_V2,
+    components: [
+      {
+        type: 17, // Container màu gốc
+        components: [
+          {
+            type: 10,
+            content: `${BOOKING_EMOJIS.LOG_HEADER_L} **TICKET CLOSED** ${BOOKING_EMOJIS.LOG_HEADER_R}`,
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 1,
+          },
+          {
+            type: 10,
+            content: `${BOOKING_EMOJIS.LOG_BULLET} Ticket: ${ticketRef}\n${BOOKING_EMOJIS.LOG_BULLET} Chủ ticket: ${renterDisplay}\n${BOOKING_EMOJIS.LOG_BULLET} Healing Whisper: ${profile?.id || '1'} - <@${profile?.userId || '852947314481299516'}>\n${BOOKING_EMOJIS.LOG_BULLET} Đóng bởi: ${closerMention}\n${BOOKING_EMOJIS.LOG_BULLET} Kênh: ${channelDisplay}\n${BOOKING_EMOJIS.LOG_BULLET} Thời gian đóng: <t:${nowTs}:F>`,
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 1,
+          },
+          {
+            type: 10,
+            content: `${BOOKING_EMOJIS.LOG_EXTRA} Lý do đóng: "${reason || 'Đóng qua lệnh / nút quản trị'}"`,
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/**
+ * Gửi log ticket vào kênh lưu trữ 1568555066976116827
+ */
+export async function sendBookingTicketLog(guild, payload, files = []) {
+  try {
+    if (!guild) return null;
+    const logChannel =
+      guild.channels?.cache?.get(BOOKING_LOG_CHANNEL_ID) ||
+      (await guild.channels?.fetch?.(BOOKING_LOG_CHANNEL_ID).catch(() => null));
+
+    if (!logChannel || typeof logChannel.send !== 'function') {
+      logger.warn(`[Booking] Không tìm thấy kênh log ticket: ${BOOKING_LOG_CHANNEL_ID}`);
+      return null;
+    }
+
+    const options = { ...payload };
+    if (files && files.length > 0) {
+      options.files = files;
+    }
+
+    return await logChannel.send(options);
+  } catch (err) {
+    logger.error('[Booking] Lỗi gửi log ticket vào kênh log:', err);
+    return null;
+  }
+}
+
+/**
+ * Thực hiện quy trình đóng ticket hoàn chỉnh:
+ * 1. Ẩn kênh với khách (ViewChannel: false, SendMessages: false)
+ * 2. Giữ quyền xem cho 2 role 1568554130371383306 & 1545295139390619768 và quản lý server
+ * 3. Kênh vẫn nằm trong danh mục 1568554690923331695
+ * 4. Sinh transcript HTML
+ * 5. Gửi thông báo đóng + đính kèm transcript vào kênh ticket
+ * 6. Gửi log ticket V2 + đính kèm transcript vào kênh 1568555066976116827
+ * 7. Tuyệt đối KHÔNG DM khách
+ */
+export async function closeBookingTicket({ channel, closer, client, reason = 'Đóng qua lệnh / nút quản trị' }) {
+  const hwMatch = channel.name?.match(/ticket-hw(\d+)/i);
+  const profileId = hwMatch ? hwMatch[1] : '1';
+  const profile = getProfileData(profileId);
+
+  // 1. Tìm ID của người mở ticket (renter)
+  let renterId = null;
+  if (channel.permissionOverwrites?.cache) {
+    const staffIds = new Set([
+      BOOKING_ADMIN_ROLE_ID,
+      BOOKING_SUPPORT_ROLE_ID,
+      client?.user?.id,
+      profile.userId,
+      closer?.id,
+    ]);
+    const renterOverwrite = channel.permissionOverwrites.cache.find(
+      (po) => po.type === 1 && !staffIds.has(po.id),
+    );
+    if (renterOverwrite) {
+      renterId = renterOverwrite.id;
+    }
+  }
+
+  // 2. Chỉnh permission: Khách không còn thấy kênh nữa
+  if (renterId && channel.permissionOverwrites?.edit) {
+    await channel.permissionOverwrites.edit(renterId, {
+      ViewChannel: false,
+      SendMessages: false,
+    }).catch((err) => logger.warn('[Booking] Lỗi ẩn quyền xem của khách:', err));
+  }
+
+  // Đảm bảo 2 role 1568554130371383306 & 1545295139390619768 vẫn xem được
+  const staffRoleIds = [BOOKING_ADMIN_ROLE_ID, BOOKING_SUPPORT_ROLE_ID];
+  for (const roleId of staffRoleIds) {
+    if (channel.permissionOverwrites?.edit) {
+      await channel.permissionOverwrites.edit(roleId, {
+        ViewChannel: true,
+        ReadMessageHistory: true,
+        SendMessages: true,
+      }).catch(() => {});
+    }
+  }
+
+  // 3. Sinh transcript HTML
+  const html = await generateTranscriptHtml(channel);
+  const transcriptAttachment = {
+    attachment: Buffer.from(html, 'utf-8'),
+    name: `transcript-${channel.name}.html`,
+  };
+
+  // 4. Gửi thông báo đóng vào chính kênh ticket kèm file transcript
+  const closedPayload = buildClosedTicketPayloadV2(profile, closer.id);
+  closedPayload.files = [transcriptAttachment];
+  if (channel.send) {
+    await channel.send(closedPayload).catch((err) => logger.error('[Booking] Lỗi gửi thông báo đóng ticket:', err));
+  }
+
+  // 5. Gửi log ticket V2 + transcript vào kênh lưu trữ 1568555066976116827
+  const logPayload = buildTicketCloseLogV2({
+    channel,
+    channelName: channel.name,
+    profile,
+    renterId,
+    closerId: closer.id,
+    reason,
+  });
+  await sendBookingTicketLog(channel.guild, logPayload, [transcriptAttachment]);
+
+  return {
+    success: true,
+    profile,
+    renterId,
+    html,
+  };
+}
+
+/**
  * Xử lý các lệnh text prefix cho Booking: &pro5, &danhgia, &close
  */
 export async function handleBookingMessage(message, client) {
@@ -437,29 +645,13 @@ export async function handleBookingMessage(message, client) {
 
     await message.delete().catch(() => {});
 
-    const hwMatch = message.channel.name.match(/ticket-hw(\d+)/i);
-    const profileId = hwMatch ? hwMatch[1] : '1';
-    const profile = getProfileData(profileId);
+    await closeBookingTicket({
+      channel: message.channel,
+      closer: message.author,
+      client,
+      reason: 'Đóng bằng lệnh prefix &close',
+    });
 
-    const renterOverwrite = message.channel.permissionOverwrites?.cache?.find(
-      (po) => po.type === 1 && po.id !== client?.user?.id && po.id !== profile.userId,
-    );
-    if (renterOverwrite) {
-      await message.channel.permissionOverwrites.edit(renterOverwrite.id, {
-        SendMessages: false,
-      }).catch(() => {});
-    }
-
-    const html = await generateTranscriptHtml(message.channel);
-    const closedPayload = buildClosedTicketPayloadV2(profile, message.author.id);
-    closedPayload.files = [
-      {
-        attachment: Buffer.from(html, 'utf-8'),
-        name: `transcript-${message.channel.name}.html`,
-      },
-    ];
-
-    await message.channel.send(closedPayload);
     return true;
   }
 
