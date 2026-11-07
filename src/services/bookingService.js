@@ -1174,7 +1174,7 @@ export async function handleBookingMessage(message, client) {
           components: [
             {
               type: 10,
-              content: `${BOOKING_EMOJIS.HEADER_L1}${BOOKING_EMOJIS.HEADER_L2} **STAFF TIPPING** ${BOOKING_EMOJIS.HEADER_R1}${BOOKING_EMOJIS.HEADER_R2}`,
+              content: `${BOOKING_EMOJIS.LOG_HEADER_L} **STAFF TIPPING** ${BOOKING_EMOJIS.LOG_HEADER_R}`,
             },
             {
               type: 14,
