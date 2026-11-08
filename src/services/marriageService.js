@@ -455,6 +455,10 @@ export function buildProposalPayloadV2({
       divider: true,
       spacing: 1,
     },
+    {
+      type: 10,
+      content: MARRIAGE_CONFIG.proposal.embedContent(targetId, authorId),
+    },
   ];
 
   if (avatarUrl) {
@@ -495,7 +499,6 @@ export function buildProposalPayloadV2({
   );
 
   return {
-    content: MARRIAGE_CONFIG.proposal.embedContent(targetId, authorId),
     flags: IS_COMPONENTS_V2,
     components: [
       {
@@ -515,7 +518,6 @@ export function buildWeddingSuccessPayloadV2({
   gifUrl = MARRIAGE_CONFIG.images.weddingGif,
 }) {
   return {
-    content: MARRIAGE_CONFIG.proposal.weddingSuccessContent,
     flags: IS_COMPONENTS_V2,
     components: [
       {
@@ -529,6 +531,10 @@ export function buildWeddingSuccessPayloadV2({
             type: 14,
             divider: true,
             spacing: 1,
+          },
+          {
+            type: 10,
+            content: MARRIAGE_CONFIG.proposal.weddingSuccessContent,
           },
           {
             type: 10,
@@ -570,7 +576,6 @@ export function buildWeddingSuccessPayloadV2({
  */
 export function buildWeddingDeclinedPayloadV2({ authorId, targetId }) {
   return {
-    content: null,
     flags: IS_COMPONENTS_V2,
     components: [
       {
@@ -609,7 +614,6 @@ export function buildWeddingDeclinedPayloadV2({ authorId, targetId }) {
  */
 export function buildWeddingTimeoutPayloadV2({ authorId, targetId }) {
   return {
-    content: null,
     flags: IS_COMPONENTS_V2,
     components: [
       {

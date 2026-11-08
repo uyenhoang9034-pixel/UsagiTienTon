@@ -288,3 +288,222 @@ export function progressBar(completed, total) {
   const filled = Math.round((safeCompleted / safeTotal) * slots);
   return `${'█'.repeat(filled)}${'░'.repeat(slots - filled)} ${percent}%`;
 }
+
+export const IS_COMPONENTS_V2 = 32768;
+export const PRISON_IMAGE_URL = 'https://files.catbox.moe/sv428x.png';
+
+export const PRISON_TITLES = {
+  JAILED: '<a:trangtrig2:1546040703375904801> **USAGI · NHÀ TÙ** <a:trangtrig3:1546040818261954610>',
+  RELEASED: '<a:trangtrig2:1546040703375904801> **USAGI · MÃN HẠN TÙ** <a:trangtrig3:1546040818261954610>',
+  LABOR: '<a:trangtrig2:1546040703375904801> **USAGI · LAU DỌN NHÀ TÙ** <a:trangtrig3:1546040818261954610>',
+};
+
+/**
+ * 1. Payload V2 thông báo phạm nhân bị tống vào tù
+ */
+export function buildPrisonJailedPayloadV2({ userId, reason, remainingLabor }) {
+  return {
+    flags: IS_COMPONENTS_V2,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content: PRISON_TITLES.JAILED,
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 1,
+          },
+          {
+            type: 10,
+            content: [
+              '<a:bang3:1546891744237461635> **LỆNH PHẠT TÙ**',
+              '',
+              `<@${userId}> đã bị tống vào Nhà Tù!`,
+              '',
+              `<a:hitg1:1541437857049346148> Phạm nhân: **<@${userId}>**`,
+              `<a:bang2:1546891483250954290> Lý do: **${reason || 'Không có lý do'}**`,
+              `<a:bang2:1546891483250954290> Hình phạt - Lau dọn Nhà Tù: **${remainingLabor} lần**`,
+            ].join('\n'),
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 1,
+          },
+          {
+            type: 10,
+            content: [
+              'Muốn được thả?',
+              `Dùng **/laudon** và hoàn thành đủ **${remainingLabor} lần** lao động.`,
+              '',
+              '<a:catg11:1546058047393239151> *Quản ngục Usagi đang canh cửa. Đừng hòng trốn!*',
+            ].join('\n'),
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 1,
+          },
+          {
+            type: 12,
+            items: [
+              {
+                media: {
+                  url: PRISON_IMAGE_URL,
+                },
+                description: 'Thỏ tù nhân Usagi',
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/**
+ * 2. Payload V2 thông báo phạm nhân mãn hạn tù / được thả tự do
+ */
+export function buildPrisonReleasedPayloadV2({ userId, reason, restoredRoleCount = 0, totalLabor = null }) {
+  const restoredInfo = restoredRoleCount > 0
+    ? `<a:trangtrig6:1546043036390260756> Đã khôi phục thành công **${restoredRoleCount} role** cũ cho thành viên!`
+    : '<a:trangtrig6:1546043036390260756> Cửa Nhà Tù đã được mở, đã gỡ role Tù Nhân cho thành viên.';
+
+  const laborLines = totalLabor !== null
+    ? [
+        `<@${userId}> đã hoàn thành toàn bộ hình phạt!`,
+        `<a:trangtrig31:1546905996893626440> Lao động: **${totalLabor} / ${totalLabor} lần** ✅`,
+      ]
+    : [
+        `<@${userId}> đã được Quản Ngục Usagi thả tự do!`,
+      ];
+
+  return {
+    flags: IS_COMPONENTS_V2,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content: PRISON_TITLES.RELEASED,
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 1,
+          },
+          {
+            type: 10,
+            content: [
+              '<a:trangtrig1:1546040442548654140> **TỰ DO!**',
+              '',
+              ...laborLines,
+              `<a:danceg1:1541433201904455832> Án phạt: **${reason || 'Không có lý do'}**`,
+              '<a:danceg1:1541433201904455832> Trạng thái: **ĐÃ MÃN HẠN**',
+            ].join('\n'),
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 1,
+          },
+          {
+            type: 10,
+            content: [
+              '<a:trangtrig6:1546043036390260756> Cửa Nhà Tù đã được mở.',
+              restoredInfo,
+              '',
+              '<a:catg11:1546058047393239151> Quản Ngục Usagi: *Lần sau ngoan nhé, không là vào lau tiếp đấy!*',
+            ].join('\n'),
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 1,
+          },
+          {
+            type: 12,
+            items: [
+              {
+                media: {
+                  url: PRISON_IMAGE_URL,
+                },
+                description: 'Thỏ tù nhân Usagi',
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/**
+ * 3. Payload V2 tiến độ lau dọn Nhà Tù (/laudon)
+ */
+export function buildPrisonLaborProgressPayloadV2({
+  userId,
+  completedLabor,
+  remainingLabor,
+  totalLabor,
+  isLastOne = false,
+}) {
+  const bar = progressBar(completedLabor, totalLabor);
+  const statusBlock = isLastOne
+    ? [
+        `Cửa tù sắp mở rồi <@${userId}> ơi...`,
+        '',
+        `<a:trangtrig31:1546905996893626440> Hoàn thành **${completedLabor} lần lao động**.`,
+        '<a:capybarag1:1546058369566122015> Còn lại: **1 lần**',
+      ].join('\n')
+    : [
+        `<@${userId}> đang cặm cụi lau dọn nhà tù...`,
+        '',
+        '<a:trangtrig31:1546905996893626440> Hoàn thành **1 lần lao động**.',
+        `<a:capybarag1:1546058369566122015> Còn lại: **${remainingLabor} lần**`,
+      ].join('\n');
+
+  const footerBlock = [
+    bar,
+    '',
+    `<a:catg11:1546058047393239151> Quản ngục Usagi: *${isLastOne ? 'Một lần cuối!' : 'Lau tiếp đi, sàn vẫn còn bẩn lắm!'}*`,
+  ].join('\n');
+
+  return {
+    flags: IS_COMPONENTS_V2,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content: PRISON_TITLES.LABOR,
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 1,
+          },
+          {
+            type: 10,
+            content: statusBlock,
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 1,
+          },
+          {
+            type: 10,
+            content: footerBlock,
+          },
+        ],
+      },
+    ],
+  };
+}

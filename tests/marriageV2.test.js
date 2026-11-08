@@ -67,7 +67,7 @@ test('2. Giao diện V2 Lời Cầu Hôn: chuẩn Components V2, Container màu 
   });
 
   assert.equal(payload.flags, IS_COMPONENTS_V2);
-  assert.ok(payload.content.includes('<@user_target>'));
+  assert.equal(payload.content, undefined, 'Components V2 không được có top-level content để tránh lỗi API Discord');
 
   const container = payload.components[0];
   assert.equal(container.type, 17);
@@ -80,14 +80,18 @@ test('2. Giao diện V2 Lời Cầu Hôn: chuẩn Components V2, Container màu 
   // Separator 1
   assert.equal(container.components[1].type, 14);
 
+  // Text 2: Mention target
+  assert.equal(container.components[2].type, 10);
+  assert.ok(container.components[2].content.includes('<@user_target>'));
+
   // Section with Avatar
-  const section = container.components[2];
+  const section = container.components[3];
   assert.equal(section.type, 9);
   assert.equal(section.accessory.type, 11);
   assert.equal(section.accessory.media.url, 'https://example.com/avatar.png');
 
   // Action Row Buttons
-  const row = container.components[5];
+  const row = container.components[6];
   assert.equal(row.type, 1);
   assert.equal(row.components.length, 2);
   assert.equal(row.components[0].custom_id, 'marry_accept_123');
@@ -102,13 +106,14 @@ test('3. Giao diện V2 Hôn Lễ Thành Công: chuẩn Components V2, Media Gal
   });
 
   assert.equal(payload.flags, IS_COMPONENTS_V2);
+  assert.equal(payload.content, undefined, 'Components V2 không được có top-level content để tránh lỗi API Discord');
   const container = payload.components[0];
   assert.equal(container.type, 17);
   assert.equal(container.accent_color, undefined);
 
   assert.equal(container.components[0].content, MARRIAGE_CONFIG.proposal.weddingSuccessTitle);
-  assert.equal(container.components[4].type, 12, 'Phải có Media Gallery cho ảnh GIF đám cưới');
-  assert.equal(container.components[4].items[0].media.url, 'https://raw.githubusercontent.com/assets/marry.gif');
+  assert.equal(container.components[5].type, 12, 'Phải có Media Gallery cho ảnh GIF đám cưới');
+  assert.equal(container.components[5].items[0].media.url, 'https://raw.githubusercontent.com/assets/marry.gif');
 });
 
 test('4. Giao diện V2 Giấy Chứng Nhận Kết Hôn & Hậu Cung: Container V2 màu mặc định, đầy đủ thông tin', () => {
@@ -253,5 +258,51 @@ test('7. Bảng Vàng Couple (BXH): Tim <a:heartg7:...>, số thứ tự <a:1_:.
   // 4. Giữ nguyên emoji điểm và streak
   assert.ok(listContent.includes('<a:trangtrig46:1547240249761996812>'));
   assert.ok(listContent.includes('<a:trangtrig45:1547239010190237819>'));
+});
+
+test('8. Tuyệt đối không có trường content legacy trong toàn bộ payload Components V2', () => {
+  const builders = [
+    buildProposalPayloadV2({
+      targetId: 'target',
+      authorId: 'author',
+      proposalMessage: 'Test',
+      acceptBtnId: 'acc',
+      declineBtnId: 'dec',
+    }),
+    buildWeddingSuccessPayloadV2({ authorId: 'a', targetId: 'b' }),
+    buildWeddingDeclinedPayloadV2({ authorId: 'a', targetId: 'b' }),
+    buildWeddingTimeoutPayloadV2({ authorId: 'a', targetId: 'b' }),
+    buildSinglePayloadV2(true, 'user_1'),
+    buildCertPayloadV2({
+      targetUser: { id: 'u1', username: 'Test' },
+      spouseId: 'u2',
+      targetSpouseRel: { lovePoints: 100, marriedAt: Date.now(), bio: 'Test', streak: 1 },
+    }),
+    buildInteractPayloadV2({ quote: 'Thương em', pointsGained: 20, totalPoints: 120, level: { name: 'Sơ Khai' } }),
+    buildCheckInPayloadV2({
+      u1: 'u1',
+      u2: 'u2',
+      gained: 50,
+      base: 50,
+      streakBonus: 0,
+      streak: 2,
+      total: 150,
+      levelName: 'Sơ Khai',
+    }),
+    buildGiftPayloadV2({ userId: 'u1', spouseId: 'u2', gift: LOVE_GIFTS.hoahong, pointsGained: 30, totalPoints: 180, level: { name: 'Sơ Khai' } }),
+    buildVowsPayloadV2('u2', 'Yêu em'),
+    buildDivorceConfirmPayloadV2('u2', 'c_id', 'cancel_id'),
+    buildDivorceAnnouncementPayloadV2('u1', 'u2'),
+    buildLeaderboardPayloadV2([]),
+  ];
+
+  for (const b of builders) {
+    assert.equal(
+      b.content,
+      undefined,
+      'MessageFlags.IS_COMPONENTS_V2 cấm dùng trường content ở cấp root, tránh DiscordAPIError 50035',
+    );
+    assert.ok(b.components && b.components.length > 0, 'Phải có components');
+  }
 });
 

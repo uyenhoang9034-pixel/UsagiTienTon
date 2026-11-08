@@ -106,35 +106,35 @@ function isMarryAdmin(interaction) {
 }
 
 function resolveTargetSpouse(userData, specifiedUser, isAdmin = false) {
-  if (specifiedUser?.bot && isAdmin) {
-    return {
-      spouseId: specifiedUser.id,
-      spouse: {
-        spouseId: specifiedUser.id,
-        marriedAt: Date.now() - 30 * 86400000,
-        lovePoints: 520,
-        bio: 'Lời thề ước mẫu: Yêu em bot mãi mãi 💕 (Test Mode)',
-        ring: '💍 Nhẫn Ước Hẹn Vĩnh Cửu',
-        streak: 7,
-        lastInteractedAt: null,
-        lastDailyAt: null,
-        lastGiftAt: null,
-        isMock: true,
-      },
-    };
-  }
-
   const spouseList = getSpouseList(userData);
-  if (spouseList.length === 0) {
-    return { error: 'NO_SPOUSE' };
-  }
 
   if (specifiedUser) {
     const found = userData?.spouses?.[specifiedUser.id];
-    if (!found) {
-      return { error: 'NOT_MARRIED_TO_USER' };
+    if (found) {
+      return { spouse: found, spouseId: specifiedUser.id };
     }
-    return { spouse: found, spouseId: specifiedUser.id };
+    if (specifiedUser.bot && isAdmin) {
+      return {
+        spouseId: specifiedUser.id,
+        spouse: {
+          spouseId: specifiedUser.id,
+          marriedAt: Date.now() - 30 * 86400000,
+          lovePoints: 520,
+          bio: 'Lời thề ước mẫu: Yêu em bot mãi mãi 💕 (Test Mode)',
+          ring: '💍 Nhẫn Ước Hẹn Vĩnh Cửu',
+          streak: 7,
+          lastInteractedAt: null,
+          lastDailyAt: null,
+          lastGiftAt: null,
+          isMock: true,
+        },
+      };
+    }
+    return { error: 'NOT_MARRIED_TO_USER' };
+  }
+
+  if (spouseList.length === 0) {
+    return { error: 'NO_SPOUSE' };
   }
 
   if (spouseList.length === 1) {
@@ -326,16 +326,9 @@ export default {
           });
         }
 
-        if (targetUser.bot && !isAdmin) {
-          return interaction.reply({
-            content: MARRIAGE_CONFIG.proposal.errorBot,
-            flags: MessageFlags.Ephemeral,
-          });
-        }
-
         // Lấy thông tin hôn nhân của người gọi lệnh
         const authorMarriage = await getUserMarriage(botClient, guildId, interaction.user.id);
-        if (!targetUser.bot && areMarried(authorMarriage, targetUser.id)) {
+        if (areMarried(authorMarriage, targetUser.id)) {
           return interaction.reply({
             content: MARRIAGE_CONFIG.proposal.errorAlreadyMarried(targetUser.id),
             flags: MessageFlags.Ephemeral,
@@ -374,9 +367,9 @@ export default {
 
         collector.on('collect', async (btnInteraction) => {
           const isTarget = btnInteraction.user.id === targetUser.id;
-          const isBotAdminTest = targetUser.bot && isAdmin && btnInteraction.user.id === interaction.user.id;
+          const isBotTest = targetUser.bot && btnInteraction.user.id === interaction.user.id;
 
-          if (!isTarget && !isBotAdminTest) {
+          if (!isTarget && !isBotTest) {
             return btnInteraction.reply({
               content: MARRIAGE_CONFIG.proposal.errorNotTarget,
               flags: MessageFlags.Ephemeral,
@@ -384,23 +377,30 @@ export default {
           }
 
           if (btnInteraction.customId === acceptBtnId) {
-            if (!targetUser.bot) {
-              // Kiểm tra lại tránh race condition
-              const checkData = await getUserMarriage(botClient, guildId, interaction.user.id);
-              if (areMarried(checkData, targetUser.id)) {
-                activeProposals.delete(proposalKey);
-                collector.stop('already_married');
-                return btnInteraction.update({
-                  content: MARRIAGE_CONFIG.proposal.errorRaceCondition,
-                  embeds: [],
-                  components: [],
-                });
-              }
-
-              await createMarriage(botClient, guildId, interaction.user.id, targetUser.id, {
-                proposalMessage,
+            // Kiểm tra lại tránh race condition
+            const checkData = await getUserMarriage(botClient, guildId, interaction.user.id);
+            if (areMarried(checkData, targetUser.id)) {
+              activeProposals.delete(proposalKey);
+              collector.stop('already_married');
+              return btnInteraction.update({
+                flags: IS_COMPONENTS_V2,
+                components: [
+                  {
+                    type: 17,
+                    components: [
+                      {
+                        type: 10,
+                        content: MARRIAGE_CONFIG.proposal.errorRaceCondition,
+                      },
+                    ],
+                  },
+                ],
               });
             }
+
+            await createMarriage(botClient, guildId, interaction.user.id, targetUser.id, {
+              proposalMessage,
+            });
 
             activeProposals.delete(proposalKey);
             collector.stop('accepted');
@@ -463,8 +463,11 @@ export default {
         const targetUser = interaction.options.getUser('thanhvien') || interaction.user;
         const specifiedSpouse = interaction.options.getUser('bandoi');
 
-        // Trường hợp admin muốn test xem giấy kết hôn với bot
-        if (specifiedSpouse?.bot && isAdmin) {
+        const userData = await getUserMarriage(botClient, guildId, targetUser.id);
+        const spouseList = getSpouseList(userData);
+
+        // Trường hợp admin muốn test xem giấy kết hôn với bot khi chưa có trong DB
+        if (specifiedSpouse?.bot && !userData?.spouses?.[specifiedSpouse.id] && isAdmin) {
           const spouseId = specifiedSpouse.id;
           const mockRel = {
             spouseId,
@@ -480,9 +483,6 @@ export default {
           });
           return interaction.reply(certPayload);
         }
-
-        const userData = await getUserMarriage(botClient, guildId, targetUser.id);
-        const spouseList = getSpouseList(userData);
 
         if (spouseList.length === 0) {
           const isSelf = targetUser.id === interaction.user.id;
@@ -814,8 +814,18 @@ export default {
             }
 
             await btnInteraction.update({
-              content: 'Đã hoàn tất thủ tục ly hôn.',
-              components: [],
+              flags: MessageFlags.Ephemeral | IS_COMPONENTS_V2,
+              components: [
+                {
+                  type: 17,
+                  components: [
+                    {
+                      type: 10,
+                      content: 'Đã hoàn tất thủ tục ly hôn.',
+                    },
+                  ],
+                },
+              ],
             });
 
             const announcementPayload = buildDivorceAnnouncementPayloadV2(
@@ -829,8 +839,18 @@ export default {
           if (btnInteraction.customId === cancelBtnId) {
             collector.stop('cancelled');
             return btnInteraction.update({
-              content: MARRIAGE_CONFIG.divorce.cancelledMessage,
-              components: [],
+              flags: MessageFlags.Ephemeral | IS_COMPONENTS_V2,
+              components: [
+                {
+                  type: 17,
+                  components: [
+                    {
+                      type: 10,
+                      content: MARRIAGE_CONFIG.divorce.cancelledMessage,
+                    },
+                  ],
+                },
+              ],
             });
           }
         });

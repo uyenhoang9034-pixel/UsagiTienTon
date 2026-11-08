@@ -1,9 +1,13 @@
-import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from 'discord.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
-import { getPrisonRecord, releaseMember, PRISON_CHANNEL_ID, PRISON_ROLE_ID } from '../../services/prisonService.js';
+import {
+  getPrisonRecord,
+  releaseMember,
+  buildPrisonReleasedPayloadV2,
+  PRISON_CHANNEL_ID,
+  PRISON_ROLE_ID,
+} from '../../services/prisonService.js';
 import { logger } from '../../utils/logger.js';
-
-const PRISON_IMAGE_URL = 'https://files.catbox.moe/sv428x.png';
 
 export default {
   data: new SlashCommandBuilder()
@@ -56,30 +60,14 @@ export default {
 
       const channel = await interaction.guild.channels.fetch(PRISON_CHANNEL_ID).catch(() => null);
 
-      const restoredInfo = released.restoredRoleCount > 0
-        ? `<a:trangtrig6:1546043036390260756> Đã khôi phục thành công **${released.restoredRoleCount} role** cũ cho thành viên!`
-        : '<a:trangtrig6:1546043036390260756> Đã gỡ role Tù Nhân (không tìm thấy danh sách role cũ trong hồ sơ do phạt thủ công hoặc bị lỗi trước đó).';
-
-      const embed = new EmbedBuilder()
-        .setColor(0xfceec9)
-        .setTitle('<a:trangtrig2:1546040703375904801> 𝓤𝓼𝓪𝓰𝓲 · 𝓜𝓪̃𝓷 𝓗𝓪̣𝓷 𝓣𝓾̀ <a:trangtrig3:1546040818261954610>')
-        .setDescription([
-          '<a:trangtrig1:1546040442548654140> **TỰ DO!**',
-          '',
-          `<@${user.id}> đã được Quản Ngục Usagi thả tự do!`,
-          `<a:danceg1:1541433201904455832> Án phạt: **${released.reason || 'Không có lý do'}**`,
-          '<a:danceg1:1541433201904455832> Trạng thái: **ĐÃ MÃN HẠN**',
-          '',
-          '━━━━━━━━━━━━━━━━━━━━',
-          '<a:trangtrig6:1546043036390260756> Cửa Nhà Tù đã được mở.',
-          restoredInfo,
-          '',
-          '<a:catg11:1546058047393239151> Quản Ngục Usagi: *Lần sau ngoan nhé, không là vào lau tiếp đấy!*',
-        ].join('\n'))
-        .setImage(PRISON_IMAGE_URL);
+      const payload = buildPrisonReleasedPayloadV2({
+        userId: user.id,
+        reason: released.reason,
+        restoredRoleCount: released.restoredRoleCount,
+      });
 
       if (channel?.isTextBased()) {
-        await channel.send({ embeds: [embed] }).catch(() => {});
+        await channel.send(payload).catch(() => {});
       }
 
       return InteractionHelper.safeEditReply(interaction, {

@@ -1,9 +1,12 @@
-import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from 'discord.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
-import { jailMember, PRISON_CHANNEL_ID, PRISON_ROLE_ID } from '../../services/prisonService.js';
+import {
+  jailMember,
+  buildPrisonJailedPayloadV2,
+  PRISON_CHANNEL_ID,
+  PRISON_ROLE_ID,
+} from '../../services/prisonService.js';
 import { logger } from '../../utils/logger.js';
-
-const PRISON_IMAGE_URL = 'https://files.catbox.moe/sv428x.png';
 
 export default {
   data: new SlashCommandBuilder()
@@ -53,27 +56,13 @@ export default {
         moderatorId: interaction.user.id,
       });
 
-      const embed = new EmbedBuilder()
-        .setColor(0xfceec9)
-        .setTitle('<a:trangtrig2:1546040703375904801> 𝓤𝓼𝓪𝓰𝓲 · 𝓝𝓱𝓪̀ 𝓣𝓾̀ <a:trangtrig3:1546040818261954610>')
-        .setDescription([
-          '<a:bang3:1546891744237461635> **LỆNH PHẠT TÙ**',
-          '',
-          `<@${user.id}> đã bị tống vào Nhà Tù!`,
-          '',
-          `<a:hitg1:1541437857049346148> Phạm nhân: **<@${user.id}>**`,
-          `<a:bang2:1546891483250954290> Lý do: **${reason}**`,
-          `<a:bang2:1546891483250954290> Hình phạt - Lau dọn Nhà Tù: **${record.remainingLabor} lần**`,
-          '',
-          '━━━━━━━━━━━━━━━━━━━━',
-          'Muốn được thả?',
-          `Dùng **/laudon** và hoàn thành đủ **${record.remainingLabor} lần** lao động.`,
-          '',
-          '<a:catg11:1546058047393239151> *Quản ngục Usagi đang canh cửa. Đừng hòng trốn!*',
-        ].join('\n'))
-          .setImage(PRISON_IMAGE_URL);
+      const payload = buildPrisonJailedPayloadV2({
+        userId: user.id,
+        reason,
+        remainingLabor: record.remainingLabor,
+      });
 
-      await channel.send({ embeds: [embed] });
+      await channel.send(payload);
       await InteractionHelper.safeEditReply(interaction, {
         content: `Đã phạt tù <@${user.id}>. Thông báo đã gửi tại <#${PRISON_CHANNEL_ID}>.`,
       });
