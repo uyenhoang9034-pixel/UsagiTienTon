@@ -3,6 +3,25 @@
  * Vợ của Kim Nong có thể tự do chỉnh sửa toàn bộ câu chữ, màu sắc, icon, lời thoại ở file này!
  */
 
+export const MARRY_EMOJIS = {
+  TITLE_L: '<a:trangtrig2:1546040703375904801>',
+  TITLE_R: '<a:trangtrig3:1546040818261954610>',
+  HEART_BXH: '<a:heartg7:1567818322718761100>',
+  RANK_1: '<a:1_:1563484001765949550>',
+  RANK_2: '<a:2_:1563484061111156828>',
+  RANK_3: '<a:3_:1563484342779388045>',
+  RANK_4: '<a:4_:1563484724725424209>',
+  RANK_5: '<a:5_:1563484794623365151>',
+};
+
+export const MARRY_RANK_EMOJIS = [
+  MARRY_EMOJIS.RANK_1,
+  MARRY_EMOJIS.RANK_2,
+  MARRY_EMOJIS.RANK_3,
+  MARRY_EMOJIS.RANK_4,
+  MARRY_EMOJIS.RANK_5,
+];
+
 export const MARRIAGE_CONFIG = {
   // ==========================================
   // CẤU HÌNH ADMIN VÀ KÊNH LỆNH CỐ ĐỊNH
@@ -13,7 +32,7 @@ export const MARRIAGE_CONFIG = {
     `Lệnh kết hôn chỉ có thể sử dụng tại kênh <#${channelId}> thôi nha! 🐰🌸`,
 
   // ==========================================
-  // BẢNG MÀU EMBED (HỒNG PASTEL CHO TOÀN BỘ LỆNH)
+  // BẢNG MÀU EMBED (HỖ TRỢ FALLBACK NẾU CẦN)
   // ==========================================
   colors: {
     proposal: '#FFB6C1',       // Gửi lời cầu hôn
@@ -62,8 +81,8 @@ export const MARRIAGE_CONFIG = {
     errorNotTarget: 'Chỉ người được cầu hôn mới có quyền đưa ra quyết định thôi nha! <a:bunnyg4:1541439959385374760>',
     errorRaceCondition: 'Hai bạn đã nên duyên vợ chồng từ trước rồi nè! 💖',
 
-    // Embed gửi lời cầu hôn
-    embedTitle: '<a:trangtrig2:1546040703375904801> 𝓦𝓲𝓵𝓵 𝓤 𝓜𝓪𝓻𝓻𝔂 𝓜𝓮 <a:trangtrig3:1546040818261954610>',
+    // Tiêu đề và nội dung lời cầu hôn
+    embedTitle: `${MARRY_EMOJIS.TITLE_L} **Will U Marry Me** ${MARRY_EMOJIS.TITLE_R}`,
     embedContent: (targetId, authorId) => `<@${targetId}> ơi, bạn có một lời cầu hôn từ <@${authorId}> nè! <a:trangtrig30:1546905942476464178>`,
     embedDescription: (authorId, targetId, customMessage) => {
       const messageContent = customMessage
@@ -78,8 +97,8 @@ export const MARRIAGE_CONFIG = {
     },
     embedFooter: 'Lời cầu hôn sẽ tự động hết hạn sau 20 phút nếu không có phản hồi!',
 
-    // Embed khi đối phương ĐỒNG Ý
-    weddingSuccessTitle: '<a:trangtrig2:1546040703375904801> 𝓒𝓱𝓾́𝓬 𝓗𝓸̂𝓷 𝓛𝓮̂̃ 𝓣𝓱𝓪̀𝓷𝓱 𝓒𝓸̂𝓷𝓰 <a:trangtrig3:1546040818261954610>',
+    // Giao diện khi đối phương ĐỒNG Ý
+    weddingSuccessTitle: `${MARRY_EMOJIS.TITLE_L} **Chúc Hôn Lễ Thành Công** ${MARRY_EMOJIS.TITLE_R}`,
     weddingSuccessContent: 'Tiếng chuông đám cưới vang lên! Chúc mừng hai bạn đã nên duyên vợ chồng! <a:bunnyg8:1541440159990550580>',
     weddingSuccessDescription: (authorId, targetId) =>
       `Hôm nay là ngày lành tháng tốt, xin chúc mừng cho đôi uyên ương <@${authorId}> <a:heartg6:1546906117551030382> <@${targetId}>\n\n` +
@@ -90,15 +109,15 @@ export const MARRIAGE_CONFIG = {
       `> /marry tangqua: Tặng trà sữa, hoa hồng, socola, kim cương (+20 đến +150 <a:trangtrig46:1547240249761996812>)`,
     weddingSuccessFooter: 'Em bot Usagi múp rụp chúc hai bạn trăm năm hạnh phúc, mặn nồng keo sơn!',
 
-    // Embed khi đối phương TỪ CHỐI
-    weddingDeclinedTitle: '<a:trangtrig43:1547238351869059082> 𝓛𝓸̛̀𝓲 𝓒𝓪̂̀𝓾 𝓗𝓸̂𝓷 𝓑𝓲̣ 𝓣𝓾̛̀ 𝓒𝓱𝓸̂́𝓲 <a:trangtrig43:1547238351869059082>',
+    // Giao diện khi đối phương TỪ CHỐI
+    weddingDeclinedTitle: `${MARRY_EMOJIS.TITLE_L} **Lời Cầu Hôn Bị Từ Chối** ${MARRY_EMOJIS.TITLE_R}`,
     weddingDeclinedDescription: (authorId, targetId) =>
       `<@${targetId}> đã **khéo léo từ chối lời cầu hôn** của <@${authorId}> rồi...\n\n` +
       `Duyên chưa đến thì chúng mình vẫn là những người bạn tốt của nhau nha! <a:hachiwareg1:1541427296777408552>`,
     weddingDeclinedFooter: 'Hỏng sao hỏng sao, em bot Usagi múp rụp sẽ vỗ về an ủi bạn nè~',
 
-    // Embed khi HẾT HẠN 20 PHÚT
-    weddingTimeoutTitle: '<a:shockg1:1541433028193165312> 𝓛𝓸̛̀𝓲 𝓒𝓪̂̀𝓾 𝓗𝓸̂𝓷 𝓗𝓮̂́𝓽 𝓗𝓪̣𝓷 𝓡𝓸̂̀𝓲',
+    // Giao diện khi HẾT HẠN 20 PHÚT
+    weddingTimeoutTitle: `${MARRY_EMOJIS.TITLE_L} **Lời Cầu Hôn Hết Hạn Rồi** ${MARRY_EMOJIS.TITLE_R}`,
     weddingTimeoutDescription: (authorId, targetId) =>
       `<@${targetId}> chưa kịp phản hồi lời cầu hôn của <@${authorId}>.\n\n` +
       `*Chiếc nhẫn ước hẹn đã được cất lại, hãy thử ngỏ lời vào một dịp thích hợp khác nhé!* <a:giftg1:1543150714732412948>`,
@@ -112,8 +131,8 @@ export const MARRIAGE_CONFIG = {
     singleOther: (targetId) => `<@${targetId}> hiện vẫn chưa kết hôn với ai cả! Ai đang để ý thì mau mau ngỏ lời đi kìa! <a:bunnyg4:1541439959385374760>`,
     notMarriedToSpecified: (targetId, spouseId) => `<@${targetId}> và <@${spouseId}> không phải là vợ chồng của nhau nha! 🐰`,
 
-    // Embed danh sách Hậu Cung
-    haremTitle: '<a:trangtrig2:1546040703375904801> 𝓗𝓪̣̂𝓾 𝓒𝓾𝓷𝓰 𝓒𝓾̉𝓪 𝓑𝓪̣𝓷 <a:trangtrig3:1546040818261954610>',
+    // Tiêu đề và giao diện danh sách Hậu Cung
+    haremTitle: `${MARRY_EMOJIS.TITLE_L} **Hậu Cung Của Bạn** ${MARRY_EMOJIS.TITLE_R}`,
     formatHaremItem: (index, rel, levelInfo, daysTogether) =>
       `**#${index + 1}.** <@${rel.spouseId}>\n` +
       `> <a:trangtrig46:1547240249761996812> ${(rel.lovePoints || 0).toLocaleString()} điểm · **${levelInfo.name}**\n` +
@@ -122,8 +141,8 @@ export const MARRIAGE_CONFIG = {
       `> <a:ilyg1:1546041656648929380> ${rel.bio || 'Bên nhau trọn đời'}`,
     haremFooter: 'Em bot Usagi múp rụp ngưỡng mộ hậu cung đồ sộ quá nè!',
 
-    // Embed Giấy Chứng Nhận Kết Hôn chi tiết
-    certTitle: '<a:trangtrig2:1546040703375904801> 𝓖𝓲𝓪̂́𝔂 𝓒𝓱𝓾̛́𝓷𝓰 𝓝𝓱𝓪̣̂𝓷 𝓚𝓮̂́𝓽 𝓗𝓸̂𝓷 <a:trangtrig3:1546040818261954610>',
+    // Tiêu đề và Giấy Chứng Nhận Kết Hôn chi tiết
+    certTitle: `${MARRY_EMOJIS.TITLE_L} **Giấy Chứng Nhận Kết Hôn** ${MARRY_EMOJIS.TITLE_R}`,
     certDescription: (userId, spouseId, bio) => {
       const bioText = (bio && bio !== 'Bên nhau trọn đời 💕') ? bio : 'Bên nhau trọn đời!';
       return (
@@ -173,7 +192,7 @@ export const MARRIAGE_CONFIG = {
       tangqua: 35,
       xoadau: 20,
     },
-    embedTitle: '<a:trangtrig2:1546040703375904801> 𝓗𝓪̂𝓶 𝓝𝓸́𝓷𝓰 𝓣𝓲̀𝓷𝓱 𝓒𝓪̉𝓶 <a:trangtrig3:1546040818261954610>',
+    embedTitle: `${MARRY_EMOJIS.TITLE_L} **Hâm Nóng Tình Cảm** ${MARRY_EMOJIS.TITLE_R}`,
     cooldownMessage: (spouseId, remainingFormatted) =>
       `Bạn và <@${spouseId}> vừa mới hâm nóng tình cảm xong mà! Hãy để đối phương nghỉ ngơi một chút nha! Cooldown còn lại: ${remainingFormatted}`,
     embedFooter: 'Tình yêu như cây xanh, cần chăm tưới mỗi ngày nha!',
@@ -214,7 +233,7 @@ export const MARRIAGE_CONFIG = {
     basePoints: 50,                  // Điểm gốc mỗi ngày
     streakBonusPerDay: 5,            // Thưởng thêm mỗi ngày streak
     maxStreakBonus: 50,              // Thưởng tối đa từ streak
-    embedTitle: '<a:trangtrig2:1546040703375904801> 𝓒𝓱𝓮𝓬𝓴 𝓘𝓷 <a:trangtrig3:1546040818261954610>',
+    embedTitle: `${MARRY_EMOJIS.TITLE_L} **Check In** ${MARRY_EMOJIS.TITLE_R}`,
     cooldownMessage: (spouseId, remainingFormatted) =>
       `Hôm nay bạn và <@${spouseId}> đã điểm danh rồi nè!\nHãy quay lại sau: ${remainingFormatted} nhé!`,
     description: (u1, u2, gained, base, streakBonus, streak, total, levelName) =>
@@ -232,7 +251,7 @@ export const MARRIAGE_CONFIG = {
   gifts: {
     cooldownMs: 60 * 60 * 1000,      // 1 tiếng cooldown
     embedColor: '#FFB6C1',
-    embedTitle: '<a:trangtrig2:1546040703375904801> 𝓠𝓾𝓪̀ 𝓣𝓪̣̆𝓷𝓰 𝓣𝓲̀𝓷𝓱 𝓨𝓮̂𝓾 𝓝𝓰𝓸̣𝓽 𝓝𝓰𝓪̀𝓸 <a:trangtrig3:1546040818261954610>',
+    embedTitle: `${MARRY_EMOJIS.TITLE_L} **Quà Tặng Tình Yêu Ngọt Ngào** ${MARRY_EMOJIS.TITLE_R}`,
     items: {
       trasua: {
         name: 'Trà Sữa Trân Châu',
@@ -269,6 +288,7 @@ export const MARRIAGE_CONFIG = {
   // 6. GIAO DIỆN LỜI THỀ ƯỚC (/marry loinhac)
   // ==========================================
   vows: {
+    title: `${MARRY_EMOJIS.TITLE_L} **Lời Thề Ước** ${MARRY_EMOJIS.TITLE_R}`,
     success: (spouseId, newBio) =>
       `<a:trangtrig31:1546905996893626440> Đã cập nhật lời thề ước mới cùng <@${spouseId}> trên Giấy Kết Hôn\n` +
       `> " ${newBio} " <a:catg5:1542406653574389770>`,
@@ -285,7 +305,7 @@ export const MARRIAGE_CONFIG = {
       label: 'Suy nghĩ lại',
       emoji: '<a:hamsterg2:1546057566209974292>',
     },
-    confirmTitle: '<a:bang2:1546891483250954290> 𝓧𝓪́𝓬 𝓝𝓱𝓪̣̂𝓷 𝓖𝓲𝓪̉𝓲 𝓣𝓻𝓾̛̀ 𝓠𝓾𝓪𝓷 𝓗𝓮̣̂ 𝓗𝓸̂𝓷 𝓝𝓱𝓪̂𝓷 <a:bang2:1546891483250954290>',
+    confirmTitle: `${MARRY_EMOJIS.TITLE_L} **Xác Nhận Giải Trừ Quan Hệ Hôn Nhân** ${MARRY_EMOJIS.TITLE_R}`,
     confirmDescription: (spouseId) =>
       `Bạn có chắc chắn muốn ly hôn với <@${spouseId}> không? <:chiikawa4:1541429063392956516>\n` +
       `> Điểm Thân Mật, chuỗi streak và ngày kết hôn giữa hai người sẽ bị xóa vĩnh viễn!\n` +
@@ -293,7 +313,7 @@ export const MARRIAGE_CONFIG = {
       `> Hãy suy nghĩ thật kỹ trước khi đưa ra quyết định nhé!`,
     confirmFooter: 'Thời gian xác nhận là 60 giây',
     cancelledMessage: 'Bạn đã hủy thủ tục ly hôn! Hãy trân trọng và thấu hiểu nhau nhiều hơn nhé! <a:bunnyg4:1541439959385374760>',
-    announcementTitle: '<a:trangtrig2:1546040703375904801> 𝓣𝓱𝓸̂𝓷𝓰 𝓑𝓪́𝓸 𝓚𝓮̂́𝓽 𝓣𝓱𝓾́𝓬 𝓗𝓸̂𝓷 𝓝𝓱𝓪̂𝓷 <a:trangtrig3:1546040818261954610>',
+    announcementTitle: `${MARRY_EMOJIS.TITLE_L} **Thông Báo Kết Thúc Hôn Nhân** ${MARRY_EMOJIS.TITLE_R}`,
     announcementDescription: (authorId, spouseId) =>
       `<@${authorId}> và <@${spouseId}> đã chính thức ly hôn. Chúc cả hai sẽ luôn tìm thấy niềm vui và sự an yên trên con đường phía trước! <a:heartg5:1546906071199907972>`,
     announcementFooter: 'Em bot Usagi múp rụp gửi lời chúc bình an đến cả hai~',
@@ -304,7 +324,7 @@ export const MARRIAGE_CONFIG = {
   // ==========================================
   leaderboard: {
     emptyMessage: 'Server hiện chưa có cặp đôi nào kết hôn cả! Hãy là cặp đôi đầu tiên với lệnh /marry cauhon nhé!',
-    embedTitle: '<a:trangtrig19:1546068350030053406> 𝓑𝓪̉𝓷𝓰 𝓥𝓪̀𝓷𝓰 𝓒𝓸𝓾𝓹𝓵𝓮 <a:trangtrig19:1546068350030053406>',
+    embedTitle: `${MARRY_EMOJIS.TITLE_L} **Bảng Vàng Couple** ${MARRY_EMOJIS.TITLE_R}`,
     embedFooter: 'Em bot Usagi múp rụp vinh danh tình yêu viên mãn!',
   },
 

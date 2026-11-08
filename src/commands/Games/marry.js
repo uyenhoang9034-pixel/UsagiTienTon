@@ -5,7 +5,6 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ComponentType,
-  EmbedBuilder,
   MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
@@ -24,6 +23,21 @@ import {
   areMarried,
   getSpouseList,
   LOVE_GIFTS,
+  IS_COMPONENTS_V2,
+  buildProposalPayloadV2,
+  buildWeddingSuccessPayloadV2,
+  buildWeddingDeclinedPayloadV2,
+  buildWeddingTimeoutPayloadV2,
+  buildHaremPayloadV2,
+  buildCertPayloadV2,
+  buildSinglePayloadV2,
+  buildInteractPayloadV2,
+  buildCheckInPayloadV2,
+  buildGiftPayloadV2,
+  buildVowsPayloadV2,
+  buildDivorceConfirmPayloadV2,
+  buildDivorceAnnouncementPayloadV2,
+  buildLeaderboardPayloadV2,
 } from '../../services/marriageService.js';
 
 import { logger } from '../../utils/logger.js';
@@ -341,40 +355,16 @@ export default {
         const acceptBtnId = `marry_accept_${interaction.id}`;
         const declineBtnId = `marry_decline_${interaction.id}`;
 
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId(acceptBtnId)
-            .setLabel(MARRIAGE_CONFIG.proposal.buttonAccept.label)
-            .setEmoji(MARRIAGE_CONFIG.proposal.buttonAccept.emoji)
-            .setStyle(ButtonStyle.Success),
-          new ButtonBuilder()
-            .setCustomId(declineBtnId)
-            .setLabel(MARRIAGE_CONFIG.proposal.buttonDecline.label)
-            .setEmoji(MARRIAGE_CONFIG.proposal.buttonDecline.emoji)
-            .setStyle(ButtonStyle.Danger),
-        );
-
-        const proposalEmbed = new EmbedBuilder()
-          .setColor(MARRIAGE_CONFIG.colors.proposal)
-          .setTitle(MARRIAGE_CONFIG.proposal.embedTitle)
-          .setDescription(
-            MARRIAGE_CONFIG.proposal.embedDescription(
-              interaction.user.id,
-              targetUser.id,
-              proposalMessage,
-            ),
-          )
-          .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
-          .setFooter({
-            text: MARRIAGE_CONFIG.proposal.embedFooter,
-          })
-          .setTimestamp();
-
-        const response = await interaction.reply({
-          content: MARRIAGE_CONFIG.proposal.embedContent(targetUser.id, interaction.user.id),
-          embeds: [proposalEmbed],
-          components: [row],
+        const payload = buildProposalPayloadV2({
+          targetId: targetUser.id,
+          authorId: interaction.user.id,
+          proposalMessage,
+          acceptBtnId,
+          declineBtnId,
+          avatarUrl: targetUser.displayAvatarURL ? targetUser.displayAvatarURL({ dynamic: true }) : null,
         });
+
+        const response = await interaction.reply(payload);
 
         // 20 phút thời gian thực (1,200,000 ms)
         const collector = response.createMessageComponentCollector({
@@ -415,33 +405,22 @@ export default {
             activeProposals.delete(proposalKey);
             collector.stop('accepted');
 
-            const weddingEmbed = new EmbedBuilder()
-              .setColor(MARRIAGE_CONFIG.colors.wedding)
-              .setTitle(MARRIAGE_CONFIG.proposal.weddingSuccessTitle)
-              .setDescription(
-                MARRIAGE_CONFIG.proposal.weddingSuccessDescription(
-                  interaction.user.id,
-                  targetUser.id,
-                ),
-              )
-              .setFooter({
-                text: MARRIAGE_CONFIG.proposal.weddingSuccessFooter,
-              })
-              .setTimestamp();
-
             const weddingFiles = [];
             const gifPath = path.resolve(process.cwd(), 'assets/marry/marry.gif');
+            let weddingGifUrl = MARRIAGE_CONFIG.images.weddingGif;
             if (fs.existsSync(gifPath)) {
-              weddingEmbed.setImage('attachment://marry.gif');
+              weddingGifUrl = 'attachment://marry.gif';
               weddingFiles.push({ attachment: gifPath, name: 'marry.gif' });
-            } else {
-              weddingEmbed.setImage(MARRIAGE_CONFIG.images.weddingGif);
             }
 
+            const successPayload = buildWeddingSuccessPayloadV2({
+              authorId: interaction.user.id,
+              targetId: targetUser.id,
+              gifUrl: weddingGifUrl,
+            });
+
             return btnInteraction.update({
-              content: MARRIAGE_CONFIG.proposal.weddingSuccessContent,
-              embeds: [weddingEmbed],
-              components: [],
+              ...successPayload,
               files: weddingFiles,
             });
           }
@@ -450,24 +429,12 @@ export default {
             activeProposals.delete(proposalKey);
             collector.stop('declined');
 
-            const declineEmbed = new EmbedBuilder()
-              .setColor(MARRIAGE_CONFIG.colors.rejected)
-              .setTitle(MARRIAGE_CONFIG.proposal.weddingDeclinedTitle)
-              .setDescription(
-                MARRIAGE_CONFIG.proposal.weddingDeclinedDescription(
-                  interaction.user.id,
-                  targetUser.id,
-                ),
-              )
-              .setFooter({
-                text: MARRIAGE_CONFIG.proposal.weddingDeclinedFooter,
-              });
-
-            return btnInteraction.update({
-              content: null,
-              embeds: [declineEmbed],
-              components: [],
+            const declinePayload = buildWeddingDeclinedPayloadV2({
+              authorId: interaction.user.id,
+              targetId: targetUser.id,
             });
+
+            return btnInteraction.update(declinePayload);
           }
         });
 
@@ -475,22 +442,13 @@ export default {
           activeProposals.delete(proposalKey);
 
           if (reason === 'time') {
-            const timeoutEmbed = new EmbedBuilder()
-              .setColor(MARRIAGE_CONFIG.colors.timeout)
-              .setTitle(MARRIAGE_CONFIG.proposal.weddingTimeoutTitle)
-              .setDescription(
-                MARRIAGE_CONFIG.proposal.weddingTimeoutDescription(
-                  interaction.user.id,
-                  targetUser.id,
-                ),
-              );
+            const timeoutPayload = buildWeddingTimeoutPayloadV2({
+              authorId: interaction.user.id,
+              targetId: targetUser.id,
+            });
 
             try {
-              await interaction.editReply({
-                content: null,
-                embeds: [timeoutEmbed],
-                components: [],
-              });
+              await interaction.editReply(timeoutPayload);
             } catch (err) {
               logger.debug('Could not edit expired proposal message:', err.message);
             }
@@ -508,36 +466,19 @@ export default {
         // Trường hợp admin muốn test xem giấy kết hôn với bot
         if (specifiedSpouse?.bot && isAdmin) {
           const spouseId = specifiedSpouse.id;
-          const marriedTimestamp = Math.floor((Date.now() - 30 * 86400000) / 1000);
-          const daysTogether = 30;
-          const levelInfo = getLoveLevel(520);
-
-          const profileEmbed = new EmbedBuilder()
-            .setColor(MARRIAGE_CONFIG.colors.profile)
-            .setTitle(MARRIAGE_CONFIG.profile.certTitle)
-            .setDescription(
-              MARRIAGE_CONFIG.profile.certDescription(
-                targetUser.id,
-                spouseId,
-                'Lời thề ước mẫu: Yêu em bot mãi mãi 💕 (Test Mode)',
-              ),
-            )
-            .addFields(
-              MARRIAGE_CONFIG.profile.certFields(
-                marriedTimestamp,
-                daysTogether,
-                520,
-                `${levelInfo.icon} ${levelInfo.name} (${levelInfo.title})`,
-                7,
-              ),
-            )
-            .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
-            .setFooter({
-              text: MARRIAGE_CONFIG.profile.certFooter,
-            })
-            .setTimestamp();
-
-          return interaction.reply({ embeds: [profileEmbed] });
+          const mockRel = {
+            spouseId,
+            marriedAt: Date.now() - 30 * 86400000,
+            lovePoints: 520,
+            bio: 'Lời thề ước mẫu: Yêu em bot mãi mãi 💕 (Test Mode)',
+            streak: 7,
+          };
+          const certPayload = buildCertPayloadV2({
+            targetUser,
+            spouseId,
+            targetSpouseRel: mockRel,
+          });
+          return interaction.reply(certPayload);
         }
 
         const userData = await getUserMarriage(botClient, guildId, targetUser.id);
@@ -545,11 +486,7 @@ export default {
 
         if (spouseList.length === 0) {
           const isSelf = targetUser.id === interaction.user.id;
-          return interaction.reply({
-            content: isSelf
-              ? MARRIAGE_CONFIG.profile.singleSelf
-              : MARRIAGE_CONFIG.profile.singleOther(targetUser.id),
-          });
+          return interaction.reply(buildSinglePayloadV2(isSelf, targetUser.id));
         }
 
         // Trường hợp muốn xem thiệp cưới đôi cụ thể
@@ -568,80 +505,18 @@ export default {
 
         // Nếu có nhiều hơn 1 bạn đời và không chỉ định -> Hiện danh sách HẬU CUNG
         if (!targetSpouseRel) {
-          const haremLines = spouseList.map((rel, index) => {
-            const levelInfo = getLoveLevel(rel.lovePoints || 0);
-            const daysTogether = Math.max(1, Math.floor((Date.now() - rel.marriedAt) / 86400000));
-            return MARRIAGE_CONFIG.profile.formatHaremItem(index, rel, levelInfo, daysTogether);
-          });
-
-          const haremEmbed = new EmbedBuilder()
-            .setColor(MARRIAGE_CONFIG.colors.harem)
-            .setTitle(MARRIAGE_CONFIG.profile.haremTitle)
-            .setDescription(
-              haremLines.join('\n\n') +
-                `\n\n💡 *Mẹo: Dùng \`/marry xem thanhvien:@${targetUser.username} bandoi:@tên_bạn_đời\` để xem Giấy Chứng Nhận Kết Hôn chi tiết nhé!*`,
-            )
-            .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
-            .setFooter({
-              text: MARRIAGE_CONFIG.profile.haremFooter,
-            })
-            .setTimestamp();
-
-          return interaction.reply({ embeds: [haremEmbed] });
+          return interaction.reply(buildHaremPayloadV2({ targetUser, spouseList }));
         }
 
         // Hiển thị Giấy Chứng Nhận Kết Hôn chi tiết
         const spouseId = targetSpouseRel.spouseId;
-        const marriedTimestamp = Math.floor(targetSpouseRel.marriedAt / 1000);
-        const daysTogether = Math.max(1, Math.floor((Date.now() - targetSpouseRel.marriedAt) / 86400000));
-        const levelInfo = getLoveLevel(targetSpouseRel.lovePoints || 0);
-
-        const profileEmbed = new EmbedBuilder()
-          .setColor(MARRIAGE_CONFIG.colors.profile)
-          .setTitle(MARRIAGE_CONFIG.profile.certTitle)
-          .setDescription(
-            MARRIAGE_CONFIG.profile.certDescription(
-              targetUser.id,
-              spouseId,
-              targetSpouseRel.bio,
-            ),
-          )
-          .addFields(
-            {
-              name: '<a:heartg1:1545307544808071258> Ngày Thành Hôn',
-              value: `<t:${marriedTimestamp}:D> (<t:${marriedTimestamp}:R>)`,
-              inline: true,
-            },
-            {
-              name: '<a:heartg1:1545307544808071258> Thời Gian Bên Nhau',
-              value: `${daysTogether} ngày hạnh phúc`,
-              inline: true,
-            },
-            {
-              name: '<a:trangtrig46:1547240249761996812> Điểm Thân Mật',
-              value: `${(targetSpouseRel.lovePoints || 0).toLocaleString()} điểm`,
-              inline: true,
-            },
-            {
-              name: '<a:heartg1:1545307544808071258> Cấp Bậc Tình Yêu',
-              value: `${levelInfo.icon} **${levelInfo.name}**\n*(Danh hiệu: ${levelInfo.title})*`,
-              inline: true,
-            },
-            {
-              name: '<a:trangtrig45:1547239010190237819> Chuỗi Điểm Danh',
-              value: `${targetSpouseRel.streak || 0} ngày liên tục`,
-              inline: true,
-            },
-          )
-          .setThumbnail(targetUser.displayAvatarURL({ dynamic: true }))
-          .setFooter({
-            text: MARRIAGE_CONFIG.profile.certFooter,
-          })
-          .setTimestamp();
-
-        return interaction.reply({
-          embeds: [profileEmbed],
+        const certPayload = buildCertPayloadV2({
+          targetUser,
+          spouseId,
+          targetSpouseRel,
         });
+
+        return interaction.reply(certPayload);
       }
 
       // 3. TƯƠNG TÁC CẶP ĐÔI
@@ -700,22 +575,14 @@ export default {
 
         const quote = getInteractionQuote(action, interaction.user.id, spouseId);
 
-        const interactEmbed = new EmbedBuilder()
-          .setColor(MARRIAGE_CONFIG.colors.interact)
-          .setTitle(MARRIAGE_CONFIG.interact.embedTitle)
-          .setDescription(
-            `${quote}\n\n` +
-              `> <:jz1:1546149460751552572> Hai bạn được cộng **+${result.pointsGained} <a:trangtrig46:1547240249761996812> Điểm Thân Mật**!\n` +
-              `> <:jz1:1546149460751552572> Tổng điểm hiện tại: **${result.totalPoints.toLocaleString()}** điểm (${result.level.icon} ${result.level.name})`,
-          )
-          .setFooter({
-            text: MARRIAGE_CONFIG.interact.embedFooter,
-          })
-          .setTimestamp();
-
-        return interaction.reply({
-          embeds: [interactEmbed],
+        const payload = buildInteractPayloadV2({
+          quote,
+          pointsGained: result.pointsGained,
+          totalPoints: result.totalPoints,
+          level: result.level,
         });
+
+        return interaction.reply(payload);
       }
 
       // 4. ĐIỂM DANH TÌNH YÊU HÀNG NGÀY
@@ -773,27 +640,18 @@ export default {
           }
         }
 
-        const checkInEmbed = new EmbedBuilder()
-          .setColor(MARRIAGE_CONFIG.colors.checkIn)
-          .setTitle(MARRIAGE_CONFIG.checkIn.embedTitle)
-          .setDescription(
-            MARRIAGE_CONFIG.checkIn.description(
-              interaction.user.id,
-              spouseId,
-              result.pointsGained,
-              result.basePoints,
-              result.streakBonus,
-              result.streak,
-              result.totalPoints,
-              `${result.level.icon} ${result.level.name}`,
-            ),
-          )
-          .setFooter({
-            text: MARRIAGE_CONFIG.checkIn.embedFooter,
-          })
-          .setTimestamp();
+        const payload = buildCheckInPayloadV2({
+          u1: interaction.user.id,
+          u2: spouseId,
+          gained: result.pointsGained,
+          base: result.basePoints,
+          streakBonus: result.streakBonus,
+          streak: result.streak,
+          total: result.totalPoints,
+          levelName: `${result.level.icon} ${result.level.name}`,
+        });
 
-        return interaction.reply({ embeds: [checkInEmbed] });
+        return interaction.reply(payload);
       }
 
       // 5. TẶNG QUÀ TÌNH YÊU
@@ -852,21 +710,16 @@ export default {
           }
         }
 
-        const giftEmbed = new EmbedBuilder()
-          .setColor(MARRIAGE_CONFIG.colors.gift || '#FFB6C1')
-          .setTitle(MARRIAGE_CONFIG.gifts.embedTitle)
-          .setDescription(
-            `<@${interaction.user.id}> đã gửi tặng đến <@${spouseId}> một món quà ngọt ngào!\n\n` +
-              `${result.gift.icon} **${result.gift.name}** (+${result.pointsGained} <a:trangtrig46:1547240249761996812>): *${result.gift.desc}*\n\n` +
-              `> <:jz1:1546149460751552572> Nhận ngay: **+${result.pointsGained} <a:trangtrig46:1547240249761996812> Điểm Thân Mật**\n` +
-              `> <:jz1:1546149460751552572> Tổng Điểm Thân Mật: **${result.totalPoints.toLocaleString()}** điểm (${result.level.icon} ${result.level.name})`,
-          )
-          .setFooter({
-            text: MARRIAGE_CONFIG.gifts.embedFooter,
-          })
-          .setTimestamp();
+        const payload = buildGiftPayloadV2({
+          userId: interaction.user.id,
+          spouseId,
+          gift: result.gift,
+          pointsGained: result.pointsGained,
+          totalPoints: result.totalPoints,
+          level: result.level,
+        });
 
-        return interaction.reply({ embeds: [giftEmbed] });
+        return interaction.reply(payload);
       }
 
       // 6. LỜI NHẮC / LỜI THỀ ƯỚC
@@ -904,9 +757,7 @@ export default {
           await updateMarriageBio(botClient, guildId, interaction.user.id, spouseId, newBio);
         }
 
-        return interaction.reply({
-          content: MARRIAGE_CONFIG.vows.success(spouseId, newBio),
-        });
+        return interaction.reply(buildVowsPayloadV2(spouseId, newBio));
       }
 
       // 7. LY HÔN (CÓ CHỌN BẠN ĐỜI NẾU CÓ NHIỀU HƠN 1)
@@ -943,29 +794,8 @@ export default {
         const confirmBtnId = `marry_divorce_confirm_${interaction.id}`;
         const cancelBtnId = `marry_divorce_cancel_${interaction.id}`;
 
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId(confirmBtnId)
-            .setLabel(MARRIAGE_CONFIG.divorce.buttonConfirm.label)
-            .setStyle(ButtonStyle.Danger),
-          new ButtonBuilder()
-            .setCustomId(cancelBtnId)
-            .setLabel(MARRIAGE_CONFIG.divorce.buttonCancel.label)
-            .setEmoji(MARRIAGE_CONFIG.divorce.buttonCancel.emoji)
-            .setStyle(ButtonStyle.Secondary),
-        );
-
-        const confirmEmbed = new EmbedBuilder()
-          .setColor(MARRIAGE_CONFIG.colors.divorceConfirm)
-          .setTitle(MARRIAGE_CONFIG.divorce.confirmTitle)
-          .setDescription(MARRIAGE_CONFIG.divorce.confirmDescription(spouseId))
-          .setFooter({ text: MARRIAGE_CONFIG.divorce.confirmFooter });
-
-        const response = await interaction.reply({
-          embeds: [confirmEmbed],
-          components: [row],
-          flags: MessageFlags.Ephemeral,
-        });
+        const confirmPayload = buildDivorceConfirmPayloadV2(spouseId, confirmBtnId, cancelBtnId);
+        const response = await interaction.reply(confirmPayload);
 
         const collector = response.createMessageComponentCollector({
           componentType: ComponentType.Button,
@@ -983,34 +813,23 @@ export default {
               await deleteMarriage(botClient, guildId, interaction.user.id, spouseId);
             }
 
-            const announcementEmbed = new EmbedBuilder()
-              .setColor(MARRIAGE_CONFIG.colors.divorced)
-              .setTitle(MARRIAGE_CONFIG.divorce.announcementTitle)
-              .setDescription(
-                MARRIAGE_CONFIG.divorce.announcementDescription(
-                  interaction.user.id,
-                  spouseId,
-                ),
-              )
-              .setFooter({ text: MARRIAGE_CONFIG.divorce.announcementFooter })
-              .setTimestamp();
-
             await btnInteraction.update({
               content: 'Đã hoàn tất thủ tục ly hôn.',
-              embeds: [],
               components: [],
             });
 
-            return interaction.channel?.send({
-              embeds: [announcementEmbed],
-            }).catch(() => {});
+            const announcementPayload = buildDivorceAnnouncementPayloadV2(
+              interaction.user.id,
+              spouseId,
+            );
+
+            return interaction.channel?.send(announcementPayload).catch(() => {});
           }
 
           if (btnInteraction.customId === cancelBtnId) {
             collector.stop('cancelled');
             return btnInteraction.update({
               content: MARRIAGE_CONFIG.divorce.cancelledMessage,
-              embeds: [],
               components: [],
             });
           }
@@ -1021,37 +840,8 @@ export default {
 
       // 8. BẢNG XẾP HẠNG
       if (subcommand === 'bxh') {
-        const topList = await getTopMarriages(botClient, guildId, 10);
-
-        if (!topList || topList.length === 0) {
-          return interaction.reply({
-            content: MARRIAGE_CONFIG.leaderboard.emptyMessage,
-          });
-        }
-
-        const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
-
-        const lines = topList.map((item, index) => {
-          const medal = medals[index] || `#${index + 1}`;
-          const daysTogether = Math.max(1, Math.floor((Date.now() - item.marriedAt) / 86400000));
-          return (
-            `${medal} **<@${item.user1Id}>** ❤️ **<@${item.user2Id}>**\n` +
-            `> <a:trangtrig46:1547240249761996812> **${item.lovePoints.toLocaleString()}** điểm · ${item.level.icon} *${item.level.name}* (${item.level.title}) · **${daysTogether}** ngày bên nhau (<a:trangtrig45:1547239010190237819> Chuỗi: **${item.streak || 0}** ngày)`
-          );
-        });
-
-        const bxhEmbed = new EmbedBuilder()
-          .setColor(MARRIAGE_CONFIG.colors.leaderboard)
-          .setTitle(MARRIAGE_CONFIG.leaderboard.embedTitle)
-          .setDescription(lines.join('\n\n'))
-          .setFooter({
-            text: MARRIAGE_CONFIG.leaderboard.embedFooter,
-          })
-          .setTimestamp();
-
-        return interaction.reply({
-          embeds: [bxhEmbed],
-        });
+        const topList = await getTopMarriages(botClient, guildId, 5);
+        return interaction.reply(buildLeaderboardPayloadV2(topList));
       }
     } catch (error) {
       logger.error('Lỗi khi thực thi lệnh marry:', error);
