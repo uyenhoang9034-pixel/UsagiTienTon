@@ -6,10 +6,13 @@ import {
 } from '../../config/wordGuessConfig.js';
 import {
   buildAdminPanelPayloadV2,
+  buildNightLockPayloadV2,
   buildWordGuessNoticePayloadV2,
   getActiveRound,
   getWordGuessGuildConfig,
+  getWordGuessNow,
   isWordGuessAdmin,
+  isWordGuessNightLock,
   resetGuildLeaderboard,
   saveWordGuessGuildConfig,
   startWordGuessRound,
@@ -114,7 +117,11 @@ export default {
 
       if (subcommand === 'panel') {
         const config = await getWordGuessGuildConfig(botClient, interaction.guildId);
-        const panelPayload = buildAdminPanelPayloadV2(config, getActiveRound(interaction.guildId));
+        const panelPayload = buildAdminPanelPayloadV2(
+          config,
+          getActiveRound(interaction.guildId),
+          getWordGuessNow(botClient),
+        );
         return interaction.reply(panelPayload);
       }
 
@@ -142,12 +149,14 @@ export default {
 
         const customDuration = interaction.options?.getInteger?.('thoigian');
         const autoStartOpt = interaction.options?.getBoolean?.('tudong');
+        const nowMs = getWordGuessNow(botClient);
+        const nightStatus = isWordGuessNightLock(nowMs);
 
         const savedConfig = await withGuildLock(interaction.guildId, async () => {
           const config = await getWordGuessGuildConfig(botClient, interaction.guildId);
           config.channelId = String(targetChannel.id);
           config.enabled = true;
-          config.idlePaused = false;
+          config.idlePaused = nightStatus.locked;
           if (Number.isInteger(customDuration)) {
             config.durationSeconds = Math.max(
               WORD_GUESS_DEFAULTS.MIN_DURATION_SECONDS,
@@ -162,10 +171,24 @@ export default {
           return saveWordGuessGuildConfig(botClient, interaction.guildId, config);
         });
 
+        if (nightStatus.locked) {
+          return interaction.reply(
+            buildNightLockPayloadV2({
+              currentTimeText: nightStatus.currentTimeText,
+              startHour: nightStatus.startHour,
+              endHour: nightStatus.endHour,
+              includeResumeButton: false,
+              ephemeral: true,
+              configSavedNotice: true,
+            }),
+          );
+        }
+
         const started = await startWordGuessRound(botClient, interaction.guildId);
         const panelPayload = buildAdminPanelPayloadV2(
           started?.config || savedConfig,
           started?.round || getActiveRound(interaction.guildId),
+          nowMs,
         );
 
         return interaction.reply(panelPayload);
@@ -194,7 +217,7 @@ export default {
         });
 
         return interaction.reply(
-          buildAdminPanelPayloadV2(updatedConfig, getActiveRound(interaction.guildId)),
+          buildAdminPanelPayloadV2(updatedConfig, getActiveRound(interaction.guildId), getWordGuessNow(botClient)),
         );
       }
 

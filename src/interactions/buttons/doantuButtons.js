@@ -9,12 +9,15 @@ import {
   buildAdminPanelPayloadV2,
   buildIdlePausedPayloadV2,
   buildLeaderboardPayloadV2,
+  buildNightLockPayloadV2,
   buildWordGuessNoticePayloadV2,
   disableWordGuessGuild,
   getActiveRound,
   getPlayerLeaderboardPosition,
   getWordGuessGuildConfig,
+  getWordGuessNow,
   isWordGuessAdmin,
+  isWordGuessNightLock,
   revealRoundHint,
   saveWordGuessGuildConfig,
   startWordGuessRound,
@@ -109,6 +112,19 @@ export default [
         resumingGuilds.add(guildId);
         try {
           const botClient = client || interaction.client;
+          const nightStatus = isWordGuessNightLock(getWordGuessNow(botClient));
+          if (nightStatus.locked) {
+            return interaction.reply(
+              buildNightLockPayloadV2({
+                currentTimeText: nightStatus.currentTimeText,
+                startHour: nightStatus.startHour,
+                endHour: nightStatus.endHour,
+                includeResumeButton: false,
+                ephemeral: true,
+              }),
+            );
+          }
+
           const config = await getWordGuessGuildConfig(botClient, guildId);
 
           if (!config.enabled || !config.channelId) {
@@ -165,7 +181,19 @@ export default [
           );
 
           const started = await startWordGuessRound(botClient, guildId, { isAutoContinuation: false });
-          if (!started?.success) {
+          if (started?.reason === 'NIGHT_LOCK') {
+            await interaction
+              .followUp?.(
+                buildNightLockPayloadV2({
+                  currentTimeText: started.nightStatus.currentTimeText,
+                  startHour: started.nightStatus.startHour,
+                  endHour: started.nightStatus.endHour,
+                  includeResumeButton: false,
+                  ephemeral: true,
+                }),
+              )
+              ?.catch?.(() => {});
+          } else if (!started?.success) {
             await interaction
               .followUp?.(
                 buildWordGuessNoticePayloadV2({
@@ -257,6 +285,17 @@ export default [
         }
 
         const result = await startWordGuessRound(client, interaction.guildId, { forceEnable: true });
+        if (result.reason === 'NIGHT_LOCK') {
+          return interaction.reply(
+            buildNightLockPayloadV2({
+              currentTimeText: result.nightStatus.currentTimeText,
+              startHour: result.nightStatus.startHour,
+              endHour: result.nightStatus.endHour,
+              includeResumeButton: false,
+              ephemeral: true,
+            }),
+          );
+        }
         if (!result.success) {
           const reasonMessage =
             result.reason === 'NO_CHANNEL'
@@ -272,7 +311,7 @@ export default [
           );
         }
 
-        const panelPayload = buildAdminPanelPayloadV2(result.config, result.round);
+        const panelPayload = buildAdminPanelPayloadV2(result.config, result.round, getWordGuessNow(client));
         await interaction.update(panelPayload);
       } catch (error) {
         logger.error('[DoanTuButtons] Lỗi nút doantu_admin_start:', error);
@@ -299,14 +338,30 @@ export default [
         });
 
         let currentRound = getActiveRound(interaction.guildId);
+        let nightBlocked = null;
         if (saved.enabled && saved.autoStart && saved.channelId && !currentRound) {
           const started = await startWordGuessRound(client, interaction.guildId);
           if (started?.success) {
             currentRound = started.round;
+          } else if (started?.reason === 'NIGHT_LOCK') {
+            nightBlocked = started.nightStatus;
           }
         }
 
-        await interaction.update(buildAdminPanelPayloadV2(saved, currentRound));
+        await interaction.update(buildAdminPanelPayloadV2(saved, currentRound, getWordGuessNow(client)));
+        if (nightBlocked) {
+          await interaction
+            .followUp?.(
+              buildNightLockPayloadV2({
+                currentTimeText: nightBlocked.currentTimeText,
+                startHour: nightBlocked.startHour,
+                endHour: nightBlocked.endHour,
+                includeResumeButton: false,
+                ephemeral: true,
+              }),
+            )
+            ?.catch?.(() => {});
+        }
       } catch (error) {
         logger.error('[DoanTuButtons] Lỗi nút doantu_admin_toggle:', error);
       }
@@ -368,7 +423,7 @@ export default [
         const currentConfig = await getWordGuessGuildConfig(client, interaction.guildId);
         if (currentConfig.enabled) {
           const disabledConfig = await disableWordGuessGuild(client, interaction.guildId);
-          return interaction.update(buildAdminPanelPayloadV2(disabledConfig, null));
+          return interaction.update(buildAdminPanelPayloadV2(disabledConfig, null, getWordGuessNow(client)));
         }
 
         if (!currentConfig.channelId) {
@@ -381,22 +436,37 @@ export default [
           );
         }
 
+        const nowMs = getWordGuessNow(client);
+        const nightStatus = isWordGuessNightLock(nowMs);
         const enabledConfig = await withGuildLock(interaction.guildId, async () => {
           const cfg = await getWordGuessGuildConfig(client, interaction.guildId);
           cfg.enabled = true;
-          cfg.idlePaused = false;
+          cfg.idlePaused = nightStatus.locked;
           return saveWordGuessGuildConfig(client, interaction.guildId, cfg);
         });
 
         let activeRound = getActiveRound(interaction.guildId);
-        if (enabledConfig.autoStart && !activeRound) {
+        if (enabledConfig.autoStart && !activeRound && !nightStatus.locked) {
           const started = await startWordGuessRound(client, interaction.guildId);
           if (started?.success) {
             activeRound = started.round;
           }
         }
 
-        await interaction.update(buildAdminPanelPayloadV2(enabledConfig, activeRound));
+        await interaction.update(buildAdminPanelPayloadV2(enabledConfig, activeRound, nowMs));
+        if (nightStatus.locked) {
+          await interaction
+            .followUp?.(
+              buildNightLockPayloadV2({
+                currentTimeText: nightStatus.currentTimeText,
+                startHour: nightStatus.startHour,
+                endHour: nightStatus.endHour,
+                includeResumeButton: false,
+                ephemeral: true,
+              }),
+            )
+            ?.catch?.(() => {});
+        }
       } catch (error) {
         logger.error('[DoanTuButtons] Lỗi nút doantu_admin_disable:', error);
       }

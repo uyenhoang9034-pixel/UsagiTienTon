@@ -4,6 +4,7 @@ import {
   buildWordGuessNoticePayloadV2,
   getActiveRound,
   getWordGuessGuildConfig,
+  getWordGuessNow,
   isWordGuessAdmin,
   saveWordGuessGuildConfig,
   withGuildLock,
@@ -59,7 +60,11 @@ export default [
           return saveWordGuessGuildConfig(client, interaction.guildId, config);
         });
 
-        const panelPayload = buildAdminPanelPayloadV2(updatedConfig, getActiveRound(interaction.guildId));
+        const panelPayload = buildAdminPanelPayloadV2(
+          updatedConfig,
+          getActiveRound(interaction.guildId),
+          getWordGuessNow(client),
+        );
 
         if (typeof interaction.isFromMessage === 'function' && interaction.isFromMessage() && typeof interaction.update === 'function') {
           try {

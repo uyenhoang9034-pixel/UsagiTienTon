@@ -27,12 +27,14 @@ import {
   buildRoundWinPayloadV2,
   buildRoundTimeoutPayloadV2,
   buildIdlePausedPayloadV2,
+  buildNightLockPayloadV2,
   buildLeaderboardPayloadV2,
   buildPersonalStreakPayloadV2,
   buildAdminPanelPayloadV2,
   buildWordGuessNoticePayloadV2,
   getActiveRound,
   getGuildLastActivityAt,
+  isWordGuessNightLock,
   startWordGuessRound,
   revealRoundHint,
   handleWordGuessMessage,
@@ -45,7 +47,10 @@ import doantuAdminCommand from '../src/commands/Games/doantuAdmin.js';
 import doantuButtons from '../src/interactions/buttons/doantuButtons.js';
 import doantuModals from '../src/interactions/modals/doantuModals.js';
 
-function createMockClient() {
+const DAYTIME_MS = Date.parse('2026-11-09T14:00:00+07:00');
+
+function createMockClient(initialNow = DAYTIME_MS) {
+  let mockNow = initialNow;
   const store = new Map();
   const sentMessages = [];
   const channel = {
@@ -66,6 +71,10 @@ function createMockClient() {
   };
 
   const client = {
+    _wordGuessNow: () => mockNow,
+    setNow: (ms) => {
+      mockNow = ms;
+    },
     db: {
       get: async (key, fallback = null) => (store.has(key) ? structuredClone(store.get(key)) : fallback),
       set: async (key, value) => {
@@ -544,7 +553,7 @@ test('7. Sau 3 phút không có ai chơi thì tạm kết thúc & hiện nút Ch
       durationSeconds: 60,
     });
 
-    const t0 = 1_700_000_000_000;
+    const t0 = DAYTIME_MS;
     const r1 = await startWordGuessRound(client, 'guild_guess_1', {
       scheduleTimers: false,
       now: t0,
@@ -611,7 +620,7 @@ test('7. Sau 3 phút không có ai chơi thì tạm kết thúc & hiện nút Ch
     assertBorderlessV2(lastTwo[1].payload, 'TẠM KẾT THÚC DO VẮNG NGƯỜI CHƠI');
 
     // Admin panel báo đúng trạng thái đang tạm nghỉ & initWordGuessAutoResume bỏ qua phòng đang tạm nghỉ
-    const adminIdleText = collectTextsAndButtons(buildAdminPanelPayloadV2(to3.config, null)).texts.join('\n');
+    const adminIdleText = collectTextsAndButtons(buildAdminPanelPayloadV2(to3.config, null, t0 + 265_000)).texts.join('\n');
     assert.ok(adminIdleText.includes('Đang tạm nghỉ (Quá 3 phút chưa có người chơi)'));
     assert.equal(await initWordGuessAutoResume(client), 0);
 
@@ -693,6 +702,190 @@ test('7. Sau 3 phút không có ai chơi thì tạm kết thúc & hiện nút Ch
     );
     assert.equal(collectTextsAndButtons(disabledCardUpdate).buttons[0].disabled, true);
     assertBorderlessV2(disabledFollowUp, 'TRÒ CHƠI ĐANG TẮT', { ephemeral: true });
+  } finally {
+    resetAllInMemoryRounds();
+  }
+});
+
+test('8. Khóa cứng ban đêm 00:00 - 08:00 sáng (giờ Việt Nam): tự nghỉ 8 tiếng, bấm chơi trả thẻ khóa ban đêm', async () => {
+  resetAllInMemoryRounds();
+  try {
+    // 1. Kiểm tra biên múi giờ Việt Nam (UTC+7)
+    assert.equal(WORD_GUESS_DEFAULTS.NIGHT_LOCK_START_HOUR, 0);
+    assert.equal(WORD_GUESS_DEFAULTS.NIGHT_LOCK_END_HOUR, 8);
+    assert.equal(isWordGuessNightLock(Date.parse('2026-11-09T23:59:59+07:00')).locked, false);
+    assert.equal(isWordGuessNightLock(Date.parse('2026-11-10T00:00:00+07:00')).locked, true);
+    assert.equal(isWordGuessNightLock(Date.parse('2026-11-10T03:30:00+07:00')).locked, true);
+    assert.equal(isWordGuessNightLock(Date.parse('2026-11-10T07:59:59+07:00')).locked, true);
+    assert.equal(isWordGuessNightLock(Date.parse('2026-11-10T08:00:00+07:00')).locked, false);
+
+    // 2. Kiểm tra giao diện Ephemeral & giao diện Kênh khi chuyển sang ban đêm
+    const nightEphemeral = buildNightLockPayloadV2({
+      currentTimeText: '01:15',
+      includeResumeButton: false,
+      ephemeral: true,
+    });
+    assertBorderlessV2(nightEphemeral, 'BOT ĐANG KHÓA NGHỈ BAN ĐÊM', { ephemeral: true });
+    const epDetails = collectTextsAndButtons(nightEphemeral);
+    const epText = epDetails.texts.join('\n');
+    assert.ok(epText.includes(WORD_GUESS_EMOJIS.TIME));
+    assert.ok(epText.includes(WORD_GUESS_EMOJIS.ADMIN_DISABLE));
+    assert.ok(epText.includes(WORD_GUESS_EMOJIS.HINT));
+    assert.ok(epText.includes('00:00 - 08:00'));
+    assert.ok(epText.includes('01:15'));
+    assert.equal(epDetails.buttons.length, 0);
+
+    const nightChannel = buildNightLockPayloadV2({
+      currentTimeText: '00:00',
+      includeResumeButton: true,
+      ephemeral: false,
+    });
+    assertBorderlessV2(nightChannel, 'BOT ĐANG KHÓA NGHỈ BAN ĐÊM', { ephemeral: false });
+    const chDetails = collectTextsAndButtons(nightChannel);
+    assert.equal(chDetails.buttons.length, 1);
+    assert.equal(chDetails.buttons[0].style, 2);
+    assert.equal(chDetails.buttons[0].label, 'Chơi tiếp');
+    assert.equal(chDetails.buttons[0].custom_id, 'doantu_resume');
+    assert.deepEqual(chDetails.buttons[0].emoji, WORD_GUESS_BUTTON_EMOJIS.HINT);
+
+    // 3. Trong khung 00:00 - 08:00: chặn khởi động, chặn bấm Chơi tiếp, chặn nút Admin Start & Setup
+    const lateNightMs = Date.parse('2026-11-10T01:15:00+07:00');
+    const { client, channel, sentMessages } = createMockClient(lateNightMs);
+    await saveWordGuessGuildConfig(client, 'guild_guess_1', {
+      channelId: channel.id,
+      enabled: true,
+      autoStart: true,
+      idlePaused: true,
+      durationSeconds: 60,
+    });
+
+    assert.equal(await initWordGuessAutoResume(client), 0);
+
+    const blockedStart = await startWordGuessRound(client, 'guild_guess_1');
+    assert.equal(blockedStart.success, false);
+    assert.equal(blockedStart.reason, 'NIGHT_LOCK');
+
+    const resumeBtn = doantuButtons.find((b) => b.name === 'doantu_resume');
+    let resumeNightReply = null;
+    await resumeBtn.execute(
+      {
+        guildId: 'guild_guess_1',
+        channelId: channel.id,
+        user: { id: 'user_night' },
+        reply: async (p) => {
+          resumeNightReply = p;
+        },
+        update: async () => {
+          throw new Error('Không được tắt nút gốc trong ban đêm');
+        },
+      },
+      client,
+      [],
+    );
+    assertBorderlessV2(resumeNightReply, 'BOT ĐANG KHÓA NGHỈ BAN ĐÊM', { ephemeral: true });
+    assert.ok(collectTextsAndButtons(resumeNightReply).texts.join('\n').includes('01:15'));
+    assert.equal(getActiveRound('guild_guess_1'), null);
+
+    const adminStartBtn = doantuButtons.find((b) => b.name === 'doantu_admin_start');
+    let adminStartNightReply = null;
+    await adminStartBtn.execute(
+      {
+        guildId: 'guild_guess_1',
+        user: { id: 'u_admin' },
+        member: { roles: [WORD_GUESS_ADMIN_ROLE_ID] },
+        guild: { ownerId: 'owner_9' },
+        reply: async (p) => {
+          adminStartNightReply = p;
+        },
+      },
+      client,
+    );
+    assertBorderlessV2(adminStartNightReply, 'BOT ĐANG KHÓA NGHỈ BAN ĐÊM', { ephemeral: true });
+
+    let setupNightReply = null;
+    await doantuAdminCommand.execute(
+      {
+        guildId: 'guild_guess_1',
+        channel,
+        user: { id: 'u_admin' },
+        member: { roles: [WORD_GUESS_ADMIN_ROLE_ID] },
+        guild: { ownerId: 'owner_9', members: { me: null } },
+        options: {
+          getSubcommand: () => 'setup',
+          getChannel: () => channel,
+          getInteger: () => 45,
+          getBoolean: () => true,
+        },
+        replied: false,
+        deferred: false,
+        reply: async (p) => {
+          setupNightReply = p;
+        },
+      },
+      null,
+      client,
+    );
+    assertBorderlessV2(setupNightReply, 'BOT ĐANG KHÓA NGHỈ BAN ĐÊM', { ephemeral: true });
+    assert.ok(collectTextsAndButtons(setupNightReply).texts.join('\n').includes('Đã lưu cấu hình kênh chơi'));
+
+    const cfgAtNight = await getWordGuessGuildConfig(client, 'guild_guess_1');
+    const adminNightText = collectTextsAndButtons(buildAdminPanelPayloadV2(cfgAtNight, null, lateNightMs)).texts.join('\n');
+    assert.ok(adminNightText.includes('Đang khóa nghỉ ban đêm (00:00 - 08:00 sáng)'));
+
+    // 4. Ván bắt đầu lúc 23:59:40 -> hết giờ lúc 00:00:40 phải tự khóa ban đêm & gửi nút Chơi tiếp cho 08:00 sáng
+    const beforeMidnightMs = Date.parse('2026-11-09T23:59:40+07:00');
+    const afterMidnightMs = Date.parse('2026-11-10T00:00:40+07:00');
+    client.setNow(beforeMidnightMs);
+    const crossRound = await startWordGuessRound(client, 'guild_guess_1', {
+      scheduleTimers: false,
+      word: 'hoa hồng',
+    });
+    assert.equal(crossRound.success, true);
+
+    client.setNow(afterMidnightMs);
+    const crossTimeout = await handleRoundTimeout(client, 'guild_guess_1', crossRound.round.id, {
+      scheduleNext: true,
+    });
+    assert.equal(crossTimeout.pausedNight, true);
+    assert.equal(crossTimeout.config.idlePaused, true);
+    assert.equal(getActiveRound('guild_guess_1'), null);
+    assertBorderlessV2(sentMessages[sentMessages.length - 1].payload, 'BOT ĐANG KHÓA NGHỈ BAN ĐÊM', { ephemeral: false });
+
+    // 5. Ván bắt đầu lúc 23:59:50 -> có người đoán trúng lúc 00:00:05 vẫn cộng streak nhưng dừng vòng tự động để ngủ ban đêm
+    client.setNow(Date.parse('2026-11-09T23:59:50+07:00'));
+    await startWordGuessRound(client, 'guild_guess_1', {
+      scheduleTimers: false,
+      word: 'bánh chưng',
+    });
+    client.setNow(Date.parse('2026-11-10T00:00:05+07:00'));
+    const lateWin = await handleWordGuessMessage(
+      { guild: { id: 'guild_guess_1' }, channelId: channel.id, channel, author: { id: 'user_late', bot: false }, content: 'bánh chưng' },
+      client,
+      { scheduleNext: true },
+    );
+    assert.equal(lateWin, true);
+    assert.equal((await getWordGuessGuildConfig(client, 'guild_guess_1')).stats.user_late.currentStreak, 1);
+    assertBorderlessV2(sentMessages[sentMessages.length - 1].payload, 'BOT ĐANG KHÓA NGHỈ BAN ĐÊM', { ephemeral: false });
+
+    // 6. Đúng 08:00:00 sáng -> bấm Chơi tiếp mở ván mới ngay
+    client.setNow(Date.parse('2026-11-10T08:00:00+07:00'));
+    let wakeUpdate = null;
+    await resumeBtn.execute(
+      {
+        guildId: 'guild_guess_1',
+        channelId: channel.id,
+        user: { id: 'user_morning' },
+        update: async (p) => {
+          wakeUpdate = p;
+        },
+        reply: async () => {},
+        followUp: async () => {},
+      },
+      client,
+      [],
+    );
+    assert.equal(collectTextsAndButtons(wakeUpdate).buttons[0].disabled, true);
+    assert.ok(getActiveRound('guild_guess_1') && !getActiveRound('guild_guess_1').ended);
   } finally {
     resetAllInMemoryRounds();
   }

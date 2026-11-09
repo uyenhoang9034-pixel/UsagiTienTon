@@ -95,6 +95,77 @@ export function loadWordBank() {
   return cachedWordBank;
 }
 
+function releaseUnusedWordBankCache() {
+  if (activeRounds.size === 0 && activeTimers.size === 0) {
+    cachedWordBank = null;
+  }
+}
+
+export function getWordGuessNow(client = null, overrideNow = undefined) {
+  if (typeof overrideNow === 'number' && Number.isFinite(overrideNow)) {
+    return overrideNow;
+  }
+  if (typeof client?._wordGuessNow === 'function') {
+    const mocked = client._wordGuessNow();
+    if (typeof mocked === 'number' && Number.isFinite(mocked)) {
+      return mocked;
+    }
+  }
+  return Date.now();
+}
+
+/**
+ * Lấy giờ/phút/giây hiện tại theo múi giờ Việt Nam (Asia/Ho_Chi_Minh, UTC+7).
+ * @param {number} [nowMs]
+ * @returns {{ hour: number, minute: number, second: number }}
+ */
+export function getVietnamTimeParts(nowMs = Date.now()) {
+  const date = new Date(nowMs);
+  try {
+    const formatter = new Intl.DateTimeFormat('en-GB', {
+      timeZone: WORD_GUESS_DEFAULTS.NIGHT_LOCK_TIMEZONE || 'Asia/Ho_Chi_Minh',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    });
+    const parts = formatter.formatToParts(date);
+    const pickPart = (type) => Number.parseInt(parts.find((p) => p.type === type)?.value || '0', 10);
+    return {
+      hour: pickPart('hour') % 24,
+      minute: pickPart('minute'),
+      second: pickPart('second'),
+    };
+  } catch {
+    const vnDate = new Date(nowMs + 7 * 60 * 60 * 1000);
+    return {
+      hour: vnDate.getUTCHours(),
+      minute: vnDate.getUTCMinutes(),
+      second: vnDate.getUTCSeconds(),
+    };
+  }
+}
+
+/**
+ * Khóa cứng ban đêm từ 00:00 đến 08:00 sáng (8 tiếng, giờ Việt Nam) để tránh ngốn RAM.
+ * @param {number} [nowMs]
+ */
+export function isWordGuessNightLock(nowMs = Date.now()) {
+  const { hour, minute, second } = getVietnamTimeParts(nowMs);
+  const startHour = WORD_GUESS_DEFAULTS.NIGHT_LOCK_START_HOUR ?? 0;
+  const endHour = WORD_GUESS_DEFAULTS.NIGHT_LOCK_END_HOUR ?? 8;
+  const locked = hour >= startHour && hour < endHour;
+  return {
+    locked,
+    hour,
+    minute,
+    second,
+    startHour,
+    endHour,
+    currentTimeText: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+  };
+}
+
 /**
  * Chạy tuần tự thao tác đọc-ghi theo từng guildId để tránh xung đột streak.
  * @template T
@@ -557,10 +628,16 @@ export function buildRoundWinPayloadV2({
   winnerStats,
   nextRoundDelaySeconds = 5,
   autoStart = true,
+  pausedNight = false,
 }) {
   const answerUpper = String(answer || '').normalize('NFC').toLocaleUpperCase('vi-VN');
   const currentStreak = winnerStats?.currentStreak ?? 1;
   const bestStreak = Math.max(currentStreak, winnerStats?.bestStreak ?? 1);
+  const footerLine = pausedNight
+    ? 'Đã bước sang khung giờ nghỉ ban đêm (00:00 - 08:00) — nghỉ ngơi nha, hẹn 08:00 sáng~'
+    : autoStart
+      ? `Tự động bắt đầu ván mới sau ${nextRoundDelaySeconds} giây...`
+      : 'Ván chơi đã kết thúc • Dùng /doantu-admin để bắt đầu ván tiếp theo';
 
   return {
     flags: IS_COMPONENTS_V2,
@@ -594,7 +671,7 @@ export function buildRoundWinPayloadV2({
           },
           {
             type: 10,
-            content: `-# ${autoStart ? `Tự động bắt đầu ván mới sau ${nextRoundDelaySeconds} giây...` : 'Ván chơi đã kết thúc • Dùng /doantu-admin để bắt đầu ván tiếp theo'}`,
+            content: `-# ${footerLine}`,
           },
         ],
       },
@@ -611,13 +688,16 @@ export function buildRoundTimeoutPayloadV2({
   nextRoundDelaySeconds = 5,
   autoStart = true,
   pausedIdle = false,
+  pausedNight = false,
 }) {
   const answerUpper = String(answer || '').normalize('NFC').toLocaleUpperCase('vi-VN');
-  const footerLine = pausedIdle
-    ? 'Đã quá 3 phút chưa có người chơi — xem thẻ Tạm kết thúc bên dưới'
-    : autoStart
-      ? `Tự động chuyển sang từ mới sau ${nextRoundDelaySeconds} giây...`
-      : 'Trò chơi đang ở chế độ thủ công • Dùng /doantu-admin để chơi tiếp';
+  const footerLine = pausedNight
+    ? 'Đã bước sang khung giờ nghỉ ban đêm (00:00 - 08:00) — xem thẻ thông báo bên dưới'
+    : pausedIdle
+      ? 'Đã quá 3 phút chưa có người chơi — xem thẻ Tạm kết thúc bên dưới'
+      : autoStart
+        ? `Tự động chuyển sang từ mới sau ${nextRoundDelaySeconds} giây...`
+        : 'Trò chơi đang ở chế độ thủ công • Dùng /doantu-admin để chơi tiếp';
 
   return {
     flags: IS_COMPONENTS_V2,
@@ -715,6 +795,84 @@ export function buildIdlePausedPayloadV2({
             ],
           },
         ],
+      },
+    ],
+  };
+}
+
+/**
+ * 4c. Giao diện Khóa Ban Đêm (00:00 - 08:00 sáng giờ Việt Nam) để bot nghỉ 8 tiếng, tránh ngốn RAM.
+ */
+export function buildNightLockPayloadV2({
+  currentTimeText = null,
+  startHour = WORD_GUESS_DEFAULTS.NIGHT_LOCK_START_HOUR,
+  endHour = WORD_GUESS_DEFAULTS.NIGHT_LOCK_END_HOUR,
+  includeResumeButton = false,
+  resumeDisabled = false,
+  ephemeral = true,
+  configSavedNotice = false,
+} = {}) {
+  const startLabel = `${String(startHour).padStart(2, '0')}:00`;
+  const endLabel = `${String(endHour).padStart(2, '0')}:00`;
+  const timeInfo = currentTimeText
+    ? `Hiện đang là **${currentTimeText}** — bot đang tạm khóa ban đêm để tiết kiệm RAM.`
+    : 'Bot đang tạm khóa ban đêm để tiết kiệm RAM.';
+  const footerLine = configSavedNotice
+    ? `Đã lưu cấu hình kênh chơi • Trò chơi sẽ mở lại từ ${endLabel} sáng`
+    : 'Chuỗi Streak và BXH vẫn được bảo lưu nguyên vẹn qua đêm';
+
+  const containerChildren = [
+    {
+      type: 10,
+      content: formatWordGuessTitle('BOT ĐANG KHÓA NGHỈ BAN ĐÊM'),
+    },
+    {
+      type: 14,
+      divider: true,
+      spacing: 1,
+    },
+    {
+      type: 10,
+      content: [
+        `${WORD_GUESS_EMOJIS.TIME} **Khung giờ nghỉ cố định:** **${startLabel} - ${endLabel} sáng** (8 tiếng, giờ Việt Nam)`,
+        `${WORD_GUESS_EMOJIS.ADMIN_DISABLE} **Trạng thái hiện tại:** ${timeInfo}`,
+        `${WORD_GUESS_EMOJIS.HINT} **Thời gian mở lại:** Bạn vui lòng quay lại bấm **Chơi tiếp** sau **${endLabel} sáng** nha~`,
+      ].join('\n'),
+    },
+    {
+      type: 14,
+      divider: true,
+      spacing: 1,
+    },
+    {
+      type: 10,
+      content: `-# ${footerLine}`,
+    },
+  ];
+
+  if (includeResumeButton) {
+    containerChildren.push({
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 2, // Xám
+          label: 'Chơi tiếp',
+          emoji: WORD_GUESS_BUTTON_EMOJIS.HINT, // <a:heartg1:1545307544808071258>
+          custom_id: 'doantu_resume',
+          disabled: Boolean(resumeDisabled),
+        },
+      ],
+    });
+  }
+
+  return {
+    flags: ephemeral ? (MessageFlags.Ephemeral | IS_COMPONENTS_V2) : IS_COMPONENTS_V2,
+    allowedMentions: { parse: [] },
+    components: [
+      {
+        type: 17,
+        components: containerChildren,
       },
     ],
   };
@@ -888,13 +1046,19 @@ export function buildPersonalStreakPayloadV2({
 /**
  * 6. Giao diện Bảng Điều Khiển Admin (`/doantu-admin`, luôn Ephemeral chỉ Admin thấy).
  */
-export function buildAdminPanelPayloadV2(config, currentRound = null) {
+export function buildAdminPanelPayloadV2(config, currentRound = null, nowMs = Date.now()) {
   const duration = config?.durationSeconds ?? WORD_GUESS_DEFAULTS.ROUND_DURATION_SECONDS;
   const halfDuration = Math.max(1, Math.floor(duration / 2));
+  const nightStatus = isWordGuessNightLock(nowMs);
 
   let statusLabel = 'Đang tắt';
   if (config?.channelId && config?.enabled) {
-    if (config.idlePaused && (!currentRound || currentRound.ended)) {
+    if (nightStatus.locked) {
+      statusLabel = 'Đang khóa nghỉ ban đêm (00:00 - 08:00 sáng)';
+      if (currentRound && !currentRound.ended) {
+        statusLabel += ' • Ván cuối đang khép lại';
+      }
+    } else if (config.idlePaused && (!currentRound || currentRound.ended)) {
       statusLabel = 'Đang tạm nghỉ (Quá 3 phút chưa có người chơi)';
     } else {
       statusLabel = config.autoStart
@@ -1071,6 +1235,7 @@ export function resetAllInMemoryRounds() {
   activeRounds.clear();
   registeredGuildCache.clear();
   guildLastActivityAt.clear();
+  cachedWordBank = null;
 }
 
 async function resolveGuildChannel(client, channelId) {
@@ -1107,12 +1272,34 @@ async function disableStartButtonOnRound(round) {
 function scheduleNextRound(client, guildId, delayMs = WORD_GUESS_DEFAULTS.NEXT_ROUND_DELAY_MS) {
   const key = String(guildId);
   clearGuildTimers(key);
+  const nightStatus = isWordGuessNightLock(getWordGuessNow(client));
+  if (nightStatus.locked) {
+    releaseUnusedWordBankCache();
+    return false;
+  }
+
   const nextRoundTimeout = setTimeout(async () => {
     try {
+      clearGuildTimers(key);
       const currentConfig = await getWordGuessGuildConfig(client, key);
       if (currentConfig.enabled && currentConfig.autoStart && !currentConfig.idlePaused && currentConfig.channelId) {
-        await startWordGuessRound(client, key, { isAutoContinuation: true });
+        const result = await startWordGuessRound(client, key, { isAutoContinuation: true });
+        if (result?.reason === 'NIGHT_LOCK') {
+          const channel = await resolveGuildChannel(client, currentConfig.channelId);
+          if (channel && typeof channel.send === 'function') {
+            await channel.send(
+              buildNightLockPayloadV2({
+                currentTimeText: result.nightStatus.currentTimeText,
+                startHour: result.nightStatus.startHour,
+                endHour: result.nightStatus.endHour,
+                includeResumeButton: true,
+                ephemeral: false,
+              }),
+            );
+          }
+        }
       }
+      releaseUnusedWordBankCache();
     } catch (error) {
       logger.error(`[WordGuess] Lỗi tự động bắt đầu ván mới ở guild ${key}:`, error);
     }
@@ -1123,6 +1310,7 @@ function scheduleNextRound(client, guildId, delayMs = WORD_GUESS_DEFAULTS.NEXT_R
     endTimeout: null,
     nextRoundTimeout,
   });
+  return true;
 }
 
 /**
@@ -1142,6 +1330,27 @@ export async function startWordGuessRound(client, guildId, options = {}) {
     }
     if (!config.enabled && !options.forceEnable) {
       return { success: false, reason: 'DISABLED', config };
+    }
+
+    const now = getWordGuessNow(client, options.now);
+    const nightStatus = isWordGuessNightLock(now);
+    if (nightStatus.locked) {
+      const staleRound = activeRounds.get(key);
+      if (staleRound && !staleRound.ended) {
+        staleRound.ended = true;
+        await disableStartButtonOnRound(staleRound);
+        activeRounds.delete(key);
+      }
+      clearGuildTimers(key);
+      guildLastActivityAt.delete(key);
+
+      let savedNightConfig = config;
+      if (config.enabled && !config.idlePaused) {
+        config.idlePaused = true;
+        savedNightConfig = await saveWordGuessGuildConfig(client, key, config);
+      }
+      releaseUnusedWordBankCache();
+      return { success: false, reason: 'NIGHT_LOCK', nightStatus, config: savedNightConfig };
     }
 
     if (options.forceEnable && !config.enabled) {
@@ -1170,7 +1379,6 @@ export async function startWordGuessRound(client, guildId, options = {}) {
     const hintMask = buildHintMask(word);
     const roundId = crypto.randomBytes(4).toString('hex');
 
-    const now = typeof options.now === 'number' ? options.now : Date.now();
     if (!options.isAutoContinuation) {
       markGuildActivity(key, now);
     } else if (!guildLastActivityAt.has(key)) {
@@ -1259,7 +1467,7 @@ export async function revealRoundHint(client, guildId, options = {}) {
   }
 
   // Đánh dấu đồng bộ trước khi await để chống click trùng
-  const now = typeof options.now === 'number' ? options.now : Date.now();
+  const now = getWordGuessNow(client, options.now);
   round.hintRevealed = true;
   if (options.triggeredByUser) {
     round.hadActivity = true;
@@ -1327,7 +1535,7 @@ export async function handleRoundTimeout(client, guildId, roundId = null, option
   clearGuildTimers(key);
 
   const { scheduleNext = true } = options;
-  const now = typeof options.now === 'number' ? options.now : Date.now();
+  const now = getWordGuessNow(client, options.now);
   const lastActivity = guildLastActivityAt.get(key) ?? round.startedAt;
   const idleElapsedMs = Math.max(0, now - lastActivity);
   const toleranceMs = WORD_GUESS_DEFAULTS.IDLE_TIMER_TOLERANCE_MS ?? 1000;
@@ -1345,13 +1553,16 @@ export async function handleRoundTimeout(client, guildId, roundId = null, option
       };
     }
 
+    const nightStatus = isWordGuessNightLock(now);
+    const shouldNightLock = Boolean(config.enabled) && nightStatus.locked;
     const shouldIdlePause =
+      !shouldNightLock &&
       Boolean(config.enabled) &&
       Boolean(config.autoStart) &&
       idleElapsedMs + toleranceMs >= WORD_GUESS_DEFAULTS.IDLE_TIMEOUT_MS;
 
     config.stats = stats;
-    config.idlePaused = shouldIdlePause;
+    config.idlePaused = shouldNightLock || shouldIdlePause;
     const savedConfig = await saveWordGuessGuildConfig(client, key, config);
 
     await disableStartButtonOnRound(round);
@@ -1360,14 +1571,24 @@ export async function handleRoundTimeout(client, guildId, roundId = null, option
       answer: round.word,
       durationSeconds: round.durationSeconds,
       nextRoundDelaySeconds: Math.round(WORD_GUESS_DEFAULTS.NEXT_ROUND_DELAY_MS / 1000),
-      autoStart: savedConfig.enabled && savedConfig.autoStart && !shouldIdlePause,
+      autoStart: savedConfig.enabled && savedConfig.autoStart && !shouldIdlePause && !shouldNightLock,
       pausedIdle: shouldIdlePause,
+      pausedNight: shouldNightLock,
     });
 
     const channel = await resolveGuildChannel(client, round.channelId);
     if (channel && typeof channel.send === 'function') {
       await channel.send(timeoutPayload);
-      if (shouldIdlePause) {
+      if (shouldNightLock) {
+        const nightLockPayload = buildNightLockPayloadV2({
+          currentTimeText: nightStatus.currentTimeText,
+          startHour: nightStatus.startHour,
+          endHour: nightStatus.endHour,
+          includeResumeButton: true,
+          ephemeral: false,
+        });
+        await channel.send(nightLockPayload);
+      } else if (shouldIdlePause) {
         const idlePausePayload = buildIdlePausedPayloadV2({
           idleMinutes: Math.max(1, Math.round(WORD_GUESS_DEFAULTS.IDLE_TIMEOUT_MS / 60000)),
         });
@@ -1379,13 +1600,14 @@ export async function handleRoundTimeout(client, guildId, roundId = null, option
       activeRounds.delete(key);
     }
 
-    if (shouldIdlePause) {
+    if (shouldNightLock || shouldIdlePause) {
       guildLastActivityAt.delete(key);
+      releaseUnusedWordBankCache();
     } else if (scheduleNext && savedConfig.enabled && savedConfig.autoStart) {
       scheduleNextRound(client, key);
     }
 
-    return { round, config: savedConfig, timeoutPayload, pausedIdle: shouldIdlePause };
+    return { round, config: savedConfig, timeoutPayload, pausedIdle: shouldIdlePause, pausedNight: shouldNightLock };
   });
 }
 
@@ -1416,7 +1638,7 @@ export async function handleWordGuessMessage(message, client, options = {}) {
     return false;
   }
 
-  const now = typeof options.now === 'number' ? options.now : Date.now();
+  const now = getWordGuessNow(client, options.now);
 
   // Ghi nhận vẫn đang có người chơi tham gia trong kênh (tính cả đoán thử chưa trúng)
   round.hadActivity = true;
@@ -1456,6 +1678,12 @@ export async function handleWordGuessMessage(message, client, options = {}) {
     stats[winnerId] = updatedWinnerStat;
     config.stats = stats;
 
+    const nightStatus = isWordGuessNightLock(now);
+    const shouldNightLock = Boolean(config.enabled) && nightStatus.locked;
+    if (shouldNightLock) {
+      config.idlePaused = true;
+    }
+
     // Không reset currentStreak của các người chơi khác khi có người thắng
     const savedConfig = await saveWordGuessGuildConfig(client, guildId, config);
 
@@ -1467,19 +1695,33 @@ export async function handleWordGuessMessage(message, client, options = {}) {
       reactionSeconds,
       winnerStats: updatedWinnerStat,
       nextRoundDelaySeconds: Math.round(WORD_GUESS_DEFAULTS.NEXT_ROUND_DELAY_MS / 1000),
-      autoStart: savedConfig.enabled && savedConfig.autoStart,
+      autoStart: savedConfig.enabled && savedConfig.autoStart && !shouldNightLock,
+      pausedNight: shouldNightLock,
     });
 
     const channel = message.channel || (await resolveGuildChannel(client, round.channelId));
     if (channel && typeof channel.send === 'function') {
       await channel.send(winPayload);
+      if (shouldNightLock) {
+        const nightLockPayload = buildNightLockPayloadV2({
+          currentTimeText: nightStatus.currentTimeText,
+          startHour: nightStatus.startHour,
+          endHour: nightStatus.endHour,
+          includeResumeButton: true,
+          ephemeral: false,
+        });
+        await channel.send(nightLockPayload);
+      }
     }
 
     if (activeRounds.get(guildId) === round) {
       activeRounds.delete(guildId);
     }
 
-    if (scheduleNext && savedConfig.enabled && savedConfig.autoStart) {
+    if (shouldNightLock) {
+      guildLastActivityAt.delete(guildId);
+      releaseUnusedWordBankCache();
+    } else if (scheduleNext && savedConfig.enabled && savedConfig.autoStart) {
       scheduleNextRound(client, guildId);
     }
   });
@@ -1501,6 +1743,7 @@ export async function disableWordGuessGuild(client, guildId) {
     await disableStartButtonOnRound(existing);
     activeRounds.delete(key);
   }
+  releaseUnusedWordBankCache();
 
   return withGuildLock(key, async () => {
     const config = await getWordGuessGuildConfig(client, key);
@@ -1527,6 +1770,15 @@ export async function resetGuildLeaderboard(client, guildId) {
  */
 export async function initWordGuessAutoResume(client) {
   try {
+    const nightStatus = isWordGuessNightLock(getWordGuessNow(client));
+    if (nightStatus.locked) {
+      releaseUnusedWordBankCache();
+      logger.info(
+        `[WordGuess] Đang trong khung giờ khóa ban đêm (${nightStatus.currentTimeText} VN, 00:00-08:00), bỏ qua tự động khôi phục.`,
+      );
+      return 0;
+    }
+
     const registryList = await getDatabaseValue(client, getWordGuessRegistryKey(), []);
     if (!Array.isArray(registryList) || registryList.length === 0) {
       return 0;
