@@ -17,7 +17,7 @@ export const botConfig = {
     activities: [
       {
         name: 'Custom Status',
-        state: process.env.BOT_ACTIVITY || 'stalking',
+        state: process.env.BOT_ACTIVITY || 'Chị Chanh siêu cấp đẳng cấp!',
         type: 4,
       },
     ],
