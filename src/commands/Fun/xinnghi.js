@@ -1,9 +1,11 @@
-import { SlashCommandBuilder, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder } from 'discord.js';
 import {
   THAN_VAN_CHANNEL_ID,
+  THAN_VAN_EMOJIS,
+  isThanVanChannel,
   getRandomExcuse,
-  buildExcuseEmbed,
-  buildExcuseActionRow,
+  buildExcusePayloadV2,
+  buildThanVanNoticePayloadV2,
 } from '../../services/thanVanTuBanService.js';
 import { logger } from '../../utils/logger.js';
 
@@ -29,36 +31,35 @@ export default {
     ),
 
   async execute(interaction, guildConfig, client) {
-    try {
-      const isTargetChannel =
-        interaction.channelId === THAN_VAN_CHANNEL_ID ||
-        interaction.channel?.parentId === THAN_VAN_CHANNEL_ID;
+    const isEphemeral = !interaction?._isPrefixCommand;
 
-      if (!isTargetChannel) {
-        return interaction.reply({
-          content: `❌ Lệnh này chỉ được sử dụng cố định tại kênh Than Vãn Tư Bản (<#${THAN_VAN_CHANNEL_ID}>) thôi nha! Hãy qua đó để tạo đơn xin nghỉ bao duyệt nhé! 🌸`,
-          flags: MessageFlags.Ephemeral,
-        });
+    try {
+      if (!isThanVanChannel(interaction)) {
+        return interaction.reply(
+          buildThanVanNoticePayloadV2({
+            title: 'SAI KÊNH SỬ DỤNG',
+            message: `Lệnh này chỉ được sử dụng cố định tại kênh Than Vãn Tư Bản (<#${THAN_VAN_CHANNEL_ID}>) thôi nha! Hãy qua đó để tạo đơn xin nghỉ bao duyệt nhé! ${THAN_VAN_EMOJIS.FLOWER}`,
+            ephemeral: isEphemeral,
+          }),
+        );
       }
 
       const style = interaction.options.getString('style') || 'luon_leo';
       const excuseData = getRandomExcuse(style);
-      const embed = buildExcuseEmbed(excuseData);
-      const row = buildExcuseActionRow(excuseData.styleKey);
 
-      return interaction.reply({
-        embeds: [embed],
-        components: [row],
-      });
+      return interaction.reply(buildExcusePayloadV2(excuseData));
     } catch (error) {
       logger.error('Error executing /xin-nghi command:', error);
       if (!interaction.replied && !interaction.deferred) {
         await interaction
-          .reply({
-            content:
-              '❌ Đã có lỗi xảy ra khi tạo đơn xin nghỉ phép. Vui lòng thử lại sau!',
-            flags: MessageFlags.Ephemeral,
-          })
+          .reply(
+            buildThanVanNoticePayloadV2({
+              title: 'THÔNG BÁO LỖI',
+              message:
+                'Đã có lỗi xảy ra khi tạo đơn xin nghỉ phép. Vui lòng thử lại sau!',
+              ephemeral: isEphemeral,
+            }),
+          )
           .catch(() => {});
       }
     }

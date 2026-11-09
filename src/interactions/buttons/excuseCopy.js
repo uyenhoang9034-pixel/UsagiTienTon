@@ -1,4 +1,8 @@
-import { MessageFlags } from 'discord.js';
+import {
+  extractExcuseTextFromMessage,
+  buildExcuseCopyPayloadV2,
+  buildThanVanNoticePayloadV2,
+} from '../../services/thanVanTuBanService.js';
 import { logger } from '../../utils/logger.js';
 
 export default {
@@ -6,26 +10,21 @@ export default {
 
   async execute(interaction, client, args) {
     try {
-      const embed = interaction.message?.embeds?.[0];
-      const desc = embed?.description || '';
+      const cleanText = extractExcuseTextFromMessage(interaction.message);
 
-      // Tách bỏ dòng header 'Tone: ...' nếu có, lấy từ đoạn 'Kính gửi...'
-      let cleanText = desc;
-      const lines = desc.split('\n');
-      const startIdx = lines.findIndex((l) =>
-        l.trim().toLowerCase().startsWith('kính gửi'),
-      );
-      if (startIdx !== -1) {
-        cleanText = lines.slice(startIdx).join('\n');
+      if (!cleanText) {
+        return await interaction.reply(
+          buildThanVanNoticePayloadV2({
+            title: 'THÔNG BÁO LỖI',
+            message: 'Không tìm thấy nội dung đơn xin nghỉ để trích xuất.',
+            ephemeral: true,
+          }),
+        );
       }
 
-      await interaction.reply({
-        content:
-          `📋 **ĐÃ TRÍCH XUẤT NỘI DUNG ĐƠN XIN NGHỈ:**\n` +
-          `\`\`\`text\n${cleanText.trim()}\n\`\`\`\n` +
-          `*Bạn có thể bấm giữ tin nhắn trên điện thoại hoặc click biểu tượng copy ở góc phải khung chữ trên máy tính để gửi cho sếp nha!* 🚀`,
-        flags: MessageFlags.Ephemeral,
-      });
+      await interaction.reply(
+        buildExcuseCopyPayloadV2(cleanText, { ephemeral: true }),
+      );
 
       logger.debug(
         `[ExcuseCopy] ${interaction.user.tag} đã copy nội dung đơn xin nghỉ phép.`,
@@ -34,10 +33,13 @@ export default {
       logger.error('Error executing excuse_copy button:', error);
       if (!interaction.replied && !interaction.deferred) {
         await interaction
-          .reply({
-            content: '❌ Đã có lỗi xảy ra khi trích xuất đơn xin nghỉ.',
-            flags: MessageFlags.Ephemeral,
-          })
+          .reply(
+            buildThanVanNoticePayloadV2({
+              title: 'THÔNG BÁO LỖI',
+              message: 'Đã có lỗi xảy ra khi trích xuất đơn xin nghỉ.',
+              ephemeral: true,
+            }),
+          )
           .catch(() => {});
       }
     }

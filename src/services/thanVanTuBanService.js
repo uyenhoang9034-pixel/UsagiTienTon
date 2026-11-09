@@ -3,8 +3,50 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  MessageFlags,
 } from 'discord.js';
 import { logger } from '../utils/logger.js';
+
+/**
+ * Message Flag Discord Components V2 (1 << 15 = 32768)
+ */
+export const IS_COMPONENTS_V2 = MessageFlags?.IsComponentsV2 ?? (1 << 15);
+
+/**
+ * Hệ thống custom emoji server cho toàn bộ tính năng Than Vãn Tư Bản
+ */
+export const THAN_VAN_EMOJIS = {
+  TITLE_L: '<a:trangtrig2:1546040703375904801>',
+  TITLE_R: '<a:trangtrig3:1546040818261954610>',
+  HAMSTER: '<a:hamsterg1:1546057526905405512>',
+  TING_TING: '<a:trangtrig27:1546093546178748426>',
+  DIEM_BAO: '<a:trangtrig45:1547239010190237819>',
+  ALERT: '<a:bang2:1546891483250954290>',
+  HEART: '<a:heartg1:1545307544808071258>',
+  PRAYER_BULLET: '<a:bang1:1546891405371117668>',
+  CANDLE: '<a:trangtrig48:1563552038883958855>',
+  VO_DE_ALERT: '<a:bang3:1546891744237461635>',
+  FLOWER: '<a:trangtrig28:1546093580551061544>',
+  COPY_ICON: '<a:trangtrig31:1546905996893626440>',
+  REROLL_ICON: '<a:trangtrig54:1567819312775823402>',
+  BUTTON_REROLL: {
+    name: 'trangtrig54',
+    id: '1567819312775823402',
+    animated: true,
+  },
+  BUTTON_COPY: {
+    name: 'trangtrig31',
+    id: '1546905996893626440',
+    animated: true,
+  },
+};
+
+export function formatThanVanTitle(title) {
+  return `${THAN_VAN_EMOJIS.TITLE_L} **${String(title || '').toUpperCase()}** ${THAN_VAN_EMOJIS.TITLE_R}`;
+}
+
+const VO_DE_GIF_URL =
+  'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3Z0NWhzbXh4aWlsZzJ6ZnQ2bXFoc2s1c3E3dGVobGV5ZWRubzRpayZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7TKSjRrfIPjeiVyM/giphy.gif';
 
 /**
  * ID kênh than vãn tư bản duy nhất được phép kích hoạt tính năng.
@@ -26,6 +68,13 @@ export const RAGE_ANNOUNCE_COOLDOWN_MS = 60 * 1000; // 1 phút
  * Key dạng: `${type}-${channelId}`
  */
 const cooldowns = new Map();
+
+/**
+ * Cache dự phòng quẻ công sở trong ngày (tránh lỗi ReferenceError khi DB chưa sẵn sàng).
+ * Key dạng: `thanvan:fortune:${userId}:${dateStr}`
+ */
+const fortuneHistoryCache = new Map();
+const MAX_FORTUNE_CACHE_ENTRIES = 500;
 
 /**
  * Lưu trữ nộ khí theo từng guild (server).
@@ -311,10 +360,28 @@ export function formatProgressBar(percent, length = 10) {
 }
 
 // ==========================================
-// 1. TÍNH NĂNG TAN LÀM & NGÀY LƯƠNG
+// 1. TÍNH NĂNG TAN LÀM & NGÀY LƯƠNG (COMPONENTS V2)
 // ==========================================
 
-export function buildTanLamEmbed(nowVN = getVietnamTime()) {
+function wrapThanVanContainer(innerComponents, { ephemeral = false, disableMentions = true } = {}) {
+  const payload = {
+    flags: ephemeral ? (MessageFlags.Ephemeral | IS_COMPONENTS_V2) : IS_COMPONENTS_V2,
+    components: [
+      {
+        type: 17, // Container màu gốc không viền
+        components: innerComponents,
+      },
+    ],
+  };
+
+  if (disableMentions) {
+    payload.allowedMentions = { parse: [] };
+  }
+
+  return payload;
+}
+
+export function buildTanLamPayloadV2(nowVN = getVietnamTime()) {
   const endHour = 17;
   const endMinute = 30;
   const endSecond = 0;
@@ -349,7 +416,7 @@ export function buildTanLamEmbed(nowVN = getVietnamTime()) {
 
   if (diffMs <= 0) {
     remainingText =
-      '# **ĐÃ HẾT GIỜ HÀNH CHÍNH!!!**\n# Còn ngồi đó làm gì nữa, xách xe về ngayyyyy <a:hamsterg1:1546057526905405512>';
+      `# **ĐÃ HẾT GIỜ HÀNH CHÍNH!!!**\n# Còn ngồi đó làm gì nữa, xách xe về ngayyyyy ${THAN_VAN_EMOJIS.HAMSTER}`;
     percent = 100;
   } else {
     const hours = Math.floor(diffMs / 3600000);
@@ -370,35 +437,50 @@ export function buildTanLamEmbed(nowVN = getVietnamTime()) {
 
   const progressBar = formatProgressBar(percent, 10);
 
-  const description =
+  const bodyContent =
     diffMs <= 0
       ? [
-        `Giờ chuẩn tan làm: 17:30:00`,
-        ``,
-        `${remainingText}`,
-        ``,
-        `Tiến độ ngày cày cuốc: [${progressBar}] ${percent}%`,
-      ].join('\n')
+          `Giờ chuẩn tan làm: **17:30:00**`,
+          ``,
+          `${remainingText}`,
+          ``,
+          `Tiến độ ngày cày cuốc: [${progressBar}] ${percent}%`,
+        ].join('\n')
       : [
-        `Giờ chuẩn tan làm: 17:30:00`,
-        ``,
-        `Còn lại: ${remainingText}`,
-        ``,
-        `Tiến độ ngày cày cuốc: [${progressBar}] ${percent}%`,
-      ].join('\n');
+          `Giờ chuẩn tan làm: **17:30:00**`,
+          ``,
+          `Còn lại: **${remainingText}**`,
+          ``,
+          `Tiến độ ngày cày cuốc: [${progressBar}] ${percent}%`,
+        ].join('\n');
 
-  return new EmbedBuilder()
-    .setTitle(
-      '<a:trangtrig2:1546040703375904801> **ĐỒNG HỒ ĐẾM NGƯỢC: GIỜ CHUỒN KHỎI TƯ BẢN** <a:trangtrig3:1546040818261954610>',
-    )
-    .setColor('#FFB6C1')
-    .setDescription(description)
-    .setFooter({
-      text: 'Thu dọn balo dần và alt-tab sẵn đi là vừa!',
-    });
+  return wrapThanVanContainer([
+    {
+      type: 10,
+      content: formatThanVanTitle('ĐỒNG HỒ ĐẾM NGƯỢC: GIỜ CHUỒN KHỎI TƯ BẢN'),
+    },
+    {
+      type: 14,
+      divider: true,
+      spacing: 1,
+    },
+    {
+      type: 10,
+      content: bodyContent,
+    },
+    {
+      type: 14,
+      divider: true,
+      spacing: 1,
+    },
+    {
+      type: 10,
+      content: `-# Thu dọn balo dần và alt-tab sẵn đi là vừa!`,
+    },
+  ]);
 }
 
-export function buildLuongEmbed(nowVN = getVietnamTime()) {
+export function buildLuongPayloadV2(nowVN = getVietnamTime()) {
   const payday = 10;
   const currentYear = nowVN.getFullYear();
   const currentMonth = nowVN.getMonth();
@@ -429,7 +511,7 @@ export function buildLuongEmbed(nowVN = getVietnamTime()) {
 
   if (currentDate === payday) {
     remainingText =
-      '# **HÔM NAY LÀ NGÀY TING TING!!!**\n# Mau mở app ngân hàng hồi sinh tài khoản nàooooo <a:trangtrig27:1546093546178748426>';
+      `# **HÔM NAY LÀ NGÀY TING TING!!!**\n# Mau mở app ngân hàng hồi sinh tài khoản nàooooo ${THAN_VAN_EMOJIS.TING_TING}`;
     percent = 100;
   } else {
     const diffMs = targetDate.getTime() - nowVN.getTime();
@@ -446,32 +528,47 @@ export function buildLuongEmbed(nowVN = getVietnamTime()) {
 
   const progressBar = formatProgressBar(percent, 10);
 
-  const description =
+  const bodyContent =
     currentDate === payday
       ? [
-        `Dự kiến ngày ting ting: Ngày 10 hàng tháng`,
-        ``,
-        `${remainingText}`,
-        ``,
-        `Thời gian tồn tại bằng mì gói: [${progressBar}] ${percent}% chặng đường`,
-      ].join('\n')
+          `Dự kiến ngày ting ting: **Ngày 10 hàng tháng**`,
+          ``,
+          `${remainingText}`,
+          ``,
+          `Thời gian tồn tại bằng mì gói: [${progressBar}] ${percent}% chặng đường`,
+        ].join('\n')
       : [
-        `Dự kiến ngày ting ting: Ngày 10 hàng tháng`,
-        ``,
-        `Còn lại: ${remainingText}`,
-        ``,
-        `Thời gian tồn tại bằng mì gói: [${progressBar}] ${percent}% chặng đường`,
-      ].join('\n');
+          `Dự kiến ngày ting ting: **Ngày 10 hàng tháng**`,
+          ``,
+          `Còn lại: **${remainingText}**`,
+          ``,
+          `Thời gian tồn tại bằng mì gói: [${progressBar}] ${percent}% chặng đường`,
+        ].join('\n');
 
-  return new EmbedBuilder()
-    .setTitle(
-      '<a:trangtrig2:1546040703375904801> **LỊCH HÓNG TING TING** <a:trangtrig3:1546040818261954610>',
-    )
-    .setColor('#FFB6C1')
-    .setDescription(description)
-    .setFooter({
-      text: 'Cố lên culi, đừng để tiền đình trước khi tiền về!',
-    });
+  return wrapThanVanContainer([
+    {
+      type: 10,
+      content: formatThanVanTitle('LỊCH HÓNG TING TING'),
+    },
+    {
+      type: 14,
+      divider: true,
+      spacing: 1,
+    },
+    {
+      type: 10,
+      content: bodyContent,
+    },
+    {
+      type: 14,
+      divider: true,
+      spacing: 1,
+    },
+    {
+      type: 10,
+      content: `-# Cố lên culi, đừng để tiền đình trước khi tiền về!`,
+    },
+  ]);
 }
 
 // ==========================================
@@ -494,6 +591,12 @@ export async function getUserDailyFortune(client, userId, dateStr) {
 export async function saveUserDailyFortune(client, userId, dateStr, fortune) {
   const key = `thanvan:fortune:${userId}:${dateStr}`;
   fortuneHistoryCache.set(key, fortune);
+  if (fortuneHistoryCache.size > MAX_FORTUNE_CACHE_ENTRIES) {
+    const oldestKey = fortuneHistoryCache.keys().next().value;
+    if (oldestKey) {
+      fortuneHistoryCache.delete(oldestKey);
+    }
+  }
   if (client?.db?.set) {
     try {
       await client.db.set(key, fortune);
@@ -508,45 +611,100 @@ export function getRandomFortune() {
   return OFFICE_FORTUNES[randomIndex];
 }
 
-export function buildFortuneEmbed(user, fortune, alreadyDrawn = false) {
-  const userName = user.displayName || user.username || 'Đồng nghiệp';
-  const avatarUrl = user.displayAvatarURL ? user.displayAvatarURL({ dynamic: true }) : null;
+export function buildFortunePayloadV2(user, fortune, alreadyDrawn = false) {
+  const userName = user?.displayName || user?.username || 'Đồng nghiệp';
+  const userMention = user?.id ? `<@${user.id}>` : `@${userName}`;
+  const rawAvatar = user?.displayAvatarURL
+    ? user.displayAvatarURL({ extension: 'png', size: 256 })
+    : null;
+  const avatarUrl =
+    typeof rawAvatar === 'string' && /^https?:\/\//i.test(rawAvatar)
+      ? rawAvatar
+      : null;
 
-  const embed = new EmbedBuilder()
-    .setColor('#FFB6C1') // Hồng pastel
-    .setAuthor({
-      name: `Quẻ Xăm Công Sở Của: @${userName}`,
-      iconURL: avatarUrl || undefined,
-    })
-    .setTitle(`**[${fortune.type}]** - ${fortune.title}`)
-    .addFields([
-      {
-        name: '<a:trangtrig45:1547239010190237819> Điềm báo:',
-        value: fortune.diemBao,
-        inline: false,
-      },
-      {
-        name: '<a:bang2:1546891483250954290> Điều đại kỵ:',
-        value: fortune.dieuDaiKy,
-        inline: false,
-      },
-      {
-        name: '<a:heartg1:1545307544808071258> Con số may mắn:',
-        value: fortune.conSoMayMan,
-        inline: false,
-      },
-    ])
-    .setFooter({
-      text: 'Mỗi ngày chỉ được xin 1 quẻ. Đổi quẻ sếp trừ lương!',
-    });
-
+  const headerSectionLines = [];
   if (alreadyDrawn) {
-    embed.setDescription(
-      `⚠️ **Bạn đã xin quẻ của ngày hôm nay rồi nha!**\n*Vận mệnh an bài, xin thêm cũng không đổi được đâu culi ơi:*`,
+    headerSectionLines.push(
+      `${THAN_VAN_EMOJIS.ALERT} **Bạn đã xin quẻ của ngày hôm nay rồi nha!**`,
+      `*Vận mệnh an bài, xin thêm cũng không đổi được đâu culi ơi:*`,
+      ``,
     );
   }
+  headerSectionLines.push(
+    `Quẻ Xăm Công Sở Của: ${userMention}`,
+    `### **[${fortune.type}]** - ${fortune.title}`,
+  );
+  const headerSectionText = headerSectionLines.join('\n');
 
-  return embed;
+  const detailText = [
+    `${THAN_VAN_EMOJIS.DIEM_BAO} **Điềm báo:**`,
+    `> ${fortune.diemBao}`,
+    ``,
+    `${THAN_VAN_EMOJIS.ALERT} **Điều đại kỵ:**`,
+    `> ${fortune.dieuDaiKy}`,
+    ``,
+    `${THAN_VAN_EMOJIS.HEART} **Con số may mắn:**`,
+    `> ${fortune.conSoMayMan}`,
+  ].join('\n');
+
+  const containerComponents = [
+    {
+      type: 10,
+      content: formatThanVanTitle('QUẺ XĂM CÔNG SỞ'),
+    },
+    {
+      type: 14,
+      divider: true,
+      spacing: 1,
+    },
+  ];
+
+  if (avatarUrl) {
+    containerComponents.push({
+      type: 9, // Section + Thumbnail Avatar
+      components: [
+        {
+          type: 10,
+          content: headerSectionText,
+        },
+      ],
+      accessory: {
+        type: 11,
+        media: {
+          url: avatarUrl,
+        },
+        description: `Avatar của ${userName}`,
+      },
+    });
+  } else {
+    containerComponents.push({
+      type: 10,
+      content: headerSectionText,
+    });
+  }
+
+  containerComponents.push(
+    {
+      type: 14,
+      divider: true,
+      spacing: 1,
+    },
+    {
+      type: 10,
+      content: detailText,
+    },
+    {
+      type: 14,
+      divider: true,
+      spacing: 1,
+    },
+    {
+      type: 10,
+      content: `-# Mỗi ngày chỉ được xin 1 quẻ. Đổi quẻ sếp trừ lương!`,
+    },
+  );
+
+  return wrapThanVanContainer(containerComponents);
 }
 
 // ==========================================
@@ -584,62 +742,109 @@ export async function saveRageMeter(client, guildId, points) {
   return clamped;
 }
 
-export function buildRageMeterEmbed(currentRage) {
-  let color = '#F1C40F'; // Dưới 50%: Vàng
+export function buildRageMeterPayloadV2(currentRage) {
+  let levelEmoji = THAN_VAN_EMOJIS.DIEM_BAO;
   let statusText = 'Ậm ừ chịu đựng - Bắt đầu thở dài theo nhịp';
 
   if (currentRage >= 80) {
-    color = '#E74C3C'; // Trên 80%: Đỏ rực
+    levelEmoji = THAN_VAN_EMOJIS.VO_DE_ALERT;
     statusText = 'Báo động vỡ đê - Chuẩn bị tinh thần ăn gạch!';
   } else if (currentRage >= 50) {
-    color = '#E67E22'; // 50% - 80%: Cam
+    levelEmoji = THAN_VAN_EMOJIS.ALERT;
     statusText = 'Áp suất cao - Nghiêm cấm giao thêm task!';
   }
 
   // Thanh 15 ký tự theo đúng mẫu Discord UI
   const progressBar = formatProgressBar(currentRage, 15);
 
-  const description = [
-    `Nộ khí hiện tại: [${progressBar}] ${currentRage} / 100`,
+  const bodyContent = [
+    `Nộ khí hiện tại: [${progressBar}] **${currentRage} / 100**`,
     ``,
-    `Trạng thái: "${statusText}"`,
+    `${levelEmoji} Trạng thái: "${statusText}"`,
   ].join('\n');
 
-  return new EmbedBuilder()
-    .setTitle(
-      '<a:trangtrig2:1546040703375904801> **THƯỚC ĐO NỘ KHÍ TƯ BẢN** <a:trangtrig3:1546040818261954610>',
-    )
-    .setColor(color)
-    .setDescription(description)
-    .setFooter({
-      text: 'Hít sâu thở đều, gõ phím nhẹ tay kẻo gãy switch cơ nhé!',
-    });
+  return wrapThanVanContainer([
+    {
+      type: 10,
+      content: formatThanVanTitle('THƯỚC ĐO NỘ KHÍ TƯ BẢN'),
+    },
+    {
+      type: 14,
+      divider: true,
+      spacing: 1,
+    },
+    {
+      type: 10,
+      content: bodyContent,
+    },
+    {
+      type: 14,
+      divider: true,
+      spacing: 1,
+    },
+    {
+      type: 10,
+      content: `-# Hít sâu thở đều, gõ phím nhẹ tay kẻo gãy switch cơ nhé!`,
+    },
+  ]);
 }
 
-export function buildVoDePayload() {
-  const content = `<a:bang3:1546891744237461635> **VỠ ĐÊ RỒI! TOÀN BỘ SERVER ĐÃ ĐẠT ĐỈNH ĐIỂM ỨC CHẾ!** <a:bang3:1546891744237461635>`;
+export function buildVoDePayloadV2() {
+  const bodyContent = [
+    `${THAN_VAN_EMOJIS.VO_DE_ALERT} **VỠ ĐÊ RỒI! TOÀN BỘ SERVER ĐÃ ĐẠT ĐỈNH ĐIỂM ỨC CHẾ!** ${THAN_VAN_EMOJIS.VO_DE_ALERT}`,
+    ``,
+    `Toàn bộ anh em culi trong server đã đạt tới cảnh giới tẩu hỏa nhập ma vì tư bản!`,
+    ``,
+    `${THAN_VAN_EMOJIS.ALERT} **LỆNH GIẢI CỨU KHẨN CẤP:**`,
+    `• Kêu gọi toàn thể anh em gác task lại, order ngay một ly trà sữa full topping size L 70% đường 100% đá!`,
+    `• Tạm thời alt-tab sang ngắm meme chế giễu sếp để hạ hỏa nào!`,
+    `• Ghi nhớ: *Task có thể delay, bug có thể sửa sau, nhưng tiền đình thì không đùa được!*`,
+  ].join('\n');
 
-  const embed = new EmbedBuilder()
-    .setTitle('🧋 BẬT CHẾ ĐỘ "GIỜ GIẢI CỨU" - HẠ HỎA TOÀN SERVER 🧋')
-    .setColor('#E74C3C')
-    .setDescription(
-      `Toàn bộ anh em culi trong server đã đạt tới cảnh giới tẩu hỏa nhập ma vì tư bản!\n\n` +
-      `📢 **LỆNH GIẢI CỨU KHẨN CẤP:**\n` +
-      `• Kêu gọi toàn thể anh em gác task lại, order ngay một ly trà sữa full topping size L 70% đường 100% đá!\n` +
-      `• Tạm thời alt-tab sang ngắm meme chế giễu sếp để hạ hỏa nào!\n` +
-      `• Ghi nhớ: *Task có thể delay, bug có thể sửa sau, nhưng tiền đình thì không đùa được!*`,
-    )
-    .setImage(
-      'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3Z0NWhzbXh4aWlsZzJ6ZnQ2bXFoc2s1c3E3dGVobGV5ZWRubzRpayZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7TKSjRrfIPjeiVyM/giphy.gif',
-    )
-    .setFooter({
-      text: 'Van xả áp đã mở thành công! Thước đo nộ khí tự động reset về 0/100.',
-    });
-
-  return { content, embeds: [embed] };
+  return wrapThanVanContainer([
+    {
+      type: 10,
+      content: formatThanVanTitle('GIỜ GIẢI CỨU - HẠ HỎA TOÀN SERVER'),
+    },
+    {
+      type: 14,
+      divider: true,
+      spacing: 1,
+    },
+    {
+      type: 10,
+      content: bodyContent,
+    },
+    {
+      type: 14,
+      divider: true,
+      spacing: 1,
+    },
+    {
+      type: 12,
+      items: [
+        {
+          media: {
+            url: VO_DE_GIF_URL,
+          },
+          description: 'Giờ giải cứu hạ hỏa toàn server',
+        },
+      ],
+    },
+    {
+      type: 14,
+      divider: true,
+      spacing: 1,
+    },
+    {
+      type: 10,
+      content: `-# Van xả áp đã mở thành công! Thước đo nộ khí tự động reset về 0/100.`,
+    },
+  ]);
 }
 
-export const buildVoDeMessage = buildVoDePayload;
+export const buildVoDePayload = buildVoDePayloadV2;
+export const buildVoDeMessage = buildVoDePayloadV2;
 
 // ==========================================
 // 4. TÍNH NĂNG MÁY TẠO LÝ DO XIN NGHỈ PHÉP
@@ -656,6 +861,153 @@ export function getRandomExcuse(style = 'luon_leo') {
   };
 }
 
+export function buildExcusePayloadV2(excuseData) {
+  const bodyContent = [
+    `Tone: ${excuseData.styleName}`,
+    ``,
+    `Kính gửi Anh/Chị quản lý,`,
+    ``,
+    `${excuseData.text}`,
+  ].join('\n');
+
+  return wrapThanVanContainer([
+    {
+      type: 10,
+      content: formatThanVanTitle('ĐƠN XIN NGHỈ PHÉP "BAO DUYỆT"'),
+    },
+    {
+      type: 14,
+      divider: true,
+      spacing: 1,
+    },
+    {
+      type: 10,
+      content: bodyContent,
+    },
+    {
+      type: 14,
+      divider: true,
+      spacing: 1,
+    },
+    {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          style: 2,
+          label: 'Đổi lý do khác',
+          emoji: THAN_VAN_EMOJIS.BUTTON_REROLL,
+          custom_id: `excuse_reroll:${excuseData.styleKey}`,
+        },
+        {
+          type: 2,
+          style: 2,
+          label: 'Copy nội dung',
+          emoji: THAN_VAN_EMOJIS.BUTTON_COPY,
+          custom_id: 'excuse_copy',
+        },
+      ],
+    },
+  ]);
+}
+
+export function buildExcuseCopyPayloadV2(cleanText, { ephemeral = true } = {}) {
+  const textToCopy = String(cleanText || '').trim();
+
+  return wrapThanVanContainer(
+    [
+      {
+        type: 10,
+        content: formatThanVanTitle('ĐÃ TRÍCH XUẤT NỘI DUNG ĐƠN XIN NGHỈ'),
+      },
+      {
+        type: 14,
+        divider: true,
+        spacing: 1,
+      },
+      {
+        type: 10,
+        content: `\`\`\`text\n${textToCopy}\n\`\`\``,
+      },
+      {
+        type: 14,
+        divider: true,
+        spacing: 1,
+      },
+      {
+        type: 10,
+        content: `-# ${THAN_VAN_EMOJIS.COPY_ICON} *Bạn có thể bấm giữ tin nhắn trên điện thoại hoặc click biểu tượng copy ở góc phải khung chữ trên máy tính để gửi cho sếp nha!*`,
+      },
+    ],
+    { ephemeral },
+  );
+}
+
+function collectTextDisplaysFromComponents(components = [], acc = []) {
+  if (!Array.isArray(components)) {
+    return acc;
+  }
+
+  for (const comp of components) {
+    if (!comp) continue;
+    const type = comp.type ?? comp.data?.type;
+    const content = comp.content ?? comp.data?.content;
+
+    if (type === 10 && typeof content === 'string') {
+      acc.push(content);
+    }
+
+    const nested = comp.components ?? comp.data?.components;
+    if (Array.isArray(nested)) {
+      collectTextDisplaysFromComponents(nested, acc);
+    }
+  }
+
+  return acc;
+}
+
+export function extractExcuseTextFromMessage(message) {
+  const texts = collectTextDisplaysFromComponents(message?.components);
+  let desc = '';
+
+  if (texts.length > 0) {
+    desc =
+      texts.find((txt) => txt.toLowerCase().includes('kính gửi')) ||
+      texts[1] ||
+      texts[0] ||
+      '';
+  } else {
+    desc = message?.embeds?.[0]?.description || '';
+  }
+
+  const lines = String(desc).split('\n');
+  const startIdx = lines.findIndex((l) =>
+    l.trim().toLowerCase().startsWith('kính gửi'),
+  );
+  if (startIdx !== -1) {
+    return lines.slice(startIdx).join('\n').trim();
+  }
+
+  return String(desc).trim();
+}
+
+export function isComponentsV2Message(message) {
+  if (!message) {
+    return false;
+  }
+
+  const rawFlags = Number(message.flags?.bitfield ?? message.flags ?? 0);
+  if ((rawFlags & IS_COMPONENTS_V2) !== 0) {
+    return true;
+  }
+
+  return (
+    Array.isArray(message.components) &&
+    message.components.some((c) => (c?.type ?? c?.data?.type) === 17)
+  );
+}
+
+// Fallback tương thích cho tin nhắn Embed cũ trước khi nâng cấp V2
 export function buildExcuseEmbed(excuseData) {
   const description = [
     `Tone: ${excuseData.styleName}`,
@@ -666,10 +1018,8 @@ export function buildExcuseEmbed(excuseData) {
   ].join('\n');
 
   return new EmbedBuilder()
-    .setTitle(
-      '<a:trangtrig30:1546905942476464178> **ĐƠN XIN NGHỈ PHÉP "BAO DUYỆT"** <a:trangtrig30:1546905942476464178>',
-    )
-    .setColor('#FFB6C1') // Hồng pastel
+    .setTitle(formatThanVanTitle('ĐƠN XIN NGHỈ PHÉP "BAO DUYỆT"'))
+    .setColor('#FFB6C1')
     .setDescription(description);
 }
 
@@ -679,12 +1029,12 @@ export function buildExcuseActionRow(styleKey = 'luon_leo') {
       .setCustomId(`excuse_reroll:${styleKey}`)
       .setLabel('Đổi lý do khác')
       .setStyle(ButtonStyle.Secondary)
-      .setEmoji('🎲'),
+      .setEmoji(THAN_VAN_EMOJIS.BUTTON_REROLL),
     new ButtonBuilder()
       .setCustomId('excuse_copy')
       .setLabel('Copy nội dung')
       .setStyle(ButtonStyle.Secondary)
-      .setEmoji('📋'),
+      .setEmoji(THAN_VAN_EMOJIS.BUTTON_COPY),
   );
 }
 
@@ -723,11 +1073,20 @@ export function getRandomPrayers(count = 3, target = null) {
   const pool = [...OFFICE_PRAYERS_BASE];
 
   if (target) {
-    const key = target.toLowerCase();
-    for (const [tKey, pText] of Object.entries(TARGET_SPECIFIC_PRAYERS)) {
-      if (key.includes(tKey) || tKey.includes(key)) {
-        prayers.push(pText);
-        break;
+    const key = String(target).trim().toLowerCase();
+    const unaccentedKey = removeAccents(key);
+    if (unaccentedKey.length >= 2) {
+      for (const [tKey, pText] of Object.entries(TARGET_SPECIFIC_PRAYERS)) {
+        const unaccentedTarget = removeAccents(tKey);
+        if (
+          key.includes(tKey) ||
+          tKey.includes(key) ||
+          unaccentedKey.includes(unaccentedTarget) ||
+          unaccentedTarget.includes(unaccentedKey)
+        ) {
+          prayers.push(pText);
+          break;
+        }
       }
     }
   }
@@ -747,36 +1106,113 @@ export function getRandomPrayers(count = 3, target = null) {
   return prayers;
 }
 
-export function buildDotViaEmbed(user, target = null) {
-  const userMention = `<@${user.id}>`;
+export function buildDotViaPayloadV2(user, target = null) {
+  const userMention = user?.id ? `<@${user.id}>` : 'Đồng chí';
   const prayers = getRandomPrayers(3, target);
 
-  const description = [
+  const bodyContent = [
     `Đồng chí ${userMention} vừa châm 3 nén nhang cầu xin:`,
     ``,
-    `<a:bang1:1546891405371117668> ${prayers[0]}`,
+    `${THAN_VAN_EMOJIS.PRAYER_BULLET} ${prayers[0]}`,
     ``,
-    `<a:bang1:1546891405371117668> ${prayers[1]}`,
+    `${THAN_VAN_EMOJIS.PRAYER_BULLET} ${prayers[1]}`,
     ``,
-    `<a:bang1:1546891405371117668> ${prayers[2]}`,
+    `${THAN_VAN_EMOJIS.PRAYER_BULLET} ${prayers[2]}`,
     ``,
-    `( ( ( 🕯️ 🕯️ 🕯️ ) ) )`,
+    `( ( ( ${THAN_VAN_EMOJIS.CANDLE} ${THAN_VAN_EMOJIS.CANDLE} ${THAN_VAN_EMOJIS.CANDLE} ) ) )`,
     ``,
     `Thành tâm thì linh, không thành tâm thì tối nay ở lại làm tiếp!`,
   ].join('\n');
 
-  return new EmbedBuilder()
-    .setTitle('🕯️ BÀN THỜ PHONG THỦY CÔNG SỞ')
-    .setColor('#FFB6C1')
-    .setDescription(description)
-    .setFooter({
-      text: 'Khói hương nghi ngút, xua tan ám khí tư bản!',
-    });
+  return wrapThanVanContainer([
+    {
+      type: 10,
+      content: formatThanVanTitle('BÀN THỜ PHONG THỦY CÔNG SỞ'),
+    },
+    {
+      type: 14,
+      divider: true,
+      spacing: 1,
+    },
+    {
+      type: 10,
+      content: bodyContent,
+    },
+    {
+      type: 14,
+      divider: true,
+      spacing: 1,
+    },
+    {
+      type: 10,
+      content: `-# Khói hương nghi ngút, xua tan ám khí tư bản!`,
+    },
+  ]);
+}
+
+export function buildThanVanNoticePayloadV2({
+  title = 'THÔNG BÁO',
+  message,
+  ephemeral = true,
+}) {
+  return wrapThanVanContainer(
+    [
+      {
+        type: 10,
+        content: formatThanVanTitle(title),
+      },
+      {
+        type: 14,
+        divider: true,
+        spacing: 1,
+      },
+      {
+        type: 10,
+        content: `${THAN_VAN_EMOJIS.ALERT} ${message}`,
+      },
+    ],
+    { ephemeral },
+  );
 }
 
 // ==========================================
 // BỘ ĐIỀU PHỐI AUTORESPONDER MESSAGE_CREATE
 // ==========================================
+
+async function sendThanVanReply(message, payload) {
+  const replyPayload = {
+    ...payload,
+    allowedMentions: {
+      parse: [],
+      repliedUser: false,
+    },
+  };
+
+  await message
+    .reply(replyPayload)
+    .catch(async () => {
+      await message.channel
+        .send({
+          ...payload,
+          allowedMentions: { parse: [] },
+        })
+        .catch(() => {});
+    });
+}
+
+export function isThanVanChannel(context) {
+  const channelId = context?.channelId ?? context?.channel?.id;
+  const parentId = context?.channel?.parentId;
+  return (
+    channelId === THAN_VAN_CHANNEL_ID ||
+    parentId === THAN_VAN_CHANNEL_ID
+  );
+}
+
+function matchWholeWordKeyword(content, unaccented, pattern) {
+  const re = new RegExp(`(?:^|[^\\p{L}\\p{N}])(?:${pattern})(?:$|[^\\p{L}\\p{N}])`, 'iu');
+  return re.test(content) || re.test(unaccented);
+}
 
 /**
  * Điều phối toàn bộ tính năng tại kênh Than Vãn Tư Bản (ID: 1559832849798926357).
@@ -790,11 +1226,7 @@ export async function handleThanVanTuBan(message) {
     }
 
     // Chỉ nhận cố định ở ID kênh 1559832849798926357 (hoặc thread con thuộc kênh này)
-    const isTargetChannel =
-      message.channelId === THAN_VAN_CHANNEL_ID ||
-      message.channel?.parentId === THAN_VAN_CHANNEL_ID;
-
-    if (!isTargetChannel) {
+    if (!isThanVanChannel(message)) {
       return false;
     }
 
@@ -813,15 +1245,8 @@ export async function handleThanVanTuBan(message) {
         return true;
       }
 
-      const embed = buildTanLamEmbed();
-      await message
-        .reply({
-          embeds: [embed],
-          allowedMentions: { repliedUser: false },
-        })
-        .catch(async () => {
-          await message.channel.send({ embeds: [embed] }).catch(() => { });
-        });
+      const payload = buildTanLamPayloadV2();
+      await sendThanVanReply(message, payload);
 
       logger.info(
         `[ThanVanTuBan] Đã gửi đếm ngược tan làm cho ${message.author.tag} tại ${message.channelId}`,
@@ -841,15 +1266,8 @@ export async function handleThanVanTuBan(message) {
         return true;
       }
 
-      const embed = buildLuongEmbed();
-      await message
-        .reply({
-          embeds: [embed],
-          allowedMentions: { repliedUser: false },
-        })
-        .catch(async () => {
-          await message.channel.send({ embeds: [embed] }).catch(() => { });
-        });
+      const payload = buildLuongPayloadV2();
+      await sendThanVanReply(message, payload);
 
       logger.info(
         `[ThanVanTuBan] Đã gửi lịch hóng ting ting cho ${message.author.tag} tại ${message.channelId}`,
@@ -872,15 +1290,8 @@ export async function handleThanVanTuBan(message) {
       );
 
       if (existingFortune) {
-        const embed = buildFortuneEmbed(message.author, existingFortune, true);
-        await message
-          .reply({
-            embeds: [embed],
-            allowedMentions: { repliedUser: false },
-          })
-          .catch(async () => {
-            await message.channel.send({ embeds: [embed] }).catch(() => { });
-          });
+        const payload = buildFortunePayloadV2(message.author, existingFortune, true);
+        await sendThanVanReply(message, payload);
         return true;
       }
 
@@ -892,15 +1303,8 @@ export async function handleThanVanTuBan(message) {
         newFortune,
       );
 
-      const embed = buildFortuneEmbed(message.author, newFortune, false);
-      await message
-        .reply({
-          embeds: [embed],
-          allowedMentions: { repliedUser: false },
-        })
-        .catch(async () => {
-          await message.channel.send({ embeds: [embed] }).catch(() => { });
-        });
+      const payload = buildFortunePayloadV2(message.author, newFortune, false);
+      await sendThanVanReply(message, payload);
 
       logger.info(
         `[ThanVanTuBan] ${message.author.tag} đã bốc quẻ [${newFortune.type}] tại kênh ${message.channelId}`,
@@ -921,20 +1325,8 @@ export async function handleThanVanTuBan(message) {
       }
 
       const excuseData = getRandomExcuse('luon_leo');
-      const embed = buildExcuseEmbed(excuseData);
-      const row = buildExcuseActionRow(excuseData.styleKey);
-
-      await message
-        .reply({
-          embeds: [embed],
-          components: [row],
-          allowedMentions: { repliedUser: false },
-        })
-        .catch(async () => {
-          await message.channel
-            .send({ embeds: [embed], components: [row] })
-            .catch(() => { });
-        });
+      const payload = buildExcusePayloadV2(excuseData);
+      await sendThanVanReply(message, payload);
 
       logger.info(
         `[ThanVanTuBan] Đã tạo đơn xin nghỉ phép cho ${message.author.tag} tại ${message.channelId}`,
@@ -955,24 +1347,17 @@ export async function handleThanVanTuBan(message) {
       }
 
       let target = null;
-      if (/sếp|sep/i.test(content)) target = 'sếp';
-      else if (/bug/i.test(content)) target = 'bug';
-      else if (/deadline/i.test(content)) target = 'deadline';
-      else if (/đồng nghiệp|dong nghiep|rắn|ran/i.test(content))
+      if (matchWholeWordKeyword(content, unaccented, 'sếp|sep')) target = 'sếp';
+      else if (matchWholeWordKeyword(content, unaccented, 'bug')) target = 'bug';
+      else if (matchWholeWordKeyword(content, unaccented, 'deadline')) target = 'deadline';
+      else if (matchWholeWordKeyword(content, unaccented, 'đồng nghiệp|dong nghiep|rắn|ran'))
         target = 'đồng nghiệp rắn';
-      else if (/ot|overtime/i.test(content)) target = 'ot';
-      else if (/khách hàng|khach hang/i.test(content)) target = 'khách hàng';
+      else if (matchWholeWordKeyword(content, unaccented, 'ot|overtime')) target = 'ot';
+      else if (matchWholeWordKeyword(content, unaccented, 'khách hàng|khach hang'))
+        target = 'khách hàng';
 
-      const embed = buildDotViaEmbed(message.author, target);
-
-      await message
-        .reply({
-          embeds: [embed],
-          allowedMentions: { repliedUser: false },
-        })
-        .catch(async () => {
-          await message.channel.send({ embeds: [embed] }).catch(() => { });
-        });
+      const payload = buildDotViaPayloadV2(message.author, target);
+      await sendThanVanReply(message, payload);
 
       logger.info(
         `[ThanVanTuBan] ${message.author.tag} đã đốt vía ${target || 'công sở'} tại ${message.channelId}`,
@@ -989,16 +1374,8 @@ export async function handleThanVanTuBan(message) {
 
     if (isManualRageCheck) {
       const currentRage = await getRageMeter(message.client, message.guild.id);
-      const embed = buildRageMeterEmbed(currentRage);
-
-      await message
-        .reply({
-          embeds: [embed],
-          allowedMentions: { repliedUser: false },
-        })
-        .catch(async () => {
-          await message.channel.send({ embeds: [embed] }).catch(() => { });
-        });
+      const payload = buildRageMeterPayloadV2(currentRage);
+      await sendThanVanReply(message, payload);
       return true;
     }
 
@@ -1030,7 +1407,7 @@ export async function handleThanVanTuBan(message) {
 
       // Đạt đỉnh 100/100: Kích hoạt VỠ ĐÊ ngay lập tức!
       if (newRage >= 100) {
-        const voDePayload = buildVoDeMessage();
+        const voDePayload = buildVoDePayloadV2();
         await message.channel.send(voDePayload).catch(() => { });
         await saveRageMeter(message.client, message.guild.id, 0);
 
@@ -1052,8 +1429,8 @@ export async function handleThanVanTuBan(message) {
         );
 
         if (canAnnounce) {
-          const embed = buildRageMeterEmbed(newRage);
-          await message.channel.send({ embeds: [embed] }).catch(() => { });
+          const payload = buildRageMeterPayloadV2(newRage);
+          await message.channel.send(payload).catch(() => { });
         }
       }
     }
