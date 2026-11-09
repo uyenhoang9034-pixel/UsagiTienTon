@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
-import { isBookingAdmin, isBookingTicketChannelName, reopenBookingTicket } from '../../services/bookingService.js';
+import { isBookingAdmin, isBookingTicketChannel, reopenBookingTicket } from '../../services/bookingService.js';
 import { logger } from '../../utils/logger.js';
 
 export default {
@@ -23,7 +23,7 @@ export default {
         });
       }
 
-      if (!isBookingTicketChannelName(interaction.channel?.name)) {
+      if (!isBookingTicketChannel(interaction.channel)) {
         return interaction.reply({
           content: '❌ Lệnh **/moticket** chỉ có thể sử dụng bên trong các kênh ticket!',
           flags: MessageFlags.Ephemeral,

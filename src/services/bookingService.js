@@ -26,9 +26,23 @@ export function isBookingTicketChannelName(name) {
   return /^(?:mw\d+-hw\d+|ticket-hw\d+)-/i.test(String(name || ''));
 }
 
+export function isBookingTicketChannel(channel) {
+  return (
+    isBookingTicketChannelName(channel?.name) ||
+    /RenterID:\s*\d+/i.test(String(channel?.topic || ''))
+  );
+}
+
 export function getBookingProfileIdFromChannelName(name) {
   const match = String(name || '').match(/^(?:mw\d+-hw|ticket-hw)(\d+)-/i);
   return match ? match[1] : '1';
+}
+
+export function getBookingProfileIdFromChannel(channel) {
+  const nameMatch = String(channel?.name || '').match(/^(?:mw\d+-hw|ticket-hw)(\d+)-/i);
+  if (nameMatch) return nameMatch[1];
+  const topicMatch = String(channel?.topic || '').match(/\bHW:\s*(\d+)/i);
+  return topicMatch ? topicMatch[1] : '1';
 }
 
 export async function nextBookingTicketNumber(client, guildId) {
@@ -671,6 +685,31 @@ export function buildTicketCloseLogV2({ channel, channelName, profile, renterId,
   };
 }
 
+function extractRenterIdFromComponents(components = []) {
+  if (!Array.isArray(components)) return null;
+  for (const comp of components) {
+    const data = comp?.toJSON?.() || comp?.data || comp || {};
+    const cId = data.customId || data.custom_id || comp?.customId || comp?.custom_id;
+    if (cId) {
+      const m = String(cId).match(/^hw_(?:open_rate|refuse|close_ticket|star):\d+:(\d+)/);
+      if (m) return m[1];
+    }
+    if (typeof data.content === 'string') {
+      const m = data.content.match(/ID:\s*(\d{16,21})/i);
+      if (m) return m[1];
+    }
+    if (Array.isArray(data.components)) {
+      const nested = extractRenterIdFromComponents(data.components);
+      if (nested) return nested;
+    }
+    if (Array.isArray(comp?.components)) {
+      const nested = extractRenterIdFromComponents(comp.components);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+
 /**
  * Tìm ID của người mở ticket (renter) thông qua Topic, PermissionOverwrites, Lịch sử tin nhắn hoặc Tên kênh
  */
@@ -707,18 +746,10 @@ export async function findRenterIdFromChannel(channel, client, profile, closerId
       const messages = await channel.messages.fetch({ limit: 50 }).catch(() => null);
       if (messages) {
         for (const msg of messages.values()) {
-          // Trích xuất từ custom_id trong action rows (vd: hw_open_rate:1:872792190651334707)
+          // Trích xuất từ custom_id trong action rows hoặc Components V2 container (vd: hw_open_rate:1:872792190651334707)
           if (msg.components) {
-            for (const row of msg.components) {
-              const compList = row.components || [row];
-              for (const comp of compList) {
-                const cId = comp.customId || comp.custom_id;
-                if (cId) {
-                  const m = cId.match(/^hw_(?:open_rate|refuse|close_ticket|star):\d+:(\d+)/);
-                  if (m) return m[1];
-                }
-              }
-            }
+            const foundFromComponents = extractRenterIdFromComponents(msg.components);
+            if (foundFromComponents) return foundFromComponents;
           }
 
           // Trích xuất từ nội dung tin nhắn welcome (vd: <@872792190651334707> | ID: 872792190651334707)
@@ -923,6 +954,7 @@ export function buildTicketTranscriptLogV2({ channel, channelName, profile, rent
 
 /**
  * Gửi log ticket vào kênh lưu trữ 1568555066976116827
+ * Đảm bảo mọi file đính kèm trên payload Components V2 đều được tham chiếu qua FileComponent (type: 13).
  */
 export async function sendBookingTicketLog(guild, payload, files = []) {
   try {
@@ -937,11 +969,57 @@ export async function sendBookingTicketLog(guild, payload, files = []) {
     }
 
     const options = { ...payload };
-    if (files && files.length > 0) {
-      options.files = files;
+    if (Array.isArray(payload?.components)) {
+      options.components = payload.components.map((comp) => {
+        if (comp && Array.isArray(comp.components)) {
+          return { ...comp, components: [...comp.components] };
+        }
+        return comp && typeof comp === 'object' ? { ...comp } : comp;
+      });
     }
 
-    return await logChannel.send(options);
+    if (files && files.length > 0) {
+      options.files = files;
+
+      if ((options.flags & IS_COMPONENTS_V2) && Array.isArray(options.components)) {
+        const serializedComponents = JSON.stringify(options.components);
+        for (const file of files) {
+          const fileName = file?.name || file?.attachment?.name;
+          if (!fileName) continue;
+          const attachmentUrl = `attachment://${fileName}`;
+          if (serializedComponents.includes(attachmentUrl)) continue;
+
+          const fileComponent = {
+            type: 13, // ComponentType.File
+            file: {
+              url: attachmentUrl,
+            },
+          };
+
+          const container = options.components.find((c) => c?.type === 17 && Array.isArray(c.components));
+          if (container && container.components.length < 10) {
+            container.components.push(fileComponent);
+          } else {
+            options.components.push(fileComponent);
+          }
+        }
+      }
+    }
+
+    try {
+      return await logChannel.send(options);
+    } catch (sendErr) {
+      logger.error('[Booking] Lỗi gửi log ticket vào kênh log:', sendErr);
+      if (files && files.length > 0) {
+        const logMsg = await logChannel.send(payload).catch(() => null);
+        await logChannel.send({
+          content: '📄 **File transcript lưu trữ:**',
+          files,
+        }).catch((fileErr) => logger.error('[Booking] Lỗi gửi fallback transcript vào kênh log:', fileErr));
+        return logMsg;
+      }
+      return null;
+    }
   } catch (err) {
     logger.error('[Booking] Lỗi gửi log ticket vào kênh log:', err);
     return null;
@@ -949,17 +1027,22 @@ export async function sendBookingTicketLog(guild, payload, files = []) {
 }
 
 /**
- * Thực hiện quy trình đóng ticket hoàn chỉnh:
+ * Thực hiện quy trình đóng ticket:
  * 1. Ẩn kênh với khách (ViewChannel: false, SendMessages: false)
-  // Chỉ giữ quyền cho role Admin Booking mới và role quản lý đã cấu hình
+ * 2. Chỉ giữ quyền cho role Admin Booking mới và role quản lý đã cấu hình
  * 3. Kênh vẫn nằm trong danh mục 1568554690923331695
- * 4. Sinh một transcript HTML
- * 5. Gửi thông báo đóng vào kênh ticket
- * 6. Gửi log đóng kèm duy nhất một transcript vào kênh lưu trữ 1568555066976116827
- * 7. Tuyệt đối KHÔNG DM khách
+ * 4. Gửi thông báo đóng vào kênh ticket
+ * 5. Ghi log đóng vào kênh lưu trữ 1568555066976116827 (mặc định KHÔNG gửi transcript)
+ * 6. Tuyệt đối KHÔNG DM khách
  */
-export async function closeBookingTicket({ channel, closer, client, reason = 'Đóng qua lệnh / nút quản trị' }) {
-  const profileId = getBookingProfileIdFromChannelName(channel.name);
+export async function closeBookingTicket({
+  channel,
+  closer,
+  client,
+  reason = 'Đóng qua lệnh / nút quản trị',
+  sendTranscript = false,
+}) {
+  const profileId = getBookingProfileIdFromChannel(channel);
 
   const profile = getProfileData(profileId);
 
@@ -987,28 +1070,31 @@ export async function closeBookingTicket({ channel, closer, client, reason = 'Đ
     }
   }
 
-  // 3. Tạo một bản transcript HTML theo giao diện lưu trữ thống nhất.
-  const transcriptFiles = await generateTranscriptFiles(channel, {
-    number: channel.name,
-    userId: renterId,
-    createdAt: channel.createdAt,
-    closedAt: Date.now(),
-    closeReason: reason,
-  });
+  // 3. Chỉ tạo transcript nếu được yêu cầu tường minh (mặc định đóng ticket KHÔNG gửi transcript)
+  const transcriptFiles = sendTranscript
+    ? await generateTranscriptFiles(channel, {
+        number: channel.name,
+        userId: renterId,
+        createdAt: channel.createdAt,
+        closedAt: Date.now(),
+        closeReason: reason,
+      })
+    : [];
 
-  // 4. Gửi thông báo đóng vào kênh ticket (không đính kèm transcript lần nữa).
-  const closedPayload = buildClosedTicketPayloadV2(profile, closer.id);
+  // 4. Gửi thông báo đóng vào kênh ticket
+  const closerId = closer?.id || client?.user?.id || '';
+  const closedPayload = buildClosedTicketPayloadV2(profile, closerId);
   if (channel.send) {
     await channel.send(closedPayload).catch((err) => logger.error('[Booking] Lỗi gửi thông báo đóng ticket:', err));
   }
 
-  // 5. Gửi log đóng ticket và duy nhất một file transcript vào kênh lưu trữ.
+  // 5. Gửi log đóng ticket vào kênh lưu trữ (không đính kèm transcript khi đóng)
   const logPayload = buildTicketCloseLogV2({
     channel,
     channelName: channel.name,
     profile,
     renterId,
-    closerId: closer.id,
+    closerId,
     reason,
   });
   await sendBookingTicketLog(channel.guild, logPayload, transcriptFiles);
@@ -1022,15 +1108,24 @@ export async function closeBookingTicket({ channel, closer, client, reason = 'Đ
 }
 
 /**
- * Xóa vĩnh viễn kênh ticket mà không tạo hoặc gửi transcript
+ * Xóa vĩnh viễn kênh ticket sau khi đã tạo và gửi transcript HTML vào kênh log
  */
 export async function deleteBookingTicket({ channel, executor, client, reason = 'Hoàn tất và xóa kênh ticket' }) {
-  const profileId = getBookingProfileIdFromChannelName(channel.name);
+  const profileId = getBookingProfileIdFromChannel(channel);
 
   const profile = getProfileData(profileId);
   const renterId = await findRenterIdFromChannel(channel, client, profile, executor?.id);
 
-  // 1. Chỉ ghi log xóa ticket, không tạo hoặc gửi transcript.
+  // 1. Tạo transcript HTML trước khi xóa kênh để không mất dữ liệu
+  const transcriptFiles = await generateTranscriptFiles(channel, {
+    number: channel.name,
+    userId: renterId,
+    createdAt: channel.createdAt,
+    closedAt: Date.now(),
+    closeReason: reason,
+  });
+
+  // 2. Ghi log xóa ticket kèm file transcript vào kênh lưu trữ 1568555066976116827
   const deleteLog = buildTicketDeleteLogV2({
     channel,
     channelName: channel.name,
@@ -1039,9 +1134,9 @@ export async function deleteBookingTicket({ channel, executor, client, reason = 
     executorId: executor?.id,
     reason,
   });
-  await sendBookingTicketLog(channel.guild, deleteLog);
+  await sendBookingTicketLog(channel.guild, deleteLog, transcriptFiles);
 
-  // 2. Dọn dẹp kênh voice đi kèm (nếu có)
+  // 3. Dọn dẹp kênh voice đi kèm (nếu có)
   const safeName = channel.name?.replace(/^(?:mw\d+-|ticket-)/i, '');
   if (safeName && channel.guild?.channels?.cache) {
     const expectedVoiceName = `🔊・voice-${safeName}`;
@@ -1053,7 +1148,7 @@ export async function deleteBookingTicket({ channel, executor, client, reason = 
     }
   }
 
-  // 3. Xóa kênh (chờ 1.5s để interaction/command hoàn tất mượt mà)
+  // 4. Xóa kênh (chờ 1.5s để interaction/command hoàn tất mượt mà)
   setTimeout(async () => {
     try {
       if (typeof channel.delete === 'function') {
@@ -1064,14 +1159,14 @@ export async function deleteBookingTicket({ channel, executor, client, reason = 
     }
   }, 1500);
 
-  return { success: true, profile, renterId };
+  return { success: true, profile, renterId, transcriptFiles };
 }
 
 /**
  * Mở lại kênh ticket khi lỡ đóng nhầm (cấp lại quyền xem/gửi cho khách)
  */
 export async function reopenBookingTicket({ channel, executor, client, sendTranscriptBackup = false }) {
-  const profileId = getBookingProfileIdFromChannelName(channel.name);
+  const profileId = getBookingProfileIdFromChannel(channel);
 
   const profile = getProfileData(profileId);
   const renterId = await findRenterIdFromChannel(channel, client, profile, executor?.id);
@@ -1127,7 +1222,7 @@ export async function reopenBookingTicket({ channel, executor, client, sendTrans
  * Xuất và gửi transcript dự phòng vào kênh log lưu trữ và kênh hiện tại
  */
 export async function sendTicketTranscriptBackup({ channel, executor, client }) {
-  const profileId = getBookingProfileIdFromChannelName(channel.name);
+  const profileId = getBookingProfileIdFromChannel(channel);
 
   const profile = getProfileData(profileId);
   const renterId = await findRenterIdFromChannel(channel, client, profile, executor?.id);
@@ -1269,7 +1364,7 @@ export async function handleBookingMessage(message, client) {
   if (tipMatch) {
     await message.delete().catch(() => {});
 
-    if (!isBookingTicketChannelName(message.channel.name)) {
+    if (!isBookingTicketChannel(message.channel)) {
       await message.channel.send('ℹ️ Lệnh `&tip` chỉ sử dụng được trong ticket Booking.').catch(() => {});
       return true;
     }
@@ -1386,7 +1481,7 @@ export async function handleBookingMessage(message, client) {
   // 2. Lệnh mở đánh giá trực tiếp trong ticket: &danhgia hoặc &feedback
   const rateMatch = trimmed.match(/^[&!](?:danhgia|feedback)\b/i);
   if (rateMatch) {
-    if (!isBookingTicketChannelName(message.channel.name)) {
+    if (!isBookingTicketChannel(message.channel)) {
       return false;
     }
 
@@ -1399,7 +1494,7 @@ export async function handleBookingMessage(message, client) {
 
     await message.delete().catch(() => {});
 
-    const profileId = getBookingProfileIdFromChannelName(message.channel.name);
+    const profileId = getBookingProfileIdFromChannel(message.channel);
 
     const profile = getProfileData(profileId);
 
@@ -1413,7 +1508,7 @@ export async function handleBookingMessage(message, client) {
   // 3. Lệnh đóng ticket: &close hoặc &dongticket
   const closeMatch = trimmed.match(/^[&!](?:close|dongticket)\b/i);
   if (closeMatch) {
-    if (!isBookingTicketChannelName(message.channel.name)) {
+    if (!isBookingTicketChannel(message.channel)) {
       return false;
     }
 
@@ -1430,6 +1525,7 @@ export async function handleBookingMessage(message, client) {
       closer: message.author,
       client,
       reason: 'Đóng bằng lệnh prefix &close',
+      sendTranscript: false,
     });
 
     return true;
@@ -1438,7 +1534,7 @@ export async function handleBookingMessage(message, client) {
   // 4. Lệnh xóa ticket: &clear, &xoaticket, &deleteticket
   const clearMatch = trimmed.match(/^[&!](?:clear|xoaticket|deleteticket)\b/i);
   if (clearMatch) {
-    if (!isBookingTicketChannelName(message.channel.name)) {
+    if (!isBookingTicketChannel(message.channel)) {
       return false;
     }
 
@@ -1450,7 +1546,7 @@ export async function handleBookingMessage(message, client) {
 
     await message.delete().catch(() => {});
 
-    await message.channel.send('🗑️ Đang tiến hành xóa kênh ticket trong giây lát...').catch(() => {});
+    await message.channel.send('🗑️ Đang tiến hành lưu transcript và xóa kênh ticket trong giây lát...').catch(() => {});
 
     await deleteBookingTicket({
       channel: message.channel,
@@ -1465,7 +1561,7 @@ export async function handleBookingMessage(message, client) {
   // 5. Lệnh mở lại ticket: &moticket, &reopen
   const reopenMatch = trimmed.match(/^[&!](?:moticket|reopen)\b/i);
   if (reopenMatch) {
-    if (!isBookingTicketChannelName(message.channel.name)) {
+    if (!isBookingTicketChannel(message.channel)) {
       return false;
     }
 
@@ -1490,7 +1586,7 @@ export async function handleBookingMessage(message, client) {
   // 6. Lệnh xuất transcript dự phòng: &transcript, &transcripts
   const transcriptMatch = trimmed.match(/^[&!](?:transcript|transcripts)\b/i);
   if (transcriptMatch) {
-    if (!isBookingTicketChannelName(message.channel.name)) {
+    if (!isBookingTicketChannel(message.channel)) {
       return false;
     }
 
@@ -1514,11 +1610,11 @@ export async function handleBookingMessage(message, client) {
   // 7. Lệnh tự động tạo kênh voice tâm sự riêng tư: &taokenhvoice, !taokenhvoice, &voice, &taovoice
   const voiceMatch = trimmed.match(/^[&!](?:taokenhvoice|createvoice|voice|taovoice)\b/i);
   if (voiceMatch) {
-    if (!isBookingTicketChannelName(message.channel.name)) {
+    if (!isBookingTicketChannel(message.channel)) {
       return false;
     }
 
-    const profileId = getBookingProfileIdFromChannelName(message.channel.name);
+    const profileId = getBookingProfileIdFromChannel(message.channel);
 
     const profile = getProfileData(profileId);
     const renterId = (await findRenterIdFromChannel(message.channel, client, profile, message.author.id)) || message.author.id;

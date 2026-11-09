@@ -124,7 +124,7 @@ test('Giao diện V2 Booking Thành Công: chuẩn emoji và 3 nút xám', () =>
   assert.ok(text2.content.includes('Trạng thái: Đang trong phiên kết nối'));
 
   const text3 = container.components[4];
-  assert.ok(text3.content.includes('<@872792190651334707>'));
+  assert.ok(text3.content.includes('&taokenhvoice'));
 
   const row = container.components[5];
   assert.equal(row.components.length, 3);
@@ -199,11 +199,11 @@ test('MessageCreate Trigger: &pro5 xóa tin nhắn lệnh và gửi card profile
   assert.equal(sentPayload.flags, IS_COMPONENTS_V2);
 });
 
-test('Quyền Admin Booking: nhận diện chuẩn role 1545295139390619768, 1568554130371383306 và Bot Owner', async () => {
+test('Quyền Admin Booking: nhận diện chuẩn role 1568554130371383306, modRole và Bot Owner', async () => {
   const { isBookingAdmin } = await import('../src/services/bookingService.js');
   const { BOOKING_ADMIN_ROLE_ID, BOOKING_SUPPORT_ROLE_ID, BOOKING_CATEGORY_ID, BOOKING_LOG_CHANNEL_ID } = await import('../src/config/bookingConfig.js');
 
-  assert.equal(BOOKING_ADMIN_ROLE_ID, '1545295139390619768');
+  assert.equal(BOOKING_ADMIN_ROLE_ID, '1568554130371383306');
   assert.equal(BOOKING_SUPPORT_ROLE_ID, '1568554130371383306');
   assert.equal(BOOKING_CATEGORY_ID, '1568554690923331695');
   assert.equal(BOOKING_LOG_CHANNEL_ID, '1568555066976116827');
@@ -214,7 +214,7 @@ test('Quyền Admin Booking: nhận diện chuẩn role 1545295139390619768, 156
       cache: new Set([BOOKING_ADMIN_ROLE_ID]),
     },
   };
-  assert.equal(isBookingAdmin(memberWithAdminRole, 'normalUser'), true);
+  assert.equal(await isBookingAdmin(memberWithAdminRole, 'normalUser'), true);
 
   // Member có role support trong cache
   const memberWithSupportRole = {
@@ -222,13 +222,13 @@ test('Quyền Admin Booking: nhận diện chuẩn role 1545295139390619768, 156
       cache: new Set([BOOKING_SUPPORT_ROLE_ID]),
     },
   };
-  assert.equal(isBookingAdmin(memberWithSupportRole, 'normalUser'), true);
+  assert.equal(await isBookingAdmin(memberWithSupportRole, 'normalUser'), true);
 
-  // Member có role support trong mảng _roles
+  // Member có role admin trong mảng _roles
   const memberWithRawRoles = {
-    _roles: [BOOKING_SUPPORT_ROLE_ID],
+    _roles: [BOOKING_ADMIN_ROLE_ID],
   };
-  assert.equal(isBookingAdmin(memberWithRawRoles, 'normalUser'), true);
+  assert.equal(await isBookingAdmin(memberWithRawRoles, 'normalUser'), true);
 
   // User không có quyền
   const normalMember = {
@@ -239,7 +239,7 @@ test('Quyền Admin Booking: nhận diện chuẩn role 1545295139390619768, 156
       has: () => false,
     },
   };
-  assert.equal(isBookingAdmin(normalMember, 'normalUser'), false);
+  assert.equal(await isBookingAdmin(normalMember, 'normalUser'), false);
 });
 
 test('Giao diện V2 Log Ticket Open & Close: đúng chuẩn V2, emoji server, không footer', async () => {
@@ -284,17 +284,19 @@ test('Giao diện V2 Log Ticket Open & Close: đúng chuẩn V2, emoji server, k
   assert.ok(closeContainer.components[4].content.includes('Đã hoàn thành phiên giao lưu'));
 });
 
-test('closeBookingTicket: ẩn quyền xem của khách, giữ quyền 2 role, gửi transcript vào kênh log', async () => {
+test('closeBookingTicket: ẩn quyền xem của khách, giữ quyền role admin và KHÔNG gửi transcript', async () => {
   const { closeBookingTicket } = await import('../src/services/bookingService.js');
-  const { BOOKING_LOG_CHANNEL_ID } = await import('../src/config/bookingConfig.js');
+  const { BOOKING_ADMIN_ROLE_ID, BOOKING_LOG_CHANNEL_ID } = await import('../src/config/bookingConfig.js');
 
   const overwrittenPerms = new Map();
   let ticketSentMessage = null;
   let logSentMessage = null;
+  let fetchCalled = false;
 
   const mockChannel = {
-    name: 'ticket-hw1-alice',
+    name: 'mw1-hw1-alice',
     id: 'ticket_channel_123',
+    topic: 'Ticket của <@renter_user_id> | RenterID: renter_user_id | HW: 1',
     guild: {
       id: 'guild123',
       channels: {
@@ -321,7 +323,10 @@ test('closeBookingTicket: ẩn quyền xem của khách, giữ quyền 2 role, g
       },
     },
     messages: {
-      fetch: async () => new Map(),
+      fetch: async () => {
+        fetchCalled = true;
+        return new Map();
+      },
     },
     send: async (msg) => {
       ticketSentMessage = msg;
@@ -341,6 +346,8 @@ test('closeBookingTicket: ẩn quyền xem của khách, giữ quyền 2 role, g
 
   assert.equal(result.success, true);
   assert.equal(result.renterId, 'renter_user_id');
+  assert.equal(result.transcriptFiles.length, 0);
+  assert.equal(fetchCalled, false, 'Đóng ticket mặc định không được tạo transcript');
 
   // Khách bị ẩn quyền xem và gửi tin
   assert.deepEqual(overwrittenPerms.get('renter_user_id'), {
@@ -348,20 +355,19 @@ test('closeBookingTicket: ẩn quyền xem của khách, giữ quyền 2 role, g
     SendMessages: false,
   });
 
-  // 2 role 1568554130371383306 & 1545295139390619768 vẫn có quyền xem
-  assert.equal(overwrittenPerms.get('1545295139390619768').ViewChannel, true);
-  assert.equal(overwrittenPerms.get('1568554130371383306').ViewChannel, true);
+  // Role Admin Booking vẫn có quyền xem
+  assert.equal(overwrittenPerms.get(BOOKING_ADMIN_ROLE_ID).ViewChannel, true);
 
-  // Kênh ticket nhận được thông báo đóng kèm file transcript
+  // Kênh ticket nhận được thông báo đóng KHÔNG kèm transcript
   assert.ok(ticketSentMessage);
-  assert.equal(ticketSentMessage.files?.length, 1);
-  assert.ok(ticketSentMessage.files[0].name.includes('transcript-ticket-hw1-alice.html'));
+  assert.equal(ticketSentMessage.flags, IS_COMPONENTS_V2);
+  assert.equal(ticketSentMessage.files?.length || 0, 0);
 
-  // Kênh log nhận được log V2 kèm file transcript
+  // Kênh log nhận được log V2 KHÔNG kèm transcript
   assert.ok(logSentMessage);
   assert.equal(logSentMessage.flags, IS_COMPONENTS_V2);
-  assert.equal(logSentMessage.files?.length, 1);
-  assert.ok(logSentMessage.files[0].name.includes('transcript-ticket-hw1-alice.html'));
+  assert.ok(logSentMessage.components[0].components[0].content.includes('TICKET CLOSED'));
+  assert.equal(logSentMessage.files?.length || 0, 0);
 });
 
 test('reopenBookingTicket: khôi phục quyền cho khách và gửi log V2', async () => {
@@ -438,15 +444,16 @@ test('reopenBookingTicket: khôi phục quyền cho khách và gửi log V2', as
   assert.ok(logSentMessage.components[0].components[0].content.includes('TICKET REOPENED'));
 });
 
-test('deleteBookingTicket: lưu transcript trước khi xóa kênh', async () => {
+test('deleteBookingTicket: lưu transcript V2 kèm File component (type 13) trước khi xóa kênh', async () => {
   const { deleteBookingTicket } = await import('../src/services/bookingService.js');
   const { BOOKING_LOG_CHANNEL_ID } = await import('../src/config/bookingConfig.js');
 
   let logSentMessage = null;
 
   const mockChannel = {
-    name: 'ticket-hw1-delete',
+    name: 'mw1-hw1-delete',
     id: 'ticket_channel_del',
+    topic: 'Ticket của <@renter_del_id> | RenterID: renter_del_id | HW: 1',
     guild: {
       id: 'guild123',
       channels: {
@@ -470,7 +477,19 @@ test('deleteBookingTicket: lưu transcript trước khi xóa kênh', async () =>
       ],
     },
     messages: {
-      fetch: async () => new Map(),
+      fetch: async () => new Map([
+        [
+          'msg1',
+          {
+            id: 'msg1',
+            content: 'Tin nhắn test transcript',
+            createdTimestamp: Date.now(),
+            author: { tag: 'tester#0001', id: 'renter_del_id', bot: false },
+            embeds: [],
+            attachments: new Map(),
+          },
+        ],
+      ]),
     },
     delete: async () => {},
   };
@@ -486,11 +505,16 @@ test('deleteBookingTicket: lưu transcript trước khi xóa kênh', async () =>
   });
 
   assert.equal(result.success, true);
+  assert.equal(result.transcriptFiles?.length, 1);
   assert.ok(logSentMessage);
   assert.equal(logSentMessage.flags, IS_COMPONENTS_V2);
   assert.ok(logSentMessage.components[0].components[0].content.includes('TICKET DELETED'));
   assert.equal(logSentMessage.files?.length, 1);
-  assert.ok(logSentMessage.files[0].name.includes('transcript-ticket-hw1-delete.html'));
+  assert.equal(logSentMessage.files[0].name, 'transcript-mw1-hw1-delete.html');
+
+  const fileComponent = logSentMessage.components[0].components.find((c) => c.type === 13);
+  assert.ok(fileComponent, 'Payload V2 kèm file bắt buộc phải có ComponentType.File (type: 13)');
+  assert.equal(fileComponent.file?.url, 'attachment://transcript-mw1-hw1-delete.html');
 });
 
 test('Yêu cầu 1: Thứ tự emoji chuẩn trong tất cả title booking', async () => {
@@ -652,6 +676,324 @@ test('Yêu cầu 4: Lệnh &taokenhvoice tự động tạo kênh voice riêng t
   assert.equal(actionBtn.label, 'Đã kết nối phòng');
   assert.equal(actionBtn.emoji.id, '1546043036390260756');
 });
+
+test('Slash Command /close: ẩn khách trên kênh mw...-hw..., không xóa kênh và không gửi transcript', async () => {
+  const { default: closeCommand } = await import('../src/commands/Moderation/close.js');
+  const { BOOKING_ADMIN_ROLE_ID, BOOKING_LOG_CHANNEL_ID } = await import('../src/config/bookingConfig.js');
+
+  let deniedReply = null;
+  await closeCommand.execute(
+    {
+      user: { id: 'normal_user' },
+      member: { roles: { cache: new Set() } },
+      channel: { name: 'mw5-hw2-khach', topic: 'RenterID: 555666 | HW: 2' },
+      reply: async (p) => {
+        deniedReply = p;
+      },
+    },
+    null,
+    { user: { id: 'bot_123' } },
+  );
+  assert.ok(deniedReply?.content?.includes('Chỉ Admin'));
+
+  let wrongChannelReply = null;
+  await closeCommand.execute(
+    {
+      user: { id: 'admin_1' },
+      member: { roles: { cache: new Set([BOOKING_ADMIN_ROLE_ID]) } },
+      channel: { name: 'general-chat', topic: '' },
+      reply: async (p) => {
+        wrongChannelReply = p;
+      },
+    },
+    null,
+    { user: { id: 'bot_123' } },
+  );
+  assert.ok(wrongChannelReply?.content?.includes('/close'));
+
+  const overwrittenPerms = new Map();
+  let channelDeleted = false;
+  let messagesFetched = false;
+  let ticketNotice = null;
+  let logNotice = null;
+  let deferred = false;
+  let editedReply = null;
+
+  const ticketChannel = {
+    name: 'mw5-hw2-khach',
+    id: 'chan_mw5',
+    topic: 'Ticket của <@555666> | RenterID: 555666 | HW: 2',
+    guild: {
+      id: 'guild_1',
+      channels: {
+        cache: new Map([
+          [
+            BOOKING_LOG_CHANNEL_ID,
+            {
+              id: BOOKING_LOG_CHANNEL_ID,
+              send: async (msg) => {
+                logNotice = msg;
+                return msg;
+              },
+            },
+          ],
+        ]),
+      },
+    },
+    permissionOverwrites: {
+      cache: [{ type: 1, id: '555666' }],
+      edit: async (targetId, perms) => {
+        overwrittenPerms.set(targetId, perms);
+      },
+    },
+    messages: {
+      fetch: async () => {
+        messagesFetched = true;
+        return new Map();
+      },
+    },
+    send: async (msg) => {
+      ticketNotice = msg;
+      return msg;
+    },
+    delete: async () => {
+      channelDeleted = true;
+    },
+  };
+
+  await closeCommand.execute(
+    {
+      user: { id: 'admin_1' },
+      member: { roles: { cache: new Set([BOOKING_ADMIN_ROLE_ID]) } },
+      channel: ticketChannel,
+      get deferred() {
+        return deferred;
+      },
+      replied: false,
+      deferReply: async () => {
+        deferred = true;
+      },
+      editReply: async (p) => {
+        editedReply = p;
+      },
+    },
+    null,
+    { user: { id: 'bot_123' } },
+  );
+
+  assert.equal(deferred, true);
+  assert.ok(editedReply?.content?.includes('không gửi transcript'));
+  assert.equal(channelDeleted, false);
+  assert.equal(messagesFetched, false);
+  assert.deepEqual(overwrittenPerms.get('555666'), {
+    ViewChannel: false,
+    SendMessages: false,
+  });
+  assert.ok(ticketNotice);
+  assert.equal(ticketNotice.files?.length || 0, 0);
+  assert.ok(logNotice);
+  assert.equal(logNotice.files?.length || 0, 0);
+});
+
+test('Slash Command /clear: chặn non-admin, hỗ trợ kênh mw...-hw... và gửi transcript vào kênh log', async () => {
+  const { default: clearCommand } = await import('../src/commands/Moderation/clear.js');
+  const { BOOKING_ADMIN_ROLE_ID, BOOKING_LOG_CHANNEL_ID } = await import('../src/config/bookingConfig.js');
+
+  let deniedReply = null;
+  await clearCommand.execute(
+    {
+      user: { id: 'normal_user' },
+      member: { roles: { cache: new Set() } },
+      channel: { name: 'mw8-hw1-khach', topic: 'RenterID: 777888 | HW: 1' },
+      reply: async (p) => {
+        deniedReply = p;
+      },
+    },
+    null,
+    { user: { id: 'bot_123' } },
+  );
+  assert.ok(deniedReply?.content?.includes('Chỉ Admin'));
+
+  let logSent = null;
+  let deferred = false;
+  let editedReply = null;
+
+  const ticketChannel = {
+    name: 'mw8-hw1-khach',
+    id: 'chan_mw8',
+    topic: 'Ticket của <@777888> | RenterID: 777888 | HW: 1',
+    guild: {
+      id: 'guild_1',
+      channels: {
+        cache: new Map([
+          [
+            BOOKING_LOG_CHANNEL_ID,
+            {
+              id: BOOKING_LOG_CHANNEL_ID,
+              send: async (msg) => {
+                logSent = msg;
+                return msg;
+              },
+            },
+          ],
+        ]),
+      },
+    },
+    messages: {
+      fetch: async () => new Map([
+        [
+          'm1',
+          {
+            id: 'm1',
+            content: 'Chào admin',
+            createdTimestamp: Date.now(),
+            author: { tag: 'khach#0001', id: '777888', bot: false },
+            embeds: [],
+            attachments: new Map(),
+          },
+        ],
+      ]),
+    },
+    delete: async () => {},
+  };
+
+  await clearCommand.execute(
+    {
+      user: { id: 'admin_1' },
+      member: { roles: { cache: new Set([BOOKING_ADMIN_ROLE_ID]) } },
+      channel: ticketChannel,
+      get deferred() {
+        return deferred;
+      },
+      replied: false,
+      deferReply: async () => {
+        deferred = true;
+      },
+      editReply: async (p) => {
+        editedReply = p;
+      },
+    },
+    null,
+    { user: { id: 'bot_123' } },
+  );
+
+  assert.equal(deferred, true);
+  assert.ok(editedReply?.content?.includes('Đã lưu transcript'));
+  assert.ok(logSent);
+  assert.equal(logSent.files?.length, 1);
+  assert.equal(logSent.files[0].name, 'transcript-mw8-hw1-khach.html');
+  assert.ok(logSent.components[0].components.some((c) => c.type === 13 && c.file?.url === 'attachment://transcript-mw8-hw1-khach.html'));
+});
+
+test('ticketTranscript: generateTranscriptFiles hỗ trợ Map pagination, Components V2 và thiếu guild.members', async () => {
+  const { generateTranscriptFiles } = await import('../src/utils/ticket/ticketTranscript.js');
+
+  const mockChannel = {
+    name: 'mw7-hw1-tester',
+    id: 'chan_mw7',
+    guild: {
+      id: 'guild_1',
+      roles: { cache: new Map([['888', { name: 'Staff' }]]) },
+      channels: { cache: new Map([['777', { name: 'booking-log' }]]) },
+    },
+    messages: {
+      fetch: async () => new Map([
+        [
+          'msg_v2',
+          {
+            id: 'msg_v2',
+            content: '',
+            createdTimestamp: 1760000000000,
+            author: { username: 'UsagiBot', tag: 'UsagiBot#0000', bot: true },
+            guild: {
+              roles: { cache: new Map([['888', { name: 'Staff' }]]) },
+              channels: { cache: new Map([['777', { name: 'booking-log' }]]) },
+            },
+            components: [
+              {
+                type: 17,
+                components: [
+                  {
+                    type: 10,
+                    content: '<a:heartg8:999> Xin chào <@111222333444555666> @vai-tro <@&888> tại <#777>',
+                  },
+                ],
+              },
+            ],
+            embeds: [],
+            attachments: new Map(),
+          },
+        ],
+      ]),
+    },
+  };
+
+  const files = await generateTranscriptFiles(mockChannel, {
+    number: 'mw7-hw1-tester',
+    userId: 'renter_7',
+    createdAt: 'invalid-date-should-not-crash',
+    closedAt: Date.now(),
+    closeReason: 'Test transcript V2',
+  });
+
+  assert.equal(files.length, 1);
+  assert.equal(files[0].name, 'transcript-mw7-hw1-tester.html');
+
+  const html = Buffer.from(files[0].attachment).toString('utf8');
+  assert.ok(html.includes('Transcript · #mw7-hw1-tester'));
+  assert.ok(html.includes('ID renter_7'));
+  assert.ok(html.includes(':heartg8:'));
+  assert.ok(html.includes('@Staff'));
+  assert.ok(html.includes('#booking-log'));
+});
+
+test('sendBookingTicketLog: fallback gửi riêng file transcript nếu gửi gộp V2 bị lỗi', async () => {
+  const { AttachmentBuilder } = await import('discord.js');
+  const { sendBookingTicketLog, buildTicketDeleteLogV2 } = await import('../src/services/bookingService.js');
+  const { BOOKING_LOG_CHANNEL_ID } = await import('../src/config/bookingConfig.js');
+
+  const sendCalls = [];
+  const mockGuild = {
+    id: 'guild_fb',
+    channels: {
+      cache: new Map([
+        [
+          BOOKING_LOG_CHANNEL_ID,
+          {
+            id: BOOKING_LOG_CHANNEL_ID,
+            send: async (msg) => {
+              sendCalls.push(msg);
+              if (sendCalls.length === 1) {
+                throw new Error('Simulated V2 file reject');
+              }
+              return msg;
+            },
+          },
+        ],
+      ]),
+    },
+  };
+
+  const payload = buildTicketDeleteLogV2({
+    channelName: 'mw9-hw1-fallback',
+    profile: getProfileData('1'),
+    renterId: '999',
+    executorId: '111',
+    reason: 'Fallback test',
+  });
+  const file = new AttachmentBuilder(Buffer.from('<html>ok</html>', 'utf8'), {
+    name: 'transcript-mw9-hw1-fallback.html',
+  });
+
+  await sendBookingTicketLog(mockGuild, payload, [file]);
+
+  assert.equal(sendCalls.length, 3);
+  assert.equal(sendCalls[1].flags, IS_COMPONENTS_V2);
+  assert.equal(sendCalls[1].files, undefined);
+  assert.equal(sendCalls[2].files?.length, 1);
+  assert.equal(sendCalls[2].files[0].name, 'transcript-mw9-hw1-fallback.html');
+});
+
 
 
 

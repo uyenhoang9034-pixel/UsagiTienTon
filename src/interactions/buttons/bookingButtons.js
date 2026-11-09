@@ -12,8 +12,6 @@ import {
   buildProfilePayloadV2,
   buildRatingPayloadV2,
   buildRefusalPayloadV2,
-  buildClosedTicketPayloadV2,
-  generateTranscriptHtml,
   isBookingAdmin,
   closeBookingTicket,
   findRenterIdFromChannel,
@@ -242,7 +240,7 @@ export default [
     },
   },
 
-  // 7. Đóng ticket (chỉ Admin)
+  // 7. Đóng ticket (chỉ Admin, không gửi transcript)
   {
     name: 'hw_close_ticket',
     async execute(interaction, client, args) {
@@ -254,17 +252,27 @@ export default [
           });
         }
 
+        if (typeof interaction.deferReply === 'function' && !interaction.deferred && !interaction.replied) {
+          await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
+        }
+
         await closeBookingTicket({
           channel: interaction.channel,
           closer: interaction.user,
           client,
           reason: 'Đóng bằng nút bấm trong ticket',
+          sendTranscript: false,
         });
 
-        await interaction.reply({
-          content: '🔒 Ticket đã được đóng thành công. Log và transcript đã được chuyển đến kênh lưu trữ!',
-          flags: MessageFlags.Ephemeral,
-        });
+        const msg = '🔒 Ticket đã được đóng thành công (chỉ ẩn kênh với khách, không gửi transcript).';
+        if (interaction.deferred && typeof interaction.editReply === 'function') {
+          await interaction.editReply({ content: msg });
+        } else {
+          await interaction.reply({
+            content: msg,
+            flags: MessageFlags.Ephemeral,
+          });
+        }
       } catch (err) {
         logger.error('[BookingButtons] Lỗi hw_close_ticket:', err);
       }
