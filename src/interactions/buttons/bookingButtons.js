@@ -7,11 +7,13 @@ import {
 } from 'discord.js';
 import {
   getProfileData,
+  loadProfileData,
   addProfileLike,
   addProfileRating,
   buildProfilePayloadV2,
   buildRatingPayloadV2,
   buildRefusalPayloadV2,
+  extractProfileImageIndex,
   isBookingAdmin,
   closeBookingTicket,
   findRenterIdFromChannel,
@@ -26,10 +28,12 @@ export default [
     async execute(interaction, client, args) {
       try {
         const profileId = args?.[0] || '1';
-        const currentIdx = parseInt(args?.[1] || '0', 10);
-        const nextIdx = currentIdx === 0 ? 1 : 0;
+        const profile = await loadProfileData(client, profileId);
+        const totalImages = Math.max(1, profile?.images?.length || 2);
+        const currentIdx = Number.parseInt(args?.[1] ?? '0', 10);
+        const safeCurrentIdx = Number.isInteger(currentIdx) && currentIdx >= 0 ? currentIdx % totalImages : 0;
+        const nextIdx = (safeCurrentIdx - 1 + totalImages) % totalImages;
 
-        const profile = getProfileData(profileId);
         const payload = buildProfilePayloadV2(profile, nextIdx);
 
         await interaction.update(payload);
@@ -45,10 +49,12 @@ export default [
     async execute(interaction, client, args) {
       try {
         const profileId = args?.[0] || '1';
-        const currentIdx = parseInt(args?.[1] || '0', 10);
-        const nextIdx = currentIdx === 0 ? 1 : 0;
+        const profile = await loadProfileData(client, profileId);
+        const totalImages = Math.max(1, profile?.images?.length || 2);
+        const currentIdx = Number.parseInt(args?.[1] ?? '0', 10);
+        const safeCurrentIdx = Number.isInteger(currentIdx) && currentIdx >= 0 ? currentIdx % totalImages : 0;
+        const nextIdx = (safeCurrentIdx + 1) % totalImages;
 
-        const profile = getProfileData(profileId);
         const payload = buildProfilePayloadV2(profile, nextIdx);
 
         await interaction.update(payload);
@@ -64,10 +70,12 @@ export default [
     async execute(interaction, client, args) {
       try {
         const profileId = args?.[0] || '1';
-        const currentIdx = parseInt(args?.[1] || '0', 10);
-        const nextIdx = currentIdx === 0 ? 1 : 0;
+        const profile = await loadProfileData(client, profileId);
+        const totalImages = Math.max(1, profile?.images?.length || 2);
+        const currentIdx = Number.parseInt(args?.[1] ?? '0', 10);
+        const safeCurrentIdx = Number.isInteger(currentIdx) && currentIdx >= 0 ? currentIdx % totalImages : 0;
+        const nextIdx = (safeCurrentIdx + 1) % totalImages;
 
-        const profile = getProfileData(profileId);
         const payload = buildProfilePayloadV2(profile, nextIdx);
 
         await interaction.update(payload);
@@ -83,8 +91,8 @@ export default [
     async execute(interaction, client, args) {
       try {
         const profileId = args?.[0] || '1';
-        const result = addProfileLike(profileId, interaction.user.id);
-        const profile = getProfileData(profileId);
+        const result = await addProfileLike(profileId, interaction.user.id, client);
+        const profile = result.profile || (await loadProfileData(client, profileId));
 
         if (!result.success) {
           return interaction.reply({
@@ -93,7 +101,8 @@ export default [
           });
         }
 
-        const payload = buildProfilePayloadV2(profile, 0);
+        const currentIdx = extractProfileImageIndex(interaction.message, profile?.images?.length);
+        const payload = buildProfilePayloadV2(profile, currentIdx);
         await interaction.update(payload);
       } catch (err) {
         logger.error('[BookingButtons] Lỗi thả tim hw_heart:', err);
@@ -227,8 +236,8 @@ export default [
           });
         }
 
-        // Cập nhật dữ liệu profile khi được 5 sao và lưu trữ bền vững
-        addProfileRating(profileId, 5);
+        // Cập nhật dữ liệu profile khi được 5 sao và lưu trữ bền vững vào DB
+        await addProfileRating(profileId, 5, client);
 
         return interaction.reply({
           content: `${BOOKING_EMOJIS.ROLEICON_SUCCESS} Cảm ơn đánh giá 5 sao của bạn nhé, chúc bạn một ngày tốt lành ạ!`,

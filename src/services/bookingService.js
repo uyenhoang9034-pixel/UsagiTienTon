@@ -14,7 +14,7 @@ import {
   BOOKING_LOG_CHANNEL_ID,
 } from '../config/bookingConfig.js';
 import { isBotOwner } from '../config/bot.js';
-import { getDatabaseValue, setDatabaseValue, getGuildConfigKey } from '../utils/database.js';
+import { db, getDatabaseValue, setDatabaseValue, isDatabaseReady, getGuildConfigKey } from '../utils/database.js';
 import { logger } from '../utils/logger.js';
 import { generateTranscriptFiles } from '../utils/ticket/ticketTranscript.js';
 
@@ -125,97 +125,211 @@ export async function isBookingAdmin(member, userId, client = null) {
 }
 /**
  * Cache lưu trạng thái runtime của các profile (lượt tim, ảnh hiện tại, điểm sao)
+ * và hàng đợi ghi tuần tự để tránh mất dữ liệu khi thả tim / đánh giá đồng thời.
  */
 const profileState = new Map();
+const bookingProfileQueues = new Map();
+const hydratedDbByProfile = new Map();
+
+export function getBookingProfileDbKey(profileId = '1') {
+  return `booking:profile:${String(profileId || '1')}`;
+}
+
+export function resetBookingProfileCache() {
+  profileState.clear();
+  hydratedDbByProfile.clear();
+  bookingProfileQueues.clear();
+}
+
+export function extractProfileImageIndex(message, totalImages = 2) {
+  const maxImages = Math.max(1, Number(totalImages) || 2);
+  const scan = (components) => {
+    if (!Array.isArray(components)) return null;
+    for (const comp of components) {
+      const data = comp?.toJSON?.() || comp?.data || comp || {};
+      const cId = String(comp?.customId || data.custom_id || data.customId || '');
+      const navMatch = cId.match(/^hw_(?:prev|next|flip):\d+:(\d+)/);
+      if (navMatch) {
+        const idx = parseInt(navMatch[1], 10);
+        if (Number.isInteger(idx) && idx >= 0 && idx < maxImages) {
+          return idx;
+        }
+      }
+      if (cId.startsWith('hw_page:')) {
+        const label = String(comp?.label || data.label || '');
+        const pageMatch = label.match(/^(\d+)\s*\/\s*\d+$/);
+        if (pageMatch) {
+          const idx = parseInt(pageMatch[1], 10) - 1;
+          if (Number.isInteger(idx) && idx >= 0 && idx < maxImages) {
+            return idx;
+          }
+        }
+      }
+      const nested = scan(comp?.components) ?? scan(data.components);
+      if (nested !== null) return nested;
+    }
+    return null;
+  };
+
+  return scan(message?.components) ?? 0;
+}
+
+function getActiveBookingDb(client = null) {
+  if (client?.db && typeof client.db.get === 'function' && typeof client.db.set === 'function') {
+    return client.db;
+  }
+  return isDatabaseReady(null) ? db : null;
+}
+
+function normalizeStoredProfileState(base, profData = {}) {
+  return {
+    ...base,
+    likes: typeof profData?.likes === 'number' ? profData.likes : (typeof base.likes === 'number' ? base.likes : 0),
+    rating: profData?.rating || base.rating || '5/5',
+    fiveStarCount: typeof profData?.fiveStarCount === 'number' ? profData.fiveStarCount : 0,
+    userLikes: profData?.userLikes && typeof profData.userLikes === 'object' ? { ...profData.userLikes } : {},
+  };
+}
+
+function toPersistedProfileData(profile) {
+  return {
+    likes: typeof profile.likes === 'number' ? profile.likes : 0,
+    rating: profile.rating || '5/5',
+    fiveStarCount: typeof profile.fiveStarCount === 'number' ? profile.fiveStarCount : 0,
+    userLikes: profile.userLikes && typeof profile.userLikes === 'object' ? { ...profile.userLikes } : {},
+  };
+}
+
+function withBookingProfileLock(profileId, task) {
+  const key = String(profileId || '1');
+  const previous = bookingProfileQueues.get(key) || Promise.resolve();
+  const next = previous.then(task);
+  bookingProfileQueues.set(key, next.catch(() => {}));
+  return next;
+}
+
+async function persistProfileData(client, profile) {
+  const persisted = toPersistedProfileData(profile);
+  const activeDb = getActiveBookingDb(client);
+  let savedToDb = false;
+
+  if (activeDb) {
+    savedToDb = await setDatabaseValue(client, getBookingProfileDbKey(profile.id), persisted);
+  }
+
+  if (!savedToDb) {
+    const stored = loadStoredBookingData();
+    stored.profiles = stored.profiles || {};
+    stored.profiles[String(profile.id)] = persisted;
+    saveStoredBookingData(stored);
+  }
+
+  return savedToDb;
+}
+
+async function hydrateProfileUnsafe(client, profileId = '1') {
+  const base = HEALING_WHISPER_PROFILES[String(profileId)] || HEALING_WHISPER_PROFILES['1'];
+  const activeDb = getActiveBookingDb(client);
+
+  if (activeDb && hydratedDbByProfile.get(base.id) !== activeDb) {
+    const dbData = await getDatabaseValue(client, getBookingProfileDbKey(base.id), null);
+    if (dbData && typeof dbData === 'object') {
+      profileState.set(base.id, normalizeStoredProfileState(base, dbData));
+    } else {
+      const stored = loadStoredBookingData();
+      const fileProf = stored?.profiles?.[String(base.id)] || {};
+      const state = normalizeStoredProfileState(base, fileProf);
+      profileState.set(base.id, state);
+      if (state.likes > 0 || state.fiveStarCount > 0 || Object.keys(state.userLikes).length > 0) {
+        await setDatabaseValue(client, getBookingProfileDbKey(base.id), toPersistedProfileData(state));
+      }
+    }
+    hydratedDbByProfile.set(base.id, activeDb);
+  }
+
+  return getProfileData(base.id);
+}
 
 export function getProfileData(profileId = '1') {
   const base = HEALING_WHISPER_PROFILES[String(profileId)] || HEALING_WHISPER_PROFILES['1'];
   if (!profileState.has(base.id)) {
     const stored = loadStoredBookingData();
     const profData = stored?.profiles?.[String(base.id)] || {};
-    profileState.set(base.id, {
-      ...base,
-      likes: typeof profData.likes === 'number' ? profData.likes : (typeof base.likes === 'number' ? base.likes : 0),
-      rating: profData.rating || base.rating || '5/5',
-      fiveStarCount: typeof profData.fiveStarCount === 'number' ? profData.fiveStarCount : 0,
-      userLikes: profData.userLikes || {},
-    });
+    profileState.set(base.id, normalizeStoredProfileState(base, profData));
   }
   return profileState.get(base.id);
 }
 
-/**
- * Thả tim tích lũy cho profile (giới hạn tối đa 10 lần/user vĩnh viễn)
- */
-export function addProfileLike(profileId = '1', userId) {
-  const profile = getProfileData(profileId);
-  if (!profile) return { success: false, reason: 'NOT_FOUND' };
-
-  if (!profile.userLikes || typeof profile.userLikes !== 'object') {
-    profile.userLikes = {};
-  }
-
-  const currentCount = Number(profile.userLikes[userId]) || 0;
-  if (currentCount >= 10) {
-    return {
-      success: false,
-      reason: 'MAX_REACHED',
-      currentLikes: typeof profile.likes === 'number' ? profile.likes : 0,
-      userLikes: currentCount,
-      max: 10,
-    };
-  }
-
-  const nextCount = currentCount + 1;
-  profile.userLikes[userId] = nextCount;
-  profile.likes = (typeof profile.likes === 'number' ? profile.likes : 0) + 1;
-
-  // Cập nhật và lưu vào file bookingData.json ngay lập tức
-  const stored = loadStoredBookingData();
-  stored.profiles = stored.profiles || {};
-  stored.profiles[String(profile.id)] = {
-    likes: profile.likes,
-    rating: profile.rating || '5/5',
-    fiveStarCount: profile.fiveStarCount || 0,
-    userLikes: profile.userLikes,
-  };
-  saveStoredBookingData(stored);
-
-  return {
-    success: true,
-    currentLikes: profile.likes,
-    userLikes: nextCount,
-    max: 10,
-  };
+export async function loadProfileData(client = null, profileId = '1') {
+  const base = HEALING_WHISPER_PROFILES[String(profileId)] || HEALING_WHISPER_PROFILES['1'];
+  return withBookingProfileLock(base.id, () => hydrateProfileUnsafe(client, base.id));
 }
 
 /**
- * Thêm đánh giá 5 sao cho profile và lưu trữ bền vững
+ * Thả tim tích lũy cho profile (giới hạn tối đa 10 lần/user vĩnh viễn)
+ * Lưu trữ bền vững vào PostgreSQL DB (fallback sang bookingData.json khi offline).
  */
-export function addProfileRating(profileId = '1', stars = 5) {
-  const profile = getProfileData(profileId);
-  if (!profile) return { success: false, reason: 'NOT_FOUND' };
+export async function addProfileLike(profileId = '1', userId, client = null) {
+  const base = HEALING_WHISPER_PROFILES[String(profileId)] || HEALING_WHISPER_PROFILES['1'];
+  return withBookingProfileLock(base.id, async () => {
+    const profile = await hydrateProfileUnsafe(client, base.id);
+    if (!profile) return { success: false, reason: 'NOT_FOUND' };
 
-  if (stars === 5) {
-    profile.fiveStarCount = (typeof profile.fiveStarCount === 'number' ? profile.fiveStarCount : 0) + 1;
-    profile.rating = '5/5';
-  }
+    if (!profile.userLikes || typeof profile.userLikes !== 'object') {
+      profile.userLikes = {};
+    }
 
-  const stored = loadStoredBookingData();
-  stored.profiles = stored.profiles || {};
-  stored.profiles[String(profile.id)] = {
-    likes: typeof profile.likes === 'number' ? profile.likes : 0,
-    rating: profile.rating || '5/5',
-    fiveStarCount: profile.fiveStarCount || 0,
-    userLikes: profile.userLikes || {},
-  };
-  saveStoredBookingData(stored);
+    const currentCount = Number(profile.userLikes[userId]) || 0;
+    if (currentCount >= 10) {
+      return {
+        success: false,
+        reason: 'MAX_REACHED',
+        currentLikes: typeof profile.likes === 'number' ? profile.likes : 0,
+        userLikes: currentCount,
+        max: 10,
+        profile,
+      };
+    }
 
-  return {
-    success: true,
-    rating: profile.rating,
-    fiveStarCount: profile.fiveStarCount,
-  };
+    const nextCount = currentCount + 1;
+    profile.userLikes[userId] = nextCount;
+    profile.likes = (typeof profile.likes === 'number' ? profile.likes : 0) + 1;
+
+    await persistProfileData(client, profile);
+
+    return {
+      success: true,
+      currentLikes: profile.likes,
+      userLikes: nextCount,
+      max: 10,
+      profile,
+    };
+  });
+}
+
+/**
+ * Thêm đánh giá 5 sao cho profile và lưu trữ bền vững vào PostgreSQL DB
+ */
+export async function addProfileRating(profileId = '1', stars = 5, client = null) {
+  const base = HEALING_WHISPER_PROFILES[String(profileId)] || HEALING_WHISPER_PROFILES['1'];
+  return withBookingProfileLock(base.id, async () => {
+    const profile = await hydrateProfileUnsafe(client, base.id);
+    if (!profile) return { success: false, reason: 'NOT_FOUND' };
+
+    if (stars === 5) {
+      profile.fiveStarCount = (typeof profile.fiveStarCount === 'number' ? profile.fiveStarCount : 0) + 1;
+      profile.rating = '5/5';
+    }
+
+    await persistProfileData(client, profile);
+
+    return {
+      success: true,
+      rating: profile.rating,
+      fiveStarCount: profile.fiveStarCount,
+      profile,
+    };
+  });
 }
 
 export function findProfileByQuery(query) {
@@ -238,8 +352,11 @@ export function findProfileByQuery(query) {
  * Build payload V2 cho Profile Card
  */
 export function buildProfilePayloadV2(profile, currentIdx = 0) {
-  const imgUrl = profile.images[currentIdx] || profile.images[0];
-  const pageStr = `${currentIdx + 1}/2`;
+  const images = Array.isArray(profile?.images) && profile.images.length > 0 ? profile.images : [''];
+  const totalPages = images.length;
+  const safeIdx = Number.isInteger(currentIdx) && currentIdx >= 0 && currentIdx < totalPages ? currentIdx : 0;
+  const imgUrl = images[safeIdx] || images[0];
+  const pageStr = `${safeIdx + 1}/${totalPages}`;
 
   return {
     flags: IS_COMPONENTS_V2,
@@ -283,7 +400,7 @@ export function buildProfilePayloadV2(profile, currentIdx = 0) {
                 type: 2,
                 style: 2, // Xám
                 label: '❮❮',
-                custom_id: `hw_prev:${profile.id}:${currentIdx}`,
+                custom_id: `hw_prev:${profile.id}:${safeIdx}`,
               },
               {
                 type: 2,
@@ -296,7 +413,7 @@ export function buildProfilePayloadV2(profile, currentIdx = 0) {
                 type: 2,
                 style: 2, // Xám
                 label: '❯❯',
-                custom_id: `hw_next:${profile.id}:${currentIdx}`,
+                custom_id: `hw_next:${profile.id}:${safeIdx}`,
               },
               {
                 type: 2,
@@ -1471,7 +1588,8 @@ export async function handleBookingMessage(message, client) {
     await message.delete().catch(() => {});
 
     const query = pro5Match[1] || '';
-    const profile = findProfileByQuery(query);
+    const matched = findProfileByQuery(query);
+    const profile = await loadProfileData(client, matched.id);
     const payload = buildProfilePayloadV2(profile, 0);
 
     await message.channel.send(payload);

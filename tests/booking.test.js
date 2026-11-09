@@ -544,9 +544,29 @@ test('Yêu cầu 1 mới: Khoảng cách emoji đối xứng và sát nhau chu�
   assert.equal(rightPair, '<a:trangtrig53:1567819189866201219><a:trangtrig51:1567818549794439229>');
 });
 
-test('Yêu cầu 2 mới: Bắt đầu từ 0 tim, giới hạn 10 tim/user vĩnh viễn và lưu trữ dữ liệu bền vững', async () => {
-  const { addProfileLike, addProfileRating } = await import('../src/services/bookingService.js');
-  const profile = getProfileData('1');
+test('Yêu cầu 2 mới: Bắt đầu từ 0 tim, giới hạn 10 tim/user vĩnh viễn và lưu trữ bền vững vào DB', async () => {
+  const {
+    addProfileLike,
+    addProfileRating,
+    loadProfileData,
+    resetBookingProfileCache,
+    getBookingProfileDbKey,
+  } = await import('../src/services/bookingService.js');
+
+  resetBookingProfileCache();
+  const records = new Map();
+  const mockClient = {
+    db: {
+      get: async (key, fallback) => structuredClone(records.get(key) ?? fallback),
+      set: async (key, value) => {
+        records.set(key, structuredClone(value));
+        return true;
+      },
+      delete: async (key) => records.delete(key),
+    },
+  };
+
+  const profile = await loadProfileData(mockClient, '1');
 
   // Khởi tạo nhãn nút tim là '0'
   const payload = buildProfilePayloadV2(profile, 0);
@@ -556,26 +576,36 @@ test('Yêu cầu 2 mới: Bắt đầu từ 0 tim, giới hạn 10 tim/user vĩn
   // User 1 thả tim 10 lần liên tiếp -> Đều thành công
   const testUserId = 'test_user_999';
   for (let i = 1; i <= 10; i++) {
-    const res = addProfileLike('1', testUserId);
+    const res = await addProfileLike('1', testUserId, mockClient);
     assert.equal(res.success, true);
     assert.equal(res.userLikes, i);
   }
 
   // Thả lần 11 -> Bị từ chối do đạt giới hạn tối đa
-  const res11 = addProfileLike('1', testUserId);
+  const res11 = await addProfileLike('1', testUserId, mockClient);
   assert.equal(res11.success, false);
   assert.equal(res11.reason, 'MAX_REACHED');
   assert.equal(res11.userLikes, 10);
 
   // User khác vẫn có thể thả tim bình thường
-  const resOther = addProfileLike('1', 'another_user_888');
+  const resOther = await addProfileLike('1', 'another_user_888', mockClient);
   assert.equal(resOther.success, true);
   assert.equal(resOther.userLikes, 1);
+  assert.equal(resOther.currentLikes, 11);
 
   // Thử nghiệm đánh giá 5 sao
-  const rateRes = addProfileRating('1', 5);
+  const rateRes = await addProfileRating('1', 5, mockClient);
   assert.equal(rateRes.success, true);
   assert.equal(rateRes.rating, '5/5');
+  assert.equal(rateRes.fiveStarCount, 1);
+
+  // Dữ liệu đã được lưu bền vững trong DB
+  const dbRecord = records.get(getBookingProfileDbKey('1'));
+  assert.equal(dbRecord.likes, 11);
+  assert.equal(dbRecord.fiveStarCount, 1);
+  assert.equal(dbRecord.userLikes[testUserId], 10);
+
+  resetBookingProfileCache();
 });
 
 test('Yêu cầu 5: findRenterIdFromChannel nhận diện đúng chủ ticket ngay cả khi executor là người tạo', async () => {
@@ -993,6 +1023,126 @@ test('sendBookingTicketLog: fallback gửi riêng file transcript nếu gửi g�
   assert.equal(sendCalls[2].files?.length, 1);
   assert.equal(sendCalls[2].files[0].name, 'transcript-mw9-hw1-fallback.html');
 });
+
+test('Booking Heart UI (Mục 2 & 3): giữ đúng trang ảnh 2/2 khi bấm tim và lưu số tim bền vững qua restart/redeploy DB', async () => {
+  const { default: bookingButtons } = await import('../src/interactions/buttons/bookingButtons.js');
+  const {
+    loadProfileData,
+    resetBookingProfileCache,
+    getBookingProfileDbKey,
+  } = await import('../src/services/bookingService.js');
+
+  const records = new Map();
+  const makeClient = () => ({
+    user: { id: 'bot_123' },
+    db: {
+      get: async (key, fallback) => structuredClone(records.get(key) ?? fallback),
+      set: async (key, value) => {
+        records.set(key, structuredClone(value));
+        return true;
+      },
+      delete: async (key) => records.delete(key),
+    },
+  });
+
+  const hwNext = bookingButtons.find((b) => b.name === 'hw_next');
+  const hwHeart = bookingButtons.find((b) => b.name === 'hw_heart');
+  const hwStar = bookingButtons.find((b) => b.name === 'hw_star');
+
+  // Chu kỳ 1: Trước redeploy
+  resetBookingProfileCache();
+  const clientBeforeDeploy = makeClient();
+  const initialProfile = await loadProfileData(clientBeforeDeploy, '1');
+  const cardPage0 = buildProfilePayloadV2(initialProfile, 0);
+
+  // Khách lật sang ảnh 2/2
+  let cardPage1 = null;
+  await hwNext.execute(
+    {
+      user: { id: 'viewer_1' },
+      message: cardPage0,
+      update: async (p) => {
+        cardPage1 = p;
+      },
+    },
+    clientBeforeDeploy,
+    ['1', '0'],
+  );
+  assert.equal(cardPage1.components[0].components[5].components[1].label, '2/2');
+
+  // Khách bấm tim ngay tại ảnh 2/2 -> phải giữ nguyên 2/2 và tăng tim lên 1
+  let updatedAfterHeart = null;
+  await hwHeart.execute(
+    {
+      user: { id: 'viewer_1' },
+      message: cardPage1,
+      update: async (p) => {
+        updatedAfterHeart = p;
+      },
+    },
+    clientBeforeDeploy,
+    ['1'],
+  );
+  assert.ok(updatedAfterHeart);
+  assert.equal(updatedAfterHeart.components[0].components[5].components[1].label, '2/2', 'Bấm tim ở ảnh 2/2 không được giật về 1/2');
+  assert.ok(updatedAfterHeart.components[0].components[4].items[0].media.url.includes('hw1anh2.jpg'));
+  assert.equal(updatedAfterHeart.components[0].components[6].components[1].label, '1');
+
+  // Khách đánh giá 5 sao -> lưu fiveStarCount vào DB
+  await hwStar.execute(
+    {
+      user: { id: 'viewer_1' },
+      reply: async () => {},
+    },
+    clientBeforeDeploy,
+    ['1', 'viewer_1', '5'],
+  );
+
+  // Mô phỏng Railway redeploy: xóa sạch RAM cache, tạo client mới trỏ vào cùng DB
+  resetBookingProfileCache();
+  const clientAfterDeploy = makeClient();
+
+  // Hai user khác nhau bấm tim đồng thời sau redeploy -> không bị reset về 0 và không mất lượt
+  let msgA = null;
+  let msgB = null;
+  await Promise.all([
+    hwHeart.execute(
+      {
+        user: { id: 'viewer_2' },
+        message: updatedAfterHeart,
+        update: async (p) => {
+          msgA = p;
+        },
+      },
+      clientAfterDeploy,
+      ['1'],
+    ),
+    hwHeart.execute(
+      {
+        user: { id: 'viewer_3' },
+        message: updatedAfterHeart,
+        update: async (p) => {
+          msgB = p;
+        },
+      },
+      clientAfterDeploy,
+      ['1'],
+    ),
+  ]);
+
+  const savedAfterDeploy = records.get(getBookingProfileDbKey('1'));
+  assert.equal(savedAfterDeploy.likes, 3, 'Số tim cũ (1) phải được cộng tiếp thành 3 sau redeploy');
+  assert.equal(savedAfterDeploy.fiveStarCount, 1);
+  assert.equal(savedAfterDeploy.userLikes.viewer_1, 1);
+  assert.equal(savedAfterDeploy.userLikes.viewer_2, 1);
+  assert.equal(savedAfterDeploy.userLikes.viewer_3, 1);
+  assert.ok(msgA && msgB);
+  assert.equal(msgB.components[0].components[6].components[1].label, '3');
+  assert.equal(msgB.components[0].components[5].components[1].label, '2/2');
+
+  resetBookingProfileCache();
+});
+
 
 
 
