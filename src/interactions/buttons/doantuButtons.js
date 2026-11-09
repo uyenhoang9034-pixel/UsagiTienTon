@@ -7,6 +7,7 @@ import {
 import { WORD_GUESS_ADMIN_ROLE_ID, WORD_GUESS_DEFAULTS, WORD_GUESS_EMOJIS } from '../../config/wordGuessConfig.js';
 import {
   buildAdminPanelPayloadV2,
+  buildIdlePausedPayloadV2,
   buildLeaderboardPayloadV2,
   buildWordGuessNoticePayloadV2,
   disableWordGuessGuild,
@@ -20,6 +21,8 @@ import {
   withGuildLock,
 } from '../../services/wordGuessService.js';
 import { logger } from '../../utils/logger.js';
+
+const resumingGuilds = new Set();
 
 function buildPermissionDeniedPayload() {
   return buildWordGuessNoticePayloadV2({
@@ -73,6 +76,111 @@ export default [
         }
       } catch (error) {
         logger.error('[DoanTuButtons] Lỗi nút doantu_hint:', error);
+      }
+    },
+  },
+
+  // 1b. Nút Chơi tiếp sau khi bot tạm kết thúc vì quá 3 phút vắng người chơi
+  {
+    name: 'doantu_resume',
+    async execute(interaction, client) {
+      const guildId = String(interaction.guildId || '');
+      try {
+        if (!guildId) {
+          return interaction.reply(
+            buildWordGuessNoticePayloadV2({
+              title: 'CHỈ DÙNG TRONG SERVER',
+              message: `${WORD_GUESS_EMOJIS.TIME} Trò chơi Đoán Từ chỉ hoạt động trong server nha!`,
+              ephemeral: true,
+            }),
+          );
+        }
+
+        if (resumingGuilds.has(guildId)) {
+          return interaction.reply(
+            buildWordGuessNoticePayloadV2({
+              title: 'ĐANG MỞ VÁN MỚI',
+              message: `${WORD_GUESS_EMOJIS.HINT} Có người vừa bấm Chơi tiếp rồi, ván mới đang được gửi ngay nè~`,
+              ephemeral: true,
+            }),
+          );
+        }
+
+        resumingGuilds.add(guildId);
+        try {
+          const botClient = client || interaction.client;
+          const config = await getWordGuessGuildConfig(botClient, guildId);
+
+          if (!config.enabled || !config.channelId) {
+            await interaction
+              .update(
+                buildIdlePausedPayloadV2({
+                  idleMinutes: Math.max(1, Math.round(WORD_GUESS_DEFAULTS.IDLE_TIMEOUT_MS / 60000)),
+                  resumeDisabled: true,
+                }),
+              )
+              .catch(() => {});
+
+            return interaction
+              .followUp?.(
+                buildWordGuessNoticePayloadV2({
+                  title: 'TRÒ CHƠI ĐANG TẮT',
+                  message: `${WORD_GUESS_EMOJIS.ADMIN_DISABLE} Admin hiện đã tắt kênh Đoán Từ rồi nha!`,
+                  ephemeral: true,
+                }),
+              )
+              ?.catch?.(() => {});
+          }
+
+          const currentChannelId = String(interaction.channelId || interaction.channel?.id || '');
+          if (currentChannelId && currentChannelId !== config.channelId) {
+            return interaction.reply(
+              buildWordGuessNoticePayloadV2({
+                title: 'KÊNH CHƠI ĐÃ THAY ĐỔI',
+                message: `${WORD_GUESS_EMOJIS.CHANNEL} Kênh Đoán Từ hiện tại đã chuyển sang <#${config.channelId}> rồi nha!`,
+                ephemeral: true,
+              }),
+            );
+          }
+
+          const existing = getActiveRound(guildId);
+          if ((existing && !existing.ended) || !config.idlePaused) {
+            await interaction
+              .update(
+                buildIdlePausedPayloadV2({
+                  idleMinutes: Math.max(1, Math.round(WORD_GUESS_DEFAULTS.IDLE_TIMEOUT_MS / 60000)),
+                  resumeDisabled: true,
+                }),
+              )
+              .catch(() => {});
+            return;
+          }
+
+          await interaction.update(
+            buildIdlePausedPayloadV2({
+              idleMinutes: Math.max(1, Math.round(WORD_GUESS_DEFAULTS.IDLE_TIMEOUT_MS / 60000)),
+              resumeDisabled: true,
+              resumedByUserId: interaction.user.id,
+            }),
+          );
+
+          const started = await startWordGuessRound(botClient, guildId, { isAutoContinuation: false });
+          if (!started?.success) {
+            await interaction
+              .followUp?.(
+                buildWordGuessNoticePayloadV2({
+                  title: 'KHÔNG THỂ BẮT ĐẦU VÁN MỚI',
+                  message: `${WORD_GUESS_EMOJIS.ADMIN_DISABLE} Bot không tìm thấy hoặc thiếu quyền gửi tin nhắn vào kênh <#${config.channelId}> nha!`,
+                  ephemeral: true,
+                }),
+              )
+              ?.catch?.(() => {});
+          }
+        } finally {
+          resumingGuilds.delete(guildId);
+        }
+      } catch (error) {
+        logger.error('[DoanTuButtons] Lỗi nút doantu_resume:', error);
       }
     },
   },
@@ -135,7 +243,7 @@ export default [
   {
     name: 'doantu_bxh_page',
     async execute(interaction) {
-      await interaction.deferUpdate?.().catch(() => {});
+      await interaction.deferUpdate?.()?.catch?.(() => {});
     },
   },
 
@@ -184,6 +292,9 @@ export default [
         const saved = await withGuildLock(interaction.guildId, async () => {
           const config = await getWordGuessGuildConfig(client, interaction.guildId);
           config.autoStart = !config.autoStart;
+          if (!config.autoStart) {
+            config.idlePaused = false;
+          }
           return saveWordGuessGuildConfig(client, interaction.guildId, config);
         });
 
@@ -273,6 +384,7 @@ export default [
         const enabledConfig = await withGuildLock(interaction.guildId, async () => {
           const cfg = await getWordGuessGuildConfig(client, interaction.guildId);
           cfg.enabled = true;
+          cfg.idlePaused = false;
           return saveWordGuessGuildConfig(client, interaction.guildId, cfg);
         });
 

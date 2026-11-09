@@ -45,6 +45,11 @@ const registeredGuildCache = new Set();
 const activeTimers = new Map();
 
 /**
+ * Thời điểm có tương tác chơi gần nhất (gửi đáp án / bấm Mở gợi ý / bắt đầu ván) theo guildId.
+ */
+const guildLastActivityAt = new Map();
+
+/**
  * Regex chuẩn hóa vị trí dấu thanh cũ/mới tiếng Việt (chỉ chuẩn hóa cặp cùng có dấu, tuyệt đối KHÔNG bỏ dấu).
  */
 const TONE_PLACEMENT_EQUIVALENTS = [
@@ -291,6 +296,7 @@ export function createDefaultGuildConfig(guildId) {
     channelId: null,
     durationSeconds: WORD_GUESS_DEFAULTS.ROUND_DURATION_SECONDS,
     autoStart: true,
+    idlePaused: false,
     recentWords: [],
     stats: {},
     updatedAt: null,
@@ -335,6 +341,7 @@ function normalizeGuildConfig(guildId, raw = null) {
     channelId: raw.channelId ? String(raw.channelId) : null,
     durationSeconds: clampedDuration,
     autoStart: raw.autoStart !== undefined ? Boolean(raw.autoStart) : true,
+    idlePaused: Boolean(raw.idlePaused),
     recentWords: Array.isArray(raw.recentWords)
       ? raw.recentWords.slice(-WORD_GUESS_DEFAULTS.RECENT_WORDS_LIMIT)
       : [],
@@ -603,8 +610,14 @@ export function buildRoundTimeoutPayloadV2({
   durationSeconds,
   nextRoundDelaySeconds = 5,
   autoStart = true,
+  pausedIdle = false,
 }) {
   const answerUpper = String(answer || '').normalize('NFC').toLocaleUpperCase('vi-VN');
+  const footerLine = pausedIdle
+    ? 'Đã quá 3 phút chưa có người chơi — xem thẻ Tạm kết thúc bên dưới'
+    : autoStart
+      ? `Tự động chuyển sang từ mới sau ${nextRoundDelaySeconds} giây...`
+      : 'Trò chơi đang ở chế độ thủ công • Dùng /doantu-admin để chơi tiếp';
 
   return {
     flags: IS_COMPONENTS_V2,
@@ -637,7 +650,69 @@ export function buildRoundTimeoutPayloadV2({
           },
           {
             type: 10,
-            content: `-# ${autoStart ? `Tự động chuyển sang từ mới sau ${nextRoundDelaySeconds} giây...` : 'Trò chơi đang ở chế độ thủ công • Dùng /doantu-admin để chơi tiếp'}`,
+            content: `-# ${footerLine}`,
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/**
+ * 4b. Giao diện Tạm Kết Thúc sau 3 phút không có ai chơi (nút Chơi tiếp màu xám + emoji heartg1).
+ */
+export function buildIdlePausedPayloadV2({
+  idleMinutes = Math.round(WORD_GUESS_DEFAULTS.IDLE_TIMEOUT_MS / 60000),
+  resumeDisabled = false,
+  resumedByUserId = null,
+} = {}) {
+  return {
+    flags: IS_COMPONENTS_V2,
+    allowedMentions: { parse: [] },
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content: formatWordGuessTitle('TẠM KẾT THÚC DO VẮNG NGƯỜI CHƠI'),
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 1,
+          },
+          {
+            type: 10,
+            content: [
+              `${WORD_GUESS_EMOJIS.TIME} Đã quá **${idleMinutes} phút** chưa có ai tham gia đoán từ.`,
+              `${WORD_GUESS_EMOJIS.STATUS} **Trạng thái:** Bot tạm kết thúc để tránh làm trôi tin nhắn kênh.`,
+              `${WORD_GUESS_EMOJIS.STREAK} Khi nào có thời gian chơi tiếp, hãy bấm nút bên dưới để mở ván mới ngay nha~`,
+            ].join('\n'),
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 1,
+          },
+          {
+            type: 10,
+            content: resumedByUserId
+              ? `-# Đã được <@${resumedByUserId}> bấm Chơi tiếp`
+              : '-# Bấm nút Chơi tiếp bên dưới bất cứ lúc nào để chơi lại từ mới',
+          },
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                style: 2, // Xám
+                label: 'Chơi tiếp',
+                emoji: WORD_GUESS_BUTTON_EMOJIS.HINT, // <a:heartg1:1545307544808071258>
+                custom_id: 'doantu_resume',
+                disabled: Boolean(resumeDisabled),
+              },
+            ],
           },
         ],
       },
@@ -819,11 +894,15 @@ export function buildAdminPanelPayloadV2(config, currentRound = null) {
 
   let statusLabel = 'Đang tắt';
   if (config?.channelId && config?.enabled) {
-    statusLabel = config.autoStart
-      ? 'Đang bật (Tự động bắt đầu liên hoàn)'
-      : 'Đang bật (Chế độ thủ công)';
-    if (currentRound && !currentRound.ended) {
-      statusLabel += ' • Ván đang chạy';
+    if (config.idlePaused && (!currentRound || currentRound.ended)) {
+      statusLabel = 'Đang tạm nghỉ (Quá 3 phút chưa có người chơi)';
+    } else {
+      statusLabel = config.autoStart
+        ? 'Đang bật (Tự động bắt đầu liên hoàn)'
+        : 'Đang bật (Chế độ thủ công)';
+      if (currentRound && !currentRound.ended) {
+        statusLabel += ' • Ván đang chạy';
+      }
     }
   } else if (config?.channelId && !config?.enabled) {
     statusLabel = 'Đang tạm tắt';
@@ -977,12 +1056,21 @@ export function clearGuildTimers(guildId) {
   }
 }
 
+export function markGuildActivity(guildId, timestamp = Date.now()) {
+  guildLastActivityAt.set(String(guildId), timestamp);
+}
+
+export function getGuildLastActivityAt(guildId) {
+  return guildLastActivityAt.get(String(guildId)) ?? null;
+}
+
 export function resetAllInMemoryRounds() {
   for (const guildId of activeTimers.keys()) {
     clearGuildTimers(guildId);
   }
   activeRounds.clear();
   registeredGuildCache.clear();
+  guildLastActivityAt.clear();
 }
 
 async function resolveGuildChannel(client, channelId) {
@@ -1022,8 +1110,8 @@ function scheduleNextRound(client, guildId, delayMs = WORD_GUESS_DEFAULTS.NEXT_R
   const nextRoundTimeout = setTimeout(async () => {
     try {
       const currentConfig = await getWordGuessGuildConfig(client, key);
-      if (currentConfig.enabled && currentConfig.autoStart && currentConfig.channelId) {
-        await startWordGuessRound(client, key);
+      if (currentConfig.enabled && currentConfig.autoStart && !currentConfig.idlePaused && currentConfig.channelId) {
+        await startWordGuessRound(client, key, { isAutoContinuation: true });
       }
     } catch (error) {
       logger.error(`[WordGuess] Lỗi tự động bắt đầu ván mới ở guild ${key}:`, error);
@@ -1082,6 +1170,14 @@ export async function startWordGuessRound(client, guildId, options = {}) {
     const hintMask = buildHintMask(word);
     const roundId = crypto.randomBytes(4).toString('hex');
 
+    const now = typeof options.now === 'number' ? options.now : Date.now();
+    if (!options.isAutoContinuation) {
+      markGuildActivity(key, now);
+    } else if (!guildLastActivityAt.has(key)) {
+      markGuildActivity(key, now);
+    }
+
+    config.idlePaused = false;
     config.recentWords = [...(config.recentWords || []), word].slice(-WORD_GUESS_DEFAULTS.RECENT_WORDS_LIMIT);
     const savedConfig = await saveWordGuessGuildConfig(client, key, config);
 
@@ -1097,7 +1193,8 @@ export async function startWordGuessRound(client, guildId, options = {}) {
       wordCount,
       durationSeconds: savedConfig.durationSeconds,
       autoStart: savedConfig.autoStart,
-      startedAt: Date.now(),
+      startedAt: now,
+      hadActivity: false,
       hintRevealed: false,
       solved: false,
       ended: false,
@@ -1162,7 +1259,12 @@ export async function revealRoundHint(client, guildId, options = {}) {
   }
 
   // Đánh dấu đồng bộ trước khi await để chống click trùng
+  const now = typeof options.now === 'number' ? options.now : Date.now();
   round.hintRevealed = true;
+  if (options.triggeredByUser) {
+    round.hadActivity = true;
+    markGuildActivity(key, now);
+  }
 
   const timers = activeTimers.get(key);
   if (timers?.hintTimeout) {
@@ -1170,7 +1272,6 @@ export async function revealRoundHint(client, guildId, options = {}) {
     timers.hintTimeout = null;
   }
 
-  const now = Date.now();
   const elapsedSeconds = Math.max(
     1,
     Math.min(round.durationSeconds - 1, Math.round((now - round.startedAt) / 1000)),
@@ -1226,6 +1327,10 @@ export async function handleRoundTimeout(client, guildId, roundId = null, option
   clearGuildTimers(key);
 
   const { scheduleNext = true } = options;
+  const now = typeof options.now === 'number' ? options.now : Date.now();
+  const lastActivity = guildLastActivityAt.get(key) ?? round.startedAt;
+  const idleElapsedMs = Math.max(0, now - lastActivity);
+  const toleranceMs = WORD_GUESS_DEFAULTS.IDLE_TIMER_TOLERANCE_MS ?? 1000;
 
   return withGuildLock(key, async () => {
     const config = await getWordGuessGuildConfig(client, key);
@@ -1240,7 +1345,13 @@ export async function handleRoundTimeout(client, guildId, roundId = null, option
       };
     }
 
+    const shouldIdlePause =
+      Boolean(config.enabled) &&
+      Boolean(config.autoStart) &&
+      idleElapsedMs + toleranceMs >= WORD_GUESS_DEFAULTS.IDLE_TIMEOUT_MS;
+
     config.stats = stats;
+    config.idlePaused = shouldIdlePause;
     const savedConfig = await saveWordGuessGuildConfig(client, key, config);
 
     await disableStartButtonOnRound(round);
@@ -1249,23 +1360,32 @@ export async function handleRoundTimeout(client, guildId, roundId = null, option
       answer: round.word,
       durationSeconds: round.durationSeconds,
       nextRoundDelaySeconds: Math.round(WORD_GUESS_DEFAULTS.NEXT_ROUND_DELAY_MS / 1000),
-      autoStart: savedConfig.enabled && savedConfig.autoStart,
+      autoStart: savedConfig.enabled && savedConfig.autoStart && !shouldIdlePause,
+      pausedIdle: shouldIdlePause,
     });
 
     const channel = await resolveGuildChannel(client, round.channelId);
     if (channel && typeof channel.send === 'function') {
       await channel.send(timeoutPayload);
+      if (shouldIdlePause) {
+        const idlePausePayload = buildIdlePausedPayloadV2({
+          idleMinutes: Math.max(1, Math.round(WORD_GUESS_DEFAULTS.IDLE_TIMEOUT_MS / 60000)),
+        });
+        await channel.send(idlePausePayload);
+      }
     }
 
     if (activeRounds.get(key) === round) {
       activeRounds.delete(key);
     }
 
-    if (scheduleNext && savedConfig.enabled && savedConfig.autoStart) {
+    if (shouldIdlePause) {
+      guildLastActivityAt.delete(key);
+    } else if (scheduleNext && savedConfig.enabled && savedConfig.autoStart) {
       scheduleNextRound(client, key);
     }
 
-    return { round, config: savedConfig, timeoutPayload };
+    return { round, config: savedConfig, timeoutPayload, pausedIdle: shouldIdlePause };
   });
 }
 
@@ -1296,6 +1416,12 @@ export async function handleWordGuessMessage(message, client, options = {}) {
     return false;
   }
 
+  const now = typeof options.now === 'number' ? options.now : Date.now();
+
+  // Ghi nhận vẫn đang có người chơi tham gia trong kênh (tính cả đoán thử chưa trúng)
+  round.hadActivity = true;
+  markGuildActivity(guildId, now);
+
   // Kiểm tra đáp án có dấu chuẩn NFC + quy tắc dấu thanh
   if (normalizeVietnameseGuess(rawContent) !== round.normalizedWord) {
     return false;
@@ -1306,7 +1432,7 @@ export async function handleWordGuessMessage(message, client, options = {}) {
   round.ended = true;
   clearGuildTimers(guildId);
 
-  const reactionMs = Math.max(100, Date.now() - round.startedAt);
+  const reactionMs = Math.max(100, now - round.startedAt);
   const reactionSeconds = (reactionMs / 1000).toFixed(1);
   const winnerId = String(message.author.id);
   const { scheduleNext = true } = options;
@@ -1367,6 +1493,7 @@ export async function handleWordGuessMessage(message, client, options = {}) {
 export async function disableWordGuessGuild(client, guildId) {
   const key = String(guildId);
   clearGuildTimers(key);
+  guildLastActivityAt.delete(key);
 
   const existing = activeRounds.get(key);
   if (existing) {
@@ -1378,6 +1505,7 @@ export async function disableWordGuessGuild(client, guildId) {
   return withGuildLock(key, async () => {
     const config = await getWordGuessGuildConfig(client, key);
     config.enabled = false;
+    config.idlePaused = false;
     return saveWordGuessGuildConfig(client, key, config);
   });
 }
@@ -1408,7 +1536,7 @@ export async function initWordGuessAutoResume(client) {
     for (const guildId of registryList) {
       try {
         const config = await getWordGuessGuildConfig(client, guildId);
-        if (!config.enabled || !config.autoStart || !config.channelId) {
+        if (!config.enabled || !config.autoStart || config.idlePaused || !config.channelId) {
           continue;
         }
         const channel = await resolveGuildChannel(client, config.channelId);

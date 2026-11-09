@@ -6,6 +6,7 @@ import { MessageFlags } from 'discord.js';
 
 import {
   WORD_GUESS_ADMIN_ROLE_ID,
+  WORD_GUESS_DEFAULTS,
   WORD_GUESS_EMOJIS,
   WORD_GUESS_BUTTON_EMOJIS,
   formatWordGuessTitle,
@@ -25,14 +26,18 @@ import {
   buildMidHintPayloadV2,
   buildRoundWinPayloadV2,
   buildRoundTimeoutPayloadV2,
+  buildIdlePausedPayloadV2,
   buildLeaderboardPayloadV2,
   buildPersonalStreakPayloadV2,
   buildAdminPanelPayloadV2,
   buildWordGuessNoticePayloadV2,
+  getActiveRound,
+  getGuildLastActivityAt,
   startWordGuessRound,
   revealRoundHint,
   handleWordGuessMessage,
   handleRoundTimeout,
+  initWordGuessAutoResume,
   resetAllInMemoryRounds,
 } from '../src/services/wordGuessService.js';
 import doantuCommand from '../src/commands/Games/doantu.js';
@@ -507,4 +512,188 @@ test('6. Quyền role Admin 1545305594712432640, lệnh /doantu, /doantu-admin &
   assert.ok(loaderSource.includes('modals\\/doantu'));
 
   resetAllInMemoryRounds();
+});
+
+test('7. Sau 3 phút không có ai chơi thì tạm kết thúc & hiện nút Chơi tiếp màu xám (emoji heartg1)', async () => {
+  resetAllInMemoryRounds();
+  try {
+    assert.equal(WORD_GUESS_DEFAULTS.IDLE_TIMEOUT_MS, 180000);
+
+    // 1. Kiểm tra UI thẻ Tạm Kết Thúc
+    const idlePayload = buildIdlePausedPayloadV2();
+    assertBorderlessV2(idlePayload, 'TẠM KẾT THÚC DO VẮNG NGƯỜI CHƠI');
+    const idleDetails = collectTextsAndButtons(idlePayload);
+    const idleText = idleDetails.texts.join('\n');
+    assert.ok(idleText.includes(WORD_GUESS_EMOJIS.TIME));
+    assert.ok(idleText.includes(WORD_GUESS_EMOJIS.STATUS));
+    assert.ok(idleText.includes(WORD_GUESS_EMOJIS.STREAK));
+    assert.ok(idleText.includes('3 phút'));
+    assert.equal(idleDetails.buttons.length, 1);
+    assert.equal(idleDetails.buttons[0].style, 2, 'Nút Chơi tiếp phải màu xám (style: 2)');
+    assert.equal(idleDetails.buttons[0].label, 'Chơi tiếp');
+    assert.equal(idleDetails.buttons[0].custom_id, 'doantu_resume');
+    assert.deepEqual(idleDetails.buttons[0].emoji, WORD_GUESS_BUTTON_EMOJIS.HINT);
+    assert.equal(idleDetails.buttons[0].disabled, false);
+
+    // 2. Mô phỏng dòng thời gian 3 phút vắng người chơi
+    const { client, channel, sentMessages } = createMockClient();
+    await saveWordGuessGuildConfig(client, 'guild_guess_1', {
+      channelId: channel.id,
+      enabled: true,
+      autoStart: true,
+      durationSeconds: 60,
+    });
+
+    const t0 = 1_700_000_000_000;
+    const r1 = await startWordGuessRound(client, 'guild_guess_1', {
+      scheduleTimers: false,
+      now: t0,
+      word: 'hoa hồng',
+    });
+    assert.equal(r1.success, true);
+    assert.equal(getGuildLastActivityAt('guild_guess_1'), t0);
+
+    // Hết giờ ván 1 lúc 60s -> chưa đủ 3 phút, chưa tạm kết thúc
+    const to1 = await handleRoundTimeout(client, 'guild_guess_1', r1.round.id, {
+      scheduleNext: false,
+      now: t0 + 60_000,
+    });
+    assert.equal(to1.pausedIdle, false);
+    assert.equal(to1.config.idlePaused, false);
+
+    // Tự động qua ván 2 (không được reset mốc hoạt động)
+    const r2 = await startWordGuessRound(client, 'guild_guess_1', {
+      scheduleTimers: false,
+      isAutoContinuation: true,
+      now: t0 + 65_000,
+      word: 'bánh chưng',
+    });
+    assert.equal(getGuildLastActivityAt('guild_guess_1'), t0);
+
+    // Có người nhắn đoán thử (dù sai) lúc 80s -> phải làm mới mốc hoạt động về t0 + 80s
+    const wrongGuess = await handleWordGuessMessage(
+      { guild: { id: 'guild_guess_1' }, channelId: channel.id, channel, author: { id: 'user_B', bot: false }, content: 'bánh tét' },
+      client,
+      { scheduleNext: false, now: t0 + 80_000 },
+    );
+    assert.equal(wrongGuess, false);
+    assert.equal(getGuildLastActivityAt('guild_guess_1'), t0 + 80_000);
+
+    // Hết giờ ván 2 lúc 185s (mới 105s kể từ t0 + 80s) -> CHƯA đủ 3 phút tính từ tương tác gần nhất
+    const to2 = await handleRoundTimeout(client, 'guild_guess_1', r2.round.id, {
+      scheduleNext: false,
+      now: t0 + 185_000,
+    });
+    assert.equal(to2.pausedIdle, false);
+
+    // Tự động qua ván 3 và không ai tương tác nữa
+    const r3 = await startWordGuessRound(client, 'guild_guess_1', {
+      scheduleTimers: false,
+      isAutoContinuation: true,
+      now: t0 + 190_000,
+      word: 'cầu vồng',
+    });
+
+    // Hết giờ ván 3 lúc 265s (185s >= 180s kể từ t0 + 80s) -> TẠM KẾT THÚC & gửi nút Chơi tiếp
+    const to3 = await handleRoundTimeout(client, 'guild_guess_1', r3.round.id, {
+      scheduleNext: false,
+      now: t0 + 265_000,
+    });
+    assert.equal(to3.pausedIdle, true);
+    assert.equal(to3.config.idlePaused, true);
+    assert.equal(getActiveRound('guild_guess_1'), null);
+    assert.equal(getGuildLastActivityAt('guild_guess_1'), null);
+
+    // Tin nhắn áp chót là hết giờ (không đếm ngược 5s), tin cuối cùng là thẻ Tạm kết thúc + nút Chơi tiếp
+    const lastTwo = sentMessages.slice(-2);
+    assertBorderlessV2(lastTwo[0].payload, 'HẾT THỜI GIAN SUY NGHĨ!');
+    assert.ok(!collectTextsAndButtons(lastTwo[0].payload).texts.join('\n').includes('5 giây'));
+    assertBorderlessV2(lastTwo[1].payload, 'TẠM KẾT THÚC DO VẮNG NGƯỜI CHƠI');
+
+    // Admin panel báo đúng trạng thái đang tạm nghỉ & initWordGuessAutoResume bỏ qua phòng đang tạm nghỉ
+    const adminIdleText = collectTextsAndButtons(buildAdminPanelPayloadV2(to3.config, null)).texts.join('\n');
+    assert.ok(adminIdleText.includes('Đang tạm nghỉ (Quá 3 phút chưa có người chơi)'));
+    assert.equal(await initWordGuessAutoResume(client), 0);
+
+    // 3. Người chơi bấm nút Chơi tiếp (doantu_resume) -> khóa nút cũ & mở ván mới ngay
+    const resumeBtn = doantuButtons.find((b) => b.name === 'doantu_resume');
+    assert.ok(resumeBtn);
+
+    let pauseCardUpdated = null;
+    await resumeBtn.execute(
+      {
+        guildId: 'guild_guess_1',
+        channelId: channel.id,
+        user: { id: 'user_resumer' },
+        update: async (p) => {
+          pauseCardUpdated = p;
+        },
+        reply: async () => {},
+        followUp: async () => {},
+      },
+      client,
+      [],
+    );
+
+    assert.ok(pauseCardUpdated);
+    const updatedDetails = collectTextsAndButtons(pauseCardUpdated);
+    assert.equal(updatedDetails.buttons[0].disabled, true);
+    assert.ok(updatedDetails.texts.join('\n').includes('<@user_resumer>'));
+
+    const resumedRound = getActiveRound('guild_guess_1');
+    assert.ok(resumedRound && !resumedRound.ended, 'Sau khi bấm Chơi tiếp phải có ván mới đang chạy');
+    const cfgAfterResume = await getWordGuessGuildConfig(client, 'guild_guess_1');
+    assert.equal(cfgAfterResume.idlePaused, false);
+    assertBorderlessV2(sentMessages[sentMessages.length - 1].payload, 'TRÒ CHƠI ĐOÁN TỪ BẮT ĐẦU!');
+
+    // 4. Bấm trùng khi ván mới đang chạy -> chỉ khóa nút, không tạo ván trùng
+    let duplicateGuardUpdate = null;
+    await resumeBtn.execute(
+      {
+        guildId: 'guild_guess_1',
+        channelId: channel.id,
+        user: { id: 'user_other' },
+        update: async (p) => {
+          duplicateGuardUpdate = p;
+        },
+        reply: async () => {},
+        followUp: async () => {},
+      },
+      client,
+      [],
+    );
+    assert.equal(collectTextsAndButtons(duplicateGuardUpdate).buttons[0].disabled, true);
+    assert.equal(getActiveRound('guild_guess_1').id, resumedRound.id);
+
+    // 5. Khi kênh đã tắt -> bấm Chơi tiếp sẽ khóa nút và báo Trò chơi đang tắt
+    resetAllInMemoryRounds();
+    await saveWordGuessGuildConfig(client, 'guild_guess_1', {
+      channelId: channel.id,
+      enabled: false,
+      autoStart: true,
+      idlePaused: true,
+    });
+    let disabledCardUpdate = null;
+    let disabledFollowUp = null;
+    await resumeBtn.execute(
+      {
+        guildId: 'guild_guess_1',
+        channelId: channel.id,
+        user: { id: 'user_other' },
+        update: async (p) => {
+          disabledCardUpdate = p;
+        },
+        reply: async () => {},
+        followUp: async (p) => {
+          disabledFollowUp = p;
+        },
+      },
+      client,
+      [],
+    );
+    assert.equal(collectTextsAndButtons(disabledCardUpdate).buttons[0].disabled, true);
+    assertBorderlessV2(disabledFollowUp, 'TRÒ CHƠI ĐANG TẮT', { ephemeral: true });
+  } finally {
+    resetAllInMemoryRounds();
+  }
 });

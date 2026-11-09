@@ -147,6 +147,7 @@ export default {
           const config = await getWordGuessGuildConfig(botClient, interaction.guildId);
           config.channelId = String(targetChannel.id);
           config.enabled = true;
+          config.idlePaused = false;
           if (Number.isInteger(customDuration)) {
             config.durationSeconds = Math.max(
               WORD_GUESS_DEFAULTS.MIN_DURATION_SECONDS,
