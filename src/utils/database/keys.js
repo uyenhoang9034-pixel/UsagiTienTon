@@ -32,6 +32,12 @@ export const getMarriageKey = (guildId, userId) =>
 export const getMarriageRegistryKey = (guildId) =>
   `games:marriage:registry:${guildId}`;
 
+export const getWordGuessConfigKey = (guildId) =>
+  `games:wordguess:config:${guildId}`;
+
+export const getWordGuessRegistryKey = () =>
+  'games:wordguess:guilds';
+
 /**
  * =========================================================
  * COMPATIBILITY EXPORTS · OLD MODULES

@@ -25,10 +25,14 @@ const ALLOWED_INTERACTION_PATTERNS = [
   /^buttons\/random\/.*\.js$/,
   /^buttons\/booking.*\.js$/,
   /^buttons\/booking\/.*\.js$/,
+  /^buttons\/doantu.*\.js$/,
+  /^buttons\/doantu\/.*\.js$/,
   /^selectMenus\/tts.*\.js$/,
   /^selectMenus\/tts\/.*\.js$/,
   /^modals\/booking.*\.js$/,
   /^modals\/booking\/.*\.js$/,
+  /^modals\/doantu.*\.js$/,
+  /^modals\/doantu\/.*\.js$/,
 ];
 
 function isAllowedInteraction(relativePath) {

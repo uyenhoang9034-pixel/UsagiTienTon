@@ -14,6 +14,7 @@ import { handleThanVanTuBan } from '../services/thanVanTuBanService.js';
 import { handleQuoteTrigger } from '../services/quotes/quoteService.js';
 import { handleRandomMessage } from '../services/randomService.js';
 import { handleBookingMessage } from '../services/bookingService.js';
+import { handleWordGuessMessage } from '../services/wordGuessService.js';
 
 export default {
   name: Events.MessageCreate,
@@ -75,6 +76,15 @@ export default {
       }
     } catch (bookingError) {
       logger.error('Error handling Booking trigger:', bookingError);
+    }
+
+    try {
+      const wordGuessProcessed = await handleWordGuessMessage(message, client);
+      if (wordGuessProcessed) {
+        return;
+      }
+    } catch (wordGuessError) {
+      logger.error('Error handling Word Guess message:', wordGuessError);
     }
 
     await handlePrefixCommand(message, client);

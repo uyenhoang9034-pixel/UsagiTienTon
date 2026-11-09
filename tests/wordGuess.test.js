@@ -1,0 +1,510 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { MessageFlags } from 'discord.js';
+
+import {
+  WORD_GUESS_ADMIN_ROLE_ID,
+  WORD_GUESS_EMOJIS,
+  WORD_GUESS_BUTTON_EMOJIS,
+  formatWordGuessTitle,
+} from '../src/config/wordGuessConfig.js';
+import {
+  IS_COMPONENTS_V2,
+  loadWordBank,
+  normalizeVietnameseGuess,
+  scrambleVietnameseWord,
+  buildHintMask,
+  getWordStats,
+  isWordGuessAdmin,
+  getWordGuessGuildConfig,
+  saveWordGuessGuildConfig,
+  getLeaderboardEntries,
+  buildRoundStartPayloadV2,
+  buildMidHintPayloadV2,
+  buildRoundWinPayloadV2,
+  buildRoundTimeoutPayloadV2,
+  buildLeaderboardPayloadV2,
+  buildPersonalStreakPayloadV2,
+  buildAdminPanelPayloadV2,
+  buildWordGuessNoticePayloadV2,
+  startWordGuessRound,
+  revealRoundHint,
+  handleWordGuessMessage,
+  handleRoundTimeout,
+  resetAllInMemoryRounds,
+} from '../src/services/wordGuessService.js';
+import doantuCommand from '../src/commands/Games/doantu.js';
+import doantuAdminCommand from '../src/commands/Games/doantuAdmin.js';
+import doantuButtons from '../src/interactions/buttons/doantuButtons.js';
+import doantuModals from '../src/interactions/modals/doantuModals.js';
+
+function createMockClient() {
+  const store = new Map();
+  const sentMessages = [];
+  const channel = {
+    id: 'channel_guess_1',
+    guild: { id: 'guild_guess_1', members: { me: null } },
+    send: async (payload) => {
+      const msg = {
+        id: `msg_${sentMessages.length + 1}`,
+        payload,
+        edit: async (next) => {
+          msg.payload = next;
+          return msg;
+        },
+      };
+      sentMessages.push(msg);
+      return msg;
+    },
+  };
+
+  const client = {
+    db: {
+      get: async (key, fallback = null) => (store.has(key) ? structuredClone(store.get(key)) : fallback),
+      set: async (key, value) => {
+        store.set(key, structuredClone(value));
+        return true;
+      },
+      delete: async (key) => store.delete(key),
+    },
+    channels: {
+      cache: new Map([[channel.id, channel]]),
+      fetch: async (id) => (id === channel.id ? channel : null),
+    },
+  };
+
+  return { client, channel, store, sentMessages };
+}
+
+function collectTextsAndButtons(payload) {
+  const texts = [];
+  const buttons = [];
+
+  const walk = (nodes) => {
+    if (!Array.isArray(nodes)) return;
+    for (const node of nodes) {
+      if (!node) continue;
+      if (node.type === 10 && typeof node.content === 'string') {
+        texts.push(node.content);
+      }
+      if (node.type === 2) {
+        buttons.push(node);
+      }
+      if (Array.isArray(node.components)) {
+        walk(node.components);
+      }
+    }
+  };
+
+  walk(payload?.components);
+  return { texts, buttons };
+}
+
+function assertBorderlessV2(payload, expectedTitle, { ephemeral = false } = {}) {
+  const expectedFlags = ephemeral
+    ? MessageFlags.Ephemeral | IS_COMPONENTS_V2
+    : IS_COMPONENTS_V2;
+
+  assert.equal(payload.flags, expectedFlags);
+  assert.equal(payload.content, undefined);
+  assert.equal(payload.embeds, undefined);
+  assert.deepEqual(payload.allowedMentions, { parse: [] });
+
+  assert.equal(payload.components.length, 1);
+  const container = payload.components[0];
+  assert.equal(container.type, 17);
+  assert.equal(container.accent_color, undefined);
+
+  const firstText = container.components[0];
+  assert.equal(firstText.type, 10);
+  assert.equal(firstText.content, formatWordGuessTitle(expectedTitle));
+  assert.ok(firstText.content.startsWith(`${WORD_GUESS_EMOJIS.TITLE} **`));
+  assert.ok(firstText.content.endsWith(`** ${WORD_GUESS_EMOJIS.TITLE}`));
+
+  const { buttons } = collectTextsAndButtons(payload);
+  for (const btn of buttons) {
+    assert.equal(btn.style, 2, `Nút "${btn.label}" phải là màu xám (style: 2)`);
+  }
+}
+
+test('1. Kho từ tiếng Việt >= 1000 cụm từ ghép chuẩn, không trùng lặp, không bỏ dấu', () => {
+  const words = loadWordBank();
+  assert.ok(words.length >= 1000, `Kho từ phải có ít nhất 1000 từ, hiện có ${words.length}`);
+
+  const uniqueSet = new Set();
+  for (const w of words) {
+    const normalized = normalizeVietnameseGuess(w);
+    assert.ok(!uniqueSet.has(normalized), `Từ bị trùng trong kho: "${w}"`);
+    uniqueSet.add(normalized);
+
+    const { letterCount, wordCount } = getWordStats(w);
+    assert.ok(wordCount >= 2, `Cụm từ "${w}" phải có ít nhất 2 từ`);
+    assert.ok(letterCount >= 4, `Cụm từ "${w}" quá ngắn (${letterCount} ký tự)`);
+  }
+});
+
+test('2. Kiểm tra luật BẮT BUỘC có dấu, xáo trộn chữ & khung gợi ý chữ cái đầu', () => {
+  assert.equal(normalizeVietnameseGuess('Hoa Hồng'), 'hoa hồng');
+  assert.notEqual(normalizeVietnameseGuess('hoa hong'), normalizeVietnameseGuess('hoa hồng'));
+  assert.notEqual(normalizeVietnameseGuess('banh mi'), normalizeVietnameseGuess('bánh mì'));
+  // Quy tắc đặt dấu thanh cũ/mới (cùng có dấu) vẫn khớp
+  assert.equal(normalizeVietnameseGuess('hoa hoè'), normalizeVietnameseGuess('hoa hòe'));
+  assert.notEqual(normalizeVietnameseGuess('hoa hoe'), normalizeVietnameseGuess('hoa hòe'));
+
+  assert.equal(buildHintMask('sẩy thai'), 'S _ _   T _ _ _');
+  assert.equal(buildHintMask('hoa hồng'), 'H _ _   H _ _ _');
+
+  const scrambled = scrambleVietnameseWord('hoa hồng');
+  const originalCompact = 'HOAHỒNG';
+  assert.notEqual(scrambled.replace(/\s+/g, ''), originalCompact);
+  assert.equal(
+    Array.from(scrambled.replace(/\s+/g, '')).sort().join(''),
+    Array.from(originalCompact).sort().join(''),
+  );
+});
+
+test('3. Toàn bộ giao diện Components V2: không viền, title chuẩn, đúng emoji, toàn bộ nút xám', () => {
+  const startPayload = buildRoundStartPayloadV2({
+    scrambledDisplay: 'I A H Y S Ẩ T',
+    letterCount: 7,
+    wordCount: 2,
+    durationSeconds: 60,
+    roundId: 'abcd1234',
+    autoStart: true,
+    hintDisabled: false,
+  });
+  assertBorderlessV2(startPayload, 'TRÒ CHƠI ĐOÁN TỪ BẮT ĐẦU!');
+  const startDetails = collectTextsAndButtons(startPayload);
+  const startText = startDetails.texts.join('\n');
+  assert.ok(startText.includes(WORD_GUESS_EMOJIS.LANGUAGE));
+  assert.ok(startText.includes(WORD_GUESS_EMOJIS.SCRAMBLED));
+  assert.ok(startText.includes(WORD_GUESS_EMOJIS.HINT));
+  assert.ok(startText.includes(WORD_GUESS_EMOJIS.TIME));
+  assert.ok(startText.includes(WORD_GUESS_EMOJIS.STREAK));
+  assert.equal(startDetails.buttons.length, 1, 'Chỉ được có duy nhất 1 nút Mở gợi ý (không có nút Bỏ qua)');
+  assert.equal(startDetails.buttons[0].label, 'Mở gợi ý');
+  assert.deepEqual(startDetails.buttons[0].emoji, WORD_GUESS_BUTTON_EMOJIS.HINT);
+
+  const hintPayload = buildMidHintPayloadV2({
+    elapsedSeconds: 30,
+    remainingSeconds: 30,
+    hintMask: 'S _ _   T _ _ _',
+    triggeredByUser: false,
+  });
+  assertBorderlessV2(hintPayload, 'GỢI Ý CHỮ CÁI ĐẦU!');
+  const hintText = collectTextsAndButtons(hintPayload).texts.join('\n');
+  assert.ok(hintText.includes(WORD_GUESS_EMOJIS.TIME));
+  assert.ok(hintText.includes(WORD_GUESS_EMOJIS.HINT));
+  assert.ok(hintText.includes(WORD_GUESS_EMOJIS.STREAK));
+
+  const winPayload = buildRoundWinPayloadV2({
+    winnerId: '111222333',
+    answer: 'sẩy thai',
+    reactionSeconds: '4.2',
+    winnerStats: { currentStreak: 3, bestStreak: 14 },
+  });
+  assertBorderlessV2(winPayload, 'CHÍNH XÁC RỒI NÈ!');
+  const winText = collectTextsAndButtons(winPayload).texts.join('\n');
+  assert.ok(winText.includes(`${WORD_GUESS_EMOJIS.WINNER} **Người đoán đúng:** <@111222333>`));
+  assert.ok(winText.includes(WORD_GUESS_EMOJIS.STATUS));
+  assert.ok(winText.includes(WORD_GUESS_EMOJIS.TIME));
+  assert.ok(winText.includes(WORD_GUESS_EMOJIS.STREAK));
+
+  const timeoutPayload = buildRoundTimeoutPayloadV2({
+    answer: 'sẩy thai',
+    durationSeconds: 60,
+  });
+  assertBorderlessV2(timeoutPayload, 'HẾT THỜI GIAN SUY NGHĨ!');
+  const timeoutText = collectTextsAndButtons(timeoutPayload).texts.join('\n');
+  assert.ok(timeoutText.includes(WORD_GUESS_EMOJIS.TIME));
+  assert.ok(timeoutText.includes(WORD_GUESS_EMOJIS.STATUS));
+  assert.ok(timeoutText.includes(WORD_GUESS_EMOJIS.STREAK));
+  assert.ok(timeoutText.includes('0 streak'));
+
+  const adminPayload = buildAdminPanelPayloadV2({
+    channelId: '123456',
+    enabled: true,
+    autoStart: true,
+    durationSeconds: 60,
+  });
+  assertBorderlessV2(adminPayload, 'QUẢN TRỊ TRÒ CHƠI ĐOÁN TỪ', { ephemeral: true });
+  const adminDetails = collectTextsAndButtons(adminPayload);
+  assert.equal(adminDetails.buttons.length, 4);
+  assert.ok(adminDetails.texts.join('\n').includes(WORD_GUESS_EMOJIS.CHANNEL));
+
+  const streakPayload = buildPersonalStreakPayloadV2({
+    userId: '111',
+    stats: { currentStreak: 2, bestStreak: 5, totalWins: 12, bestTimeMs: 3400 },
+    rank: 1,
+    totalPlayers: 3,
+  });
+  assertBorderlessV2(streakPayload, 'CHUỖI STREAK CÁ NHÂN');
+
+  const noticePayload = buildWordGuessNoticePayloadV2({
+    title: 'TEST THÔNG BÁO',
+    message: 'Nội dung test',
+    ephemeral: true,
+  });
+  assertBorderlessV2(noticePayload, 'TEST THÔNG BÁO', { ephemeral: true });
+});
+
+test.after(() => {
+  resetAllInMemoryRounds();
+});
+
+test('4. Luật Streak: phải nhắn có dấu mới thắng, người khác đoán trước vẫn giữ streak, chỉ reset về 0 khi hết giờ đổi từ', async () => {
+  resetAllInMemoryRounds();
+  const { client, channel, sentMessages } = createMockClient();
+
+  await saveWordGuessGuildConfig(client, 'guild_guess_1', {
+    channelId: channel.id,
+    enabled: true,
+    autoStart: true,
+    durationSeconds: 60,
+  });
+
+  // Ván 1: User A thắng bằng đáp án có dấu (đáp án không dấu bị từ chối)
+  const r1 = await startWordGuessRound(client, 'guild_guess_1', {
+    scheduleTimers: false,
+    word: 'hoa hồng',
+  });
+  assert.equal(r1.success, true);
+
+  const word1 = r1.round.word;
+  const noAccent1 = word1.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+  assert.notEqual(noAccent1, word1);
+  const ignoredNoAccent = await handleWordGuessMessage(
+    { guild: { id: 'guild_guess_1' }, channelId: channel.id, channel, author: { id: 'user_A', bot: false }, content: noAccent1 },
+    client,
+    { scheduleNext: false },
+  );
+  assert.equal(ignoredNoAccent, false, 'Nhắn không dấu tuyệt đối không được tính');
+
+  const won1 = await handleWordGuessMessage(
+    { guild: { id: 'guild_guess_1' }, channelId: channel.id, channel, author: { id: 'user_A', bot: false }, content: word1 },
+    client,
+    { scheduleNext: false },
+  );
+  assert.equal(won1, true);
+
+  let cfg = await getWordGuessGuildConfig(client, 'guild_guess_1');
+  assert.equal(cfg.stats.user_A.currentStreak, 1);
+  assert.equal(cfg.stats.user_A.bestStreak, 1);
+
+  // Ván 2: User B thắng trước -> User B = 1, User A VẪN GIỮ 1 streak
+  const r2 = await startWordGuessRound(client, 'guild_guess_1', { scheduleTimers: false });
+  const won2 = await handleWordGuessMessage(
+    { guild: { id: 'guild_guess_1' }, channelId: channel.id, channel, author: { id: 'user_B', bot: false }, content: r2.round.word },
+    client,
+    { scheduleNext: false },
+  );
+  assert.equal(won2, true);
+
+  cfg = await getWordGuessGuildConfig(client, 'guild_guess_1');
+  assert.equal(cfg.stats.user_A.currentStreak, 1, 'Người khác đoán trước vẫn phải giữ streak của User A');
+  assert.equal(cfg.stats.user_B.currentStreak, 1);
+
+  // Ván 3: User A thắng tiếp -> User A tăng lên 2 streak
+  const r3 = await startWordGuessRound(client, 'guild_guess_1', { scheduleTimers: false });
+  await handleWordGuessMessage(
+    { guild: { id: 'guild_guess_1' }, channelId: channel.id, channel, author: { id: 'user_A', bot: false }, content: r3.round.word },
+    client,
+    { scheduleNext: false },
+  );
+
+  cfg = await getWordGuessGuildConfig(client, 'guild_guess_1');
+  assert.equal(cfg.stats.user_A.currentStreak, 2);
+  assert.equal(cfg.stats.user_A.bestStreak, 2);
+  assert.equal(cfg.stats.user_B.currentStreak, 1);
+
+  // Ván 4: Hết giờ không ai đoán ra -> Toàn bộ currentStreak về 0, giữ nguyên bestStreak
+  const r4 = await startWordGuessRound(client, 'guild_guess_1', { scheduleTimers: false });
+  await handleRoundTimeout(client, 'guild_guess_1', r4.round.id, { scheduleNext: false });
+
+  cfg = await getWordGuessGuildConfig(client, 'guild_guess_1');
+  assert.equal(cfg.stats.user_A.currentStreak, 0);
+  assert.equal(cfg.stats.user_B.currentStreak, 0);
+  assert.equal(cfg.stats.user_A.bestStreak, 2);
+  assert.equal(cfg.stats.user_B.bestStreak, 1);
+  assert.ok(sentMessages.length > 0);
+  resetAllInMemoryRounds();
+});
+
+test('5. Bảng xếp hạng Streak (5 người/trang) & phân trang ❮❮ | 1/N | ❯❯ giống Profile Booking', async () => {
+  const { client } = createMockClient();
+  const stats = {};
+  for (let i = 1; i <= 7; i++) {
+    stats[`u_${i}`] = {
+      userId: `u_${i}`,
+      currentStreak: i === 1 ? 3 : 0,
+      bestStreak: 10 - i,
+      totalWins: 15 - i,
+      bestTimeMs: 2500 + i * 100,
+    };
+  }
+  await saveWordGuessGuildConfig(client, 'guild_guess_1', {
+    channelId: 'channel_guess_1',
+    enabled: true,
+    stats,
+  });
+
+  const config = await getWordGuessGuildConfig(client, 'guild_guess_1');
+  const entries = getLeaderboardEntries(config);
+  assert.equal(entries.length, 7);
+  assert.equal(entries[0].userId, 'u_1');
+
+  const page1 = buildLeaderboardPayloadV2({
+    entries,
+    page: 0,
+    requesterStats: stats.u_1,
+    requesterRank: 1,
+  });
+  assertBorderlessV2(page1, 'BẢNG XẾP HẠNG STREAK ĐOÁN TỪ');
+  const p1Details = collectTextsAndButtons(page1);
+  const p1Text = p1Details.texts.join('\n');
+  for (const rankEmoji of WORD_GUESS_EMOJIS.RANK_EMOJIS) {
+    assert.ok(p1Text.includes(rankEmoji));
+  }
+  assert.equal(p1Details.buttons[0].label, '❮❮');
+  assert.equal(p1Details.buttons[0].custom_id, 'doantu_bxh_prev:0');
+  assert.equal(p1Details.buttons[1].label, '1/2');
+  assert.equal(p1Details.buttons[1].disabled, true);
+  assert.equal(p1Details.buttons[2].label, '❯❯');
+  assert.equal(p1Details.buttons[2].custom_id, 'doantu_bxh_next:0');
+
+  // Test bấm nút next -> chuyển sang trang 2 (hiển thị #6, #7, không dùng emoji 6-7)
+  let updatedPayload = null;
+  const nextBtn = doantuButtons.find((b) => b.name === 'doantu_bxh_next');
+  await nextBtn.execute(
+    {
+      guildId: 'guild_guess_1',
+      user: { id: 'u_1' },
+      update: async (p) => {
+        updatedPayload = p;
+      },
+    },
+    client,
+    ['0'],
+  );
+
+  assert.ok(updatedPayload);
+  const p2Details = collectTextsAndButtons(updatedPayload);
+  const p2Text = p2Details.texts.join('\n');
+  assert.ok(p2Text.includes('**#6**'));
+  assert.ok(p2Text.includes('**#7**'));
+  assert.equal(p2Details.buttons[1].label, '2/2');
+});
+
+test('6. Quyền role Admin 1545305594712432640, lệnh /doantu, /doantu-admin & whitelisted interactions', async () => {
+  assert.equal(WORD_GUESS_ADMIN_ROLE_ID, '1545305594712432640');
+  assert.equal(isWordGuessAdmin({ roles: [WORD_GUESS_ADMIN_ROLE_ID] }, 'u_admin', { ownerId: 'owner_9' }), true);
+  assert.equal(isWordGuessAdmin({ roles: ['other_role'] }, 'u_normal', { ownerId: 'owner_9' }), false);
+  assert.equal(isWordGuessAdmin(null, 'owner_9', { ownerId: 'owner_9' }), true);
+
+  const { client, channel } = createMockClient();
+
+  // Người thường gọi /doantu-admin -> bị từ chối Ephemeral
+  let deniedReply = null;
+  await doantuAdminCommand.execute(
+    {
+      guildId: 'guild_guess_1',
+      user: { id: 'u_normal' },
+      member: { roles: ['other_role'] },
+      guild: { ownerId: 'owner_9' },
+      options: { getSubcommand: () => 'panel' },
+      replied: false,
+      deferred: false,
+      reply: async (p) => {
+        deniedReply = p;
+      },
+    },
+    null,
+    client,
+  );
+  assertBorderlessV2(deniedReply, 'KHÔNG CÓ QUYỀN QUẢN TRỊ', { ephemeral: true });
+
+  // Thành viên có role 1545305594712432640 gọi /doantu-admin setup -> thành công (Ephemeral)
+  let setupReply = null;
+  await doantuAdminCommand.execute(
+    {
+      guildId: 'guild_guess_1',
+      channel,
+      user: { id: 'u_admin' },
+      member: { roles: [WORD_GUESS_ADMIN_ROLE_ID] },
+      guild: { ownerId: 'owner_9', members: { me: null } },
+      options: {
+        getSubcommand: () => 'setup',
+        getChannel: () => channel,
+        getInteger: () => 45,
+        getBoolean: () => true,
+      },
+      replied: false,
+      deferred: false,
+      reply: async (p) => {
+        setupReply = p;
+      },
+    },
+    null,
+    client,
+  );
+  assertBorderlessV2(setupReply, 'QUẢN TRỊ TRÒ CHƠI ĐOÁN TỪ', { ephemeral: true });
+  const setupText = collectTextsAndButtons(setupReply).texts.join('\n');
+  assert.ok(setupText.includes('**45 giây**'));
+
+  // Test modal chỉnh giây
+  let modalReply = null;
+  const timeModal = doantuModals.find((m) => m.name === 'doantu_modal_time');
+  await timeModal.execute(
+    {
+      guildId: 'guild_guess_1',
+      user: { id: 'u_admin' },
+      member: { roles: [WORD_GUESS_ADMIN_ROLE_ID] },
+      guild: { ownerId: 'owner_9' },
+      fields: { getTextInputValue: () => '75' },
+      replied: false,
+      deferred: false,
+      isFromMessage: () => true,
+      update: async (p) => {
+        modalReply = p;
+      },
+      reply: async (p) => {
+        modalReply = p;
+      },
+    },
+    client,
+  );
+  assert.ok(collectTextsAndButtons(modalReply).texts.join('\n').includes('**75 giây**'));
+
+  // Test /doantu bxh & /doantu streak
+  let bxhReply = null;
+  await doantuCommand.execute(
+    {
+      guildId: 'guild_guess_1',
+      user: { id: 'u_admin' },
+      options: {
+        getSubcommand: () => 'bxh',
+        getInteger: () => 1,
+      },
+      replied: false,
+      deferred: false,
+      reply: async (p) => {
+        bxhReply = p;
+      },
+    },
+    null,
+    client,
+  );
+  assertBorderlessV2(bxhReply, 'BẢNG XẾP HẠNG STREAK ĐOÁN TỪ');
+
+  // Kiểm tra interactions.js whitelist đã đăng ký doantuButtons & doantuModals
+  const loaderSource = fs.readFileSync(
+    path.resolve(process.cwd(), 'src/handlers/loaders/interactions.js'),
+    'utf-8',
+  );
+  assert.ok(loaderSource.includes('buttons\\/doantu'));
+  assert.ok(loaderSource.includes('modals\\/doantu'));
+
+  resetAllInMemoryRounds();
+});
