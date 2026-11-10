@@ -11,6 +11,12 @@
       "rating": "5/5",
       "fiveStarCount": 0,
       "userLikes": {}
+    },
+    "3": {
+      "likes": 0,
+      "rating": "5/5",
+      "fiveStarCount": 0,
+      "userLikes": {}
     }
   }
 }

@@ -75,5 +75,22 @@ export const HEALING_WHISPER_PROFILES = {
       'assets/booking/hw2anh2.jpg',
     ],
   },
+  '3': {
+    id: '3',
+    userId: '1206193798804144169',
+    nickname: 'Cu Bự Ở Dinh Thự',
+    game: 'Nhận mọi game - Tại hạ Tề Tĩnh Xuân, thiên hạ đệ nhất làm màu, kẻ đi net nhiều nhất TP. HCM, người tương lai sẽ làm bức vương số một thế gian!',
+    price: 'Deal',
+    rating: '5/5',
+    likes: 0,
+    images: [
+      'https://raw.githubusercontent.com/uyenhoang9034-pixel/UsagiTienTon/main/assets/booking/hw3anh1.jpg',
+      'https://raw.githubusercontent.com/uyenhoang9034-pixel/UsagiTienTon/main/assets/booking/hw3anh2.jpg',
+    ],
+    localImages: [
+      'assets/booking/hw3anh1.jpg',
+      'assets/booking/hw3anh2.jpg',
+    ],
+  },
 };
 

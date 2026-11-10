@@ -52,6 +52,51 @@ test('Booking Config: Profile 2 (Ăn Thịt Bé Trai) khởi tạo chính xác t
   assert.equal(byId.id, '2');
 });
 
+test('Booking Config: Profile 3 (Cu Bự Ở Dinh Thự) khởi tạo chính xác theo yêu cầu', () => {
+  const profile = getProfileData('3');
+  assert.equal(profile.id, '3');
+  assert.equal(profile.userId, '1206193798804144169');
+  assert.equal(profile.nickname, 'Cu Bự Ở Dinh Thự');
+  assert.equal(
+    profile.game,
+    'Nhận mọi game - Tại hạ Tề Tĩnh Xuân, thiên hạ đệ nhất làm màu, kẻ đi net nhiều nhất TP. HCM, người tương lai sẽ làm bức vương số một thế gian!',
+  );
+  assert.equal(profile.price, 'Deal');
+  assert.equal(profile.images.length, 2);
+  assert.ok(profile.images[0].includes('hw3anh1.jpg'));
+  assert.ok(profile.images[1].includes('hw3anh2.jpg'));
+  assert.deepEqual(profile.localImages, [
+    'assets/booking/hw3anh1.jpg',
+    'assets/booking/hw3anh2.jpg',
+  ]);
+
+  // Tìm kiếm theo query linh hoạt
+  const byMention = findProfileByQuery('<@1206193798804144169>');
+  assert.equal(byMention.id, '3');
+
+  const byUserId = findProfileByQuery('1206193798804144169');
+  assert.equal(byUserId.id, '3');
+
+  const byName = findProfileByQuery('Cu Bự Ở Dinh Thự');
+  assert.equal(byName.id, '3');
+
+  const byId = findProfileByQuery('3');
+  assert.equal(byId.id, '3');
+
+  // Kiểm tra render V2 payload cho Profile 3
+  const payload = buildProfilePayloadV2(profile, 0);
+  assert.equal(payload.flags, IS_COMPONENTS_V2);
+  const container = payload.components[0];
+  assert.ok(container.components[0].content.includes('**HEALING WHISPER - 3**'));
+  assert.ok(container.components[2].content.includes('<@1206193798804144169>'));
+  assert.ok(container.components[2].content.includes('Cu Bự Ở Dinh Thự'));
+  assert.ok(container.components[4].items[0].media.url.includes('hw3anh1.jpg'));
+  assert.equal(container.components[5].components[0].custom_id, 'hw_prev:3:0');
+  assert.equal(container.components[5].components[2].custom_id, 'hw_next:3:0');
+  assert.equal(container.components[6].components[0].custom_id, 'hw_book:3');
+  assert.equal(container.components[6].components[1].custom_id, 'hw_heart:3');
+});
+
 test('Giao diện V2 Profile Card: màu gốc, không title, không footer, đúng emoji', () => {
   const profile = getProfileData('1');
   const payload = buildProfilePayloadV2(profile, 0);
