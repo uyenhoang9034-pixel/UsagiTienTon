@@ -68,9 +68,9 @@ export async function handleAIChatMessage(message, client) {
     return false;
   }
 
-  // Bỏ qua nếu tin nhắn bắt đầu bằng prefix lệnh bot
+  // Bỏ qua nếu tin nhắn bắt đầu bằng prefix lệnh bot hoặc các lệnh prefix dùng chung (& / !)
   const prefix = getCommandPrefix();
-  if (prefix && content.startsWith(prefix)) {
+  if ((prefix && content.startsWith(prefix)) || /^[&!](?:tip|pro5|profile|giabk|random|rd)(?:\s|$)/i.test(content)) {
     return false;
   }
 

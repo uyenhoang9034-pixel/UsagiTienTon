@@ -158,4 +158,13 @@ test('AI Channel Filter: ignores messages outside the configured AI channel or f
     content: '!help',
   };
   assert.equal(await handleAIChatMessage(commandMessage, fakeClient), false);
+
+  // Lệnh &tip dùng chung ở mọi kênh -> AI phải nhường để bookingService xử lý
+  const tipCommandMessage = {
+    guild: {},
+    author: { bot: false },
+    channelId: '1542899821189267516',
+    content: '&tip <@852947314481299516>',
+  };
+  assert.equal(await handleAIChatMessage(tipCommandMessage, fakeClient), false);
 });

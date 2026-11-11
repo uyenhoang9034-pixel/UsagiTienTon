@@ -1374,7 +1374,7 @@ export async function sendTicketTranscriptBackup({ channel, executor, client }) 
 }
 
 /**
- * Xử lý các lệnh text prefix cho Booking: &pro5, &danhgia, &close, &clear, &moticket, &transcript
+ * Xử lý các lệnh text prefix cho Booking: &giabk, &tip, &pro5, &danhgia, &close, &clear, &moticket, &transcript, &taokenhvoice
  */
 export async function handleBookingMessage(message, client) {
   if (typeof message.content !== 'string' || !message.content) {
@@ -1476,15 +1476,10 @@ export async function handleBookingMessage(message, client) {
     return true;
   }
 
-  // &tip @Staff — hiển thị ảnh QR tip đã được gắn sẵn theo Discord ID.
+  // &tip @Staff — hiển thị ảnh QR tip đã được gắn sẵn theo Discord ID (dùng được ở mọi kênh).
   const tipMatch = trimmed.match(/^[&!]tip\s+<@!?(\d+)>$/i);
   if (tipMatch) {
     await message.delete().catch(() => {});
-
-    if (!isBookingTicketChannel(message.channel)) {
-      await message.channel.send('ℹ️ Lệnh `&tip` chỉ sử dụng được trong ticket Booking.').catch(() => {});
-      return true;
-    }
 
     const targetId = tipMatch[1];
     const staffQrImages = {
@@ -1498,13 +1493,19 @@ export async function handleBookingMessage(message, client) {
       return true;
     }
 
-    const targetMember = await message.guild.members.fetch(targetId).catch(() => null);
+    const targetMember = typeof message.guild?.members?.fetch === 'function'
+      ? await message.guild.members.fetch(targetId).catch(() => null)
+      : (message.mentions?.members?.get?.(targetId) || message.guild?.members?.cache?.get?.(targetId) || null);
     if (!targetMember) {
       await message.channel.send('❌ Không tìm thấy nhân viên được chọn trong máy chủ.').catch(() => {});
       return true;
     }
 
-    const avatarUrl = targetMember.displayAvatarURL({ extension: 'png', size: 256 });
+    const avatarUrl =
+      targetMember.displayAvatarURL?.({ extension: 'png', size: 256 }) ||
+      targetMember.user?.displayAvatarURL?.({ extension: 'png', size: 256 }) ||
+      '';
+    const targetUsername = targetMember.user?.username || targetMember.displayName || 'Nhân viên';
     const heartEmoji = BOOKING_EMOJIS.HEART_BUTTON;
     const heartTag = `<a:${heartEmoji.name}:${heartEmoji.id}>`;
 
@@ -1540,7 +1541,7 @@ export async function handleBookingMessage(message, client) {
                 media: {
                   url: avatarUrl,
                 },
-                description: `Avatar của ${targetMember.user.username}`,
+                description: `Avatar của ${targetUsername}`,
               },
             },
             {

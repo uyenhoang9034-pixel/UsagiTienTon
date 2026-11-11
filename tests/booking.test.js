@@ -1188,8 +1188,106 @@ test('Booking Heart UI (Mục 2 & 3): giữ đúng trang ảnh 2/2 khi bấm tim
   resetBookingProfileCache();
 });
 
+test('MessageCreate Trigger: &tip @User dùng được ở mọi kênh ngoài ticket booking', async () => {
+  const { BOOKING_ADMIN_ROLE_ID } = await import('../src/config/bookingConfig.js');
+  const sentMessages = [];
+  let deleted = false;
 
+  const mockGuild = {
+    id: 'guild_tip_1',
+    members: {
+      fetch: async (id) => {
+        if (id === '852947314481299516') {
+          return {
+            id,
+            user: { username: 'congchuasacnau' },
+            displayAvatarURL: () => 'https://cdn.discordapp.com/avatars/852947314481299516/avatar.png',
+          };
+        }
+        return null;
+      },
+    },
+  };
 
+  const adminMessageInGeneral = {
+    content: '&tip <@852947314481299516>',
+    author: { id: 'staff_1' },
+    member: {
+      guild: mockGuild,
+      roles: { cache: new Set([BOOKING_ADMIN_ROLE_ID]) },
+    },
+    guild: mockGuild,
+    channel: {
+      id: 'general_chat_1',
+      name: 'chat-chung',
+      topic: '',
+      send: async (payload) => {
+        sentMessages.push(payload);
+        return payload;
+      },
+    },
+    delete: async () => {
+      deleted = true;
+    },
+  };
 
+  const handled = await handleBookingMessage(adminMessageInGeneral, {});
+  assert.equal(handled, true);
+  assert.equal(deleted, true);
+  assert.equal(sentMessages.length, 1);
+
+  const tipPayload = sentMessages[0];
+  assert.equal(tipPayload.flags, IS_COMPONENTS_V2);
+  const container = tipPayload.components[0];
+  assert.equal(container.type, 17);
+  assert.ok(container.components[0].content.includes('STAFF TIPPING'));
+  assert.ok(container.components[3].components[0].content.includes('<@!852947314481299516>'));
+  assert.ok(container.components[6].items[0].media.url.includes('EB13C13B-C9DE-4769-B213-6318731AD070.jpg'));
+
+  // Nhân viên chưa có ảnh QR ở kênh thường vẫn báo thông tin chưa có QR chứ không chặn kênh
+  const noQrSent = [];
+  const noQrMessage = {
+    ...adminMessageInGeneral,
+    content: '!tip <@1206193798804144169>',
+    channel: {
+      id: 'voice_text_1',
+      name: 'sanh-cho',
+      topic: '',
+      send: async (payload) => {
+        noQrSent.push(payload);
+        return payload;
+      },
+    },
+  };
+  assert.equal(await handleBookingMessage(noQrMessage, {}), true);
+  assert.equal(noQrSent[0], 'ℹ️ Nhân viên này chưa có ảnh QR nhận tip.');
+
+  // User thường không có quyền vẫn bị xóa và không gửi card QR
+  const nonAdminSent = [];
+  let nonAdminDeleted = false;
+  const nonAdminMessage = {
+    content: '&tip <@852947314481299516>',
+    author: { id: 'normal_user_1' },
+    member: {
+      guild: mockGuild,
+      roles: { cache: new Set() },
+    },
+    guild: mockGuild,
+    channel: {
+      id: 'general_chat_1',
+      name: 'chat-chung',
+      send: async (payload) => {
+        nonAdminSent.push(payload);
+        return payload;
+      },
+    },
+    delete: async () => {
+      nonAdminDeleted = true;
+    },
+  };
+  assert.equal(await handleBookingMessage(nonAdminMessage, {}), true);
+  assert.equal(nonAdminDeleted, true);
+  assert.equal(nonAdminSent.length, 0);
+});
 
 
