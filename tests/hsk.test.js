@@ -22,6 +22,7 @@ import {
   buildHskAdminPanelPayloadV2,
   buildHskIdlePausedPayloadV2,
   buildHskLeaderboardPayloadV2,
+  buildHskLeaderboardViewPayload,
   buildHskNightLockPayloadV2,
   buildHskNoticePayloadV2,
   buildPersonalArenaOverviewPayloadV2,
@@ -37,9 +38,11 @@ import {
   getEffectiveBandForTier,
   getHskArenaLastActivityAt,
   getHskGuildConfig,
+  getHskStudyLeaderboardEntries,
   getHskUserProgress,
   getLoadedBandCacheSize,
   getPersonalSession,
+  getPlayerHskStudyLeaderboardPosition,
   handleHskArenaAnswer,
   handleHskArenaHint,
   handleHskArenaTimeout,
@@ -47,14 +50,18 @@ import {
   isHskAdmin,
   isHskNightLock,
   loadBandWords,
+  parseHskBxhArgs,
   resetAllHskRuntimeState,
   saveHskGuildConfig,
   saveHskUserProgress,
   searchHskVocabulary,
   startHskArenaRound,
+  toHskEditReplyPayload,
 } from '../src/services/hskService.js';
+import { resolveCommandAlias } from '../src/config/commands/commandAliases.js';
 import hskCommand from '../src/commands/Games/hsk.js';
 import hskAdminCommand from '../src/commands/Games/hskAdmin.js';
+import hskBxhCommand from '../src/commands/Games/hskBxh.js';
 import hskButtons from '../src/interactions/buttons/hskButtons.js';
 import hskMenus from '../src/interactions/selectMenus/hskMenus.js';
 import hskModals from '../src/interactions/modals/hskModals.js';
@@ -95,6 +102,7 @@ function createMockClient(initialNow = DAYTIME_MS) {
         return true;
       },
       delete: async (key) => store.delete(key),
+      list: async (prefix) => Array.from(store.keys()).filter((k) => k.startsWith(prefix)),
     },
     channels: {
       cache: new Map([[channel.id, channel]]),
@@ -381,6 +389,7 @@ test('2. Kiểm tra Components V2 đúng thiết kế user duyệt (Menu không 
   assertHskV2Contract(buildHskIdlePausedPayloadV2(), 'ĐẤU TRƯỜNG TẠM NGHỈ DO VẮNG NGƯỜI CHƠI');
   assertHskV2Contract(buildHskNightLockPayloadV2({ currentTimeText: '01:00', includeResumeButton: false, ephemeral: true }), 'ĐẤU TRƯỜNG ĐANG NGHỈ BAN ĐÊM', { ephemeral: true });
   assertHskV2Contract(buildHskLeaderboardPayloadV2({ entries: [], page: 0, ephemeral: true }), 'BẢNG XẾP HẠNG ĐẤU TRƯỜNG HSK 3.0', { ephemeral: true });
+  assertHskV2Contract(buildHskLeaderboardPayloadV2({ board: 'study', entries: [], page: 0, ephemeral: true }), 'BẢNG XẾP HẠNG ÔN LUYỆN HSK 3.0', { ephemeral: true });
 
   const arenaOverviewCard = buildPersonalArenaOverviewPayloadV2({
     ownerId: 'u1',
@@ -714,6 +723,10 @@ test('5. Đấu trường kênh chung: 100% bấm nút, chống spam 1 lượt/v
     assert.ok(bxhPage1Nodes.texts.join('\n').includes(rankEmoji));
   }
   assert.equal(bxhPage1Nodes.buttons[1].label, '1/2');
+  assert.equal(bxhPage1Nodes.buttons[3].custom_id, 'hsk_bxh_tab:arena');
+  assert.equal(bxhPage1Nodes.buttons[3].disabled, true);
+  assert.equal(bxhPage1Nodes.buttons[4].custom_id, 'hsk_bxh_tab:study');
+  assert.equal(bxhPage1Nodes.buttons[4].disabled, false);
 
   const bxhNextBtn = hskButtons.find((b) => b.name === 'hsk_bxh_next');
   let bxhPage2 = null;
@@ -1562,6 +1575,305 @@ test('10. Tách biệt hoàn toàn Streak Đấu trường và Streak Ôn luyệ
     assert.equal(progWinAfterStudyWrong.personalStreak, 0, 'Sai ở Ôn luyện chỉ reset chuỗi Ôn luyện');
     const cfgAfterStudyWrong = await getHskGuildConfig(client, 'guild_hsk_1');
     assert.equal(cfgAfterStudyWrong.stats.player_win.currentStreak, 3, 'Sai ở Ôn luyện KHÔNG ảnh hưởng chuỗi Đấu trường');
+  } finally {
+    resetAllHskRuntimeState();
+  }
+});
+
+test('11. Lệnh công khai /hsk-bxh & !hsk bxh cho mọi thành viên (BXH Đấu trường + BXH Ôn luyện cá nhân) & bảo lưu dữ liệu cũ khi update code', async () => {
+  resetAllHskRuntimeState();
+  const { client, channel, store } = createMockClient();
+
+  try {
+    // 11a. Lệnh /hsk-bxh không khóa quyền Admin & alias prefix hoạt động đúng
+    assert.equal(hskBxhCommand.data.toJSON().default_member_permissions, undefined);
+    assert.equal(resolveCommandAlias('hskbxh'), 'hsk-bxh');
+    assert.equal(resolveCommandAlias('bxhhsk'), 'hsk-bxh');
+    assert.equal(resolveCommandAlias('bxh-hsk'), 'hsk-bxh');
+
+    assert.deepEqual(parseHskBxhArgs({ rawType: 'study', rawPage: 2 }), { board: 'study', page: 1 });
+    assert.deepEqual(parseHskBxhArgs({ rawType: '2' }), { board: 'arena', page: 1 });
+    assert.deepEqual(parseHskBxhArgs({ rawArgs: ['on', 'luyen', '2'] }), { board: 'study', page: 1 });
+    assert.deepEqual(parseHskBxhArgs({ rawArgs: ['ca', 'nhan'] }), { board: 'study', page: 0 });
+    assert.deepEqual(parseHskBxhArgs({ rawArgs: ['2', 'study'] }), { board: 'study', page: 1 });
+
+    // 11b. Nạp dữ liệu CŨ có sẵn trong DB trước khi update bot (KHÔNG có key index mới games:hsk:users:...)
+    const legacyStats = {};
+    for (let i = 1; i <= 6; i += 1) {
+      legacyStats[`leg_arena_${i}`] = {
+        userId: `leg_arena_${i}`,
+        currentStreak: i === 1 ? 4 : i === 2 ? 0 : 1,
+        bestStreak: 15 - i, // leg_arena_2 có kỷ lục cũ = 13 dù hiện tại = 0
+        totalWins: 30 - i,
+        bestTimeMs: 1500 + i * 100,
+      };
+    }
+    store.set('games:hsk:guilds', ['guild_hsk_1']);
+    store.set('games:hsk:config:guild_hsk_1', {
+      guildId: 'guild_hsk_1',
+      enabled: true,
+      channelId: channel.id,
+      autoStart: false,
+      stats: legacyStats,
+    });
+
+    // Nạp dữ liệu ôn luyện cá nhân cũ trực tiếp trong DB
+    store.set('games:hsk:user:guild_hsk_1:leg_study_1', {
+      userId: 'leg_study_1',
+      guildId: 'guild_hsk_1',
+      selectedBand: 3,
+      personalStreak: 6,
+      bestPersonalStreak: 14,
+      masteredIds: ['b1_1', 'b2_1'],
+      wrongWords: {},
+      srs: {},
+    });
+    store.set('games:hsk:user:guild_hsk_1:leg_study_2', {
+      userId: 'leg_study_2',
+      guildId: 'guild_hsk_1',
+      selectedBand: 1,
+      personalStreak: 0,
+      bestPersonalStreak: 10, // kỷ lục cũ vẫn còn dù chuỗi hiện tại = 0
+      masteredIds: ['b1_2'],
+      wrongWords: {},
+      srs: {},
+    });
+    store.set('games:hsk:user:guild_hsk_1:leg_study_legacy_nobest', {
+      userId: 'leg_study_legacy_nobest',
+      guildId: 'guild_hsk_1',
+      selectedBand: 1,
+      personalStreak: 5, // bản ghi cũ thiếu bestPersonalStreak -> tự chuẩn hóa >= personalStreak
+      masteredIds: [],
+    });
+    for (let i = 4; i <= 7; i += 1) {
+      store.set(`games:hsk:user:guild_hsk_1:leg_study_${i}`, {
+        userId: `leg_study_${i}`,
+        guildId: 'guild_hsk_1',
+        selectedBand: 1,
+        personalStreak: 8 - i,
+        bestPersonalStreak: 8 - i,
+        masteredIds: ['b1_1'],
+      });
+    }
+    // Dữ liệu guild khác không được lẫn sang guild_hsk_1
+    store.set('games:hsk:user:other_guild_99:outsider_1', {
+      userId: 'outsider_1',
+      guildId: 'other_guild_99',
+      personalStreak: 99,
+      bestPersonalStreak: 99,
+    });
+
+    // Mô phỏng khởi động lại bot sau khi cập nhật code mới
+    resetAllHskRuntimeState();
+    await initHskAutoResume(client);
+
+    // Đảm bảo dữ liệu streak cũ & hiện tại hoàn toàn nguyên vẹn
+    const cfgAfterBoot = await getHskGuildConfig(client, 'guild_hsk_1');
+    assert.equal(cfgAfterBoot.stats.leg_arena_1.currentStreak, 4);
+    assert.equal(cfgAfterBoot.stats.leg_arena_1.bestStreak, 14);
+    assert.equal(cfgAfterBoot.stats.leg_arena_2.bestStreak, 13);
+    const progStudy1 = await getHskUserProgress(client, 'guild_hsk_1', 'leg_study_1');
+    assert.equal(progStudy1.personalStreak, 6);
+    assert.equal(progStudy1.bestPersonalStreak, 14);
+    const progStudyNoBest = await getHskUserProgress(client, 'guild_hsk_1', 'leg_study_legacy_nobest');
+    assert.equal(progStudyNoBest.bestPersonalStreak, 5);
+
+    const studyEntries = await getHskStudyLeaderboardEntries(client, 'guild_hsk_1', cfgAfterBoot);
+    assert.equal(studyEntries.length, 7);
+    assert.equal(studyEntries[0].userId, 'leg_study_1');
+    assert.equal(studyEntries[1].userId, 'leg_study_2');
+    assert.equal(studyEntries.some((e) => e.userId === 'outsider_1'), false);
+
+    // 11c. Member thường gọi Slash /hsk-bxh (mặc định Đấu trường, Ephemeral)
+    let slashArenaReply = null;
+    await hskBxhCommand.execute(
+      {
+        guildId: 'guild_hsk_1',
+        user: { id: 'leg_arena_2' },
+        member: { roles: ['member_role'] },
+        guild: { ownerId: 'own_1' },
+        options: {
+          getString: () => null,
+          getInteger: () => null,
+        },
+        replied: false,
+        deferred: false,
+        reply: async (p) => {
+          slashArenaReply = p;
+        },
+      },
+      null,
+      client,
+    );
+    assertHskV2Contract(slashArenaReply, 'BẢNG XẾP HẠNG ĐẤU TRƯỜNG HSK 3.0', { ephemeral: true });
+    const slashArenaText = collectPayloadNodes(slashArenaReply).texts.join('\n');
+    assert.ok(slashArenaText.includes('<@leg_arena_1>'));
+    assert.ok(slashArenaText.includes('<@leg_arena_2>'));
+    assert.ok(slashArenaText.includes('Hạng của bạn: #2 (Kỷ lục: 13 • Hiện tại: 0)'));
+
+    // 11d. Member thường gọi Slash /hsk-bxh loai:study (hỗ trợ deferReply + editReply chống timeout PostgreSQL)
+    let deferredOpts = null;
+    let editedStudyReply = null;
+    const slashStudyIx = {
+      guildId: 'guild_hsk_1',
+      user: { id: 'leg_study_2' },
+      member: { roles: ['member_role'] },
+      guild: { ownerId: 'own_1' },
+      options: {
+        getString: (k) => (k === 'loai' ? 'study' : null),
+        getInteger: () => null,
+      },
+      replied: false,
+      deferred: false,
+      deferReply: async (opts) => {
+        deferredOpts = opts;
+        slashStudyIx.deferred = true;
+      },
+      editReply: async (p) => {
+        editedStudyReply = p;
+      },
+      reply: async () => {
+        throw new Error('Phải editReply sau khi deferReply ở loai:study');
+      },
+    };
+    await hskBxhCommand.execute(slashStudyIx, null, client);
+    assert.equal(deferredOpts.flags, MessageFlags.Ephemeral);
+    assert.equal(editedStudyReply.flags, IS_COMPONENTS_V2, 'editReply phải lọc bỏ cờ Ephemeral');
+    assertHskV2Contract(editedStudyReply, 'BẢNG XẾP HẠNG ÔN LUYỆN HSK 3.0', { ephemeral: false });
+    const slashStudyText = collectPayloadNodes(editedStudyReply).texts.join('\n');
+    assert.ok(slashStudyText.includes('<@leg_study_1> — '));
+    assert.ok(slashStudyText.includes('Kỷ lục 14** (Hiện tại: 6 • 2 từ đã thuộc)'));
+    assert.ok(slashStudyText.includes('Hạng của bạn: #2 (Kỷ lục: 10 • Hiện tại: 0)'));
+
+    // 11e. Prefix !hsk-bxh on luyen 2 & !hsk bxh ca nhan (công khai trong kênh)
+    let prefixStudyPage2 = null;
+    await hskBxhCommand.execute(
+      {
+        guildId: 'guild_hsk_1',
+        user: { id: 'leg_study_1' },
+        _isPrefixCommand: true,
+        options: {
+          getString: () => 'on',
+          getInteger: () => Number.NaN,
+          _hoistedOptions: [{ value: 'on' }, { value: 'luyen' }, { value: '2' }],
+        },
+        replied: false,
+        deferred: false,
+        reply: async (p) => {
+          prefixStudyPage2 = p;
+        },
+      },
+      null,
+      client,
+    );
+    assertHskV2Contract(prefixStudyPage2, 'BẢNG XẾP HẠNG ÔN LUYỆN HSK 3.0', { ephemeral: false });
+    const prefixPage2Text = collectPayloadNodes(prefixStudyPage2).texts.join('\n');
+    assert.ok(prefixPage2Text.includes('**#6**'));
+    assert.ok(prefixPage2Text.includes('**#7**'));
+    assert.ok(prefixPage2Text.includes('Trang 2/2'));
+
+    let hskPrefixBxh = null;
+    await hskCommand.execute(
+      {
+        guildId: 'guild_hsk_1',
+        user: { id: 'leg_study_1' },
+        _isPrefixCommand: true,
+        options: {
+          getString: () => 'bxh',
+          _hoistedOptions: [{ value: 'bxh' }, { value: 'ca' }, { value: 'nhan' }],
+        },
+        replied: false,
+        deferred: false,
+        reply: async (p) => {
+          hskPrefixBxh = p;
+        },
+      },
+      null,
+      client,
+    );
+    assertHskV2Contract(hskPrefixBxh, 'BẢNG XẾP HẠNG ÔN LUYỆN HSK 3.0', { ephemeral: false });
+
+    // 11f. Bấm nút chuyển tab Study <-> Arena & phân trang trên BXH Ôn luyện
+    const tabBtn = hskButtons.find((b) => b.name === 'hsk_bxh_tab');
+    const nextBtn = hskButtons.find((b) => b.name === 'hsk_bxh_next');
+    const prevBtn = hskButtons.find((b) => b.name === 'hsk_bxh_prev');
+
+    let tabToStudy = null;
+    let didDeferUpdate = false;
+    const studyTabIx = {
+      guildId: 'guild_hsk_1',
+      user: { id: 'leg_study_1' },
+      message: { flags: { bitfield: MessageFlags.Ephemeral | IS_COMPONENTS_V2 } },
+      deferred: false,
+      replied: false,
+      deferUpdate: async () => {
+        didDeferUpdate = true;
+        studyTabIx.deferred = true;
+      },
+      editReply: async (p) => {
+        tabToStudy = p;
+      },
+    };
+    await tabBtn.execute(studyTabIx, client, ['study']);
+    assert.equal(didDeferUpdate, true);
+    assertHskV2Contract(tabToStudy, 'BẢNG XẾP HẠNG ÔN LUYỆN HSK 3.0', { ephemeral: false });
+    assert.equal(tabToStudy.flags, toHskEditReplyPayload({ flags: MessageFlags.Ephemeral | IS_COMPONENTS_V2 }).flags);
+
+    let studyNextPage = null;
+    await nextBtn.execute(
+      {
+        guildId: 'guild_hsk_1',
+        user: { id: 'leg_study_1' },
+        message: { flags: { bitfield: IS_COMPONENTS_V2 } },
+        update: async (p) => {
+          studyNextPage = p;
+        },
+      },
+      client,
+      ['0', 's'],
+    );
+    assertHskV2Contract(studyNextPage, 'BẢNG XẾP HẠNG ÔN LUYỆN HSK 3.0', { ephemeral: false });
+    assert.ok(collectPayloadNodes(studyNextPage).texts.join('\n').includes('Trang 2/2'));
+
+    let studyPrevPage = null;
+    await prevBtn.execute(
+      {
+        guildId: 'guild_hsk_1',
+        user: { id: 'leg_study_1' },
+        message: { flags: { bitfield: IS_COMPONENTS_V2 } },
+        update: async (p) => {
+          studyPrevPage = p;
+        },
+      },
+      client,
+      ['1', 's'],
+    );
+    assert.ok(collectPayloadNodes(studyPrevPage).texts.join('\n').includes('Trang 1/2'));
+
+    let tabBackArena = null;
+    await tabBtn.execute(
+      {
+        guildId: 'guild_hsk_1',
+        user: { id: 'leg_arena_1' },
+        message: { flags: { bitfield: IS_COMPONENTS_V2 } },
+        update: async (p) => {
+          tabBackArena = p;
+        },
+      },
+      client,
+      ['arena'],
+    );
+    assertHskV2Contract(tabBackArena, 'BẢNG XẾP HẠNG ĐẤU TRƯỜNG HSK 3.0', { ephemeral: false });
+
+    const studyPos = await getPlayerHskStudyLeaderboardPosition(client, 'guild_hsk_1', 'leg_study_2', cfgAfterBoot);
+    assert.equal(studyPos.rank, 2);
+    assert.equal(studyPos.stats.bestPersonalStreak, 10);
+    const viewPayload = await buildHskLeaderboardViewPayload(client, 'guild_hsk_1', 'leg_arena_1', {
+      board: 'arena',
+      page: 0,
+      ephemeral: true,
+    });
+    assertHskV2Contract(viewPayload, 'BẢNG XẾP HẠNG ĐẤU TRƯỜNG HSK 3.0', { ephemeral: true });
   } finally {
     resetAllHskRuntimeState();
   }

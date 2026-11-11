@@ -47,6 +47,12 @@ export const getHskRegistryKey = () =>
 export const getHskUserProgressKey = (guildId, userId) =>
   `games:hsk:user:${guildId}:${userId}`;
 
+export const getHskUserProgressPrefix = (guildId) =>
+  `games:hsk:user:${guildId}:`;
+
+export const getHskUserRegistryKey = (guildId) =>
+  `games:hsk:users:${guildId}`;
+
 /**
  * =========================================================
  * COMPATIBILITY EXPORTS · OLD MODULES

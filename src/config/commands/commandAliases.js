@@ -7,6 +7,9 @@ export const commandAliases = {
   xinnghi: 'xin-nghi',
   dotvia: 'dot-via',
   rd: 'random',
+  hskbxh: 'hsk-bxh',
+  bxhhsk: 'hsk-bxh',
+  'bxh-hsk': 'hsk-bxh',
 };
 
 export const subcommandAliases = {};

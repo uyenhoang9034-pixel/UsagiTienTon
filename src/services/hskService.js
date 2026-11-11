@@ -20,11 +20,13 @@ import {
   normalizeStudyTier,
 } from '../config/hskConfig.js';
 import { isBotOwner } from '../config/bot.js';
-import { getDatabaseValue, setDatabaseValue } from '../utils/database.js';
+import { getDatabaseValue, listDatabaseKeys, setDatabaseValue } from '../utils/database.js';
 import {
   getHskGuildConfigKey,
   getHskRegistryKey,
   getHskUserProgressKey,
+  getHskUserProgressPrefix,
+  getHskUserRegistryKey,
 } from '../utils/database/keys.js';
 import { logger } from '../utils/logger.js';
 
@@ -63,9 +65,10 @@ const activeArenaTimers = new Map();
 const guildLastActivityAt = new Map();
 
 /**
- * Cache guild đã đăng ký auto-resume.
+ * Cache guild đã đăng ký auto-resume & index user đã ôn luyện theo guild.
  */
 const registeredGuildCache = new Set();
+const registeredUsersByGuild = new Map();
 
 /**
  * Phiên ôn luyện cá nhân Ephemeral tạm thời (key: `${guildId}:${userId}`), tự dọn theo TTL & max cap.
@@ -389,10 +392,12 @@ export function createDefaultHskGuildConfig(guildId) {
 }
 
 function normalizeArenaStat(userId, raw = {}) {
+  const currentStreak = Math.max(0, Number(raw.currentStreak) || 0);
+  const bestStreak = Math.max(currentStreak, Math.max(0, Number(raw.bestStreak) || 0));
   return {
     userId: String(userId),
-    currentStreak: Math.max(0, Number(raw.currentStreak) || 0),
-    bestStreak: Math.max(0, Number(raw.bestStreak) || 0),
+    currentStreak,
+    bestStreak,
     totalWins: Math.max(0, Number(raw.totalWins) || 0),
     bestTimeMs:
       typeof raw.bestTimeMs === 'number' && Number.isFinite(raw.bestTimeMs) && raw.bestTimeMs >= 0
@@ -567,6 +572,12 @@ function normalizeUserProgress(guildId, userId, raw = null) {
     }
   }
 
+  const personalStreak = Math.max(0, Number(raw.personalStreak) || 0);
+  const bestPersonalStreak = Math.max(
+    personalStreak,
+    Math.max(0, Number(raw.bestPersonalStreak) || 0),
+  );
+
   return {
     userId: String(userId),
     guildId: String(guildId || 'dm'),
@@ -574,8 +585,8 @@ function normalizeUserProgress(guildId, userId, raw = null) {
     elementaryBand,
     advancedBand,
     quizType,
-    personalStreak: Math.max(0, Number(raw.personalStreak) || 0),
-    bestPersonalStreak: Math.max(0, Number(raw.bestPersonalStreak) || 0),
+    personalStreak,
+    bestPersonalStreak,
     masteredIds,
     wrongWords,
     srs,
@@ -628,6 +639,34 @@ export async function getHskUserProgress(client, guildId, userId) {
   return normalizeUserProgress(scopeGuild, userId, raw);
 }
 
+async function registerHskGuildUser(client, guildId, userId) {
+  const gId = String(guildId || '');
+  const uId = String(userId || '');
+  if (!gId || gId === 'dm' || !uId) return;
+
+  let cachedSet = registeredUsersByGuild.get(gId);
+  if (cachedSet?.has(uId)) {
+    return;
+  }
+
+  await withHskGuildLock(`user_reg:${gId}`, async () => {
+    cachedSet = registeredUsersByGuild.get(gId);
+    if (cachedSet?.has(uId)) {
+      return;
+    }
+
+    const regKey = getHskUserRegistryKey(gId);
+    const stored = await getDatabaseValue(client, regKey, []);
+    const merged = Array.isArray(stored) ? stored.map(String).filter(Boolean) : [];
+    const nextSet = new Set(merged);
+    if (!nextSet.has(uId)) {
+      nextSet.add(uId);
+      await setDatabaseValue(client, regKey, Array.from(nextSet));
+    }
+    registeredUsersByGuild.set(gId, nextSet);
+  });
+}
+
 export async function saveHskUserProgress(client, guildId, userId, progress) {
   const scopeGuild = String(guildId || 'dm');
   const normalized = normalizeUserProgress(scopeGuild, userId, {
@@ -635,6 +674,11 @@ export async function saveHskUserProgress(client, guildId, userId, progress) {
     updatedAt: new Date().toISOString(),
   });
   await setDatabaseValue(client, getHskUserProgressKey(scopeGuild, userId), normalized);
+  if (scopeGuild !== 'dm') {
+    await registerHskGuildUser(client, scopeGuild, userId).catch((err) => {
+      logger.debug(`[HSK] Không thể cập nhật index người ôn cho guild ${scopeGuild}:`, err?.message);
+    });
+  }
   return normalized;
 }
 
@@ -962,6 +1006,208 @@ export function getPlayerHskLeaderboardPosition(config, userId) {
     stats,
     totalPlayers: entries.length,
   };
+}
+
+/**
+ * Lấy danh sách BXH Streak Ôn luyện cá nhân từ toàn bộ bản ghi `games:hsk:user:<guildId>:<userId>`
+ * (tương thích hoàn toàn với dữ liệu người chơi có sẵn trước khi nâng cấp bot).
+ */
+export async function getHskStudyLeaderboardEntries(client, guildId, config = null) {
+  const gId = String(guildId || '');
+  if (!gId || gId === 'dm') return [];
+
+  const guildCfg = config || (await getHskGuildConfig(client, gId));
+  const prefix = getHskUserProgressPrefix(gId);
+  const userIds = new Set();
+
+  const listedKeys = await listDatabaseKeys(client, prefix);
+  for (const key of listedKeys) {
+    if (typeof key === 'string' && key.startsWith(prefix)) {
+      const uid = key.slice(prefix.length).trim();
+      if (uid && !uid.includes(':')) {
+        userIds.add(uid);
+      }
+    }
+  }
+
+  const registeredList = await getDatabaseValue(client, getHskUserRegistryKey(gId), []);
+  if (Array.isArray(registeredList)) {
+    for (const uid of registeredList) {
+      const cleanId = String(uid || '').trim();
+      if (cleanId) userIds.add(cleanId);
+    }
+  }
+
+  for (const uid of Object.keys(guildCfg?.stats || {})) {
+    const cleanId = String(uid || '').trim();
+    if (cleanId) userIds.add(cleanId);
+  }
+
+  const allUserIds = Array.from(userIds);
+  const entries = [];
+  const batchSize = 15;
+
+  for (let i = 0; i < allUserIds.length; i += batchSize) {
+    const batchIds = allUserIds.slice(i, i + batchSize);
+    const progresses = await Promise.all(
+      batchIds.map((uid) => getHskUserProgress(client, gId, uid)),
+    );
+    for (const p of progresses) {
+      if (!p) continue;
+      const masteredCount = Array.isArray(p.masteredIds) ? p.masteredIds.length : 0;
+      if (p.bestPersonalStreak > 0 || p.personalStreak > 0 || masteredCount > 0) {
+        entries.push({
+          userId: p.userId,
+          personalStreak: p.personalStreak,
+          bestPersonalStreak: p.bestPersonalStreak,
+          masteredCount,
+        });
+      }
+    }
+  }
+
+  entries.sort((a, b) => {
+    if (b.bestPersonalStreak !== a.bestPersonalStreak) {
+      return b.bestPersonalStreak - a.bestPersonalStreak;
+    }
+    if (b.personalStreak !== a.personalStreak) {
+      return b.personalStreak - a.personalStreak;
+    }
+    if (b.masteredCount !== a.masteredCount) {
+      return b.masteredCount - a.masteredCount;
+    }
+    return a.userId.localeCompare(b.userId);
+  });
+
+  return entries;
+}
+
+export async function getPlayerHskStudyLeaderboardPosition(client, guildId, userId, config = null) {
+  const uid = String(userId || '');
+  const entries = await getHskStudyLeaderboardEntries(client, guildId, config);
+  const index = entries.findIndex((entry) => entry.userId === uid);
+
+  let stats;
+  if (index >= 0) {
+    stats = entries[index];
+  } else {
+    const rawProgress = await getHskUserProgress(client, guildId, uid);
+    stats = {
+      userId: uid,
+      personalStreak: rawProgress?.personalStreak ?? 0,
+      bestPersonalStreak: rawProgress?.bestPersonalStreak ?? 0,
+      masteredCount: Array.isArray(rawProgress?.masteredIds) ? rawProgress.masteredIds.length : 0,
+    };
+  }
+
+  return {
+    entries,
+    rank: index >= 0 ? index + 1 : null,
+    stats,
+    totalPlayers: entries.length,
+  };
+}
+
+export function toHskEditReplyPayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return payload;
+  }
+  const next = { ...payload };
+  if (typeof next.flags === 'number') {
+    if (next.flags & IS_COMPONENTS_V2) {
+      next.flags = IS_COMPONENTS_V2;
+    } else {
+      delete next.flags;
+    }
+  }
+  return next;
+}
+
+const STUDY_BXH_KEYWORDS = new Set([
+  'study',
+  's',
+  'onluyen',
+  'onluyencanhan',
+  'on',
+  'ol',
+  'tuon',
+  'tuhoc',
+  'canhan',
+  'cn',
+  'hoctap',
+  'streakcanhan',
+  'hskcanhan',
+]);
+
+export function parseHskBxhArgs({ rawType = null, rawPage = null, rawArgs = null } = {}) {
+  let pageNum = Number.isInteger(rawPage) && rawPage >= 1 ? rawPage : null;
+  let typeText = String(rawType || '').trim();
+
+  if (Array.isArray(rawArgs) && rawArgs.length > 0) {
+    const textTokens = [];
+    for (const token of rawArgs) {
+      const clean = String(token || '').trim();
+      if (!clean) continue;
+      if (/^\d+$/.test(clean)) {
+        if (pageNum === null) {
+          const parsed = Number.parseInt(clean, 10);
+          if (parsed >= 1) pageNum = parsed;
+        }
+      } else {
+        textTokens.push(clean);
+      }
+    }
+    if (textTokens.length > 0) {
+      typeText = textTokens.join(' ');
+    }
+  }
+
+  if (pageNum === null && /^\d+$/.test(typeText)) {
+    const parsed = Number.parseInt(typeText, 10);
+    if (parsed >= 1) pageNum = parsed;
+  }
+
+  const normType = normalizeSearchKey(typeText).replace(/\s+/g, '');
+  const board = STUDY_BXH_KEYWORDS.has(normType) ? 'study' : 'arena';
+  const page = Number.isInteger(pageNum) && pageNum >= 1 ? pageNum - 1 : 0;
+  return { board, page };
+}
+
+export async function buildHskLeaderboardViewPayload(
+  client,
+  guildId,
+  requesterId,
+  { board = 'arena', page = 0, ephemeral = true } = {},
+) {
+  const normalizedBoard = board === 'study' ? 'study' : 'arena';
+  const config = await getHskGuildConfig(client, guildId);
+
+  if (normalizedBoard === 'study') {
+    const { entries, rank, stats } = await getPlayerHskStudyLeaderboardPosition(
+      client,
+      guildId,
+      requesterId,
+      config,
+    );
+    return buildHskLeaderboardPayloadV2({
+      board: 'study',
+      entries,
+      page,
+      requesterStats: stats,
+      requesterRank: rank,
+      ephemeral,
+    });
+  }
+
+  const { entries, rank, stats } = getPlayerHskLeaderboardPosition(config, requesterId);
+  return buildHskLeaderboardPayloadV2({
+    board: 'arena',
+    entries,
+    page,
+    requesterStats: stats,
+    requesterRank: rank,
+    ephemeral,
+  });
 }
 
 // =========================================================================
@@ -2067,15 +2313,19 @@ export function buildHskNightLockPayloadV2({
 }
 
 /**
- * 10. BẢNG XẾP HẠNG ĐẤU TRƯỜNG HSK 3.0 (5 NGƯỜI/TRANG, PHÂN TRANG ❮❮ | 1/N | ❯❯)
+ * 10. BẢNG XẾP HẠNG HSK 3.0 (ĐẤU TRƯỜNG SERVER & ÔN LUYỆN CÁ NHÂN, 5 NGƯỜI/TRANG)
+ * - Giữ ActionRow phân trang (❮❮ | 1/N | ❯❯) ở hàng đầu để tương thích ngược, kèm hàng chuyển tab ở dưới
  */
 export function buildHskLeaderboardPayloadV2({
+  board = 'arena',
   entries = [],
   page = 0,
   requesterStats = null,
   requesterRank = null,
   ephemeral = true,
 }) {
+  const normalizedBoard = board === 'study' || board === 's' ? 'study' : 'arena';
+  const boardCode = normalizedBoard === 'study' ? 's' : 'a';
   const pageSize = HSK_DEFAULTS.BXH_PAGE_SIZE;
   const totalEntries = entries.length;
   const totalPages = Math.max(1, Math.ceil(totalEntries / pageSize));
@@ -2083,27 +2333,52 @@ export function buildHskLeaderboardPayloadV2({
   const safePage = Number.isInteger(rawPage) ? Math.max(0, Math.min(totalPages - 1, rawPage)) : 0;
   const pageEntries = entries.slice(safePage * pageSize, (safePage + 1) * pageSize);
 
+  const titleText =
+    normalizedBoard === 'study'
+      ? 'BẢNG XẾP HẠNG ÔN LUYỆN HSK 3.0'
+      : 'BẢNG XẾP HẠNG ĐẤU TRƯỜNG HSK 3.0';
+
   let bodyContent;
   if (totalEntries === 0) {
-    bodyContent = [
-      `${HSK_EMOJIS.STREAK} Chưa có thành viên nào ghi điểm tại Đấu trường HSK 3.0!`,
-      `${HSK_EMOJIS.HINT} Hãy bấm đáp án trên thẻ đấu trường để ghi danh lên **Top 1** nha~`,
-    ].join('\n');
+    bodyContent =
+      normalizedBoard === 'study'
+        ? [
+            `${HSK_EMOJIS.STREAK} Chưa có thành viên nào ghi nhận chuỗi ôn luyện cá nhân HSK 3.0!`,
+            `${HSK_EMOJIS.HINT} Hãy bấm nút ở phòng ôn luyện hoặc gõ **/hsk** trả lời câu hỏi để ghi danh lên **Top 1** nha~`,
+          ].join('\n')
+        : [
+            `${HSK_EMOJIS.STREAK} Chưa có thành viên nào ghi điểm tại Đấu trường HSK 3.0!`,
+            `${HSK_EMOJIS.HINT} Hãy bấm đáp án trên thẻ đấu trường để ghi danh lên **Top 1** nha~`,
+          ].join('\n');
   } else {
     bodyContent = pageEntries
       .map((entry, idx) => {
         const globalRank = safePage * pageSize + idx + 1;
         const rankBadge =
           globalRank <= 5 ? HSK_EMOJIS.RANK_EMOJIS[globalRank - 1] : `**#${globalRank}**`;
+        if (normalizedBoard === 'study') {
+          const bestStudy = entry.bestPersonalStreak ?? entry.personalStreak ?? 0;
+          const curStudy = entry.personalStreak ?? 0;
+          const masteredCount = entry.masteredCount ?? 0;
+          return `${rankBadge} <@${entry.userId}> — ${HSK_EMOJIS.STREAK} **Kỷ lục ${bestStudy}** (Hiện tại: ${curStudy} • ${masteredCount} từ đã thuộc)`;
+        }
         return `${rankBadge} <@${entry.userId}> — ${HSK_EMOJIS.STREAK} **Kỷ lục ${entry.bestStreak}** (Hiện tại: ${entry.currentStreak} • ${entry.totalWins} từ)`;
       })
       .join('\n');
   }
 
-  const footerText =
-    requesterRank && requesterStats
-      ? `-# Trang ${safePage + 1}/${totalPages} (${totalEntries} người) • Hạng của bạn: #${requesterRank} (Kỷ lục: ${requesterStats.bestStreak} • Hiện tại: ${requesterStats.currentStreak})`
-      : `-# Trang ${safePage + 1}/${totalPages} (${totalEntries} người) • Xếp hạng theo kỷ lục Streak Đấu trường HSK 3.0`;
+  let footerText;
+  if (requesterRank && requesterStats) {
+    footerText =
+      normalizedBoard === 'study'
+        ? `-# Trang ${safePage + 1}/${totalPages} (${totalEntries} người) • Hạng của bạn: #${requesterRank} (Kỷ lục: ${requesterStats.bestPersonalStreak ?? 0} • Hiện tại: ${requesterStats.personalStreak ?? 0})`
+        : `-# Trang ${safePage + 1}/${totalPages} (${totalEntries} người) • Hạng của bạn: #${requesterRank} (Kỷ lục: ${requesterStats.bestStreak} • Hiện tại: ${requesterStats.currentStreak})`;
+  } else {
+    footerText =
+      normalizedBoard === 'study'
+        ? `-# Trang ${safePage + 1}/${totalPages} (${totalEntries} người) • Xếp hạng theo kỷ lục Streak Ôn luyện cá nhân HSK 3.0`
+        : `-# Trang ${safePage + 1}/${totalPages} (${totalEntries} người) • Xếp hạng theo kỷ lục Streak Đấu trường HSK 3.0`;
+  }
 
   return {
     flags: ephemeral ? (MessageFlags.Ephemeral | IS_COMPONENTS_V2) : IS_COMPONENTS_V2,
@@ -2114,7 +2389,7 @@ export function buildHskLeaderboardPayloadV2({
         components: [
           {
             type: 10,
-            content: formatHskTitle('BẢNG XẾP HẠNG ĐẤU TRƯỜNG HSK 3.0'),
+            content: formatHskTitle(titleText),
           },
           {
             type: 14,
@@ -2142,21 +2417,42 @@ export function buildHskLeaderboardPayloadV2({
                 style: 2,
                 label: '❮❮',
                 disabled: totalPages <= 1,
-                custom_id: `hsk_bxh_prev:${safePage}`,
+                custom_id: `hsk_bxh_prev:${safePage}:${boardCode}`,
               },
               {
                 type: 2,
                 style: 2,
                 label: `${safePage + 1}/${totalPages}`,
                 disabled: true,
-                custom_id: `hsk_bxh_page:${safePage}`,
+                custom_id: `hsk_bxh_page:${safePage}:${boardCode}`,
               },
               {
                 type: 2,
                 style: 2,
                 label: '❯❯',
                 disabled: totalPages <= 1,
-                custom_id: `hsk_bxh_next:${safePage}`,
+                custom_id: `hsk_bxh_next:${safePage}:${boardCode}`,
+              },
+            ],
+          },
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                style: 2,
+                label: normalizedBoard === 'arena' ? '✓ BXH Đấu trường' : 'BXH Đấu trường',
+                emoji: HSK_BUTTON_EMOJIS.ARENA,
+                custom_id: 'hsk_bxh_tab:arena',
+                disabled: normalizedBoard === 'arena',
+              },
+              {
+                type: 2,
+                style: 2,
+                label: normalizedBoard === 'study' ? '✓ BXH Ôn luyện cá nhân' : 'BXH Ôn luyện cá nhân',
+                emoji: HSK_BUTTON_EMOJIS.NOTEBOOK,
+                custom_id: 'hsk_bxh_tab:study',
+                disabled: normalizedBoard === 'study',
               },
             ],
           },
@@ -2495,6 +2791,7 @@ export function resetAllHskRuntimeState() {
   }
   activeArenaRounds.clear();
   registeredGuildCache.clear();
+  registeredUsersByGuild.clear();
   guildLastActivityAt.clear();
   personalSessions.clear();
   bandWordCache.clear();

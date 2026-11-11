@@ -1,6 +1,7 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { HSK_EMOJIS } from '../../config/hskConfig.js';
 import {
+  buildHskLeaderboardViewPayload,
   buildHskNoticePayloadV2,
   buildPersonalHubPayloadV2,
   buildPersonalNotebookPayloadV2,
@@ -9,6 +10,7 @@ import {
   getHskGuildConfig,
   getHskNow,
   getHskUserProgress,
+  parseHskBxhArgs,
   searchHskVocabulary,
   setPersonalSession,
 } from '../../services/hskService.js';
@@ -53,6 +55,27 @@ export default {
           .map((opt) => String(opt?.value || '').trim())
           .filter(Boolean)
           .join(' ');
+      }
+
+      if (isPrefix && /^bxh(?:\s|$)/i.test(query)) {
+        if (!interaction.guildId) {
+          return interaction.reply(
+            buildHskNoticePayloadV2({
+              title: 'CHỈ DÙNG TRONG SERVER',
+              message: `${HSK_EMOJIS.STREAK} Bảng xếp hạng HSK 3.0 chỉ xem được ở trong server nha!`,
+              ephemeral,
+            }),
+          );
+        }
+        const subTokens = query.split(/\s+/).slice(1);
+        const { board, page } = parseHskBxhArgs({ rawArgs: subTokens });
+        const bxhPayload = await buildHskLeaderboardViewPayload(
+          botClient,
+          interaction.guildId,
+          userId,
+          { board, page, ephemeral },
+        );
+        return interaction.reply(bxhPayload);
       }
 
       const progress = await getHskUserProgress(botClient, scopeGuildId, userId);

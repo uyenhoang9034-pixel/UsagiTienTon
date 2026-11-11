@@ -18,6 +18,7 @@ import {
   buildHskAdminPanelPayloadV2,
   buildHskIdlePausedPayloadV2,
   buildHskLeaderboardPayloadV2,
+  buildHskLeaderboardViewPayload,
   buildHskNightLockPayloadV2,
   buildHskNoticePayloadV2,
   buildPersonalArenaOverviewPayloadV2,
@@ -36,6 +37,7 @@ import {
   getHskUserProgress,
   getPersonalSession,
   getPlayerHskLeaderboardPosition,
+  getPlayerHskStudyLeaderboardPosition,
   handleHskArenaAnswer,
   handleHskArenaHint,
   isHskAdmin,
@@ -50,6 +52,7 @@ import {
   searchHskVocabulary,
   setPersonalSession,
   startHskArenaRound,
+  toHskEditReplyPayload,
   withHskGuildLock,
   withHskUserLock,
 } from '../../services/hskService.js';
@@ -1225,17 +1228,13 @@ export default [
       const botClient = client || interaction.client;
       try {
         if (!interaction.guildId) return;
-        const config = await getHskGuildConfig(botClient, interaction.guildId);
-        const { entries, rank, stats } = getPlayerHskLeaderboardPosition(config, interaction.user.id);
-        return interaction.reply(
-          buildHskLeaderboardPayloadV2({
-            entries,
-            page: 0,
-            requesterStats: stats,
-            requesterRank: rank,
-            ephemeral: true,
-          }),
+        const payload = await buildHskLeaderboardViewPayload(
+          botClient,
+          interaction.guildId,
+          interaction.user.id,
+          { board: 'arena', page: 0, ephemeral: true },
         );
+        return interaction.reply(payload);
       } catch (error) {
         logger.error('[HskButtons] Lỗi nút hsk_arena_bxh:', error);
       }
@@ -1416,29 +1415,57 @@ export default [
     },
   },
 
-  // BXH Phân trang
+  // BXH Phân trang & Chuyển tab Đấu trường / Ôn luyện
   {
     name: 'hsk_bxh_prev',
     async execute(interaction, client, args = []) {
       const botClient = client || interaction.client;
       try {
         if (!interaction.guildId) return;
+        const [pageArg, boardArg] = args;
+        const board = boardArg === 's' || boardArg === 'study' ? 'study' : 'arena';
+        const ephemeral = !isPublicOriginMessage(interaction);
+        const shouldDefer =
+          board === 'study' &&
+          !interaction.deferred &&
+          !interaction.replied &&
+          typeof interaction.deferUpdate === 'function' &&
+          typeof interaction.editReply === 'function';
+
+        if (shouldDefer) {
+          await interaction.deferUpdate();
+        }
+
         const config = await getHskGuildConfig(botClient, interaction.guildId);
-        const { entries, rank, stats } = getPlayerHskLeaderboardPosition(config, interaction.user.id);
+        const { entries, rank, stats } =
+          board === 'study'
+            ? await getPlayerHskStudyLeaderboardPosition(
+                botClient,
+                interaction.guildId,
+                interaction.user.id,
+                config,
+              )
+            : getPlayerHskLeaderboardPosition(config, interaction.user.id);
+
         const totalPages = Math.max(1, Math.ceil(entries.length / HSK_DEFAULTS.BXH_PAGE_SIZE));
-        const currentPage = Number.parseInt(args[0] ?? '0', 10);
+        const currentPage = Number.parseInt(pageArg ?? '0', 10);
         const safeCurrent = Number.isInteger(currentPage) && currentPage >= 0 ? currentPage % totalPages : 0;
         const targetPage = (safeCurrent - 1 + totalPages) % totalPages;
 
-        await interaction.update(
-          buildHskLeaderboardPayloadV2({
-            entries,
-            page: targetPage,
-            requesterStats: stats,
-            requesterRank: rank,
-            ephemeral: !isPublicOriginMessage(interaction),
-          }),
-        );
+        const payload = buildHskLeaderboardPayloadV2({
+          board,
+          entries,
+          page: targetPage,
+          requesterStats: stats,
+          requesterRank: rank,
+          ephemeral,
+        });
+
+        if (shouldDefer || interaction.deferred) {
+          await interaction.editReply(toHskEditReplyPayload(payload));
+        } else {
+          await interaction.update(payload);
+        }
       } catch (error) {
         logger.error('[HskButtons] Lỗi phân trang hsk_bxh_prev:', error);
       }
@@ -1450,24 +1477,92 @@ export default [
       const botClient = client || interaction.client;
       try {
         if (!interaction.guildId) return;
+        const [pageArg, boardArg] = args;
+        const board = boardArg === 's' || boardArg === 'study' ? 'study' : 'arena';
+        const ephemeral = !isPublicOriginMessage(interaction);
+        const shouldDefer =
+          board === 'study' &&
+          !interaction.deferred &&
+          !interaction.replied &&
+          typeof interaction.deferUpdate === 'function' &&
+          typeof interaction.editReply === 'function';
+
+        if (shouldDefer) {
+          await interaction.deferUpdate();
+        }
+
         const config = await getHskGuildConfig(botClient, interaction.guildId);
-        const { entries, rank, stats } = getPlayerHskLeaderboardPosition(config, interaction.user.id);
+        const { entries, rank, stats } =
+          board === 'study'
+            ? await getPlayerHskStudyLeaderboardPosition(
+                botClient,
+                interaction.guildId,
+                interaction.user.id,
+                config,
+              )
+            : getPlayerHskLeaderboardPosition(config, interaction.user.id);
+
         const totalPages = Math.max(1, Math.ceil(entries.length / HSK_DEFAULTS.BXH_PAGE_SIZE));
-        const currentPage = Number.parseInt(args[0] ?? '0', 10);
+        const currentPage = Number.parseInt(pageArg ?? '0', 10);
         const safeCurrent = Number.isInteger(currentPage) && currentPage >= 0 ? currentPage % totalPages : 0;
         const targetPage = (safeCurrent + 1) % totalPages;
 
-        await interaction.update(
-          buildHskLeaderboardPayloadV2({
-            entries,
-            page: targetPage,
-            requesterStats: stats,
-            requesterRank: rank,
-            ephemeral: !isPublicOriginMessage(interaction),
-          }),
-        );
+        const payload = buildHskLeaderboardPayloadV2({
+          board,
+          entries,
+          page: targetPage,
+          requesterStats: stats,
+          requesterRank: rank,
+          ephemeral,
+        });
+
+        if (shouldDefer || interaction.deferred) {
+          await interaction.editReply(toHskEditReplyPayload(payload));
+        } else {
+          await interaction.update(payload);
+        }
       } catch (error) {
         logger.error('[HskButtons] Lỗi phân trang hsk_bxh_next:', error);
+      }
+    },
+  },
+  {
+    name: 'hsk_bxh_tab',
+    async execute(interaction, client, args = []) {
+      const botClient = client || interaction.client;
+      try {
+        if (!interaction.guildId) return;
+        const board = args[0] === 's' || args[0] === 'study' ? 'study' : 'arena';
+        const ephemeral = !isPublicOriginMessage(interaction);
+        const shouldDefer =
+          board === 'study' &&
+          !interaction.deferred &&
+          !interaction.replied &&
+          typeof interaction.deferUpdate === 'function' &&
+          typeof interaction.editReply === 'function';
+
+        if (shouldDefer) {
+          await interaction.deferUpdate();
+        }
+
+        const payload = await buildHskLeaderboardViewPayload(
+          botClient,
+          interaction.guildId,
+          interaction.user.id,
+          {
+            board,
+            page: 0,
+            ephemeral,
+          },
+        );
+
+        if (shouldDefer || interaction.deferred) {
+          await interaction.editReply(toHskEditReplyPayload(payload));
+        } else {
+          await interaction.update(payload);
+        }
+      } catch (error) {
+        logger.error('[HskButtons] Lỗi chuyển tab hsk_bxh_tab:', error);
       }
     },
   },

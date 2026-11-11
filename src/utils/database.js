@@ -163,6 +163,21 @@ export async function deleteDatabaseValue(client, key) {
   }
 }
 
+export async function listDatabaseKeys(client, prefix) {
+  const database = getClientDb(client);
+
+  if (!database || typeof database.list !== 'function') {
+    return [];
+  }
+
+  try {
+    const keys = await database.list(normalizeKey(prefix));
+    return Array.isArray(keys) ? keys : [];
+  } catch {
+    return [];
+  }
+}
+
 
 const DEFAULT_MESSAGES = {
   noPermission: 'Bạn không có quyền dùng lệnh này.',
