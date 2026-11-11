@@ -2,6 +2,7 @@ import { Events } from 'discord.js';
 
 import { logger } from '../utils/logger.js';
 import { initWordGuessAutoResume } from '../services/wordGuessService.js';
+import { initHskAutoResume } from '../services/hskService.js';
 
 export default {
   name: Events.ClientReady,
@@ -20,6 +21,12 @@ export default {
       await initWordGuessAutoResume(client);
     } catch (error) {
       logger.warn('Could not initialize WordGuess auto-resume:', error);
+    }
+
+    try {
+      await initHskAutoResume(client);
+    } catch (error) {
+      logger.warn('Could not initialize HSK 3.0 Arena auto-resume:', error);
     }
 
     logger.info('Usagi ready: Kết Hôn + Voice TTS + AI.');

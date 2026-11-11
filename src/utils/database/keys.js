@@ -38,6 +38,15 @@ export const getWordGuessConfigKey = (guildId) =>
 export const getWordGuessRegistryKey = () =>
   'games:wordguess:guilds';
 
+export const getHskGuildConfigKey = (guildId) =>
+  `games:hsk:config:${guildId}`;
+
+export const getHskRegistryKey = () =>
+  'games:hsk:guilds';
+
+export const getHskUserProgressKey = (guildId, userId) =>
+  `games:hsk:user:${guildId}:${userId}`;
+
 /**
  * =========================================================
  * COMPATIBILITY EXPORTS · OLD MODULES
