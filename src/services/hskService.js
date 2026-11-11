@@ -1824,7 +1824,7 @@ export function buildArenaWinPayloadV2({
             type: 10,
             content: [
               `${HSK_EMOJIS.CHECK} **Người trả lời đúng:** <@${winnerId}> (**${reactionSeconds} giây**)`,
-              `${HSK_EMOJIS.STREAK} **Chuỗi cá nhân hiện tại:** **${winnerStats?.currentStreak ?? 1} câu** (Kỷ lục: ${winnerStats?.bestStreak ?? 1})`,
+              `${HSK_EMOJIS.STREAK} **Chuỗi Đấu trường hiện tại:** **${winnerStats?.currentStreak ?? 1} câu** (Kỷ lục: ${winnerStats?.bestStreak ?? 1})`,
               `${HSK_EMOJIS.LEVEL} **Từ vựng chuẩn ${bandMeta.name}:** ${formatWordBoldPair(word.hanzi, word.pinyin)}${tradNote} — **${word.meaning}** (${formatHsk2Note(word)})`,
               `> **Ví dụ:** ${word.exZh} — **${word.exPy}**`,
               `> ${word.exVi}`,
@@ -2201,7 +2201,7 @@ export function buildPersonalArenaOverviewPayloadV2({
     `${HSK_EMOJIS.LEVEL} **Cấp độ đấu trường:** **${levelMeta.label}**`,
     `${HSK_EMOJIS.TIME} **Trạng thái:** ${statusLine}`,
     `${HSK_EMOJIS.NOTEBOOK} **Phòng ôn luyện:** Sơ cấp ${elemCh} • Trung–Cao ${advCh}`,
-    `${HSK_EMOJIS.STREAK} **Thành tích của bạn:** Kỷ lục **${requesterStats?.bestStreak ?? 0}** • Hiện tại **${requesterStats?.currentStreak ?? 0}** • Thắng **${requesterStats?.totalWins ?? 0} câu**${requesterRank ? ` (Hạng #${requesterRank})` : ''}`,
+    `${HSK_EMOJIS.STREAK} **Thành tích Đấu trường:** Kỷ lục **${requesterStats?.bestStreak ?? 0}** • Hiện tại **${requesterStats?.currentStreak ?? 0}** • Thắng **${requesterStats?.totalWins ?? 0} câu**${requesterRank ? ` (Hạng #${requesterRank})` : ''}`,
     '',
     'Thành viên chỉ cần vào thẳng kênh đấu trường và bấm nút **A/B/C/D** để chơi, không cần gõ lệnh!',
   ];
@@ -2770,11 +2770,10 @@ export async function handleHskArenaAnswer(interaction, client, roundId, choiceI
     round.attemptedUsers.add(userId);
     const chosenLabel = round.question.options?.[choiceIndex] || '?';
 
-    // Lưu từ sai vào sổ tay cá nhân & đưa chuỗi đấu trường hiện tại của người bấm sai về 0 (giữ kỷ lục)
+    // Lưu từ sai vào Sổ tay cá nhân; tách biệt hoàn toàn streak Đấu trường vs Ôn luyện cá nhân
     await withHskUserLock(guildId, userId, async () => {
       const progress = await getHskUserProgress(client, guildId, userId);
       const updated = recordWordMistake(progress, round.word, now);
-      updated.personalStreak = 0;
       await saveHskUserProgress(client, guildId, userId, updated);
     });
 
@@ -2852,11 +2851,9 @@ export async function handleHskArenaAnswer(interaction, client, roundId, choiceI
     savedConfig = await saveHskGuildConfig(client, guildId, config);
   });
 
-  // Cập nhật chuỗi cá nhân & từ đã thuộc cho người thắng
+  // Đánh dấu từ đã thuộc cho người thắng; KHÔNG cộng vào personalStreak để tách biệt hoàn toàn với chuỗi tự ôn
   await withHskUserLock(guildId, userId, async () => {
     const progress = await getHskUserProgress(client, guildId, userId);
-    progress.personalStreak += 1;
-    progress.bestPersonalStreak = Math.max(progress.bestPersonalStreak || 0, progress.personalStreak);
     const nextProgress = markWordMasteredInProgress(progress, round.word.id, { intervalDays: 4, nowMs: now });
     await saveHskUserProgress(client, guildId, userId, nextProgress);
   });

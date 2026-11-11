@@ -49,6 +49,7 @@ import {
   loadBandWords,
   resetAllHskRuntimeState,
   saveHskGuildConfig,
+  saveHskUserProgress,
   searchHskVocabulary,
   startHskArenaRound,
 } from '../src/services/hskService.js';
@@ -361,10 +362,18 @@ test('2. Kiểm tra Components V2 đúng thiết kế user duyệt (Menu không 
   assert.equal(arenaNextBtn.emoji, undefined);
 
   // 2f. Kiểm tra các thẻ phụ khác
-  assertHskV2Contract(
-    buildArenaWinPayloadV2({ roundNumber: 12, winnerId: 'u1', word: sampleWord, reactionSeconds: '2.5', winnerStats: { currentStreak: 1, bestStreak: 1 } }),
-    'CHÍNH XÁC — VÁN #12',
-  );
+  const arenaWinCard = buildArenaWinPayloadV2({
+    roundNumber: 12,
+    winnerId: 'u1',
+    word: sampleWord,
+    reactionSeconds: '2.5',
+    winnerStats: { currentStreak: 3, bestStreak: 7 },
+  });
+  assertHskV2Contract(arenaWinCard, 'CHÍNH XÁC — VÁN #12');
+  const arenaWinText = collectPayloadNodes(arenaWinCard).texts.join('\n');
+  assert.ok(arenaWinText.includes('Chuỗi Đấu trường hiện tại:'));
+  assert.ok(!arenaWinText.includes('Chuỗi cá nhân hiện tại:'));
+
   assertHskV2Contract(
     buildArenaTimeoutPayloadV2({ roundNumber: 12, word: sampleWord, durationSeconds: 45 }),
     'HẾT THỜI GIAN — VÁN #12',
@@ -372,7 +381,15 @@ test('2. Kiểm tra Components V2 đúng thiết kế user duyệt (Menu không 
   assertHskV2Contract(buildHskIdlePausedPayloadV2(), 'ĐẤU TRƯỜNG TẠM NGHỈ DO VẮNG NGƯỜI CHƠI');
   assertHskV2Contract(buildHskNightLockPayloadV2({ currentTimeText: '01:00', includeResumeButton: false, ephemeral: true }), 'ĐẤU TRƯỜNG ĐANG NGHỈ BAN ĐÊM', { ephemeral: true });
   assertHskV2Contract(buildHskLeaderboardPayloadV2({ entries: [], page: 0, ephemeral: true }), 'BẢNG XẾP HẠNG ĐẤU TRƯỜNG HSK 3.0', { ephemeral: true });
-  assertHskV2Contract(buildPersonalArenaOverviewPayloadV2({ ownerId: 'u1', config: {}, ephemeral: true }), 'THÔNG TIN ĐẤU TRƯỜNG HSK 3.0', { ephemeral: true });
+
+  const arenaOverviewCard = buildPersonalArenaOverviewPayloadV2({
+    ownerId: 'u1',
+    config: {},
+    requesterStats: { bestStreak: 7, currentStreak: 3, totalWins: 10 },
+    ephemeral: true,
+  });
+  assertHskV2Contract(arenaOverviewCard, 'THÔNG TIN ĐẤU TRƯỜNG HSK 3.0', { ephemeral: true });
+  assert.ok(collectPayloadNodes(arenaOverviewCard).texts.join('\n').includes('Thành tích Đấu trường:'));
   assertHskV2Contract(buildStudyRoomLobbyPayloadV2('elementary'), HSK_STUDY_TIERS.elementary.roomTitle, { ephemeral: false });
   assertHskV2Contract(buildStudyRoomLobbyPayloadV2('advanced'), HSK_STUDY_TIERS.advanced.roomTitle, { ephemeral: false });
   assertHskV2Contract(buildHskAdminPanelPayloadV2({}), 'QUẢN TRỊ ĐẤU TRƯỜNG & ÔN LUYỆN HSK 3.0', { ephemeral: true });
@@ -1439,4 +1456,113 @@ test('9. Kiến trúc 3 kênh tách biệt: 1 Đấu trường + 2 Phòng Ôn Lu
   }
 });
 
+test('10. Tách biệt hoàn toàn Streak Đấu trường và Streak Ôn luyện cá nhân (sai/thắng ở Đấu trường không đụng personalStreak)', async () => {
+  resetAllHskRuntimeState();
+  const { client, channel, sentMessages } = createMockClient();
 
+  try {
+    await saveHskGuildConfig(client, 'guild_hsk_1', {
+      channelId: channel.id,
+      enabled: true,
+      autoStart: false,
+      arenaLevelKey: '1',
+      durationSeconds: 45,
+      stats: {
+        player_wrong: { userId: 'player_wrong', currentStreak: 4, bestStreak: 9, totalWins: 12 },
+        player_win: { userId: 'player_win', currentStreak: 2, bestStreak: 5, totalWins: 6 },
+      },
+    });
+
+    // Cả hai người đều đã có chuỗi tự ôn riêng tư trước đó
+    await saveHskUserProgress(client, 'guild_hsk_1', 'player_wrong', {
+      selectedBand: 1,
+      personalStreak: 7,
+      bestPersonalStreak: 11,
+    });
+    await saveHskUserProgress(client, 'guild_hsk_1', 'player_win', {
+      selectedBand: 1,
+      personalStreak: 5,
+      bestPersonalStreak: 5,
+    });
+
+    const roundRes = await startHskArenaRound(client, 'guild_hsk_1', { scheduleTimers: false });
+    assert.equal(roundRes.success, true);
+
+    // 10a. player_wrong trả lời SAI ở Đấu trường -> chỉ reset Arena currentStreak về 0 & lưu Sổ tay; personalStreak vẫn giữ nguyên = 7
+    const wrongIdx = (roundRes.round.question.correctIndex + 1) % 4;
+    await handleHskArenaAnswer(
+      {
+        guildId: 'guild_hsk_1',
+        channel,
+        user: { id: 'player_wrong' },
+        reply: async () => {},
+      },
+      client,
+      roundRes.round.id,
+      wrongIdx,
+    );
+
+    const cfgAfterWrong = await getHskGuildConfig(client, 'guild_hsk_1');
+    assert.equal(cfgAfterWrong.stats.player_wrong.currentStreak, 0, 'Chuỗi Đấu trường bị reset về 0 khi bấm sai');
+    assert.equal(cfgAfterWrong.stats.player_wrong.bestStreak, 9, 'Kỷ lục Đấu trường vẫn giữ nguyên');
+
+    const progWrong = await getHskUserProgress(client, 'guild_hsk_1', 'player_wrong');
+    assert.equal(progWrong.personalStreak, 7, 'Sai ở Đấu trường KHÔNG được trừ chuỗi Ôn luyện cá nhân');
+    assert.equal(progWrong.bestPersonalStreak, 11);
+    assert.ok(progWrong.wrongWords[roundRes.round.word.id], 'Từ sai vẫn được lưu vào Sổ tay cá nhân');
+
+    // 10b. player_win trả lời ĐÚNG ở Đấu trường -> chỉ tăng Arena currentStreak lên 3 & đánh dấu đã thuộc; personalStreak vẫn = 5
+    await handleHskArenaAnswer(
+      {
+        guildId: 'guild_hsk_1',
+        channel,
+        user: { id: 'player_win' },
+        update: async () => {},
+      },
+      client,
+      roundRes.round.id,
+      roundRes.round.question.correctIndex,
+      { scheduleNext: false, now: DAYTIME_MS + 2500 },
+    );
+
+    const cfgAfterWin = await getHskGuildConfig(client, 'guild_hsk_1');
+    assert.equal(cfgAfterWin.stats.player_win.currentStreak, 3);
+    assert.equal(cfgAfterWin.stats.player_win.bestStreak, 5);
+
+    const progWin = await getHskUserProgress(client, 'guild_hsk_1', 'player_win');
+    assert.equal(progWin.personalStreak, 5, 'Thắng ở Đấu trường KHÔNG cộng dồn vào chuỗi Ôn luyện cá nhân');
+    assert.equal(progWin.bestPersonalStreak, 5);
+    assert.ok(progWin.masteredIds.includes(roundRes.round.word.id));
+
+    const winCardText = collectPayloadNodes(sentMessages[sentMessages.length - 1].payload).texts.join('\n');
+    assert.ok(winCardText.includes('Chuỗi Đấu trường hiện tại:'));
+    assert.ok(!winCardText.includes('Chuỗi cá nhân hiện tại:'));
+
+    // 10c. Trả lời sai trong Trắc nghiệm cá nhân KHÔNG làm rớt Arena currentStreak của player_win (= 3)
+    const startQuizBtn = hskButtons.find((b) => b.name === 'hsk_mode_quiz');
+    const ansQuizBtn = hskButtons.find((b) => b.name === 'hsk_quiz_ans');
+    const makeStudyIx = (userId) => ({
+      guildId: 'guild_hsk_1',
+      user: { id: userId },
+      message: { flags: { bitfield: MessageFlags.Ephemeral | IS_COMPONENTS_V2 } },
+      update: async () => {},
+      reply: async () => {},
+    });
+
+    await startQuizBtn.execute(makeStudyIx('player_win'), client, ['player_win', 'x']);
+    const q = getPersonalSession('guild_hsk_1', 'player_win', DAYTIME_MS).quizQuestion;
+    await ansQuizBtn.execute(makeStudyIx('player_win'), client, [
+      'player_win',
+      q.qId,
+      String((q.correctIndex + 1) % 4),
+      'x',
+    ]);
+
+    const progWinAfterStudyWrong = await getHskUserProgress(client, 'guild_hsk_1', 'player_win');
+    assert.equal(progWinAfterStudyWrong.personalStreak, 0, 'Sai ở Ôn luyện chỉ reset chuỗi Ôn luyện');
+    const cfgAfterStudyWrong = await getHskGuildConfig(client, 'guild_hsk_1');
+    assert.equal(cfgAfterStudyWrong.stats.player_win.currentStreak, 3, 'Sai ở Ôn luyện KHÔNG ảnh hưởng chuỗi Đấu trường');
+  } finally {
+    resetAllHskRuntimeState();
+  }
+});
