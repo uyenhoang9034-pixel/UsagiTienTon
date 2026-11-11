@@ -11,9 +11,13 @@ import {
   HSK_BUTTON_EMOJIS,
   HSK_DEFAULTS,
   HSK_EMOJIS,
+  encodeStudyTierCode,
   formatHskTitle,
   getArenaLevelMeta,
   getBandMeta,
+  getBandsForStudyTier,
+  getStudyTierMeta,
+  normalizeStudyTier,
 } from '../config/hskConfig.js';
 import { isBotOwner } from '../config/bot.js';
 import { getDatabaseValue, setDatabaseValue } from '../utils/database.js';
@@ -368,6 +372,10 @@ export function createDefaultHskGuildConfig(guildId) {
     guildId: String(guildId),
     enabled: false,
     channelId: null,
+    studyChannels: {
+      elementary: null,
+      advanced: null,
+    },
     arenaLevelKey: '1',
     arenaMode: 'vi', // 'vi' | 'mixed'
     durationSeconds: HSK_DEFAULTS.ROUND_DURATION_SECONDS,
@@ -421,11 +429,16 @@ function normalizeHskGuildConfig(guildId, raw = null) {
     : base.arenaLevelKey;
 
   const validArenaMode = raw.arenaMode === 'mixed' ? 'mixed' : 'vi';
+  const rawStudy = raw.studyChannels && typeof raw.studyChannels === 'object' ? raw.studyChannels : {};
 
   return {
     guildId: String(guildId),
     enabled: Boolean(raw.enabled),
     channelId: raw.channelId ? String(raw.channelId) : null,
+    studyChannels: {
+      elementary: rawStudy.elementary ? String(rawStudy.elementary) : null,
+      advanced: rawStudy.advanced ? String(rawStudy.advanced) : null,
+    },
     arenaLevelKey: validLevelKey,
     arenaMode: validArenaMode,
     durationSeconds: clampedDuration,
@@ -438,6 +451,14 @@ function normalizeHskGuildConfig(guildId, raw = null) {
     stats,
     updatedAt: raw.updatedAt || null,
   };
+}
+
+export function detectChannelStudyTier(config, channelId) {
+  const cid = String(channelId || '');
+  if (!cid || !config?.studyChannels) return 'all';
+  if (config.studyChannels.elementary === cid) return 'elementary';
+  if (config.studyChannels.advanced === cid) return 'advanced';
+  return 'all';
 }
 
 export async function getHskGuildConfig(client, guildId) {
@@ -478,6 +499,8 @@ export function createDefaultHskUserProgress(guildId, userId) {
     userId: String(userId),
     guildId: String(guildId || 'dm'),
     selectedBand: 1,
+    elementaryBand: 1,
+    advancedBand: 4,
     quizType: 'vi',
     personalStreak: 0,
     bestPersonalStreak: 0,
@@ -495,6 +518,20 @@ function normalizeUserProgress(guildId, userId, raw = null) {
   }
 
   const selectedBand = getBandMeta(raw.selectedBand || 1).id;
+  const rawElemBand = Number(raw.elementaryBand);
+  const elementaryBand =
+    Number.isInteger(rawElemBand) && rawElemBand >= 1 && rawElemBand <= 3
+      ? rawElemBand
+      : selectedBand >= 1 && selectedBand <= 3
+        ? selectedBand
+        : 1;
+  const rawAdvBand = Number(raw.advancedBand);
+  const advancedBand =
+    Number.isInteger(rawAdvBand) && rawAdvBand >= 4 && rawAdvBand <= 7
+      ? rawAdvBand
+      : selectedBand >= 4 && selectedBand <= 7
+        ? selectedBand
+        : 4;
   const quizType = ['vi', 'pinyin', 'cloze'].includes(raw.quizType) ? raw.quizType : 'vi';
   const masteredIds = Array.isArray(raw.masteredIds)
     ? Array.from(new Set(raw.masteredIds.map(String))).slice(-HSK_DEFAULTS.MASTERED_IDS_LIMIT)
@@ -534,6 +571,8 @@ function normalizeUserProgress(guildId, userId, raw = null) {
     userId: String(userId),
     guildId: String(guildId || 'dm'),
     selectedBand,
+    elementaryBand,
+    advancedBand,
     quizType,
     personalStreak: Math.max(0, Number(raw.personalStreak) || 0),
     bestPersonalStreak: Math.max(0, Number(raw.bestPersonalStreak) || 0),
@@ -542,6 +581,45 @@ function normalizeUserProgress(guildId, userId, raw = null) {
     srs,
     updatedAt: raw.updatedAt || null,
   };
+}
+
+export function getEffectiveBandForTier(progress, studyTier = 'all') {
+  const tier = normalizeStudyTier(studyTier);
+  if (tier === 'elementary') {
+    const eb = Number(progress?.elementaryBand);
+    if (Number.isInteger(eb) && eb >= 1 && eb <= 3) return eb;
+    const sb = Number(progress?.selectedBand);
+    return Number.isInteger(sb) && sb >= 1 && sb <= 3 ? sb : 1;
+  }
+  if (tier === 'advanced') {
+    const ab = Number(progress?.advancedBand);
+    if (Number.isInteger(ab) && ab >= 4 && ab <= 7) return ab;
+    const sb = Number(progress?.selectedBand);
+    return Number.isInteger(sb) && sb >= 4 && sb <= 7 ? sb : 4;
+  }
+  return getBandMeta(progress?.selectedBand || 1).id;
+}
+
+export function applyBandSelectionForTier(progress, bandId, studyTier = 'all') {
+  const tier = normalizeStudyTier(studyTier);
+  const parsed = getBandMeta(bandId).id;
+  let resolvedBand = parsed;
+  if (tier === 'elementary' && (parsed < 1 || parsed > 3)) {
+    resolvedBand = 1;
+  } else if (tier === 'advanced' && (parsed < 4 || parsed > 7)) {
+    resolvedBand = 4;
+  }
+
+  const next = {
+    ...progress,
+    selectedBand: resolvedBand,
+  };
+  if (resolvedBand >= 1 && resolvedBand <= 3) {
+    next.elementaryBand = resolvedBand;
+  } else {
+    next.advancedBand = resolvedBand;
+  }
+  return next;
 }
 
 export async function getHskUserProgress(client, guildId, userId) {
@@ -752,7 +830,8 @@ export function buildQuestionFromWord(word, quizType = 'vi', bandWords = null) {
 }
 
 export function createPersonalQuizQuestion(progress, options = {}) {
-  const bandId = getBandMeta(progress?.selectedBand || 1).id;
+  const studyTier = normalizeStudyTier(options.studyTier);
+  const bandId = getEffectiveBandForTier(progress, studyTier);
   const quizType = options.quizType || progress?.quizType || 'vi';
   const excludeWordId = options.excludeWordId || null;
 
@@ -792,8 +871,8 @@ export function createPersonalQuizQuestion(progress, options = {}) {
   };
 }
 
-export function pickNextFlashcardForUser(progress, { excludeWordId = null, nowMs = Date.now() } = {}) {
-  const bandId = getBandMeta(progress?.selectedBand || 1).id;
+export function pickNextFlashcardForUser(progress, { excludeWordId = null, nowMs = Date.now(), studyTier = 'all' } = {}) {
+  const bandId = getEffectiveBandForTier(progress, studyTier);
   const bandWords = loadBandWords(bandId);
   if (bandWords.length === 0) {
     return null;
@@ -908,10 +987,16 @@ function formatWordBoldPair(hanzi, pinyin) {
 export function buildPersonalHubPayloadV2({
   ownerId,
   progress,
+  studyTier = 'all',
   ephemeral = true,
   nowMs = Date.now(),
 }) {
-  const bandMeta = getBandMeta(progress?.selectedBand || 1);
+  const normalizedTier = normalizeStudyTier(studyTier);
+  const tierCode = encodeStudyTierCode(normalizedTier);
+  const tierMeta = getStudyTierMeta(normalizedTier);
+  const effectiveBandId = getEffectiveBandForTier(progress, normalizedTier);
+  const bandMeta = getBandMeta(effectiveBandId);
+  const availableBands = getBandsForStudyTier(normalizedTier);
   const { wrongCount, dueCount, masteredCount } = getUserNotebookSummary(progress, nowMs);
   const uid = String(ownerId);
 
@@ -935,7 +1020,7 @@ export function buildPersonalHubPayloadV2({
             type: 10,
             content: [
               'Chào bạn! Mời bạn chọn cấp độ HSK 3.0 bên dưới rồi bấm chế độ muốn ôn nha:',
-              `${HSK_EMOJIS.LEVEL} Cấp độ đang chọn: **${bandMeta.selectLabel}**`,
+              `${HSK_EMOJIS.LEVEL} Cấp độ đang chọn: **${bandMeta.selectLabel}**${tierMeta ? ` · ${tierMeta.name}` : ''}`,
               `${HSK_EMOJIS.STREAK} Chuỗi đúng hiện tại: **${progress?.personalStreak ?? 0} câu**`,
               `> Đã thuộc: **${masteredCount} từ**`,
               `${HSK_EMOJIS.NOTEBOOK} Sổ tay từ cần ôn: **${dueCount} từ**`,
@@ -952,11 +1037,13 @@ export function buildPersonalHubPayloadV2({
             components: [
               {
                 type: 3,
-                custom_id: `hsk_select_band:${uid}`,
-                placeholder: `Đang chọn: ${bandMeta.name} — bấm để đổi cấp độ`,
+                custom_id: `hsk_select_band:${uid}:${tierCode}`,
+                placeholder: tierMeta
+                  ? `Đang chọn: ${bandMeta.name} — đổi cấp ${tierMeta.name}`
+                  : `Đang chọn: ${bandMeta.name} — bấm để đổi cấp độ`,
                 min_values: 1,
                 max_values: 1,
-                options: HSK_BANDS.map((band) => ({
+                options: availableBands.map((band) => ({
                   label: band.selectLabel,
                   value: String(band.id),
                   description: band.selectDescription,
@@ -973,28 +1060,28 @@ export function buildPersonalHubPayloadV2({
                 style: 2, // Xám
                 label: 'Trắc nghiệm 4 nút',
                 emoji: HSK_BUTTON_EMOJIS.ACTION,
-                custom_id: `hsk_mode_quiz:${uid}`,
+                custom_id: `hsk_mode_quiz:${uid}:${tierCode}`,
               },
               {
                 type: 2,
                 style: 2, // Xám
                 label: 'Flashcard + SRS',
                 emoji: HSK_BUTTON_EMOJIS.ACTION,
-                custom_id: `hsk_mode_flash:${uid}`,
+                custom_id: `hsk_mode_flash:${uid}:${tierCode}`,
               },
               {
                 type: 2,
                 style: 2, // Xám
                 label: `Sổ tay (${wrongCount})`,
                 emoji: HSK_BUTTON_EMOJIS.NOTEBOOK,
-                custom_id: `hsk_mode_notebook:${uid}`,
+                custom_id: `hsk_mode_notebook:${uid}:${tierCode}`,
               },
               {
                 type: 2,
                 style: 2, // Xám
                 label: 'Xem đấu trường',
                 emoji: HSK_BUTTON_EMOJIS.ARENA,
-                custom_id: `hsk_mode_arena:${uid}`,
+                custom_id: `hsk_mode_arena:${uid}:${tierCode}`,
               },
             ],
           },
@@ -1012,12 +1099,14 @@ export function buildPersonalQuizPayloadV2({
   progress,
   word,
   question,
+  studyTier = 'all',
   focusWrongOnly = false,
   feedbackMessage = null,
   ephemeral = true,
 }) {
   const uid = String(ownerId);
-  const bandMeta = getBandMeta(word?.band || progress?.selectedBand || 1);
+  const tierCode = encodeStudyTierCode(studyTier);
+  const bandMeta = getBandMeta(word?.band || getEffectiveBandForTier(progress, studyTier));
   const letters = ['A', 'B', 'C', 'D'];
   const isAnswered = Number.isInteger(question?.answeredIndex);
   const activeType = question?.quizType || 'vi';
@@ -1048,7 +1137,7 @@ export function buildPersonalQuizPayloadV2({
       type: 2,
       style: 2, // Xám
       label: truncateLabel(`${prefix}${opt}`, 78),
-      custom_id: `hsk_quiz_ans:${uid}:${question.qId}:${idx}`,
+      custom_id: `hsk_quiz_ans:${uid}:${question.qId}:${idx}:${tierCode}`,
       disabled: isAnswered,
     };
   });
@@ -1076,19 +1165,19 @@ export function buildPersonalQuizPayloadV2({
                 type: 2,
                 style: 2,
                 label: activeType === 'vi' ? '✓ 汉字 → Nghĩa' : '汉字 → Nghĩa',
-                custom_id: `hsk_quiz_type:${uid}:vi`,
+                custom_id: `hsk_quiz_type:${uid}:vi:${tierCode}`,
               },
               {
                 type: 2,
                 style: 2,
                 label: activeType === 'pinyin' ? '✓ 汉字 → Pinyin' : '汉字 → Pinyin',
-                custom_id: `hsk_quiz_type:${uid}:pinyin`,
+                custom_id: `hsk_quiz_type:${uid}:pinyin:${tierCode}`,
               },
               {
                 type: 2,
                 style: 2,
                 label: activeType === 'cloze' ? '✓ Điền khuyết' : 'Điền khuyết',
-                custom_id: `hsk_quiz_type:${uid}:cloze`,
+                custom_id: `hsk_quiz_type:${uid}:cloze:${tierCode}`,
               },
             ],
           },
@@ -1117,21 +1206,21 @@ export function buildPersonalQuizPayloadV2({
                 style: 2, // Xám
                 label: 'Gợi ý Pinyin',
                 emoji: HSK_BUTTON_EMOJIS.HINT,
-                custom_id: `hsk_quiz_hint:${uid}:${question.qId}`,
+                custom_id: `hsk_quiz_hint:${uid}:${question.qId}:${tierCode}`,
                 disabled: Boolean(question.hintShown || isAnswered || activeType === 'pinyin'),
               },
               {
                 type: 2,
                 style: 2, // Xám — chevron giống booking ảnh mẫu
                 label: '❯❯ Câu tiếp theo',
-                custom_id: `hsk_quiz_next:${uid}`,
+                custom_id: `hsk_quiz_next:${uid}:${tierCode}`,
               },
               {
                 type: 2,
                 style: 2, // Xám
                 label: 'Về menu',
                 emoji: HSK_BUTTON_EMOJIS.ACTION,
-                custom_id: `hsk_home:${uid}`,
+                custom_id: `hsk_home:${uid}:${tierCode}`,
               },
             ],
           },
@@ -1156,10 +1245,12 @@ export function buildPersonalFlashcardPayloadV2({
   totalInBand = 45,
   flipped = false,
   statusNotice = null,
+  studyTier = 'all',
   ephemeral = true,
 }) {
   const uid = String(ownerId);
-  const bandMeta = getBandMeta(word?.band || progress?.selectedBand || 1);
+  const tierCode = encodeStudyTierCode(studyTier);
+  const bandMeta = getBandMeta(word?.band || getEffectiveBandForTier(progress, studyTier));
   const nextGoodDays = computeNextSrsIntervalDays(progress, word.id);
   const tradNote = word.traditional && word.traditional !== word.hanzi ? ` • Phồn thể: **${word.traditional}**` : '';
 
@@ -1219,14 +1310,14 @@ export function buildPersonalFlashcardPayloadV2({
           style: 2, // Xám
           label: 'Lật thẻ xem đáp án',
           emoji: HSK_BUTTON_EMOJIS.FLIP,
-          custom_id: `hsk_flash_flip:${uid}:${word.id}`,
+          custom_id: `hsk_flash_flip:${uid}:${word.id}:${tierCode}`,
         },
         {
           type: 2,
           style: 2, // Xám
           label: 'Về menu',
           emoji: HSK_BUTTON_EMOJIS.ACTION,
-          custom_id: `hsk_home:${uid}`,
+          custom_id: `hsk_home:${uid}:${tierCode}`,
         },
       ],
     });
@@ -1240,20 +1331,20 @@ export function buildPersonalFlashcardPayloadV2({
             style: 2, // Xám
             label: 'Quên (Ôn lại ngay)',
             emoji: HSK_BUTTON_EMOJIS.STREAK,
-            custom_id: `hsk_flash_rate:${uid}:${word.id}:again`,
+            custom_id: `hsk_flash_rate:${uid}:${word.id}:again:${tierCode}`,
           },
           {
             type: 2,
             style: 2, // Xám
             label: 'Nhớ mang máng (+1 ngày)',
-            custom_id: `hsk_flash_rate:${uid}:${word.id}:hard`,
+            custom_id: `hsk_flash_rate:${uid}:${word.id}:hard:${tierCode}`,
           },
           {
             type: 2,
             style: 2, // Xám
             label: `Đã thuộc (+${nextGoodDays} ngày)`,
             emoji: HSK_BUTTON_EMOJIS.CHECK,
-            custom_id: `hsk_flash_rate:${uid}:${word.id}:good`,
+            custom_id: `hsk_flash_rate:${uid}:${word.id}:good:${tierCode}`,
           },
         ],
       },
@@ -1265,7 +1356,7 @@ export function buildPersonalFlashcardPayloadV2({
             style: 2, // Xám
             label: 'Về menu',
             emoji: HSK_BUTTON_EMOJIS.ACTION,
-            custom_id: `hsk_home:${uid}`,
+            custom_id: `hsk_home:${uid}:${tierCode}`,
           },
         ],
       },
@@ -1298,10 +1389,12 @@ export function buildPersonalNotebookPayloadV2({
   page = 0,
   searchQuery = '',
   searchResults = [],
+  studyTier = 'all',
   ephemeral = true,
   nowMs = Date.now(),
 }) {
   const uid = String(ownerId);
+  const tierCode = encodeStudyTierCode(studyTier);
   const { wrongList, wrongCount } = getUserNotebookSummary(progress, nowMs);
   const pageSize = HSK_DEFAULTS.NOTEBOOK_PAGE_SIZE;
   const totalPages = Math.max(1, Math.ceil(wrongList.length / pageSize));
@@ -1348,7 +1441,7 @@ export function buildPersonalNotebookPayloadV2({
           style: 2, // Xám
           label: 'Đã thuộc',
           emoji: HSK_BUTTON_EMOJIS.CHECK,
-          custom_id: `hsk_nb_done:${uid}:${w.id}:${safePage}`,
+          custom_id: `hsk_nb_done:${uid}:${w.id}:${safePage}:${tierCode}`,
         },
       });
     }
@@ -1362,7 +1455,7 @@ export function buildPersonalNotebookPayloadV2({
           type: 2,
           style: 2,
           label: '❮❮',
-          custom_id: `hsk_nb_prev:${uid}:${safePage}`,
+          custom_id: `hsk_nb_prev:${uid}:${safePage}:${tierCode}`,
           disabled: totalPages <= 1,
         },
         {
@@ -1376,7 +1469,7 @@ export function buildPersonalNotebookPayloadV2({
           type: 2,
           style: 2,
           label: '❯❯',
-          custom_id: `hsk_nb_next:${uid}:${safePage}`,
+          custom_id: `hsk_nb_next:${uid}:${safePage}:${tierCode}`,
           disabled: totalPages <= 1,
         },
         {
@@ -1384,7 +1477,7 @@ export function buildPersonalNotebookPayloadV2({
           style: 2,
           label: 'Ôn lại ngay',
           emoji: HSK_BUTTON_EMOJIS.STREAK,
-          custom_id: `hsk_nb_review:${uid}`,
+          custom_id: `hsk_nb_review:${uid}:${tierCode}`,
           disabled: wrongCount === 0,
         },
       ],
@@ -1429,7 +1522,7 @@ export function buildPersonalNotebookPayloadV2({
       style: 2,
       label: 'Tra cứu nhanh',
       emoji: HSK_BUTTON_EMOJIS.HINT,
-      custom_id: `hsk_nb_search:${uid}`,
+      custom_id: `hsk_nb_search:${uid}:${tierCode}`,
     },
   ];
   if (searchQuery) {
@@ -1437,7 +1530,7 @@ export function buildPersonalNotebookPayloadV2({
       type: 2,
       style: 2,
       label: 'Xoá kết quả tìm',
-      custom_id: `hsk_nb_clear_search:${uid}`,
+      custom_id: `hsk_nb_clear_search:${uid}:${tierCode}`,
     });
   }
   bottomButtons.push({
@@ -1445,7 +1538,7 @@ export function buildPersonalNotebookPayloadV2({
     style: 2,
     label: 'Về menu',
     emoji: HSK_BUTTON_EMOJIS.ACTION,
-    custom_id: `hsk_home:${uid}`,
+    custom_id: `hsk_home:${uid}:${tierCode}`,
   });
 
   children.push({
@@ -1460,6 +1553,113 @@ export function buildPersonalNotebookPayloadV2({
       {
         type: 17,
         components: children,
+      },
+    ],
+  };
+}
+
+/**
+ * 4b. BẢNG PHÒNG ÔN LUYỆN CỐ ĐỊNH THEO PHÂN HỆ (`elementary`: HSK 1–3 | `advanced`: HSK 4–9)
+ * - Admin đặt 1 lần trong từng kênh, member bấm nút chọn cấp độ hoặc vào thẳng chế độ học (Ephemeral riêng tư)
+ */
+export function buildStudyRoomLobbyPayloadV2(tier = 'elementary') {
+  const normalizedTier = normalizeStudyTier(tier) === 'advanced' ? 'advanced' : 'elementary';
+  const tierCode = encodeStudyTierCode(normalizedTier);
+  const tierMeta = getStudyTierMeta(normalizedTier);
+  const bands = getBandsForStudyTier(normalizedTier);
+
+  const introLines =
+    normalizedTier === 'elementary'
+      ? [
+          'Chào bạn! Đây là phòng tự học riêng tư dành cho trình độ **Sơ cấp (HSK 1 – HSK 3)**.',
+          `${HSK_EMOJIS.LEVEL} **Phạm vi cấp độ:** **HSK 1 · HSK 2 · HSK 3** (Chuẩn HSK 3.0)`,
+          `${HSK_EMOJIS.ACTION} **Cách sử dụng:** Bấm thẳng nút cấp độ hoặc chế độ bên dưới (chỉ mình bạn thấy, không trôi kênh!)`,
+          `${HSK_EMOJIS.NOTEBOOK} **Công cụ:** Trắc nghiệm 4 nút • Flashcard SRS • Sổ tay từ sai & Tra cứu nhanh`,
+        ]
+      : [
+          'Chào bạn! Đây là phòng tự học riêng tư dành cho trình độ **Trung & Cao cấp (HSK 4 – HSK 9)**.',
+          `${HSK_EMOJIS.LEVEL} **Phạm vi cấp độ:** **HSK 4 · HSK 5 · HSK 6 · HSK 7–9** (Chuẩn HSK 3.0)`,
+          `${HSK_EMOJIS.ACTION} **Cách sử dụng:** Bấm thẳng nút cấp độ hoặc chế độ bên dưới (chỉ mình bạn thấy, không trôi kênh!)`,
+          `${HSK_EMOJIS.NOTEBOOK} **Công cụ:** Trắc nghiệm 4 nút • Flashcard SRS • Sổ tay từ sai & Tra cứu nhanh`,
+        ];
+
+  const bandButtons = bands.map((band) => ({
+    type: 2,
+    style: 2, // Xám
+    label: `Ôn ${band.name}`,
+    emoji: HSK_BUTTON_EMOJIS.LEVEL,
+    custom_id: `hsk_room_band:${band.id}:${tierCode}`,
+  }));
+
+  const modeButtons = [
+    {
+      type: 2,
+      style: 2,
+      label: 'Trắc nghiệm 4 nút',
+      emoji: HSK_BUTTON_EMOJIS.ACTION,
+      custom_id: `hsk_room_mode:quiz:${tierCode}`,
+    },
+    {
+      type: 2,
+      style: 2,
+      label: 'Flashcard + SRS',
+      emoji: HSK_BUTTON_EMOJIS.ACTION,
+      custom_id: `hsk_room_mode:flash:${tierCode}`,
+    },
+    {
+      type: 2,
+      style: 2,
+      label: 'Sổ tay & Tra cứu',
+      emoji: HSK_BUTTON_EMOJIS.NOTEBOOK,
+      custom_id: `hsk_room_mode:notebook:${tierCode}`,
+    },
+    {
+      type: 2,
+      style: 2,
+      label: 'Xem đấu trường',
+      emoji: HSK_BUTTON_EMOJIS.ARENA,
+      custom_id: `hsk_room_mode:arena:${tierCode}`,
+    },
+  ];
+
+  return {
+    flags: IS_COMPONENTS_V2,
+    allowedMentions: { parse: [] },
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content: formatHskTitle(tierMeta.roomTitle),
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 1,
+          },
+          {
+            type: 10,
+            content: introLines.join('\n'),
+          },
+          {
+            type: 14,
+            divider: true,
+            spacing: 1,
+          },
+          {
+            type: 1,
+            components: bandButtons,
+          },
+          {
+            type: 1,
+            components: modeButtons,
+          },
+          {
+            type: 10,
+            content: '-# Không cần gõ lệnh • Bấm nút để mở bảng tự học riêng tư 24/7 (Tiến độ lưu bền vững vào PostgreSQL)',
+          },
+        ],
       },
     ],
   };
@@ -1975,10 +2175,12 @@ export function buildPersonalArenaOverviewPayloadV2({
   currentRound = null,
   requesterRank = null,
   requesterStats = null,
+  studyTier = 'all',
   ephemeral = true,
   nowMs = Date.now(),
 }) {
   const uid = String(ownerId);
+  const tierCode = encodeStudyTierCode(studyTier);
   const levelMeta = getArenaLevelMeta(config?.arenaLevelKey);
   const nightStatus = isHskNightLock(nowMs);
 
@@ -1991,10 +2193,14 @@ export function buildPersonalArenaOverviewPayloadV2({
     else statusLine = 'Sẵn sàng mở ván mới';
   }
 
+  const elemCh = config?.studyChannels?.elementary ? `<#${config.studyChannels.elementary}>` : 'Chưa thiết lập';
+  const advCh = config?.studyChannels?.advanced ? `<#${config.studyChannels.advanced}>` : 'Chưa thiết lập';
+
   const lines = [
     `${HSK_EMOJIS.ARENA} **Kênh đấu trường:** ${config?.channelId ? `<#${config.channelId}>` : 'Chưa thiết lập'}`,
-    `${HSK_EMOJIS.LEVEL} **Cấp độ kênh:** **${levelMeta.label}**`,
+    `${HSK_EMOJIS.LEVEL} **Cấp độ đấu trường:** **${levelMeta.label}**`,
     `${HSK_EMOJIS.TIME} **Trạng thái:** ${statusLine}`,
+    `${HSK_EMOJIS.NOTEBOOK} **Phòng ôn luyện:** Sơ cấp ${elemCh} • Trung–Cao ${advCh}`,
     `${HSK_EMOJIS.STREAK} **Thành tích của bạn:** Kỷ lục **${requesterStats?.bestStreak ?? 0}** • Hiện tại **${requesterStats?.currentStreak ?? 0}** • Thắng **${requesterStats?.totalWins ?? 0} câu**${requesterRank ? ` (Hạng #${requesterRank})` : ''}`,
     '',
     'Thành viên chỉ cần vào thẳng kênh đấu trường và bấm nút **A/B/C/D** để chơi, không cần gõ lệnh!',
@@ -2040,7 +2246,7 @@ export function buildPersonalArenaOverviewPayloadV2({
                 style: 2,
                 label: 'Về menu',
                 emoji: HSK_BUTTON_EMOJIS.ACTION,
-                custom_id: `hsk_home:${uid}`,
+                custom_id: `hsk_home:${uid}:${tierCode}`,
               },
             ],
           },
@@ -2058,6 +2264,8 @@ export function buildHskAdminPanelPayloadV2(config, currentRound = null, nowMs =
   const levelMeta = getArenaLevelMeta(config?.arenaLevelKey);
   const nightStatus = isHskNightLock(nowMs);
   const modeText = config?.arenaMode === 'mixed' ? 'Hỗn hợp (Nghĩa + Điền khuyết)' : 'Chỉ Nghĩa tiếng Việt';
+  const elemChannel = config?.studyChannels?.elementary || null;
+  const advChannel = config?.studyChannels?.advanced || null;
 
   let statusLabel = 'Chưa thiết lập kênh đấu trường';
   if (config?.channelId && config?.enabled) {
@@ -2084,7 +2292,7 @@ export function buildHskAdminPanelPayloadV2(config, currentRound = null, nowMs =
         components: [
           {
             type: 10,
-            content: formatHskTitle('QUẢN TRỊ ĐẤU TRƯỜNG HSK 3.0'),
+            content: formatHskTitle('QUẢN TRỊ ĐẤU TRƯỜNG & ÔN LUYỆN HSK 3.0'),
           },
           {
             type: 14,
@@ -2094,10 +2302,12 @@ export function buildHskAdminPanelPayloadV2(config, currentRound = null, nowMs =
           {
             type: 10,
             content: [
-              `${HSK_EMOJIS.ARENA} **Kênh đấu trường:** ${config?.channelId ? `<#${config.channelId}>` : 'Chưa chọn (Dùng `/hsk-admin setup`)'}`,
-              `${HSK_EMOJIS.LEVEL} **Cấp độ kênh:** **${levelMeta.label}**`,
-              `${HSK_EMOJIS.TIME} **Thời gian mỗi ván:** **${duration} giây** • **Kiểu câu hỏi:** ${modeText}`,
-              `${HSK_EMOJIS.STREAK} **Trạng thái:** ${statusLabel}`,
+              `${HSK_EMOJIS.ARENA} **1. Kênh đấu trường:** ${config?.channelId ? `<#${config.channelId}>` : 'Chưa chọn (`/hsk-admin setup`)'}`,
+              `${HSK_EMOJIS.LEVEL} **Cấp độ đấu trường:** **${levelMeta.label}**`,
+              `${HSK_EMOJIS.TIME} **Thời gian mỗi ván:** **${duration} giây** • **Kiểu:** ${modeText}`,
+              `${HSK_EMOJIS.STREAK} **Trạng thái đấu trường:** ${statusLabel}`,
+              `${HSK_EMOJIS.NOTEBOOK} **2. Ôn Sơ cấp (HSK 1–3):** ${elemChannel ? `<#${elemChannel}>` : 'Chưa chọn (`/hsk-admin setup-onluyen`)'}`,
+              `${HSK_EMOJIS.NOTEBOOK} **3. Ôn Trung – Cao (HSK 4–9):** ${advChannel ? `<#${advChannel}>` : 'Chưa chọn (`/hsk-admin setup-onluyen`)'}`,
             ].join('\n'),
           },
           {
@@ -2160,6 +2370,27 @@ export function buildHskAdminPanelPayloadV2(config, currentRound = null, nowMs =
                 emoji: HSK_BUTTON_EMOJIS.ADMIN_DISABLE,
                 custom_id: 'hsk_admin_disable',
                 disabled: !config?.channelId,
+              },
+            ],
+          },
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                style: 2,
+                label: 'Gửi lại bảng Sơ cấp',
+                emoji: HSK_BUTTON_EMOJIS.NOTEBOOK,
+                custom_id: 'hsk_admin_post_study:elementary',
+                disabled: !elemChannel,
+              },
+              {
+                type: 2,
+                style: 2,
+                label: 'Gửi lại bảng Trung–Cao',
+                emoji: HSK_BUTTON_EMOJIS.NOTEBOOK,
+                custom_id: 'hsk_admin_post_study:advanced',
+                disabled: !advChannel,
               },
             ],
           },
@@ -2915,6 +3146,25 @@ export async function initHskAutoResume(client) {
     logger.error('[HSK] Lỗi initHskAutoResume:', error);
     return 0;
   }
+}
+
+export async function publishStudyRoomLobbyCard(client, channelOrId, tier = 'elementary') {
+  const channel =
+    channelOrId && typeof channelOrId === 'object' && typeof channelOrId.send === 'function'
+      ? channelOrId
+      : await resolveGuildChannel(client, channelOrId);
+
+  if (!channel || typeof channel.send !== 'function') {
+    return { success: false, reason: 'CHANNEL_NOT_FOUND' };
+  }
+  if (!hasBotSendPermission(channel)) {
+    return { success: false, reason: 'NO_PERMISSION' };
+  }
+
+  const normalizedTier = normalizeStudyTier(tier) === 'advanced' ? 'advanced' : 'elementary';
+  const payload = buildStudyRoomLobbyPayloadV2(normalizedTier);
+  const sentMessage = await channel.send(payload);
+  return { success: true, message: sentMessage, channel, tier: normalizedTier };
 }
 
 export function hasBotSendPermission(channel) {

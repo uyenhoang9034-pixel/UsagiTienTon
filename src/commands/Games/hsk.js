@@ -4,7 +4,9 @@ import {
   buildHskNoticePayloadV2,
   buildPersonalHubPayloadV2,
   buildPersonalNotebookPayloadV2,
+  detectChannelStudyTier,
   evictUnusedBandCaches,
+  getHskGuildConfig,
   getHskNow,
   getHskUserProgress,
   searchHskVocabulary,
@@ -35,6 +37,12 @@ export default {
       const ephemeral = !isPrefix;
       const nowMs = getHskNow(botClient);
 
+      let studyTier = 'all';
+      if (interaction.guildId && (interaction.channelId || interaction.channel?.id)) {
+        const guildCfg = await getHskGuildConfig(botClient, interaction.guildId);
+        studyTier = detectChannelStudyTier(guildCfg, interaction.channelId || interaction.channel?.id);
+      }
+
       let query = interaction.options?.getString?.('tukhoa')?.trim() || '';
       if (
         isPrefix &&
@@ -53,6 +61,7 @@ export default {
         const results = searchHskVocabulary(query, { maxResults: 3 });
         evictUnusedBandCaches();
         setPersonalSession(scopeGuildId, userId, {
+          studyTier,
           searchQuery: query,
           searchResultIds: results.map((w) => w.id),
           notebookPage: 0,
@@ -65,15 +74,18 @@ export default {
             page: 0,
             searchQuery: query,
             searchResults: results,
+            studyTier,
             ephemeral,
             nowMs,
           }),
         );
       }
 
+      setPersonalSession(scopeGuildId, userId, { studyTier }, nowMs);
       const payload = buildPersonalHubPayloadV2({
         ownerId: userId,
         progress,
+        studyTier,
         ephemeral,
         nowMs,
       });

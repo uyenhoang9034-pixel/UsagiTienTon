@@ -1,6 +1,11 @@
 import { MessageFlags } from 'discord.js';
-import { HSK_ADMIN_ROLE_ID, HSK_EMOJIS } from '../../config/hskConfig.js';
 import {
+  HSK_ADMIN_ROLE_ID,
+  HSK_EMOJIS,
+  normalizeStudyTier,
+} from '../../config/hskConfig.js';
+import {
+  applyBandSelectionForTier,
   buildHskAdminPanelPayloadV2,
   buildHskNoticePayloadV2,
   buildPersonalHubPayloadV2,
@@ -8,6 +13,7 @@ import {
   getHskGuildConfig,
   getHskNow,
   getHskUserProgress,
+  getPersonalSession,
   isHskAdmin,
   saveHskGuildConfig,
   saveHskUserProgress,
@@ -29,24 +35,32 @@ export default [
     async execute(interaction, client, args = []) {
       const botClient = client || interaction.client;
       try {
-        const ownerIdArg = args[0];
+        const [ownerIdArg, tierArg] = args;
         const actorId = String(interaction.user.id);
         const scopeGuildId = String(interaction.guildId || 'dm');
         const isOwner = !ownerIdArg || String(ownerIdArg) === actorId;
         const selectedVal = Number.parseInt(interaction.values?.[0] ?? '1', 10);
         const nowMs = getHskNow(botClient);
+        const prevSession = isOwner ? getPersonalSession(scopeGuildId, actorId, nowMs) : null;
+        const studyTier = normalizeStudyTier(tierArg || prevSession?.studyTier || 'all');
 
         const updatedProgress = await withHskUserLock(scopeGuildId, actorId, async () => {
           const p = await getHskUserProgress(botClient, scopeGuildId, actorId);
-          p.selectedBand = Number.isInteger(selectedVal) && selectedVal >= 1 && selectedVal <= 7 ? selectedVal : 1;
-          return saveHskUserProgress(botClient, scopeGuildId, actorId, p);
+          const nextBand = Number.isInteger(selectedVal) && selectedVal >= 1 && selectedVal <= 7 ? selectedVal : 1;
+          const next = applyBandSelectionForTier(p, nextBand, studyTier);
+          return saveHskUserProgress(botClient, scopeGuildId, actorId, next);
         });
 
-        setPersonalSession(scopeGuildId, actorId, { quizQuestion: null, flashWordId: null }, nowMs);
+        setPersonalSession(scopeGuildId, actorId, {
+          studyTier,
+          quizQuestion: null,
+          flashWordId: null,
+        }, nowMs);
 
         const payload = buildPersonalHubPayloadV2({
           ownerId: actorId,
           progress: updatedProgress,
+          studyTier,
           ephemeral: isOwner ? !isPublicOriginMessage(interaction) : true,
           nowMs,
         });

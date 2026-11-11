@@ -3,16 +3,19 @@ import {
   HSK_ADMIN_ROLE_ID,
   HSK_DEFAULTS,
   HSK_EMOJIS,
+  normalizeStudyTier,
 } from '../../config/hskConfig.js';
 import {
   buildHskAdminPanelPayloadV2,
   buildHskNoticePayloadV2,
   buildPersonalNotebookPayloadV2,
+  detectChannelStudyTier,
   evictUnusedBandCaches,
   getActiveHskArenaRound,
   getHskGuildConfig,
   getHskNow,
   getHskUserProgress,
+  getPersonalSession,
   isHskAdmin,
   saveHskGuildConfig,
   searchHskVocabulary,
@@ -30,17 +33,29 @@ function isPublicOriginMessage(interaction) {
 export default [
   {
     name: 'hsk_modal_search',
-    async execute(interaction, client) {
+    async execute(interaction, client, args = []) {
       const botClient = client || interaction.client;
       try {
         const query = interaction.fields?.getTextInputValue('search_query')?.trim() || '';
         const scopeGuildId = String(interaction.guildId || 'dm');
         const actorId = String(interaction.user.id);
         const nowMs = getHskNow(botClient);
+        const prevSession = getPersonalSession(scopeGuildId, actorId, nowMs);
+
+        let studyTier = 'all';
+        if (args[1]) {
+          studyTier = normalizeStudyTier(args[1]);
+        } else if (prevSession?.studyTier) {
+          studyTier = normalizeStudyTier(prevSession.studyTier);
+        } else if (interaction.guildId && (interaction.channelId || interaction.channel?.id)) {
+          const guildCfg = await getHskGuildConfig(botClient, interaction.guildId);
+          studyTier = detectChannelStudyTier(guildCfg, interaction.channelId || interaction.channel?.id);
+        }
 
         const results = searchHskVocabulary(query, { maxResults: 3 });
         evictUnusedBandCaches();
         setPersonalSession(scopeGuildId, actorId, {
+          studyTier,
           searchQuery: query,
           searchResultIds: results.map((w) => w.id),
         }, nowMs);
@@ -58,6 +73,7 @@ export default [
           page: 0,
           searchQuery: query,
           searchResults: results,
+          studyTier,
           ephemeral,
           nowMs,
         });

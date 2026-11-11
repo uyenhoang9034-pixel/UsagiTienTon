@@ -164,6 +164,55 @@ export const HSK_BUTTON_EMOJIS = {
   ADMIN_DISABLE: parseCustomEmojiObject(HSK_EMOJIS.ADMIN_DISABLE),
 };
 
+export const HSK_STUDY_TIERS = {
+  elementary: {
+    key: 'elementary',
+    shortCode: 'e',
+    name: 'Sơ cấp (HSK 1–3)',
+    roomTitle: 'HSK 3.0 — PHÒNG ÔN LUYỆN SƠ CẤP (HSK 1–3)',
+    bands: [1, 2, 3],
+    defaultBand: 1,
+  },
+  advanced: {
+    key: 'advanced',
+    shortCode: 'a',
+    name: 'Trung – Cao cấp (HSK 4–9)',
+    roomTitle: 'HSK 3.0 — PHÒNG ÔN LUYỆN TRUNG – CAO CẤP (HSK 4–9)',
+    bands: [4, 5, 6, 7],
+    defaultBand: 4,
+  },
+};
+
+export function normalizeStudyTier(raw) {
+  const val = String(raw || '').trim().toLowerCase();
+  if (val === 'e' || val === 'elementary' || val === 'socap') return 'elementary';
+  if (val === 'a' || val === 'advanced' || val === 'trungcao') return 'advanced';
+  return 'all';
+}
+
+export function encodeStudyTierCode(tier) {
+  const normalized = normalizeStudyTier(tier);
+  if (normalized === 'elementary') return 'e';
+  if (normalized === 'advanced') return 'a';
+  return 'x';
+}
+
+export function getBandsForStudyTier(tier) {
+  const normalized = normalizeStudyTier(tier);
+  if (normalized === 'elementary') {
+    return HSK_BANDS.filter((b) => b.id >= 1 && b.id <= 3);
+  }
+  if (normalized === 'advanced') {
+    return HSK_BANDS.filter((b) => b.id >= 4 && b.id <= 7);
+  }
+  return HSK_BANDS;
+}
+
+export function getStudyTierMeta(tier) {
+  const normalized = normalizeStudyTier(tier);
+  return HSK_STUDY_TIERS[normalized] || null;
+}
+
 export function getBandMeta(bandId) {
   const parsed = Number(bandId);
   return HSK_BANDS.find((b) => b.id === parsed) || HSK_BANDS[0];

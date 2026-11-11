@@ -9,8 +9,12 @@ import {
   HSK_ADMIN_ROLE_ID,
   HSK_DEFAULTS,
   HSK_EMOJIS,
+  encodeStudyTierCode,
+  getStudyTierMeta,
+  normalizeStudyTier,
 } from '../../config/hskConfig.js';
 import {
+  applyBandSelectionForTier,
   buildHskAdminPanelPayloadV2,
   buildHskIdlePausedPayloadV2,
   buildHskLeaderboardPayloadV2,
@@ -22,6 +26,7 @@ import {
   buildPersonalNotebookPayloadV2,
   buildPersonalQuizPayloadV2,
   createPersonalQuizQuestion,
+  detectChannelStudyTier,
   disableHskArenaGuild,
   evictUnusedBandCaches,
   findWordById,
@@ -38,6 +43,7 @@ import {
   loadBandWords,
   markWordMasteredInProgress,
   pickNextFlashcardForUser,
+  publishStudyRoomLobbyCard,
   recordWordMistake,
   saveHskGuildConfig,
   saveHskUserProgress,
@@ -63,6 +69,33 @@ function getPersonalContext(interaction, ownerIdArg) {
   const isOwner = !ownerIdArg || String(ownerIdArg) === actorId;
   const ephemeralForOwner = !isPublicOriginMessage(interaction);
   return { scopeGuildId, actorId, isOwner, ephemeralForOwner };
+}
+
+async function resolveStudyTier(
+  interaction,
+  botClient,
+  scopeGuildId,
+  actorId,
+  { tierArg = null, isOwner = true, nowMs = Date.now() } = {},
+) {
+  if (tierArg === 'e' || tierArg === 'elementary') return 'elementary';
+  if (tierArg === 'a' || tierArg === 'advanced') return 'advanced';
+  if (tierArg === 'x' || tierArg === 'all') return 'all';
+
+  if (isOwner) {
+    const session = getPersonalSession(scopeGuildId, actorId, nowMs);
+    if (session?.studyTier) {
+      return normalizeStudyTier(session.studyTier);
+    }
+  }
+
+  const channelId = interaction?.channelId || interaction?.channel?.id;
+  if (interaction?.guildId && channelId) {
+    const guildCfg = await getHskGuildConfig(botClient, interaction.guildId);
+    return detectChannelStudyTier(guildCfg, channelId);
+  }
+
+  return 'all';
 }
 
 async function respondPersonal(interaction, payload, { isOwner }) {
@@ -107,13 +140,21 @@ export default [
     async execute(interaction, client, args = []) {
       const botClient = client || interaction.client;
       try {
-        const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, args[0]);
+        const [ownerIdArg, tierArg] = args;
+        const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, ownerIdArg);
         const nowMs = getHskNow(botClient);
+        const studyTier = await resolveStudyTier(interaction, botClient, scopeGuildId, actorId, {
+          tierArg,
+          isOwner,
+          nowMs,
+        });
+        setPersonalSession(scopeGuildId, actorId, { studyTier }, nowMs);
         const progress = await getHskUserProgress(botClient, scopeGuildId, actorId);
 
         const payload = buildPersonalHubPayloadV2({
           ownerId: actorId,
           progress,
+          studyTier,
           ephemeral: isOwner ? ephemeralForOwner : true,
           nowMs,
         });
@@ -130,12 +171,19 @@ export default [
     async execute(interaction, client, args = []) {
       const botClient = client || interaction.client;
       try {
-        const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, args[0]);
+        const [ownerIdArg, tierArg] = args;
+        const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, ownerIdArg);
         const nowMs = getHskNow(botClient);
+        const studyTier = await resolveStudyTier(interaction, botClient, scopeGuildId, actorId, {
+          tierArg,
+          isOwner,
+          nowMs,
+        });
         const progress = await getHskUserProgress(botClient, scopeGuildId, actorId);
-        const dealt = createPersonalQuizQuestion(progress, { quizType: progress.quizType });
+        const dealt = createPersonalQuizQuestion(progress, { quizType: progress.quizType, studyTier });
 
         setPersonalSession(scopeGuildId, actorId, {
+          studyTier,
           quizQuestion: dealt.question,
           focusWrongOnly: false,
         }, nowMs);
@@ -146,6 +194,7 @@ export default [
           progress,
           word: dealt.word,
           question: dealt.question,
+          studyTier,
           ephemeral: isOwner ? ephemeralForOwner : true,
         });
         await respondPersonal(interaction, payload, { isOwner });
@@ -161,10 +210,15 @@ export default [
     async execute(interaction, client, args = []) {
       const botClient = client || interaction.client;
       try {
-        const [ownerIdArg, rawType] = args;
+        const [ownerIdArg, rawType, tierArg] = args;
         const quizType = ['vi', 'pinyin', 'cloze'].includes(rawType) ? rawType : 'vi';
         const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, ownerIdArg);
         const nowMs = getHskNow(botClient);
+        const studyTier = await resolveStudyTier(interaction, botClient, scopeGuildId, actorId, {
+          tierArg,
+          isOwner,
+          nowMs,
+        });
 
         const progress = await withHskUserLock(scopeGuildId, actorId, async () => {
           const p = await getHskUserProgress(botClient, scopeGuildId, actorId);
@@ -172,13 +226,15 @@ export default [
           return saveHskUserProgress(botClient, scopeGuildId, actorId, p);
         });
 
-        const prevSession = getPersonalSession(scopeGuildId, actorId, nowMs);
+        const prevSession = isOwner ? getPersonalSession(scopeGuildId, actorId, nowMs) : null;
         const dealt = createPersonalQuizQuestion(progress, {
           quizType,
           focusWrongOnly: Boolean(prevSession?.focusWrongOnly),
+          studyTier,
         });
 
         setPersonalSession(scopeGuildId, actorId, {
+          studyTier,
           quizQuestion: dealt.question,
           focusWrongOnly: dealt.focusWrongOnly,
         }, nowMs);
@@ -189,6 +245,7 @@ export default [
           progress,
           word: dealt.word,
           question: dealt.question,
+          studyTier,
           focusWrongOnly: dealt.focusWrongOnly,
           ephemeral: isOwner ? ephemeralForOwner : true,
         });
@@ -205,16 +262,25 @@ export default [
     async execute(interaction, client, args = []) {
       const botClient = client || interaction.client;
       try {
-        const [ownerIdArg, qId, choiceIdxStr] = args;
+        const [ownerIdArg, qId, choiceIdxStr, tierArg] = args;
         const choiceIdx = Number.parseInt(choiceIdxStr ?? '-1', 10);
         const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, ownerIdArg);
         const nowMs = getHskNow(botClient);
         const session = getPersonalSession(scopeGuildId, actorId, nowMs);
+        const studyTier = await resolveStudyTier(interaction, botClient, scopeGuildId, actorId, {
+          tierArg,
+          isOwner,
+          nowMs,
+        });
 
         if (!isOwner || !session?.quizQuestion || session.quizQuestion.qId !== qId) {
           const progress = await getHskUserProgress(botClient, scopeGuildId, actorId);
-          const dealt = createPersonalQuizQuestion(progress);
-          setPersonalSession(scopeGuildId, actorId, { quizQuestion: dealt.question, focusWrongOnly: false }, nowMs);
+          const dealt = createPersonalQuizQuestion(progress, { studyTier });
+          setPersonalSession(scopeGuildId, actorId, {
+            studyTier,
+            quizQuestion: dealt.question,
+            focusWrongOnly: false,
+          }, nowMs);
           evictUnusedBandCaches();
 
           const payload = buildPersonalQuizPayloadV2({
@@ -222,6 +288,7 @@ export default [
             progress,
             word: dealt.word,
             question: dealt.question,
+            studyTier,
             feedbackMessage: `${HSK_EMOJIS.HINT} Phiên câu hỏi cũ đã làm mới — mời bạn trả lời câu mới nha!`,
             ephemeral: isOwner ? ephemeralForOwner : true,
           });
@@ -251,7 +318,7 @@ export default [
         });
 
         const updatedQ = { ...q, answeredIndex: choiceIdx, hintShown: true };
-        setPersonalSession(scopeGuildId, actorId, { quizQuestion: updatedQ }, nowMs);
+        setPersonalSession(scopeGuildId, actorId, { studyTier, quizQuestion: updatedQ }, nowMs);
 
         const letters = ['A', 'B', 'C', 'D'];
         const tradNote = word.traditional && word.traditional !== word.hanzi ? ` (Phồn thể: **${word.traditional}**)` : '';
@@ -272,6 +339,7 @@ export default [
           progress: updatedProgress,
           word,
           question: updatedQ,
+          studyTier,
           focusWrongOnly: Boolean(session.focusWrongOnly),
           feedbackMessage,
           ephemeral: isOwner ? ephemeralForOwner : true,
@@ -290,15 +358,20 @@ export default [
     async execute(interaction, client, args = []) {
       const botClient = client || interaction.client;
       try {
-        const [ownerIdArg, qId] = args;
+        const [ownerIdArg, qId, tierArg] = args;
         const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, ownerIdArg);
         const nowMs = getHskNow(botClient);
         const session = getPersonalSession(scopeGuildId, actorId, nowMs);
+        const studyTier = await resolveStudyTier(interaction, botClient, scopeGuildId, actorId, {
+          tierArg,
+          isOwner,
+          nowMs,
+        });
 
         if (!isOwner || !session?.quizQuestion || session.quizQuestion.qId !== qId) {
           const progress = await getHskUserProgress(botClient, scopeGuildId, actorId);
-          const dealt = createPersonalQuizQuestion(progress);
-          setPersonalSession(scopeGuildId, actorId, { quizQuestion: dealt.question }, nowMs);
+          const dealt = createPersonalQuizQuestion(progress, { studyTier });
+          setPersonalSession(scopeGuildId, actorId, { studyTier, quizQuestion: dealt.question }, nowMs);
           evictUnusedBandCaches();
           return respondPersonal(
             interaction,
@@ -307,6 +380,7 @@ export default [
               progress,
               word: dealt.word,
               question: dealt.question,
+              studyTier,
               ephemeral: isOwner ? ephemeralForOwner : true,
             }),
             { isOwner },
@@ -314,7 +388,7 @@ export default [
         }
 
         const q = { ...session.quizQuestion, hintShown: true };
-        setPersonalSession(scopeGuildId, actorId, { quizQuestion: q }, nowMs);
+        setPersonalSession(scopeGuildId, actorId, { studyTier, quizQuestion: q }, nowMs);
         const word = findWordById(q.wordId);
         const progress = await getHskUserProgress(botClient, scopeGuildId, actorId);
         evictUnusedBandCaches();
@@ -326,6 +400,7 @@ export default [
             progress,
             word,
             question: q,
+            studyTier,
             focusWrongOnly: Boolean(session.focusWrongOnly),
             ephemeral: isOwner ? ephemeralForOwner : true,
           }),
@@ -343,18 +418,26 @@ export default [
     async execute(interaction, client, args = []) {
       const botClient = client || interaction.client;
       try {
-        const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, args[0]);
+        const [ownerIdArg, tierArg] = args;
+        const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, ownerIdArg);
         const nowMs = getHskNow(botClient);
-        const session = getPersonalSession(scopeGuildId, actorId, nowMs);
+        const session = isOwner ? getPersonalSession(scopeGuildId, actorId, nowMs) : null;
+        const studyTier = await resolveStudyTier(interaction, botClient, scopeGuildId, actorId, {
+          tierArg,
+          isOwner,
+          nowMs,
+        });
         const progress = await getHskUserProgress(botClient, scopeGuildId, actorId);
 
         const dealt = createPersonalQuizQuestion(progress, {
           quizType: session?.quizQuestion?.quizType || progress.quizType,
           excludeWordId: session?.quizQuestion?.wordId || null,
           focusWrongOnly: Boolean(session?.focusWrongOnly),
+          studyTier,
         });
 
         setPersonalSession(scopeGuildId, actorId, {
+          studyTier,
           quizQuestion: dealt.question,
           focusWrongOnly: dealt.focusWrongOnly,
         }, nowMs);
@@ -367,6 +450,7 @@ export default [
             progress,
             word: dealt.word,
             question: dealt.question,
+            studyTier,
             focusWrongOnly: dealt.focusWrongOnly,
             ephemeral: isOwner ? ephemeralForOwner : true,
           }),
@@ -384,13 +468,20 @@ export default [
     async execute(interaction, client, args = []) {
       const botClient = client || interaction.client;
       try {
-        const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, args[0]);
+        const [ownerIdArg, tierArg] = args;
+        const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, ownerIdArg);
         const nowMs = getHskNow(botClient);
+        const studyTier = await resolveStudyTier(interaction, botClient, scopeGuildId, actorId, {
+          tierArg,
+          isOwner,
+          nowMs,
+        });
         const progress = await getHskUserProgress(botClient, scopeGuildId, actorId);
-        const picked = pickNextFlashcardForUser(progress, { nowMs });
+        const picked = pickNextFlashcardForUser(progress, { nowMs, studyTier });
         if (!picked) return;
 
         setPersonalSession(scopeGuildId, actorId, {
+          studyTier,
           flashWordId: picked.word.id,
           flashFlipped: false,
         }, nowMs);
@@ -405,6 +496,7 @@ export default [
             indexInBand: picked.indexInBand,
             totalInBand: picked.bandWords.length,
             flipped: false,
+            studyTier,
             ephemeral: isOwner ? ephemeralForOwner : true,
           }),
           { isOwner },
@@ -421,16 +513,25 @@ export default [
     async execute(interaction, client, args = []) {
       const botClient = client || interaction.client;
       try {
-        const [ownerIdArg, wordIdArg] = args;
+        const [ownerIdArg, wordIdArg, tierArg] = args;
         const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, ownerIdArg);
         const nowMs = getHskNow(botClient);
+        const studyTier = await resolveStudyTier(interaction, botClient, scopeGuildId, actorId, {
+          tierArg,
+          isOwner,
+          nowMs,
+        });
         const progress = await getHskUserProgress(botClient, scopeGuildId, actorId);
         const word = findWordById(wordIdArg);
         if (!word) return;
 
         const bandWords = loadBandWords(word.band);
         const indexInBand = Math.max(0, bandWords.findIndex((w) => w.id === word.id));
-        setPersonalSession(scopeGuildId, actorId, { flashWordId: word.id, flashFlipped: true }, nowMs);
+        setPersonalSession(scopeGuildId, actorId, {
+          studyTier,
+          flashWordId: word.id,
+          flashFlipped: true,
+        }, nowMs);
         evictUnusedBandCaches();
 
         await respondPersonal(
@@ -442,6 +543,7 @@ export default [
             indexInBand,
             totalInBand: bandWords.length,
             flipped: true,
+            studyTier,
             ephemeral: isOwner ? ephemeralForOwner : true,
           }),
           { isOwner },
@@ -458,9 +560,14 @@ export default [
     async execute(interaction, client, args = []) {
       const botClient = client || interaction.client;
       try {
-        const [ownerIdArg, wordIdArg, rating] = args;
+        const [ownerIdArg, wordIdArg, rating, tierArg] = args;
         const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, ownerIdArg);
         const nowMs = getHskNow(botClient);
+        const studyTier = await resolveStudyTier(interaction, botClient, scopeGuildId, actorId, {
+          tierArg,
+          isOwner,
+          nowMs,
+        });
         const currentWord = findWordById(wordIdArg);
         if (!currentWord) return;
 
@@ -491,6 +598,7 @@ export default [
         const nextPicked = pickNextFlashcardForUser(savedProgress, {
           excludeWordId: currentWord.id,
           nowMs,
+          studyTier,
         });
         if (!nextPicked) return;
 
@@ -502,6 +610,7 @@ export default [
               : `${HSK_EMOJIS.CHECK} Đã đánh dấu thuộc **${currentWord.hanzi}** (**${currentWord.pinyin}**)!`;
 
         setPersonalSession(scopeGuildId, actorId, {
+          studyTier,
           flashWordId: nextPicked.word.id,
           flashFlipped: false,
         }, nowMs);
@@ -517,6 +626,7 @@ export default [
             totalInBand: nextPicked.bandWords.length,
             flipped: false,
             statusNotice: ratingMsg,
+            studyTier,
             ephemeral: isOwner ? ephemeralForOwner : true,
           }),
           { isOwner },
@@ -533,10 +643,17 @@ export default [
     async execute(interaction, client, args = []) {
       const botClient = client || interaction.client;
       try {
-        const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, args[0]);
+        const [ownerIdArg, tierArg] = args;
+        const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, ownerIdArg);
         const nowMs = getHskNow(botClient);
+        const studyTier = await resolveStudyTier(interaction, botClient, scopeGuildId, actorId, {
+          tierArg,
+          isOwner,
+          nowMs,
+        });
         const progress = await getHskUserProgress(botClient, scopeGuildId, actorId);
         const session = getPersonalSession(scopeGuildId, actorId, nowMs);
+        setPersonalSession(scopeGuildId, actorId, { studyTier }, nowMs);
         const searchResults = resolveSessionSearchResults(session);
 
         await respondPersonal(
@@ -547,6 +664,7 @@ export default [
             page: 0,
             searchQuery: session?.searchQuery || '',
             searchResults,
+            studyTier,
             ephemeral: isOwner ? ephemeralForOwner : true,
             nowMs,
           }),
@@ -564,9 +682,14 @@ export default [
     async execute(interaction, client, args = []) {
       const botClient = client || interaction.client;
       try {
-        const [ownerIdArg, wordIdArg, pageStr] = args;
+        const [ownerIdArg, wordIdArg, pageStr, tierArg] = args;
         const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, ownerIdArg);
         const nowMs = getHskNow(botClient);
+        const studyTier = await resolveStudyTier(interaction, botClient, scopeGuildId, actorId, {
+          tierArg,
+          isOwner,
+          nowMs,
+        });
         const page = Math.max(0, Number.parseInt(pageStr ?? '0', 10) || 0);
 
         const updatedProgress = await withHskUserLock(scopeGuildId, actorId, async () => {
@@ -576,6 +699,7 @@ export default [
         });
 
         const session = getPersonalSession(scopeGuildId, actorId, nowMs);
+        setPersonalSession(scopeGuildId, actorId, { studyTier }, nowMs);
         const searchResults = resolveSessionSearchResults(session);
 
         await respondPersonal(
@@ -586,6 +710,7 @@ export default [
             page,
             searchQuery: session?.searchQuery || '',
             searchResults,
+            studyTier,
             ephemeral: isOwner ? ephemeralForOwner : true,
             nowMs,
           }),
@@ -603,9 +728,14 @@ export default [
     async execute(interaction, client, args = []) {
       const botClient = client || interaction.client;
       try {
-        const [ownerIdArg, pageStr] = args;
+        const [ownerIdArg, pageStr, tierArg] = args;
         const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, ownerIdArg);
         const nowMs = getHskNow(botClient);
+        const studyTier = await resolveStudyTier(interaction, botClient, scopeGuildId, actorId, {
+          tierArg,
+          isOwner,
+          nowMs,
+        });
         const progress = await getHskUserProgress(botClient, scopeGuildId, actorId);
         const wrongCount = Object.keys(progress.wrongWords || {}).length;
         const totalPages = Math.max(1, Math.ceil(wrongCount / HSK_DEFAULTS.NOTEBOOK_PAGE_SIZE));
@@ -613,6 +743,7 @@ export default [
         const targetPage = (currentPage - 1 + totalPages) % totalPages;
 
         const session = getPersonalSession(scopeGuildId, actorId, nowMs);
+        setPersonalSession(scopeGuildId, actorId, { studyTier }, nowMs);
         const searchResults = resolveSessionSearchResults(session);
 
         await respondPersonal(
@@ -623,6 +754,7 @@ export default [
             page: targetPage,
             searchQuery: session?.searchQuery || '',
             searchResults,
+            studyTier,
             ephemeral: isOwner ? ephemeralForOwner : true,
             nowMs,
           }),
@@ -638,9 +770,14 @@ export default [
     async execute(interaction, client, args = []) {
       const botClient = client || interaction.client;
       try {
-        const [ownerIdArg, pageStr] = args;
+        const [ownerIdArg, pageStr, tierArg] = args;
         const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, ownerIdArg);
         const nowMs = getHskNow(botClient);
+        const studyTier = await resolveStudyTier(interaction, botClient, scopeGuildId, actorId, {
+          tierArg,
+          isOwner,
+          nowMs,
+        });
         const progress = await getHskUserProgress(botClient, scopeGuildId, actorId);
         const wrongCount = Object.keys(progress.wrongWords || {}).length;
         const totalPages = Math.max(1, Math.ceil(wrongCount / HSK_DEFAULTS.NOTEBOOK_PAGE_SIZE));
@@ -648,6 +785,7 @@ export default [
         const targetPage = (currentPage + 1) % totalPages;
 
         const session = getPersonalSession(scopeGuildId, actorId, nowMs);
+        setPersonalSession(scopeGuildId, actorId, { studyTier }, nowMs);
         const searchResults = resolveSessionSearchResults(session);
 
         await respondPersonal(
@@ -658,6 +796,7 @@ export default [
             page: targetPage,
             searchQuery: session?.searchQuery || '',
             searchResults,
+            studyTier,
             ephemeral: isOwner ? ephemeralForOwner : true,
             nowMs,
           }),
@@ -681,15 +820,23 @@ export default [
     async execute(interaction, client, args = []) {
       const botClient = client || interaction.client;
       try {
-        const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, args[0]);
+        const [ownerIdArg, tierArg] = args;
+        const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, ownerIdArg);
         const nowMs = getHskNow(botClient);
+        const studyTier = await resolveStudyTier(interaction, botClient, scopeGuildId, actorId, {
+          tierArg,
+          isOwner,
+          nowMs,
+        });
         const progress = await getHskUserProgress(botClient, scopeGuildId, actorId);
         const dealt = createPersonalQuizQuestion(progress, {
           quizType: progress.quizType,
           focusWrongOnly: true,
+          studyTier,
         });
 
         setPersonalSession(scopeGuildId, actorId, {
+          studyTier,
           quizQuestion: dealt.question,
           focusWrongOnly: dealt.focusWrongOnly,
         }, nowMs);
@@ -702,6 +849,7 @@ export default [
             progress,
             word: dealt.word,
             question: dealt.question,
+            studyTier,
             focusWrongOnly: dealt.focusWrongOnly,
             ephemeral: isOwner ? ephemeralForOwner : true,
           }),
@@ -716,11 +864,21 @@ export default [
   // 4e. Mở Modal Tra cứu nhanh từ Sổ tay
   {
     name: 'hsk_nb_search',
-    async execute(interaction) {
+    async execute(interaction, client, args = []) {
+      const botClient = client || interaction.client;
       try {
-        const actorId = String(interaction.user.id);
+        const [ownerIdArg, tierArg] = args;
+        const { scopeGuildId, actorId, isOwner } = getPersonalContext(interaction, ownerIdArg);
+        const nowMs = getHskNow(botClient);
+        const studyTier = await resolveStudyTier(interaction, botClient, scopeGuildId, actorId, {
+          tierArg,
+          isOwner,
+          nowMs,
+        });
+        const tierCode = encodeStudyTierCode(studyTier);
+
         const modal = new ModalBuilder()
-          .setCustomId(`hsk_modal_search:${actorId}`)
+          .setCustomId(`hsk_modal_search:${actorId}:${tierCode}`)
           .setTitle('Tra Cứu Từ Vựng HSK 3.0');
 
         const queryInput = new TextInputBuilder()
@@ -746,9 +904,19 @@ export default [
     async execute(interaction, client, args = []) {
       const botClient = client || interaction.client;
       try {
-        const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, args[0]);
+        const [ownerIdArg, tierArg] = args;
+        const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, ownerIdArg);
         const nowMs = getHskNow(botClient);
-        setPersonalSession(scopeGuildId, actorId, { searchQuery: '', searchResultIds: [] }, nowMs);
+        const studyTier = await resolveStudyTier(interaction, botClient, scopeGuildId, actorId, {
+          tierArg,
+          isOwner,
+          nowMs,
+        });
+        setPersonalSession(scopeGuildId, actorId, {
+          studyTier,
+          searchQuery: '',
+          searchResultIds: [],
+        }, nowMs);
         const progress = await getHskUserProgress(botClient, scopeGuildId, actorId);
 
         await respondPersonal(
@@ -759,6 +927,7 @@ export default [
             page: 0,
             searchQuery: '',
             searchResults: [],
+            studyTier,
             ephemeral: isOwner ? ephemeralForOwner : true,
             nowMs,
           }),
@@ -776,7 +945,15 @@ export default [
     async execute(interaction, client, args = []) {
       const botClient = client || interaction.client;
       try {
-        const { actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, args[0]);
+        const [ownerIdArg, tierArg] = args;
+        const { scopeGuildId, actorId, isOwner, ephemeralForOwner } = getPersonalContext(interaction, ownerIdArg);
+        const nowMs = getHskNow(botClient);
+        const studyTier = await resolveStudyTier(interaction, botClient, scopeGuildId, actorId, {
+          tierArg,
+          isOwner,
+          nowMs,
+        });
+
         if (!interaction.guildId) {
           return respondPersonal(
             interaction,
@@ -789,7 +966,7 @@ export default [
                   type: 2,
                   style: 2,
                   label: 'Về menu',
-                  custom_id: `hsk_home:${actorId}`,
+                  custom_id: `hsk_home:${actorId}:${encodeStudyTierCode(studyTier)}`,
                 },
               ],
             }),
@@ -797,6 +974,7 @@ export default [
           );
         }
 
+        setPersonalSession(scopeGuildId, actorId, { studyTier }, nowMs);
         const config = await getHskGuildConfig(botClient, interaction.guildId);
         const { rank, stats } = getPlayerHskLeaderboardPosition(config, actorId);
         const payload = buildPersonalArenaOverviewPayloadV2({
@@ -805,13 +983,180 @@ export default [
           currentRound: getActiveHskArenaRound(interaction.guildId),
           requesterRank: rank,
           requesterStats: stats,
+          studyTier,
           ephemeral: isOwner ? ephemeralForOwner : true,
-          nowMs: getHskNow(botClient),
+          nowMs,
         });
 
         await respondPersonal(interaction, payload, { isOwner });
       } catch (error) {
         logger.error('[HskButtons] Lỗi nút hsk_mode_arena:', error);
+      }
+    },
+  },
+
+  // =========================================================================
+  // PHÒNG ÔN LUYỆN CỐ ĐỊNH THEO PHÂN HỆ (SƠ CẤP HSK 1-3 & TRUNG-CAO HSK 4-9)
+  // =========================================================================
+
+  {
+    name: 'hsk_room_band',
+    async execute(interaction, client, args = []) {
+      const botClient = client || interaction.client;
+      try {
+        const [bandIdStr, tierArg] = args;
+        const scopeGuildId = String(interaction.guildId || 'dm');
+        const actorId = String(interaction.user.id);
+        const nowMs = getHskNow(botClient);
+        const studyTier = normalizeStudyTier(tierArg) === 'advanced' ? 'advanced' : 'elementary';
+        const requestedBand = Number.parseInt(bandIdStr ?? '1', 10);
+
+        const updatedProgress = await withHskUserLock(scopeGuildId, actorId, async () => {
+          const p = await getHskUserProgress(botClient, scopeGuildId, actorId);
+          const next = applyBandSelectionForTier(p, requestedBand, studyTier);
+          return saveHskUserProgress(botClient, scopeGuildId, actorId, next);
+        });
+
+        setPersonalSession(scopeGuildId, actorId, {
+          studyTier,
+          quizQuestion: null,
+          flashWordId: null,
+        }, nowMs);
+
+        return interaction.reply(
+          buildPersonalHubPayloadV2({
+            ownerId: actorId,
+            progress: updatedProgress,
+            studyTier,
+            ephemeral: true,
+            nowMs,
+          }),
+        );
+      } catch (error) {
+        logger.error('[HskButtons] Lỗi nút hsk_room_band:', error);
+      }
+    },
+  },
+
+  {
+    name: 'hsk_room_mode',
+    async execute(interaction, client, args = []) {
+      const botClient = client || interaction.client;
+      try {
+        const [mode, tierArg] = args;
+        const scopeGuildId = String(interaction.guildId || 'dm');
+        const actorId = String(interaction.user.id);
+        const nowMs = getHskNow(botClient);
+        const studyTier = normalizeStudyTier(tierArg) === 'advanced' ? 'advanced' : 'elementary';
+        const progress = await getHskUserProgress(botClient, scopeGuildId, actorId);
+
+        if (mode === 'quiz') {
+          const dealt = createPersonalQuizQuestion(progress, {
+            quizType: progress.quizType,
+            studyTier,
+          });
+          setPersonalSession(scopeGuildId, actorId, {
+            studyTier,
+            quizQuestion: dealt.question,
+            focusWrongOnly: false,
+          }, nowMs);
+          evictUnusedBandCaches();
+
+          return interaction.reply(
+            buildPersonalQuizPayloadV2({
+              ownerId: actorId,
+              progress,
+              word: dealt.word,
+              question: dealt.question,
+              studyTier,
+              ephemeral: true,
+            }),
+          );
+        }
+
+        if (mode === 'flash') {
+          const picked = pickNextFlashcardForUser(progress, { nowMs, studyTier });
+          if (!picked) return;
+          setPersonalSession(scopeGuildId, actorId, {
+            studyTier,
+            flashWordId: picked.word.id,
+            flashFlipped: false,
+          }, nowMs);
+          evictUnusedBandCaches();
+
+          return interaction.reply(
+            buildPersonalFlashcardPayloadV2({
+              ownerId: actorId,
+              progress,
+              word: picked.word,
+              indexInBand: picked.indexInBand,
+              totalInBand: picked.bandWords.length,
+              flipped: false,
+              studyTier,
+              ephemeral: true,
+            }),
+          );
+        }
+
+        if (mode === 'notebook') {
+          const session = getPersonalSession(scopeGuildId, actorId, nowMs);
+          setPersonalSession(scopeGuildId, actorId, { studyTier }, nowMs);
+          const searchResults = resolveSessionSearchResults(session);
+
+          return interaction.reply(
+            buildPersonalNotebookPayloadV2({
+              ownerId: actorId,
+              progress,
+              page: 0,
+              searchQuery: session?.searchQuery || '',
+              searchResults,
+              studyTier,
+              ephemeral: true,
+              nowMs,
+            }),
+          );
+        }
+
+        if (mode === 'arena') {
+          if (!interaction.guildId) {
+            return interaction.reply(
+              buildHskNoticePayloadV2({
+                title: 'CHỈ CÓ TRONG SERVER',
+                message: `${HSK_EMOJIS.ARENA} Đấu trường kênh chung chỉ hoạt động trong server nha!`,
+                ephemeral: true,
+              }),
+            );
+          }
+
+          setPersonalSession(scopeGuildId, actorId, { studyTier }, nowMs);
+          const config = await getHskGuildConfig(botClient, interaction.guildId);
+          const { rank, stats } = getPlayerHskLeaderboardPosition(config, actorId);
+          return interaction.reply(
+            buildPersonalArenaOverviewPayloadV2({
+              ownerId: actorId,
+              config,
+              currentRound: getActiveHskArenaRound(interaction.guildId),
+              requesterRank: rank,
+              requesterStats: stats,
+              studyTier,
+              ephemeral: true,
+              nowMs,
+            }),
+          );
+        }
+
+        setPersonalSession(scopeGuildId, actorId, { studyTier }, nowMs);
+        return interaction.reply(
+          buildPersonalHubPayloadV2({
+            ownerId: actorId,
+            progress,
+            studyTier,
+            ephemeral: true,
+            nowMs,
+          }),
+        );
+      } catch (error) {
+        logger.error('[HskButtons] Lỗi nút hsk_room_mode:', error);
       }
     },
   },
@@ -858,10 +1203,12 @@ export default [
         const nowMs = getHskNow(botClient);
         const progress = await getHskUserProgress(botClient, scopeGuildId, userId);
 
+        setPersonalSession(scopeGuildId, userId, { studyTier: 'all' }, nowMs);
         return interaction.reply(
           buildPersonalHubPayloadV2({
             ownerId: userId,
             progress,
+            studyTier: 'all',
             ephemeral: true,
             nowMs,
           }),
@@ -1324,6 +1671,61 @@ export default [
         await interaction.update(buildHskAdminPanelPayloadV2(enabledConfig, activeRound, nowMs));
       } catch (error) {
         logger.error('[HskButtons] Lỗi nút hsk_admin_disable:', error);
+      }
+    },
+  },
+
+  {
+    name: 'hsk_admin_post_study',
+    async execute(interaction, client, args = []) {
+      const botClient = client || interaction.client;
+      try {
+        if (!interaction.guildId) return;
+        if (!isHskAdmin(interaction.member, interaction.user.id, interaction.guild, interaction.memberPermissions)) {
+          return interaction.reply(buildAdminDeniedPayload());
+        }
+
+        const tier = normalizeStudyTier(args[0]) === 'advanced' ? 'advanced' : 'elementary';
+        const tierMeta = getStudyTierMeta(tier);
+        const nowMs = getHskNow(botClient);
+        const config = await getHskGuildConfig(botClient, interaction.guildId);
+        const targetChannelId = config.studyChannels?.[tier];
+
+        if (!targetChannelId) {
+          return interaction.reply(
+            buildHskNoticePayloadV2({
+              title: 'CHƯA CHỌN KÊNH ÔN LUYỆN',
+              message: `${HSK_EMOJIS.NOTEBOOK} Chưa thiết lập kênh cho **${tierMeta.name}**! Hãy chạy \`/hsk-admin setup-onluyen\` tại kênh mong muốn trước nha.`,
+              ephemeral: true,
+            }),
+          );
+        }
+
+        const posted = await publishStudyRoomLobbyCard(botClient, targetChannelId, tier);
+        if (!posted?.success) {
+          return interaction.reply(
+            buildHskNoticePayloadV2({
+              title: 'KHÔNG THỂ GỬI BẢNG ÔN LUYỆN',
+              message: `${HSK_EMOJIS.ADMIN_DISABLE} Bot thiếu quyền Xem kênh / Gửi tin nhắn hoặc không tìm thấy kênh <#${targetChannelId}> nha!`,
+              ephemeral: true,
+            }),
+          );
+        }
+
+        await interaction.update(
+          buildHskAdminPanelPayloadV2(config, getActiveHskArenaRound(interaction.guildId), nowMs),
+        );
+        await interaction
+          .followUp?.(
+            buildHskNoticePayloadV2({
+              title: `ĐÃ GỬI LẠI BẢNG ${tierMeta.name.toUpperCase()}`,
+              message: `${HSK_EMOJIS.CHECK} Đã gửi bảng Phòng Ôn Luyện **${tierMeta.name}** vào <#${targetChannelId}>! Hãy ghim (Pin) tin nhắn đó để thành viên dễ bấm nha~`,
+              ephemeral: true,
+            }),
+          )
+          ?.catch?.(() => {});
+      } catch (error) {
+        logger.error('[HskButtons] Lỗi nút hsk_admin_post_study:', error);
       }
     },
   },

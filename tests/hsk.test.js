@@ -11,6 +11,7 @@ import {
   HSK_BUTTON_EMOJIS,
   HSK_DEFAULTS,
   HSK_EMOJIS,
+  HSK_STUDY_TIERS,
   formatHskTitle,
 } from '../src/config/hskConfig.js';
 import {
@@ -29,8 +30,11 @@ import {
   buildPersonalNotebookPayloadV2,
   buildPersonalQuizPayloadV2,
   buildQuestionFromWord,
+  buildStudyRoomLobbyPayloadV2,
+  detectChannelStudyTier,
   evictUnusedBandCaches,
   getActiveHskArenaRound,
+  getEffectiveBandForTier,
   getHskArenaLastActivityAt,
   getHskGuildConfig,
   getHskUserProgress,
@@ -369,7 +373,9 @@ test('2. Kiểm tra Components V2 đúng thiết kế user duyệt (Menu không 
   assertHskV2Contract(buildHskNightLockPayloadV2({ currentTimeText: '01:00', includeResumeButton: false, ephemeral: true }), 'ĐẤU TRƯỜNG ĐANG NGHỈ BAN ĐÊM', { ephemeral: true });
   assertHskV2Contract(buildHskLeaderboardPayloadV2({ entries: [], page: 0, ephemeral: true }), 'BẢNG XẾP HẠNG ĐẤU TRƯỜNG HSK 3.0', { ephemeral: true });
   assertHskV2Contract(buildPersonalArenaOverviewPayloadV2({ ownerId: 'u1', config: {}, ephemeral: true }), 'THÔNG TIN ĐẤU TRƯỜNG HSK 3.0', { ephemeral: true });
-  assertHskV2Contract(buildHskAdminPanelPayloadV2({}), 'QUẢN TRỊ ĐẤU TRƯỜNG HSK 3.0', { ephemeral: true });
+  assertHskV2Contract(buildStudyRoomLobbyPayloadV2('elementary'), HSK_STUDY_TIERS.elementary.roomTitle, { ephemeral: false });
+  assertHskV2Contract(buildStudyRoomLobbyPayloadV2('advanced'), HSK_STUDY_TIERS.advanced.roomTitle, { ephemeral: false });
+  assertHskV2Contract(buildHskAdminPanelPayloadV2({}), 'QUẢN TRỊ ĐẤU TRƯỜNG & ÔN LUYỆN HSK 3.0', { ephemeral: true });
   assertHskV2Contract(buildHskNoticePayloadV2({ title: 'THÔNG BÁO', message: 'Nội dung', ephemeral: true }), 'THÔNG BÁO', { ephemeral: true });
 });
 
@@ -939,7 +945,7 @@ test('8. Phân quyền /hsk-admin, bảng Admin V2, modal chỉnh giây, & kiể
     null,
     client,
   );
-  assertHskV2Contract(setupReply, 'QUẢN TRỊ ĐẤU TRƯỜNG HSK 3.0', { ephemeral: true });
+  assertHskV2Contract(setupReply, 'QUẢN TRỊ ĐẤU TRƯỜNG & ÔN LUYỆN HSK 3.0', { ephemeral: true });
   const setupText = collectPayloadNodes(setupReply).texts.join('\n');
   assert.ok(setupText.includes('Hỗn hợp Sơ cấp (HSK 1–3)'));
   assert.ok(setupText.includes('**30 giây**'));
@@ -1033,4 +1039,404 @@ test('8. Phân quyền /hsk-admin, bảng Admin V2, modal chỉnh giây, & kiể
   );
   assert.ok(readySource.includes('initHskAutoResume'));
 });
+
+test('9. Kiến trúc 3 kênh tách biệt: 1 Đấu trường + 2 Phòng Ôn Luyện (Sơ cấp HSK 1-3 & Trung-Cao HSK 4-9), chống trùng kênh & lưu tiến độ độc lập', async () => {
+  resetAllHskRuntimeState();
+  try {
+    const { client, channel: chArena } = createMockClient();
+    const makeChannel = (id) => {
+      const messages = [];
+      return {
+        id,
+        messages,
+        guild: { id: 'guild_hsk_1', members: { me: null } },
+        send: async (payload) => {
+          const msg = {
+            id: `msg_${id}_${messages.length + 1}`,
+            payload,
+            edit: async (next) => {
+              msg.payload = next;
+              return msg;
+            },
+          };
+          messages.push(msg);
+          return msg;
+        },
+      };
+    };
+
+    const chElem = makeChannel('ch_elem_1_3');
+    const chAdv = makeChannel('ch_adv_4_9');
+    client.channels.cache.set(chElem.id, chElem);
+    client.channels.cache.set(chAdv.id, chAdv);
+    const origFetch = client.channels.fetch;
+    client.channels.fetch = async (id) => {
+      if (id === chElem.id) return chElem;
+      if (id === chAdv.id) return chAdv;
+      return origFetch(id);
+    };
+
+    // 9a. Setup kênh Đấu trường
+    let arenaSetupReply = null;
+    await hskAdminCommand.execute(
+      {
+        guildId: 'guild_hsk_1',
+        channel: chArena,
+        user: { id: 'u_adm' },
+        member: { roles: [HSK_ADMIN_ROLE_ID] },
+        guild: { ownerId: 'own_1', members: { me: null } },
+        options: {
+          getSubcommand: () => 'setup',
+          getChannel: () => chArena,
+          getString: () => '1',
+          getInteger: () => 45,
+          getBoolean: () => false,
+        },
+        replied: false,
+        deferred: false,
+        reply: async (p) => {
+          arenaSetupReply = p;
+        },
+      },
+      null,
+      client,
+    );
+    assertHskV2Contract(arenaSetupReply, 'QUẢN TRỊ ĐẤU TRƯỜNG & ÔN LUYỆN HSK 3.0', { ephemeral: true });
+
+    // 9b. Chống gán Phòng Ôn Luyện trùng với kênh Đấu trường
+    let collideArenaReply = null;
+    await hskAdminCommand.execute(
+      {
+        guildId: 'guild_hsk_1',
+        channel: chArena,
+        user: { id: 'u_adm' },
+        member: { roles: [HSK_ADMIN_ROLE_ID] },
+        guild: { ownerId: 'own_1', members: { me: null } },
+        options: {
+          getSubcommand: () => 'setup-onluyen',
+          getString: (name) => (name === 'phanhe' ? 'elementary' : null),
+          getChannel: () => chArena,
+        },
+        replied: false,
+        deferred: false,
+        reply: async (p) => {
+          collideArenaReply = p;
+        },
+      },
+      null,
+      client,
+    );
+    assertHskV2Contract(collideArenaReply, 'TRÙNG VỚI KÊNH ĐẤU TRƯỜNG', { ephemeral: true });
+
+    // 9c. Setup Phòng Sơ cấp (chElem) -> gửi bảng cố định HSK 1-3
+    let elemSetupReply = null;
+    await hskAdminCommand.execute(
+      {
+        guildId: 'guild_hsk_1',
+        channel: chElem,
+        user: { id: 'u_adm' },
+        member: { roles: [HSK_ADMIN_ROLE_ID] },
+        guild: { ownerId: 'own_1', members: { me: null } },
+        options: {
+          getSubcommand: () => 'setup-onluyen',
+          getString: (name) => (name === 'phanhe' ? 'elementary' : null),
+          getChannel: () => chElem,
+        },
+        replied: false,
+        deferred: false,
+        reply: async (p) => {
+          elemSetupReply = p;
+        },
+      },
+      null,
+      client,
+    );
+    assertHskV2Contract(elemSetupReply, 'QUẢN TRỊ ĐẤU TRƯỜNG & ÔN LUYỆN HSK 3.0', { ephemeral: true });
+    assert.equal(chElem.messages.length, 1);
+    assertHskV2Contract(chElem.messages[0].payload, HSK_STUDY_TIERS.elementary.roomTitle, { ephemeral: false });
+
+    // 9d. Chống gán Trung - Cao cấp đè lên Phòng Sơ cấp
+    let collideStudyReply = null;
+    await hskAdminCommand.execute(
+      {
+        guildId: 'guild_hsk_1',
+        channel: chElem,
+        user: { id: 'u_adm' },
+        member: { roles: [HSK_ADMIN_ROLE_ID] },
+        guild: { ownerId: 'own_1', members: { me: null } },
+        options: {
+          getSubcommand: () => 'setup-onluyen',
+          getString: (name) => (name === 'phanhe' ? 'advanced' : null),
+          getChannel: () => chElem,
+        },
+        replied: false,
+        deferred: false,
+        reply: async (p) => {
+          collideStudyReply = p;
+        },
+      },
+      null,
+      client,
+    );
+    assertHskV2Contract(collideStudyReply, 'TRÙNG VỚI PHÂN HỆ ÔN LUYỆN KHÁC', { ephemeral: true });
+
+    // 9e. Setup Phòng Trung - Cao cấp (chAdv) -> gửi bảng cố định HSK 4-9
+    let advSetupReply = null;
+    await hskAdminCommand.execute(
+      {
+        guildId: 'guild_hsk_1',
+        channel: chAdv,
+        user: { id: 'u_adm' },
+        member: { roles: [HSK_ADMIN_ROLE_ID] },
+        guild: { ownerId: 'own_1', members: { me: null } },
+        options: {
+          getSubcommand: () => 'setup-onluyen',
+          getString: (name) => (name === 'phanhe' ? 'advanced' : null),
+          getChannel: () => chAdv,
+        },
+        replied: false,
+        deferred: false,
+        reply: async (p) => {
+          advSetupReply = p;
+        },
+      },
+      null,
+      client,
+    );
+    assertHskV2Contract(advSetupReply, 'QUẢN TRỊ ĐẤU TRƯỜNG & ÔN LUYỆN HSK 3.0', { ephemeral: true });
+    assert.equal(chAdv.messages.length, 1);
+    assertHskV2Contract(chAdv.messages[0].payload, HSK_STUDY_TIERS.advanced.roomTitle, { ephemeral: false });
+
+    // 9f. Chống gán Đấu trường đè lên Phòng Ôn luyện
+    let collideSetupArenaReply = null;
+    await hskAdminCommand.execute(
+      {
+        guildId: 'guild_hsk_1',
+        channel: chAdv,
+        user: { id: 'u_adm' },
+        member: { roles: [HSK_ADMIN_ROLE_ID] },
+        guild: { ownerId: 'own_1', members: { me: null } },
+        options: {
+          getSubcommand: () => 'setup',
+          getChannel: () => chAdv,
+          getString: () => null,
+          getInteger: () => null,
+          getBoolean: () => null,
+        },
+        replied: false,
+        deferred: false,
+        reply: async (p) => {
+          collideSetupArenaReply = p;
+        },
+      },
+      null,
+      client,
+    );
+    assertHskV2Contract(collideSetupArenaReply, 'KÊNH ĐANG DÙNG CHO ÔN LUYỆN', { ephemeral: true });
+
+    const savedCfg = await getHskGuildConfig(client, 'guild_hsk_1');
+    assert.equal(savedCfg.channelId, chArena.id);
+    assert.equal(savedCfg.studyChannels.elementary, chElem.id);
+    assert.equal(savedCfg.studyChannels.advanced, chAdv.id);
+    assert.equal(detectChannelStudyTier(savedCfg, chElem.id), 'elementary');
+    assert.equal(detectChannelStudyTier(savedCfg, chAdv.id), 'advanced');
+    assert.equal(detectChannelStudyTier(savedCfg, chArena.id), 'all');
+
+    // 9g. Bấm nút Phòng Sơ cấp (hsk_room_band & hsk_room_mode) -> Ephemeral, lọc Select Menu đúng 3 cấp, giữ nhớ elementaryBand=2
+    const roomBandBtn = hskButtons.find((b) => b.name === 'hsk_room_band');
+    const roomModeBtn = hskButtons.find((b) => b.name === 'hsk_room_mode');
+    const rateBtn = hskButtons.find((b) => b.name === 'hsk_flash_rate');
+    const homeBtn = hskButtons.find((b) => b.name === 'hsk_home');
+
+    let elemHubReply = null;
+    await roomBandBtn.execute(
+      {
+        guildId: 'guild_hsk_1',
+        channelId: chElem.id,
+        user: { id: 'learner_9' },
+        reply: async (p) => {
+          elemHubReply = p;
+        },
+      },
+      client,
+      ['2', 'e'],
+    );
+    assertHskV2Contract(elemHubReply, 'HSK 3.0 — ÔN LUYỆN TIẾNG TRUNG CÁ NHÂN', { ephemeral: true });
+    const elemMenuOpts = collectPayloadNodes(elemHubReply).menus[0].options;
+    assert.deepEqual(
+      elemMenuOpts.map((o) => o.value),
+      ['1', '2', '3'],
+      'Phòng Sơ cấp chỉ hiển thị lựa chọn HSK 1–3',
+    );
+
+    // Chuyển sang Phòng Trung-Cao chọn HSK 6 -> không làm mất elementaryBand = 2
+    let advHubReply = null;
+    await roomBandBtn.execute(
+      {
+        guildId: 'guild_hsk_1',
+        channelId: chAdv.id,
+        user: { id: 'learner_9' },
+        reply: async (p) => {
+          advHubReply = p;
+        },
+      },
+      client,
+      ['6', 'a'],
+    );
+    assertHskV2Contract(advHubReply, 'HSK 3.0 — ÔN LUYỆN TIẾNG TRUNG CÁ NHÂN', { ephemeral: true });
+    const advMenuOpts = collectPayloadNodes(advHubReply).menus[0].options;
+    assert.deepEqual(
+      advMenuOpts.map((o) => o.value),
+      ['4', '5', '6', '7'],
+      'Phòng Trung–Cao cấp chỉ hiển thị lựa chọn HSK 4–9',
+    );
+
+    const progBoth = await getHskUserProgress(client, 'guild_hsk_1', 'learner_9');
+    assert.equal(getEffectiveBandForTier(progBoth, 'elementary'), 2);
+    assert.equal(getEffectiveBandForTier(progBoth, 'advanced'), 6);
+
+    // Quay lại bấm "Trắc nghiệm 4 nút" thẳng trên thẻ Phòng Sơ cấp -> dùng HSK 2, nút Về menu vẫn mang :e
+    let directElemQuiz = null;
+    await roomModeBtn.execute(
+      {
+        guildId: 'guild_hsk_1',
+        channelId: chElem.id,
+        user: { id: 'learner_9' },
+        reply: async (p) => {
+          directElemQuiz = p;
+        },
+      },
+      client,
+      ['quiz', 'e'],
+    );
+    assertHskV2Contract(directElemQuiz, 'TRẮC NGHIỆM HSK 3.0 — HSK 2', { ephemeral: true });
+    const elemQuizBtns = collectPayloadNodes(directElemQuiz).buttons;
+    const elemHomeBtn = elemQuizBtns.find((b) => b.custom_id.startsWith('hsk_home:'));
+    assert.equal(elemHomeBtn.custom_id, 'hsk_home:learner_9:e');
+    assert.ok(elemQuizBtns.every((b) => b.custom_id.endsWith(':e')), 'Mọi nút Trắc nghiệm trong phòng Sơ cấp phải giữ mã :e');
+
+    // Bấm Flashcard thẳng ở Phòng Trung-Cao -> lấy thẻ HSK 6, bấm Quên lưu sổ tay chung
+    let directAdvFlash = null;
+    await roomModeBtn.execute(
+      {
+        guildId: 'guild_hsk_1',
+        channelId: chAdv.id,
+        user: { id: 'learner_9' },
+        reply: async (p) => {
+          directAdvFlash = p;
+        },
+      },
+      client,
+      ['flash', 'a'],
+    );
+    assert.ok(collectPayloadNodes(directAdvFlash).texts.join('\n').includes('HSK 6'));
+    const advFlashBtns = collectPayloadNodes(directAdvFlash).buttons;
+    assert.ok(advFlashBtns.every((b) => b.custom_id.endsWith(':a')), 'Mọi nút Flashcard trong phòng Trung–Cao phải giữ mã :a');
+    const flashWid = getPersonalSession('guild_hsk_1', 'learner_9', DAYTIME_MS).flashWordId;
+    assert.ok(flashWid.startsWith('b6_'));
+
+    let afterRate = null;
+    await rateBtn.execute(
+      {
+        guildId: 'guild_hsk_1',
+        channelId: chAdv.id,
+        user: { id: 'learner_9' },
+        message: { flags: { bitfield: MessageFlags.Ephemeral | IS_COMPONENTS_V2 } },
+        update: async (p) => {
+          afterRate = p;
+        },
+        reply: async (p) => {
+          afterRate = p;
+        },
+      },
+      client,
+      ['learner_9', flashWid, 'again', 'a'],
+    );
+    assert.ok(collectPayloadNodes(afterRate).texts.join('\n').includes('HSK 6'));
+    const progAfterMistake = await getHskUserProgress(client, 'guild_hsk_1', 'learner_9');
+    assert.ok(progAfterMistake.wrongWords[flashWid], 'Từ sai ở phòng Trung–Cao lưu vào Sổ tay chung');
+
+    // Bấm Về menu (:e) -> mở Menu lọc đúng Sơ cấp (3 options) & hiển thị 1 từ trong Sổ tay
+    let backToElemHome = null;
+    await homeBtn.execute(
+      {
+        guildId: 'guild_hsk_1',
+        channelId: chElem.id,
+        user: { id: 'learner_9' },
+        message: { flags: { bitfield: MessageFlags.Ephemeral | IS_COMPONENTS_V2 } },
+        update: async (p) => {
+          backToElemHome = p;
+        },
+        reply: async (p) => {
+          backToElemHome = p;
+        },
+      },
+      client,
+      ['learner_9', 'e'],
+    );
+    assert.equal(collectPayloadNodes(backToElemHome).menus[0].options.length, 3);
+    assert.ok(collectPayloadNodes(backToElemHome).texts.join('\n').includes('> **1 từ** vừa trả lời sai'));
+
+    // 9h. Gõ /hsk trực tiếp trong kênh Sơ cấp tự lọc HSK 1-3, còn ở kênh thường đủ 7 cấp
+    let slashInElem = null;
+    await hskCommand.execute(
+      {
+        guildId: 'guild_hsk_1',
+        channelId: chElem.id,
+        user: { id: 'learner_9' },
+        options: { getString: () => null },
+        replied: false,
+        deferred: false,
+        reply: async (p) => {
+          slashInElem = p;
+        },
+      },
+      null,
+      client,
+    );
+    assert.equal(collectPayloadNodes(slashInElem).menus[0].options.length, 3);
+
+    let slashElsewhere = null;
+    await hskCommand.execute(
+      {
+        guildId: 'guild_hsk_1',
+        channelId: 'random_channel',
+        user: { id: 'learner_9' },
+        options: { getString: () => null },
+        replied: false,
+        deferred: false,
+        reply: async (p) => {
+          slashElsewhere = p;
+        },
+      },
+      null,
+      client,
+    );
+    assert.equal(collectPayloadNodes(slashElsewhere).menus[0].options.length, 7);
+
+    // 9i. Nút Admin "Gửi lại bảng Sơ cấp" đăng lại thẻ cố định vào chElem
+    const postStudyBtn = hskButtons.find((b) => b.name === 'hsk_admin_post_study');
+    let adminPanelRefreshed = null;
+    await postStudyBtn.execute(
+      {
+        guildId: 'guild_hsk_1',
+        user: { id: 'u_adm' },
+        member: { roles: [HSK_ADMIN_ROLE_ID] },
+        guild: { ownerId: 'own_1' },
+        update: async (p) => {
+          adminPanelRefreshed = p;
+        },
+        reply: async () => {},
+        followUp: async () => {},
+      },
+      client,
+      ['elementary'],
+    );
+    assertHskV2Contract(adminPanelRefreshed, 'QUẢN TRỊ ĐẤU TRƯỜNG & ÔN LUYỆN HSK 3.0', { ephemeral: true });
+    assert.equal(chElem.messages.length, 2);
+  } finally {
+    resetAllHskRuntimeState();
+  }
+});
+
 
