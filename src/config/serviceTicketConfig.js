@@ -8,6 +8,7 @@ export const SERVICE_TICKET_IDS = Object.freeze({
   PANEL_CHANNEL_ID: '1570346905928474624',
   FEEDBACK_CHANNEL_ID: '1570348805155594290',
   LOG_CHANNEL_ID: '1570357576770654289',
+  TOS_MESSAGE_URL: 'https://discord.com/channels/1541279801183178754/1570341834570342501/1570357980900106335',
   DEV_BOT_SUPPORT_USER_ID: '872792190651334707',
   CHINESE_TEACHER_ZALO: '0846140504',
 });
@@ -159,3 +160,4 @@ export function getServiceTicketCounterStorageKey(guildId) {
 export function getServiceTicketStaffCacheKey(guildId) {
   return `guild:${guildId}:service_ticket_staff_ids`;
 }
+

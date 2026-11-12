@@ -216,7 +216,8 @@ test('UI Builders: Panel, Welcome, Staff notice, &nhacfb, Feedback nhận, &clos
   const panelButtons = panel.components[0].components.find((c) => c.type === 1).components;
   assert.equal(panelButtons.length, 3);
   assert.equal(panelButtons[0].label, 'Điều Khoản Dịch Vụ');
-  assert.equal(panelButtons[0].style, ButtonStyle.Secondary);
+  assert.equal(panelButtons[0].style, ButtonStyle.Link);
+  assert.equal(panelButtons[0].url, SERVICE_TICKET_IDS.TOS_MESSAGE_URL);
   assert.equal(panelButtons[0].emoji, undefined);
   assert.equal(panelButtons[1].label, 'Mua Hàng');
   assert.equal(panelButtons[1].style, ButtonStyle.Secondary);

@@ -631,9 +631,9 @@ export function buildServicePanelPayloadV2() {
             components: [
               {
                 type: 2,
-                style: ButtonStyle.Secondary,
-                custom_id: 'st_tos',
+                style: ButtonStyle.Link,
                 label: 'Điều Khoản Dịch Vụ',
+                url: SERVICE_TICKET_IDS.TOS_MESSAGE_URL,
               },
               {
                 type: 2,
