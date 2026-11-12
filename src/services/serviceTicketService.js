@@ -25,6 +25,7 @@ import {
   buildServiceTicketChannelName,
   getServiceTicketCounterStorageKey,
   getServiceTicketStaffCacheKey,
+  getFeedbackStickyStorageKey,
 } from '../config/serviceTicketConfig.js';
 import {
   getDatabaseValue,
@@ -53,6 +54,8 @@ export const SERVICE_TOS_EMOJIS = {
 const serviceCounterQueues = new Map();
 const userTicketCreationQueues = new Map();
 const deletingServiceTickets = new Set();
+const feedbackStickyQueues = new Map();
+const feedbackStickyMessageIds = new Map();
 
 function withUserCreationLock(userId, task) {
   const key = String(userId || 'unknown');
@@ -846,6 +849,35 @@ export function buildFeedbackReceivedPayloadV2({ userId }) {
   };
 }
 
+export const FEEDBACK_STICKY_MARKER = 'Chân thành cảm ơn bạn đã sử dụng dịch vụ ở Serendipity!';
+
+/**
+ * Sticky Components V2 (không title) luôn nằm cuối kênh feedback 1570348805155594290
+ */
+export function buildFeedbackStickyPayloadV2() {
+  const heart = SERVICE_TICKET_EMOJIS.STICKY_HEART;
+
+  return {
+    flags: IS_COMPONENTS_V2,
+    components: [
+      {
+        type: 17,
+        components: [
+          {
+            type: 10,
+            content: [
+              `${heart} Chân thành cảm ơn bạn đã sử dụng dịch vụ ở Serendipity!`,
+              `${heart} Xin vui lòng gửi tin nhắn check legit theo cú pháp: +1 legit ...`,
+              '> ... là thông tin thêm như món hàng / ảnh sản phẩm / .. có thể gửi hoặc không tùy ý bạn.',
+            ].join('\n'),
+          },
+        ],
+      },
+    ],
+    allowedMentions: { parse: [] },
+  };
+}
+
 /**
  * 5. Giao diện đóng ticket (&close khi không mua)
  */
@@ -1525,6 +1557,93 @@ export async function deleteServiceTicket({
 }
 
 /**
+ * Gửi thông báo nhắc cú pháp +1 legit dạng Components V2 xuống cuối kênh feedback
+ * rồi xóa thông báo sticky cũ bị trùng lặp của bot (không bao giờ xóa tin nhắn member).
+ */
+export async function refreshFeedbackStickyMessage(channel, client) {
+  if (!channel || !channel.guild || typeof channel.send !== 'function') {
+    return null;
+  }
+
+  const guildId = channel.guild.id;
+  const queueKey = `${guildId}:${channel.id}`;
+  const prev = feedbackStickyQueues.get(queueKey) || Promise.resolve();
+
+  const task = prev.then(async () => {
+    const oldMessageIds = new Set();
+
+    const cachedId = feedbackStickyMessageIds.get(channel.id);
+    if (cachedId) {
+      oldMessageIds.add(String(cachedId));
+    }
+
+    const storageKey = getFeedbackStickyStorageKey(guildId);
+    const dbSavedId = await getDatabaseValue(client, storageKey, null).catch(() => null);
+    if (dbSavedId) {
+      oldMessageIds.add(String(dbSavedId));
+    }
+
+    // Quét tối đa 20 tin nhắn gần nhất để dọn sạch sticky cũ của bot kể cả sau khi restart
+    if (typeof channel.messages?.fetch === 'function') {
+      const recent = await channel.messages.fetch({ limit: 20 }).catch(() => null);
+      if (recent?.values) {
+        const botId = client?.user?.id || channel.client?.user?.id;
+        for (const msg of recent.values()) {
+          if (botId && String(msg.author?.id) !== String(botId)) {
+            continue;
+          }
+          let serialized = '';
+          try {
+            serialized = `${msg.content || ''}\n${JSON.stringify(msg.components ?? [])}`;
+          } catch {
+            serialized = String(msg.content || '');
+          }
+          if (serialized.includes(FEEDBACK_STICKY_MARKER)) {
+            oldMessageIds.add(String(msg.id));
+          }
+        }
+      }
+    }
+
+    // 1. Gửi thông báo sticky mới ngay sau tin nhắn của member
+    const sentMsg = await channel.send(buildFeedbackStickyPayloadV2());
+
+    // 2. Xóa thông báo sticky cũ bị trùng lặp của bot (không động vào tin nhắn mới vừa gửi)
+    for (const oldId of oldMessageIds) {
+      if (sentMsg?.id && String(oldId) === String(sentMsg.id)) {
+        continue;
+      }
+      if (typeof channel.messages?.delete === 'function') {
+        await channel.messages.delete(oldId).catch(() => {});
+      } else {
+        const oldMsg = channel.messages?.cache?.get?.(oldId);
+        if (oldMsg && typeof oldMsg.delete === 'function') {
+          await oldMsg.delete().catch(() => {});
+        }
+      }
+    }
+
+    if (sentMsg?.id) {
+      feedbackStickyMessageIds.set(channel.id, String(sentMsg.id));
+      await setDatabaseValue(client, storageKey, String(sentMsg.id)).catch(() => {});
+    }
+
+    return sentMsg || null;
+  });
+
+  feedbackStickyQueues.set(
+    queueKey,
+    task.catch(() => {}).finally(() => {
+      if (feedbackStickyQueues.get(queueKey) === task) {
+        feedbackStickyQueues.delete(queueKey);
+      }
+    }),
+  );
+
+  return task;
+}
+
+/**
  * Lắng nghe tin nhắn chứa "+1 legit" tại kênh feedback 1570348805155594290
  */
 export async function handleServiceTicketFeedbackMessage(message, client) {
@@ -1534,9 +1653,19 @@ export async function handleServiceTicketFeedbackMessage(message, client) {
   }
 
   const content = String(message.content || '').trim();
-  if (!/(?:^|\s)\+1\s*legit(?:\s|$|[!.,?])/i.test(content)) {
+  if (!/(?:^|\s)\+1\s*legit(?=$|[\s\W])/i.test(content)) {
     return false;
   }
+
+  // 1. Auto thả react emoji xác nhận lên tin nhắn feedback của member
+  await message.react(SERVICE_TICKET_EMOJIS.FEEDBACK_REACT).catch((err) => {
+    logger.warn('[ServiceTicket] Không thể auto react feedback:', err?.message || err);
+  });
+
+  // 2. Gửi thông báo sticky Components V2 không title ở cuối kênh và xóa thông báo cũ của bot
+  await refreshFeedbackStickyMessage(message.channel, client).catch((err) => {
+    logger.warn('[ServiceTicket] Không thể làm mới thông báo sticky kênh feedback:', err?.message || err);
+  });
 
   const allTickets = await listAllServiceTicketsInGuild(client, message.guild.id);
   const matchingTickets = allTickets.filter(
@@ -1545,11 +1674,6 @@ export async function handleServiceTicketFeedbackMessage(message, client) {
       t.status !== 'closed' &&
       (t.awaitingFeedback === true || t.status === 'awaiting_feedback'),
   );
-
-  // Thả emoji xác nhận ngay trên tin nhắn feedback ở kênh 1570348805155594290
-  await message.react(SERVICE_TICKET_EMOJIS.FEEDBACK_REACT).catch((err) => {
-    logger.warn('[ServiceTicket] Không thể auto react feedback:', err?.message || err);
-  });
 
   if (matchingTickets.length === 0) {
     return true;

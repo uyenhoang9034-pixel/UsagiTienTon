@@ -42,6 +42,7 @@ export const SERVICE_TICKET_EMOJIS = Object.freeze({
     animated: true,
   },
   FEEDBACK_REACT: '<a:trangtrig60:1569558191551942696>',
+  STICKY_HEART: '<a:heartg8:1567818755793358928>',
 });
 
 export const SERVICE_CATALOG = Object.freeze({
@@ -159,5 +160,9 @@ export function getServiceTicketCounterStorageKey(guildId) {
 
 export function getServiceTicketStaffCacheKey(guildId) {
   return `guild:${guildId}:service_ticket_staff_ids`;
+}
+
+export function getFeedbackStickyStorageKey(guildId) {
+  return `guild:${guildId}:service_ticket_feedback_sticky`;
 }
 

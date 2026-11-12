@@ -17,6 +17,7 @@ import {
   buildAssignedStaffMessage,
   buildFeedbackReminderPayloadV2,
   buildFeedbackReceivedPayloadV2,
+  buildFeedbackStickyPayloadV2,
   buildServiceClosedPayloadV2,
   buildDeliveryDmPayloadV2,
   buildDmTranscriptPayloadV2,
@@ -250,6 +251,16 @@ test('UI Builders: Panel, Welcome, Staff notice, &nhacfb, Feedback nhận, &clos
   assert.equal(delFbBtn.style, ButtonStyle.Secondary);
   assert.equal(delFbBtn.emoji, undefined);
 
+  const stickyFb = buildFeedbackStickyPayloadV2();
+  assert.equal(stickyFb.flags, IS_COMPONENTS_V2);
+  assert.equal(stickyFb.components[0].type, 17);
+  assert.equal(stickyFb.components[0].components.length, 1);
+  const stickyText = getAllText(stickyFb);
+  assert.ok(!stickyText.includes('# '));
+  assert.ok(stickyText.includes('<a:heartg8:1567818755793358928> Chân thành cảm ơn bạn đã sử dụng dịch vụ ở Serendipity!'));
+  assert.ok(stickyText.includes('Xin vui lòng gửi tin nhắn check legit theo cú pháp: +1 legit ...'));
+  assert.ok(stickyText.includes('> ... là thông tin thêm như món hàng / ảnh sản phẩm / .. có thể gửi hoặc không tùy ý bạn.'));
+
   const closedPayload = buildServiceClosedPayloadV2({ executorId: 'staff_1', closedTs: 1700000000 });
   const closedText = getAllText(closedPayload);
   assert.ok(closedText.includes('Đã đóng (không phát sinh đơn hàng).'));
@@ -368,13 +379,51 @@ test('End-to-End Flow: Đếm số riêng từng dịch vụ, giới hạn 2 tic
     client,
   );
 
+  let fbMsgSeq = 0;
+  const feedbackChannelLog = [
+    {
+      id: 'old_sticky_0',
+      author: { id: client.user.id },
+      content: '',
+      components: buildFeedbackStickyPayloadV2().components,
+    },
+  ];
+  const deletedFeedbackIds = [];
+  const mockFeedbackChannel = {
+    id: SERVICE_TICKET_IDS.FEEDBACK_CHANNEL_ID,
+    guild,
+    client,
+    send: async (payload) => {
+      fbMsgSeq += 1;
+      const msg = {
+        id: `sticky_${fbMsgSeq}`,
+        author: { id: client.user.id },
+        ...payload,
+      };
+      feedbackChannelLog.push(msg);
+      return msg;
+    },
+    messages: {
+      fetch: async () => new Collection(feedbackChannelLog.map((m) => [m.id, m])),
+      delete: async (id) => {
+        deletedFeedbackIds.push(id);
+        const idx = feedbackChannelLog.findIndex((m) => m.id === id);
+        if (idx !== -1) feedbackChannelLog.splice(idx, 1);
+      },
+    },
+  };
+
+  let memberMsgDeleted = false;
   await handleServiceTicketMessage(
     {
       id: 'fb_msg_1',
       content: '+1 legit shop siêu dễ thương',
       guild,
       author: { id: 'cust_1', bot: false },
-      channel: { id: SERVICE_TICKET_IDS.FEEDBACK_CHANNEL_ID },
+      channel: mockFeedbackChannel,
+      delete: async () => {
+        memberMsgDeleted = true;
+      },
       react: async (emoji) => {
         feedbackReacted = emoji;
       },
@@ -382,6 +431,26 @@ test('End-to-End Flow: Đếm số riêng từng dịch vụ, giới hạn 2 tic
     client,
   );
   assert.equal(feedbackReacted, SERVICE_TICKET_EMOJIS.FEEDBACK_REACT);
+  assert.equal(memberMsgDeleted, false); // Không xóa tin nhắn +1 legit của member
+  assert.ok(deletedFeedbackIds.includes('old_sticky_0')); // Xóa sticky cũ bị trùng lặp của bot
+  assert.equal(feedbackChannelLog.at(-1).id, 'sticky_1'); // Tin nhắn cuối kênh là sticky mới nhất
+
+  // Thêm 1 feedback thứ 2 -> sticky_1 bị xóa, sticky_2 trở thành tin nhắn cuối kênh
+  await handleServiceTicketMessage(
+    {
+      id: 'fb_msg_2',
+      content: '+1 legit đã mua nitro lần 2!',
+      guild,
+      author: { id: 'cust_other', bot: false },
+      channel: mockFeedbackChannel,
+      delete: async () => assert.fail('Should never delete member feedback'),
+      react: async () => {},
+    },
+    client,
+  );
+  assert.ok(deletedFeedbackIds.includes('sticky_1'));
+  assert.equal(feedbackChannelLog.length, 1);
+  assert.equal(feedbackChannelLog[0].id, 'sticky_2');
   assert.ok(
     supportRes.channel.sentMessages.some((m) =>
       getAllText(m).includes('ĐÃ NHẬN FEEDBACK THÀNH CÔNG'),
