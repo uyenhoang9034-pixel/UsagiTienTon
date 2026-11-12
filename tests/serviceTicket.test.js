@@ -11,6 +11,7 @@ import {
 import {
   IS_COMPONENTS_V2,
   SERVICE_TOS_CHANNEL_IDS,
+  INVALID_FEEDBACK_REPLY_TEXT,
   buildServiceTosPayloadsV2,
   buildServicePanelPayloadV2,
   buildServiceWelcomePayloadV2,
@@ -27,6 +28,7 @@ import {
   reassignServiceTicketStaff,
   sendServiceDeliveryNotice,
   deleteServiceTicket,
+  handleServiceTicketFeedbackMessage,
   handleServiceTicketMessage,
 } from '../src/services/serviceTicketService.js';
 
@@ -508,7 +510,26 @@ test('End-to-End Flow: Đếm số riêng từng dịch vụ, giới hạn 2 tic
   assert.ok(deletedFeedbackIds.includes('old_sticky_0')); // Xóa sticky cũ bị trùng lặp của bot
   assert.equal(feedbackChannelLog.at(-1).id, 'sticky_1'); // Tin nhắn cuối kênh là sticky mới nhất
 
-  // Thêm 1 feedback thứ 2 -> sticky_1 bị xóa, sticky_2 trở thành tin nhắn cuối kênh
+  // Thêm 1 feedback thứ 2 hợp lệ từ cust_other -> sticky_1 bị xóa, sticky_2 trở thành tin nhắn cuối kênh
+  const otherBuyRes = await createServiceTicketFromModal(
+    { guild, user: { id: 'cust_other', username: 'other' } },
+    client,
+    { mode: 'buy', rawInput: 'nitrodecor' },
+  );
+  await handleServiceTicketMessage(
+    {
+      content: '&nhacfb',
+      guild,
+      author: { id: 'staff_1', bot: false },
+      member: {
+        guild,
+        roles: { cache: new Collection([[SERVICE_TICKET_IDS.SP_TICKET_ROLE_ID, {}]]) },
+      },
+      channel: otherBuyRes.channel,
+      delete: async () => {},
+    },
+    client,
+  );
   await handleServiceTicketMessage(
     {
       id: 'fb_msg_2',
@@ -674,4 +695,110 @@ test('Chinese ticket cố định SP 1212972766752542753 & lệnh &doisp đổi 
     variant: 'chinese',
   });
   assert.ok(getAllText(dmSentPayloads[2]).includes(`<@${SERVICE_TICKET_IDS.CHINESE_SUPPORT_USER_ID}>`));
+});
+
+test('Feedback +1 legit không có đơn hàng: reply đúng người đó và tự xóa sau 5s, không xóa nhầm người khác', async () => {
+  const client = createMemoryDbClient();
+  const { guild } = createMockGuild({ client, staffIds: ['staff_1'] });
+
+  // Tạo 1 ticket hợp lệ cho cust_valid đang chờ feedback
+  const validRes = await createServiceTicketFromModal(
+    { guild, user: { id: 'cust_valid', username: 'valid' } },
+    client,
+    { mode: 'buy', rawInput: 'nitrodecor' },
+  );
+  await handleServiceTicketMessage(
+    {
+      content: '&nhacfb',
+      guild,
+      author: { id: 'staff_1', bot: false },
+      member: {
+        guild,
+        roles: { cache: new Collection([[SERVICE_TICKET_IDS.SP_TICKET_ROLE_ID, {}]]) },
+      },
+      channel: validRes.channel,
+      delete: async () => {},
+    },
+    client,
+  );
+
+  const feedbackChannel = {
+    id: SERVICE_TICKET_IDS.FEEDBACK_CHANNEL_ID,
+    guild,
+    client,
+    sentStickies: [],
+    send: async (payload) => {
+      const msg = { id: `sticky_${feedbackChannel.sentStickies.length + 1}`, author: { id: client.user.id }, ...payload };
+      feedbackChannel.sentStickies.push(msg);
+      return msg;
+    },
+    messages: { fetch: async () => new Collection() },
+  };
+
+  // Khách A không có đơn hàng gửi +1 legit
+  const deletedOrder = [];
+  let invalidReacted = false;
+  let invalidReplyPayload = null;
+  let invalidReplyDeleted = false;
+  let invalidMsgDeleted = false;
+
+  await handleServiceTicketFeedbackMessage(
+    {
+      id: 'fb_invalid_1',
+      content: '+1 legit test chui',
+      guild,
+      author: { id: 'cust_invalid_1', bot: false },
+      channel: feedbackChannel,
+      react: async () => {
+        invalidReacted = true;
+      },
+      reply: async (payload) => {
+        invalidReplyPayload = payload;
+        return {
+          id: 'bot_reply_invalid_1',
+          delete: async () => {
+            invalidReplyDeleted = true;
+            deletedOrder.push('bot_reply_invalid_1');
+          },
+        };
+      },
+      delete: async () => {
+        invalidMsgDeleted = true;
+        deletedOrder.push('fb_invalid_1');
+      },
+    },
+    client,
+    { invalidDeleteDelayMs: 25 },
+  );
+
+  assert.equal(invalidReacted, false);
+  assert.equal(feedbackChannel.sentStickies.length, 0);
+  assert.equal(invalidReplyPayload?.content, INVALID_FEEDBACK_REPLY_TEXT);
+  assert.equal(invalidMsgDeleted, false); // Chưa xóa ngay trước khi hết thời gian chờ
+
+  // Trong thời gian chờ, khách B (có đơn hợp lệ) gửi +1 legit -> KHÔNG bao giờ bị xóa nhầm
+  let validReacted = false;
+  await handleServiceTicketFeedbackMessage(
+    {
+      id: 'fb_valid_1',
+      content: '+1 legit shop uy tin',
+      guild,
+      author: { id: 'cust_valid', bot: false },
+      channel: feedbackChannel,
+      react: async () => {
+        validReacted = true;
+      },
+      delete: async () => assert.fail('Không được xóa tin nhắn hợp lệ của khách khác'),
+    },
+    client,
+    { invalidDeleteDelayMs: 25 },
+  );
+  assert.equal(validReacted, true);
+
+  // Đợi quá thời gian 25ms để timer dọn đúng tin nhắn của cust_invalid_1
+  await new Promise((resolve) => setTimeout(resolve, 60));
+
+  assert.equal(invalidMsgDeleted, true);
+  assert.equal(invalidReplyDeleted, true);
+  assert.deepEqual(deletedOrder, ['fb_invalid_1', 'bot_reply_invalid_1']);
 });

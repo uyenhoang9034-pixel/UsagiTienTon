@@ -1752,10 +1752,18 @@ export async function refreshFeedbackStickyMessage(channel, client) {
   return task;
 }
 
+export const INVALID_FEEDBACK_DELETE_DELAY_MS = 5000;
+export const INVALID_FEEDBACK_REPLY_TEXT =
+  `${SERVICE_TICKET_EMOJIS.BANG} Xin lỗi, bạn không có ticket hay đang sử dụng dich vụ nào. Mình sẽ tự động xóa tin nhắn sau 5 giây!`;
+
 /**
  * Lắng nghe tin nhắn chứa "+1 legit" tại kênh feedback 1570348805155594290
  */
-export async function handleServiceTicketFeedbackMessage(message, client) {
+export async function handleServiceTicketFeedbackMessage(
+  message,
+  client,
+  { invalidDeleteDelayMs = INVALID_FEEDBACK_DELETE_DELAY_MS } = {},
+) {
   if (!message?.guild || message.author?.bot) return false;
   if (String(message.channel?.id) !== SERVICE_TICKET_IDS.FEEDBACK_CHANNEL_ID) {
     return false;
@@ -1764,6 +1772,71 @@ export async function handleServiceTicketFeedbackMessage(message, client) {
   const content = String(message.content || '').trim();
   if (!/(?:^|\s)\+1\s*legit(?=$|[\s\W])/i.test(content)) {
     return false;
+  }
+
+  const allTickets = await listAllServiceTicketsInGuild(client, message.guild.id);
+  const candidateTickets = allTickets.filter(
+    (t) =>
+      String(t.userId) === String(message.author.id) &&
+      t.status !== 'closed' &&
+      (t.awaitingFeedback === true ||
+        t.status === 'awaiting_feedback' ||
+        t.status === 'feedback_received'),
+  );
+
+  const activeOrderTickets = [];
+  for (const ticket of candidateTickets) {
+    const ticketChannel = await resolveExistingGuildChannel(message.guild, ticket.channelId);
+    if (!ticketChannel) {
+      await deleteDatabaseValue(client, getTicketStorageKey(message.guild.id, ticket.channelId)).catch(() => {});
+      continue;
+    }
+    activeOrderTickets.push({ ticket, ticketChannel });
+  }
+
+  // Nếu member không phát sinh đơn hàng / không có ticket hợp lệ:
+  // Reply trực tiếp tin nhắn của riêng người đó và đợi 5 giây rồi chỉ xóa tin nhắn của đúng người đó (+ reply của bot)
+  if (activeOrderTickets.length === 0) {
+    let replyMsg = null;
+    try {
+      if (typeof message.reply === 'function') {
+        replyMsg = await message.reply({
+          content: INVALID_FEEDBACK_REPLY_TEXT,
+          allowedMentions: { repliedUser: true },
+        });
+      } else if (typeof message.channel?.send === 'function') {
+        replyMsg = await message.channel.send({
+          content: INVALID_FEEDBACK_REPLY_TEXT,
+          ...(message.id ? { reply: { messageReference: message.id } } : {}),
+          allowedMentions: { repliedUser: true },
+        });
+      }
+    } catch (replyErr) {
+      logger.warn('[ServiceTicket] Không thể reply cảnh báo feedback không hợp lệ:', replyErr?.message || replyErr);
+    }
+
+    const targetMessage = message;
+    const targetReply = replyMsg;
+    const delayMs = Number.isFinite(Number(invalidDeleteDelayMs))
+      ? Math.max(0, Number(invalidDeleteDelayMs))
+      : INVALID_FEEDBACK_DELETE_DELAY_MS;
+
+    const cleanupTimer = setTimeout(async () => {
+      if (typeof targetMessage?.delete === 'function') {
+        await targetMessage.delete().catch(() => {});
+      } else if (targetMessage?.id && typeof targetMessage.channel?.messages?.delete === 'function') {
+        await targetMessage.channel.messages.delete(targetMessage.id).catch(() => {});
+      }
+
+      if (typeof targetReply?.delete === 'function') {
+        await targetReply.delete().catch(() => {});
+      } else if (targetReply?.id && typeof targetMessage?.channel?.messages?.delete === 'function') {
+        await targetMessage.channel.messages.delete(targetReply.id).catch(() => {});
+      }
+    }, delayMs);
+
+    cleanupTimer.unref?.();
+    return true;
   }
 
   // 1. Auto thả react emoji xác nhận lên tin nhắn feedback của member
@@ -1776,25 +1849,15 @@ export async function handleServiceTicketFeedbackMessage(message, client) {
     logger.warn('[ServiceTicket] Không thể làm mới thông báo sticky kênh feedback:', err?.message || err);
   });
 
-  const allTickets = await listAllServiceTicketsInGuild(client, message.guild.id);
-  const matchingTickets = allTickets.filter(
-    (t) =>
-      String(t.userId) === String(message.author.id) &&
-      t.status !== 'closed' &&
-      (t.awaitingFeedback === true || t.status === 'awaiting_feedback'),
+  const matchingTickets = activeOrderTickets.filter(
+    ({ ticket }) => ticket.awaitingFeedback === true || ticket.status === 'awaiting_feedback',
   );
 
   if (matchingTickets.length === 0) {
     return true;
   }
 
-  for (const ticket of matchingTickets) {
-    const ticketChannel = await resolveExistingGuildChannel(message.guild, ticket.channelId);
-    if (!ticketChannel) {
-      await deleteDatabaseValue(client, getTicketStorageKey(message.guild.id, ticket.channelId)).catch(() => {});
-      continue;
-    }
-
+  for (const { ticket, ticketChannel } of matchingTickets) {
     await saveServiceTicketRecord(client, message.guild.id, ticket.channelId, {
       ...ticket,
       status: 'feedback_received',
