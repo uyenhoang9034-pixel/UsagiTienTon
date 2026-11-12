@@ -26,6 +26,7 @@ import {
   getServiceTicketCounterStorageKey,
   getServiceTicketStaffCacheKey,
   getFeedbackStickyStorageKey,
+  getFeedbackLegitCounterStorageKey,
 } from '../config/serviceTicketConfig.js';
 import {
   getDatabaseValue,
@@ -52,6 +53,7 @@ export const SERVICE_TOS_EMOJIS = {
 };
 
 const serviceCounterQueues = new Map();
+const legitCounterQueues = new Map();
 const userTicketCreationQueues = new Map();
 const deletingServiceTickets = new Set();
 const feedbackStickyQueues = new Map();
@@ -1756,6 +1758,78 @@ export const INVALID_FEEDBACK_DELETE_DELAY_MS = 5000;
 export const INVALID_FEEDBACK_REPLY_TEXT =
   `${SERVICE_TICKET_EMOJIS.BANG} Xin lỗi, bạn không có ticket hay đang sử dụng dich vụ nào. Mình sẽ tự động xóa tin nhắn sau 5 giây!`;
 
+export const FEEDBACK_DIGIT_EMOJIS_PRIMARY = Object.freeze({
+  0: '0️⃣',
+  1: '1️⃣',
+  2: '2️⃣',
+  3: '3️⃣',
+  4: '4️⃣',
+  5: '5️⃣',
+  6: '6️⃣',
+  7: '7️⃣',
+  8: '8️⃣',
+  9: '9️⃣',
+});
+
+export const FEEDBACK_DIGIT_EMOJIS_ALT = Object.freeze({
+  1: SERVICE_TICKET_EMOJIS.NUM_1,
+  2: SERVICE_TICKET_EMOJIS.NUM_2,
+  3: SERVICE_TICKET_EMOJIS.NUM_3,
+  4: SERVICE_TICKET_EMOJIS.NUM_4,
+  5: SERVICE_TICKET_EMOJIS.NUM_5,
+});
+
+/**
+ * Tạo chuỗi emoji thả phản ứng cho +1 legit hợp lệ:
+ * - Đầu tiên: emoji g60 (<a:trangtrig60:1569558191551942696>)
+ * - Tiếp theo: từng chữ số của số thứ tự legit (bắt đầu từ 1).
+ *   Nếu chữ số 1-5 bị lặp (vd 11, 22), tự động dùng emoji dự phòng NUM_1..NUM_5 để không bị trùng reaction.
+ */
+export function buildFeedbackReactionSequence(legitNumber) {
+  const sequence = [SERVICE_TICKET_EMOJIS.FEEDBACK_REACT];
+  const used = new Set(sequence);
+  const digits = String(Math.max(1, Number(legitNumber) || 1));
+
+  for (const ch of digits) {
+    const primary = FEEDBACK_DIGIT_EMOJIS_PRIMARY[ch];
+    const alt = FEEDBACK_DIGIT_EMOJIS_ALT[ch];
+    const picked = [primary, alt].find((emoji) => emoji && !used.has(emoji));
+    if (picked) {
+      sequence.push(picked);
+      used.add(picked);
+    }
+  }
+
+  return sequence;
+}
+
+/**
+ * Tăng bộ đếm số thứ tự +1 legit theo từng server (bắt đầu từ 1).
+ */
+export async function nextFeedbackLegitNumber(client, guildId) {
+  const gid = String(guildId || 'unknown');
+  const prev = legitCounterQueues.get(gid) || Promise.resolve();
+
+  const task = prev.then(async () => {
+    const key = getFeedbackLegitCounterStorageKey(gid);
+    const current = Number(await getDatabaseValue(client, key, 0)) || 0;
+    const next = current + 1;
+    await setDatabaseValue(client, key, next).catch(() => {});
+    return next;
+  });
+
+  legitCounterQueues.set(
+    gid,
+    task.catch(() => {}).finally(() => {
+      if (legitCounterQueues.get(gid) === task) {
+        legitCounterQueues.delete(gid);
+      }
+    }),
+  );
+
+  return task;
+}
+
 /**
  * Lắng nghe tin nhắn chứa "+1 legit" tại kênh feedback 1570348805155594290
  */
@@ -1839,10 +1913,17 @@ export async function handleServiceTicketFeedbackMessage(
     return true;
   }
 
-  // 1. Auto thả react emoji xác nhận lên tin nhắn feedback của member
-  await message.react(SERVICE_TICKET_EMOJIS.FEEDBACK_REACT).catch((err) => {
-    logger.warn('[ServiceTicket] Không thể auto react feedback:', err?.message || err);
-  });
+  // 1. Tăng bộ đếm & thả emoji g60 kèm từng chữ số thứ tự lên tin nhắn feedback hợp lệ
+  const legitNumber = await nextFeedbackLegitNumber(client, message.guild.id);
+  const reactionSequence = buildFeedbackReactionSequence(legitNumber);
+  for (const emoji of reactionSequence) {
+    await message.react(emoji).catch((err) => {
+      logger.warn('[ServiceTicket] Không thể auto react feedback:', {
+        emoji,
+        error: err?.message || err,
+      });
+    });
+  }
 
   // 2. Gửi thông báo sticky Components V2 không title ở cuối kênh và xóa thông báo cũ của bot
   await refreshFeedbackStickyMessage(message.channel, client).catch((err) => {

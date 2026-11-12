@@ -34,6 +34,7 @@ export const SERVICE_TICKET_EMOJIS = Object.freeze({
   NUM_2: '<a:2_:1563484061111156828>',
   NUM_3: '<a:3_:1563484342779388045>',
   NUM_4: '<a:4_:1563484724725424209>',
+  NUM_5: '<a:5_:1563484794623365151>',
   BUTTON_BUY: {
     name: 'trangtrig62',
     id: '1569560241190871152',
@@ -167,5 +168,9 @@ export function getServiceTicketStaffCacheKey(guildId) {
 
 export function getFeedbackStickyStorageKey(guildId) {
   return `guild:${guildId}:service_ticket_feedback_sticky`;
+}
+
+export function getFeedbackLegitCounterStorageKey(guildId) {
+  return `guild:${guildId}:service_ticket_legit_counter`;
 }
 

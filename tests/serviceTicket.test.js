@@ -19,6 +19,7 @@ import {
   buildFeedbackReminderPayloadV2,
   buildFeedbackReceivedPayloadV2,
   buildFeedbackStickyPayloadV2,
+  buildFeedbackReactionSequence,
   buildServiceClosedPayloadV2,
   buildDeliveryDmPayloadV2,
   buildDmTranscriptPayloadV2,
@@ -438,7 +439,7 @@ test('End-to-End Flow: Đếm số riêng từng dịch vụ, giới hạn 2 tic
   assert.ok(thirdRes.errorMessage.includes('2/2'));
 
   // 4. SP chạy &nhacfb trong ticket Hỗ Trợ, sau đó khách nhắn +1 legit ở kênh feedback
-  let feedbackReacted = null;
+  const feedbackReactions1 = [];
   await handleServiceTicketMessage(
     {
       content: '&nhacfb',
@@ -500,12 +501,12 @@ test('End-to-End Flow: Đếm số riêng từng dịch vụ, giới hạn 2 tic
         memberMsgDeleted = true;
       },
       react: async (emoji) => {
-        feedbackReacted = emoji;
+        feedbackReactions1.push(emoji);
       },
     },
     client,
   );
-  assert.equal(feedbackReacted, SERVICE_TICKET_EMOJIS.FEEDBACK_REACT);
+  assert.deepEqual(feedbackReactions1, [SERVICE_TICKET_EMOJIS.FEEDBACK_REACT, '1️⃣']);
   assert.equal(memberMsgDeleted, false); // Không xóa tin nhắn +1 legit của member
   assert.ok(deletedFeedbackIds.includes('old_sticky_0')); // Xóa sticky cũ bị trùng lặp của bot
   assert.equal(feedbackChannelLog.at(-1).id, 'sticky_1'); // Tin nhắn cuối kênh là sticky mới nhất
@@ -530,6 +531,7 @@ test('End-to-End Flow: Đếm số riêng từng dịch vụ, giới hạn 2 tic
     },
     client,
   );
+  const feedbackReactions2 = [];
   await handleServiceTicketMessage(
     {
       id: 'fb_msg_2',
@@ -538,10 +540,13 @@ test('End-to-End Flow: Đếm số riêng từng dịch vụ, giới hạn 2 tic
       author: { id: 'cust_other', bot: false },
       channel: mockFeedbackChannel,
       delete: async () => assert.fail('Should never delete member feedback'),
-      react: async () => {},
+      react: async (emoji) => {
+        feedbackReactions2.push(emoji);
+      },
     },
     client,
   );
+  assert.deepEqual(feedbackReactions2, [SERVICE_TICKET_EMOJIS.FEEDBACK_REACT, '2️⃣']);
   assert.ok(deletedFeedbackIds.includes('sticky_1'));
   assert.equal(feedbackChannelLog.length, 1);
   assert.equal(feedbackChannelLog[0].id, 'sticky_2');
@@ -776,8 +781,8 @@ test('Feedback +1 legit không có đơn hàng: reply đúng người đó và t
   assert.equal(invalidReplyPayload?.content, INVALID_FEEDBACK_REPLY_TEXT);
   assert.equal(invalidMsgDeleted, false); // Chưa xóa ngay trước khi hết thời gian chờ
 
-  // Trong thời gian chờ, khách B (có đơn hợp lệ) gửi +1 legit -> KHÔNG bao giờ bị xóa nhầm
-  let validReacted = false;
+  // Trong thời gian chờ, khách B (có đơn hợp lệ) gửi +1 legit -> KHÔNG bao giờ bị xóa nhầm và đếm từ số 1
+  const validReactions = [];
   await handleServiceTicketFeedbackMessage(
     {
       id: 'fb_valid_1',
@@ -785,15 +790,26 @@ test('Feedback +1 legit không có đơn hàng: reply đúng người đó và t
       guild,
       author: { id: 'cust_valid', bot: false },
       channel: feedbackChannel,
-      react: async () => {
-        validReacted = true;
+      react: async (emoji) => {
+        validReactions.push(emoji);
       },
       delete: async () => assert.fail('Không được xóa tin nhắn hợp lệ của khách khác'),
     },
     client,
     { invalidDeleteDelayMs: 25 },
   );
-  assert.equal(validReacted, true);
+  assert.deepEqual(validReactions, [SERVICE_TICKET_EMOJIS.FEEDBACK_REACT, '1️⃣']);
+
+  assert.deepEqual(buildFeedbackReactionSequence(10), [
+    SERVICE_TICKET_EMOJIS.FEEDBACK_REACT,
+    '1️⃣',
+    '0️⃣',
+  ]);
+  assert.deepEqual(buildFeedbackReactionSequence(11), [
+    SERVICE_TICKET_EMOJIS.FEEDBACK_REACT,
+    '1️⃣',
+    SERVICE_TICKET_EMOJIS.NUM_1,
+  ]);
 
   // Đợi quá thời gian 25ms để timer dọn đúng tin nhắn của cust_invalid_1
   await new Promise((resolve) => setTimeout(resolve, 60));
