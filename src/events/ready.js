@@ -4,6 +4,7 @@ import { logger } from '../utils/logger.js';
 import { isTTSEnabledByEnv } from '../config/ttsConfig.js';
 import { initWordGuessAutoResume } from '../services/wordGuessService.js';
 import { initHskAutoResume } from '../services/hskService.js';
+import { initForumStoreSync } from '../services/forumStoreService.js';
 
 export default {
   name: Events.ClientReady,
@@ -28,6 +29,12 @@ export default {
       await initHskAutoResume(client);
     } catch (error) {
       logger.warn('Could not initialize HSK 3.0 Arena auto-resume:', error);
+    }
+
+    try {
+      await initForumStoreSync(client);
+    } catch (error) {
+      logger.warn('Could not initialize Forum Store sync:', error);
     }
 
     logger.info(

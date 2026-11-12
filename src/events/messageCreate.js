@@ -14,6 +14,7 @@ import { handleThanVanTuBan } from '../services/thanVanTuBanService.js';
 import { handleQuoteTrigger } from '../services/quotes/quoteService.js';
 import { handleRandomMessage } from '../services/randomService.js';
 import { handleBookingMessage } from '../services/bookingService.js';
+import { handleForumStoreMessage } from '../services/forumStoreService.js';
 import { handleServiceTicketMessage } from '../services/serviceTicketService.js';
 import { handleWordGuessMessage } from '../services/wordGuessService.js';
 
@@ -82,6 +83,15 @@ export default {
       }
     } catch (serviceTicketError) {
       logger.error('Error handling Service Ticket trigger:', serviceTicketError);
+    }
+
+    try {
+      const forumStoreProcessed = await handleForumStoreMessage(message, client);
+      if (forumStoreProcessed) {
+        return;
+      }
+    } catch (forumStoreError) {
+      logger.error('Error handling Forum Store trigger:', forumStoreError);
     }
 
     try {
