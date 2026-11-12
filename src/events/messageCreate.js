@@ -76,21 +76,21 @@ export default {
     }
 
     try {
-      const bookingProcessed = await handleBookingMessage(message, client);
-      if (bookingProcessed) {
-        return;
-      }
-    } catch (bookingError) {
-      logger.error('Error handling Booking trigger:', bookingError);
-    }
-
-    try {
       const serviceTicketProcessed = await handleServiceTicketMessage(message, client);
       if (serviceTicketProcessed) {
         return;
       }
     } catch (serviceTicketError) {
       logger.error('Error handling Service Ticket trigger:', serviceTicketError);
+    }
+
+    try {
+      const bookingProcessed = await handleBookingMessage(message, client);
+      if (bookingProcessed) {
+        return;
+      }
+    } catch (bookingError) {
+      logger.error('Error handling Booking trigger:', bookingError);
     }
 
     try {

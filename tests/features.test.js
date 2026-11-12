@@ -22,6 +22,9 @@ const EXPECTED_BASE_COMMANDS = [
   'hsk',
   'hsk-admin',
   'hsk-bxh',
+  'ib1',
+  'ib2',
+  'ib3',
   'laudon',
   'marry',
   'moticket',
@@ -176,8 +179,14 @@ test('skips TTS events and interactions by default, and loads them when ENABLE_T
     assert.ok(client.buttons.has('hw_book'));
     assert.ok(client.buttons.has('doantu_hint'));
     assert.ok(client.buttons.has('hsk_home'));
+    assert.ok(client.buttons.has('st_tos'));
+    assert.ok(client.buttons.has('st_open_buy'));
+    assert.ok(client.buttons.has('st_open_support'));
+    assert.ok(client.buttons.has('st_delete'));
     assert.ok(client.selectMenus.has('hsk_select_band'));
     assert.ok(client.modals.has('hw_modal_book'));
+    assert.ok(client.modals.has('st_modal_buy'));
+    assert.ok(client.modals.has('st_modal_support'));
     assert.ok(client.modals.has('doantu_modal_time'));
     assert.ok(client.modals.has('hsk_modal_search'));
 
@@ -186,6 +195,7 @@ test('skips TTS events and interactions by default, and loads them when ENABLE_T
         name.startsWith('excuse') ||
           name.startsWith('rd') ||
           name.startsWith('hw') ||
+          name.startsWith('st_') ||
           name.startsWith('doantu') ||
           name.startsWith('hsk'),
         `Unexpected button loaded while TTS is disabled: ${name}`,
