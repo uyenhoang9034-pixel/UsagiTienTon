@@ -12,6 +12,8 @@ import {
   IS_COMPONENTS_V2,
   SERVICE_TOS_CHANNEL_IDS,
   INVALID_FEEDBACK_REPLY_TEXT,
+  INVALID_FEEDBACK_SYNTAX_REPLY_TEXT,
+  classifyFeedbackLegitMessage,
   buildServiceTosPayloadsV2,
   buildServicePanelPayloadV2,
   buildServiceWelcomePayloadV2,
@@ -866,4 +868,137 @@ test('Feedback +1 legit không có đơn hàng: reply đúng người đó và t
   assert.equal(invalidMsgDeleted, true);
   assert.equal(invalidReplyDeleted, true);
   assert.deepEqual(deletedOrder, ['fb_invalid_1', 'bot_reply_invalid_1']);
+});
+
+test('Feedback +1 legit không kèm tên sản phẩm vẫn hợp lệ; gõ sai cú pháp (+1 legt, +1 le, + 1 legit) thì nhắc & xóa sau 5s; +1 trơn thì bỏ qua', async () => {
+  // 1. Kiểm tra bộ phân loại cú pháp
+  assert.equal(classifyFeedbackLegitMessage('+1 legit'), 'valid');
+  assert.equal(classifyFeedbackLegitMessage('+1 legit bot discord'), 'valid');
+  assert.equal(classifyFeedbackLegitMessage('+1legit'), 'valid');
+
+  assert.equal(classifyFeedbackLegitMessage('+1 legt'), 'invalid_syntax');
+  assert.equal(classifyFeedbackLegitMessage('+1 le'), 'invalid_syntax');
+  assert.equal(classifyFeedbackLegitMessage('+1 leg'), 'invalid_syntax');
+  assert.equal(classifyFeedbackLegitMessage('+1 lehit'), 'invalid_syntax');
+  assert.equal(classifyFeedbackLegitMessage('+ 1 legit'), 'invalid_syntax');
+  assert.equal(classifyFeedbackLegitMessage('1 legit'), 'invalid_syntax');
+  assert.equal(classifyFeedbackLegitMessage('+legit'), 'invalid_syntax');
+
+  assert.equal(classifyFeedbackLegitMessage('+1'), 'ignore');
+  assert.equal(classifyFeedbackLegitMessage('+ 1'), 'ignore');
+  assert.equal(classifyFeedbackLegitMessage('+1 cam on shop'), 'ignore');
+  assert.equal(classifyFeedbackLegitMessage('shop nay uy tin qua'), 'ignore');
+
+  // 2. Luồng xử lý thực tế tại kênh feedback
+  const client = createMemoryDbClient();
+  const { guild } = createMockGuild({ client, staffIds: ['staff_1'] });
+
+  const buyRes = await createServiceTicketFromModal(
+    { guild, user: { id: 'cust_ok', username: 'khachok' } },
+    client,
+    { mode: 'buy', rawInput: 'codebot' },
+  );
+  await handleServiceTicketMessage(
+    {
+      content: '&nhacfb',
+      guild,
+      author: { id: 'staff_1', bot: false },
+      member: {
+        guild,
+        roles: { cache: new Collection([[SERVICE_TICKET_IDS.SP_TICKET_ROLE_ID, {}]]) },
+      },
+      channel: buyRes.channel,
+      delete: async () => {},
+    },
+    client,
+  );
+
+  const feedbackChannel = {
+    id: SERVICE_TICKET_IDS.FEEDBACK_CHANNEL_ID,
+    guild,
+    client,
+    sentStickies: [],
+    send: async (payload) => {
+      const msg = { id: `sticky_${feedbackChannel.sentStickies.length + 1}`, author: { id: client.user.id }, ...payload };
+      feedbackChannel.sentStickies.push(msg);
+      return msg;
+    },
+    messages: { fetch: async () => new Collection() },
+  };
+
+  // +1 trơn -> bỏ qua hoàn toàn (không rep, không xóa)
+  const plainHandled = await handleServiceTicketFeedbackMessage(
+    {
+      id: 'fb_plain',
+      content: '+1',
+      guild,
+      author: { id: 'cust_ok', bot: false },
+      channel: feedbackChannel,
+      reply: async () => assert.fail('Không được rep khi chỉ ghi +1 trơn'),
+      delete: async () => assert.fail('Không được xóa khi chỉ ghi +1 trơn'),
+    },
+    client,
+    { invalidDeleteDelayMs: 25 },
+  );
+  assert.equal(plainHandled, false);
+
+  // +1 legt -> nhắc sai cú pháp và tự xóa đúng tin nhắn sai đó + reply của bot sau 5s
+  let syntaxReplyPayload = null;
+  let syntaxMsgDeleted = false;
+  let syntaxReplyDeleted = false;
+  const syntaxHandled = await handleServiceTicketFeedbackMessage(
+    {
+      id: 'fb_typo_1',
+      content: '+1 legt',
+      guild,
+      author: { id: 'cust_ok', bot: false },
+      channel: feedbackChannel,
+      react: async () => assert.fail('Không được react khi sai cú pháp'),
+      reply: async (payload) => {
+        syntaxReplyPayload = payload;
+        return {
+          id: 'bot_syntax_reply_1',
+          delete: async () => {
+            syntaxReplyDeleted = true;
+          },
+        };
+      },
+      delete: async () => {
+        syntaxMsgDeleted = true;
+      },
+    },
+    client,
+    { invalidDeleteDelayMs: 25 },
+  );
+  assert.equal(syntaxHandled, true);
+  assert.equal(syntaxReplyPayload?.content, INVALID_FEEDBACK_SYNTAX_REPLY_TEXT);
+  assert.equal(feedbackChannel.sentStickies.length, 0);
+
+  // Ngay trong lúc chờ 5s, khách nhắn lại đúng "+1 legit" (không kèm tên sản phẩm) -> hợp lệ, vẫn nhận diện & react bình thường!
+  const okReactions = [];
+  const validNoProductHandled = await handleServiceTicketFeedbackMessage(
+    {
+      id: 'fb_valid_no_prod',
+      content: '+1 legit',
+      guild,
+      author: { id: 'cust_ok', bot: false },
+      channel: feedbackChannel,
+      react: async (emoji) => {
+        okReactions.push(emoji);
+      },
+      delete: async () => assert.fail('Không được xóa tin nhắn +1 legit hợp lệ'),
+    },
+    client,
+    { invalidDeleteDelayMs: 25 },
+  );
+  assert.equal(validNoProductHandled, true);
+  assert.deepEqual(okReactions, [
+    SERVICE_TICKET_EMOJIS.FEEDBACK_REACT,
+    SERVICE_TICKET_EMOJIS.NUM_1,
+  ]);
+  assert.equal(feedbackChannel.sentStickies.length, 1);
+
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.equal(syntaxMsgDeleted, true);
+  assert.equal(syntaxReplyDeleted, true);
 });

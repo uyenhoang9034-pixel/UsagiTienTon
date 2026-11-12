@@ -1757,6 +1757,8 @@ export async function refreshFeedbackStickyMessage(channel, client) {
 export const INVALID_FEEDBACK_DELETE_DELAY_MS = 5000;
 export const INVALID_FEEDBACK_REPLY_TEXT =
   `${SERVICE_TICKET_EMOJIS.BANG} Xin lỗi, bạn không có ticket hay đang sử dụng dich vụ nào. Mình sẽ tự động xóa tin nhắn sau 5 giây!`;
+export const INVALID_FEEDBACK_SYNTAX_REPLY_TEXT =
+  `${SERVICE_TICKET_EMOJIS.BANG} Bạn ơi chưa đúng cú pháp nè, bạn vui lòng nhắn theo mẫu để bot dễ xử lý nhé!`;
 
 export const FEEDBACK_DIGIT_EMOJIS = Object.freeze({
   0: SERVICE_TICKET_EMOJIS.NUM_0,
@@ -1985,8 +1987,141 @@ export async function nextFeedbackLegitNumber(client, guildId) {
   return task;
 }
 
+function damerauLevenshtein(a, b) {
+  const s = String(a || '');
+  const t = String(b || '');
+  const m = s.length;
+  const n = t.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i += 1) dp[i][0] = i;
+  for (let j = 0; j <= n; j += 1) dp[0][j] = j;
+
+  for (let i = 1; i <= m; i += 1) {
+    for (let j = 1; j <= n; j += 1) {
+      const cost = s[i - 1] === t[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost,
+      );
+      if (i > 1 && j > 1 && s[i - 1] === t[j - 2] && s[i - 2] === t[j - 1]) {
+        dp[i][j] = Math.min(dp[i][j], dp[i - 2][j - 2] + 1);
+      }
+    }
+  }
+
+  return dp[m][n];
+}
+
+function isLegitWordTypoOrPartial(rawToken) {
+  const token = String(rawToken || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+  if (!token || token === 'legit') return false;
+  if (token.length < 2 || token.length > 9) return false;
+
+  // Thiếu chữ cái ở cuối kiểu "+1 le", "+1 leg", "+1 legi" hoặc thiếu chữ cái chính rõ rệt ("lg", "li", "lt")
+  if ('legit'.startsWith(token) || ['lg', 'li', 'lt'].includes(token)) {
+    return true;
+  }
+
+  if (token.length >= 3 && damerauLevenshtein(token, 'legit') <= 2) {
+    return true;
+  }
+
+  return false;
+}
+
 /**
- * Lắng nghe tin nhắn chứa "+1 legit" tại kênh feedback 1570348805155594290
+ * Phân loại tin nhắn ở kênh feedback:
+ * - 'valid': đúng "+1 legit" (kèm hoặc không kèm tên sản phẩm đều hợp lệ)
+ * - 'invalid_syntax': có ý định ghi "+1 legit" nhưng viết sai/thiếu ký tự (vd "+1 legt", "+1 le", "+1 lehit", "+ 1 legit", "1 legit", "+legit")
+ * - 'ignore': "+1" đứng một mình hoặc chat bình thường -> bỏ qua, không rep, không xóa
+ */
+export function classifyFeedbackLegitMessage(rawContent) {
+  const content = String(rawContent || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  if (!content) return 'ignore';
+
+  if (/(?:^|\s)\+1\s*legit(?=$|[\s\W])/i.test(content)) {
+    return 'valid';
+  }
+
+  // Bắt cặp (tiền tố, từ đứng sau) như "+1 legt", "+1 le", "+ 1 legit", "1 legit", "+legit", "=1 legit", "++1 legit"
+  const candidateRegex = /(?:^|\s)(\++\s*1?|[=-]\s*1|1)\s*([a-z0-9]+)(?=$|[\s\W])/gi;
+  let match;
+  while ((match = candidateRegex.exec(content)) !== null) {
+    const exactPlusOne = match[1] === '+1';
+    const token = match[2];
+
+    if (exactPlusOne) {
+      if (isLegitWordTypoOrPartial(token)) {
+        return 'invalid_syntax';
+      }
+      continue;
+    }
+
+    // Tiền tố sai (vd "1 legit", "+ 1 legit", "+legit", "=1 legit", "++1 legit") đi kèm "legit" hoặc typo gần sát "legit"
+    if (token === 'legit' || (token.length >= 4 && damerauLevenshtein(token, 'legit') <= 1)) {
+      return 'invalid_syntax';
+    }
+  }
+
+  return 'ignore';
+}
+
+async function replyAndAutoDeleteFeedbackMessage(message, replyText, invalidDeleteDelayMs) {
+  let replyMsg = null;
+  try {
+    if (typeof message.reply === 'function') {
+      replyMsg = await message.reply({
+        content: replyText,
+        allowedMentions: { repliedUser: true },
+      });
+    } else if (typeof message.channel?.send === 'function') {
+      replyMsg = await message.channel.send({
+        content: replyText,
+        ...(message.id ? { reply: { messageReference: message.id } } : {}),
+        allowedMentions: { repliedUser: true },
+      });
+    }
+  } catch (replyErr) {
+    logger.warn('[ServiceTicket] Không thể reply cảnh báo feedback:', replyErr?.message || replyErr);
+  }
+
+  const targetMessage = message;
+  const targetReply = replyMsg;
+  const delayMs = Number.isFinite(Number(invalidDeleteDelayMs))
+    ? Math.max(0, Number(invalidDeleteDelayMs))
+    : INVALID_FEEDBACK_DELETE_DELAY_MS;
+
+  const cleanupTimer = setTimeout(async () => {
+    if (typeof targetMessage?.delete === 'function') {
+      await targetMessage.delete().catch(() => {});
+    } else if (targetMessage?.id && typeof targetMessage.channel?.messages?.delete === 'function') {
+      await targetMessage.channel.messages.delete(targetMessage.id).catch(() => {});
+    }
+
+    if (typeof targetReply?.delete === 'function') {
+      await targetReply.delete().catch(() => {});
+    } else if (targetReply?.id && typeof targetMessage?.channel?.messages?.delete === 'function') {
+      await targetMessage.channel.messages.delete(targetReply.id).catch(() => {});
+    }
+  }, delayMs);
+
+  cleanupTimer.unref?.();
+}
+
+/**
+ * Lắng nghe tin nhắn "+1 legit" (kể cả không kèm tên sản phẩm) và lỗi gõ sai cú pháp tại kênh feedback 1570348805155594290
  */
 export async function handleServiceTicketFeedbackMessage(
   message,
@@ -1998,9 +2133,14 @@ export async function handleServiceTicketFeedbackMessage(
     return false;
   }
 
-  const content = String(message.content || '').trim();
-  if (!/(?:^|\s)\+1\s*legit(?=$|[\s\W])/i.test(content)) {
+  const classification = classifyFeedbackLegitMessage(message.content);
+  if (classification === 'ignore') {
     return false;
+  }
+
+  if (classification === 'invalid_syntax') {
+    await replyAndAutoDeleteFeedbackMessage(message, INVALID_FEEDBACK_SYNTAX_REPLY_TEXT, invalidDeleteDelayMs);
+    return true;
   }
 
   const allTickets = await listAllServiceTicketsInGuild(client, message.guild.id);
@@ -2026,45 +2166,7 @@ export async function handleServiceTicketFeedbackMessage(
   // Nếu member không phát sinh đơn hàng / không có ticket hợp lệ:
   // Reply trực tiếp tin nhắn của riêng người đó và đợi 5 giây rồi chỉ xóa tin nhắn của đúng người đó (+ reply của bot)
   if (activeOrderTickets.length === 0) {
-    let replyMsg = null;
-    try {
-      if (typeof message.reply === 'function') {
-        replyMsg = await message.reply({
-          content: INVALID_FEEDBACK_REPLY_TEXT,
-          allowedMentions: { repliedUser: true },
-        });
-      } else if (typeof message.channel?.send === 'function') {
-        replyMsg = await message.channel.send({
-          content: INVALID_FEEDBACK_REPLY_TEXT,
-          ...(message.id ? { reply: { messageReference: message.id } } : {}),
-          allowedMentions: { repliedUser: true },
-        });
-      }
-    } catch (replyErr) {
-      logger.warn('[ServiceTicket] Không thể reply cảnh báo feedback không hợp lệ:', replyErr?.message || replyErr);
-    }
-
-    const targetMessage = message;
-    const targetReply = replyMsg;
-    const delayMs = Number.isFinite(Number(invalidDeleteDelayMs))
-      ? Math.max(0, Number(invalidDeleteDelayMs))
-      : INVALID_FEEDBACK_DELETE_DELAY_MS;
-
-    const cleanupTimer = setTimeout(async () => {
-      if (typeof targetMessage?.delete === 'function') {
-        await targetMessage.delete().catch(() => {});
-      } else if (targetMessage?.id && typeof targetMessage.channel?.messages?.delete === 'function') {
-        await targetMessage.channel.messages.delete(targetMessage.id).catch(() => {});
-      }
-
-      if (typeof targetReply?.delete === 'function') {
-        await targetReply.delete().catch(() => {});
-      } else if (targetReply?.id && typeof targetMessage?.channel?.messages?.delete === 'function') {
-        await targetMessage.channel.messages.delete(targetReply.id).catch(() => {});
-      }
-    }, delayMs);
-
-    cleanupTimer.unref?.();
+    await replyAndAutoDeleteFeedbackMessage(message, INVALID_FEEDBACK_REPLY_TEXT, invalidDeleteDelayMs);
     return true;
   }
 
