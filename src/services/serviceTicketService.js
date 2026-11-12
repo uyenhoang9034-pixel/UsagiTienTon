@@ -1758,45 +1758,136 @@ export const INVALID_FEEDBACK_DELETE_DELAY_MS = 5000;
 export const INVALID_FEEDBACK_REPLY_TEXT =
   `${SERVICE_TICKET_EMOJIS.BANG} Xin lỗi, bạn không có ticket hay đang sử dụng dich vụ nào. Mình sẽ tự động xóa tin nhắn sau 5 giây!`;
 
-export const FEEDBACK_DIGIT_EMOJIS_PRIMARY = Object.freeze({
-  0: '0️⃣',
-  1: '1️⃣',
-  2: '2️⃣',
-  3: '3️⃣',
-  4: '4️⃣',
-  5: '5️⃣',
-  6: '6️⃣',
-  7: '7️⃣',
-  8: '8️⃣',
-  9: '9️⃣',
-});
-
-export const FEEDBACK_DIGIT_EMOJIS_ALT = Object.freeze({
+export const FEEDBACK_DIGIT_EMOJIS = Object.freeze({
+  0: SERVICE_TICKET_EMOJIS.NUM_0,
   1: SERVICE_TICKET_EMOJIS.NUM_1,
   2: SERVICE_TICKET_EMOJIS.NUM_2,
   3: SERVICE_TICKET_EMOJIS.NUM_3,
   4: SERVICE_TICKET_EMOJIS.NUM_4,
   5: SERVICE_TICKET_EMOJIS.NUM_5,
+  6: SERVICE_TICKET_EMOJIS.NUM_6,
+  7: SERVICE_TICKET_EMOJIS.NUM_7,
+  8: SERVICE_TICKET_EMOJIS.NUM_8,
+  9: SERVICE_TICKET_EMOJIS.NUM_9,
 });
 
+const GUILD_DIGIT_EMOJI_CACHE_TTL_MS = 5 * 60 * 1000;
+const guildDigitEmojiCache = new Map();
+
+function extractCustomEmojiId(emojiValue) {
+  const match = String(emojiValue || '').match(/^<a?:[^:>]+:(\d+)>$/);
+  return match ? match[1] : String(emojiValue || '');
+}
+
+export function formatCustomEmojiString(emoji) {
+  if (!emoji) return null;
+  if (typeof emoji === 'string') return emoji;
+  const id = emoji.id ? String(emoji.id) : '';
+  const name = emoji.name ? String(emoji.name) : '';
+  if (!id || !name) return null;
+  return `<${emoji.animated ? 'a' : ''}:${name}:${id}>`;
+}
+
+export function parseFeedbackDigitFromEmojiName(name) {
+  const normalized = String(name || '').trim().toLowerCase();
+  if (!normalized) return null;
+
+  let match = normalized.match(/^([0-9])_?$/);
+  if (match) return match[1];
+
+  match = normalized.match(/^(?:num|digit|so|number)[_-]?([0-9])$/);
+  if (match) return match[1];
+
+  match = normalized.match(/^([0-9])[_-](?:alt|2|v2|b|dup)$/);
+  if (match) return match[1];
+
+  return null;
+}
+
+export async function resolveGuildDigitEmojiMap(guild, client) {
+  const map = {};
+  for (let d = 0; d <= 9; d += 1) {
+    const key = String(d);
+    const configured = FEEDBACK_DIGIT_EMOJIS[key];
+    map[key] = configured ? [configured] : [];
+  }
+
+  const guildId = guild?.id ? String(guild.id) : '';
+  if (!guildId) {
+    return map;
+  }
+
+  const cached = guildDigitEmojiCache.get(guildId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.map;
+  }
+
+  let fetchedEmojis = null;
+  if (typeof guild?.emojis?.fetch === 'function') {
+    const fetched = await guild.emojis.fetch().catch(() => null);
+    if (fetched) {
+      fetchedEmojis = typeof fetched.values === 'function' ? [...fetched.values()] : [...fetched];
+    }
+  } else if (typeof client?.rest?.get === 'function') {
+    const fetched = await client.rest.get(Routes.guildEmojis(guildId)).catch(() => null);
+    if (Array.isArray(fetched)) {
+      fetchedEmojis = fetched;
+    }
+  }
+
+  if (Array.isArray(fetchedEmojis)) {
+    for (const emoji of fetchedEmojis) {
+      const digit = parseFeedbackDigitFromEmojiName(emoji?.name);
+      if (digit === null) continue;
+      const formatted = formatCustomEmojiString(emoji);
+      if (!formatted) continue;
+      const candidateId = extractCustomEmojiId(formatted);
+      const exists = map[digit].some((item) => extractCustomEmojiId(item) === candidateId);
+      if (!exists) {
+        map[digit].push(formatted);
+      }
+    }
+
+    guildDigitEmojiCache.set(guildId, {
+      expiresAt: Date.now() + GUILD_DIGIT_EMOJI_CACHE_TTL_MS,
+      map,
+    });
+  }
+
+  return map;
+}
+
 /**
- * Tạo chuỗi emoji thả phản ứng cho +1 legit hợp lệ:
+ * Tạo chuỗi emoji custom của server để thả phản ứng cho +1 legit hợp lệ:
  * - Đầu tiên: emoji g60 (<a:trangtrig60:1569558191551942696>)
- * - Tiếp theo: từng chữ số của số thứ tự legit (bắt đầu từ 1).
- *   Nếu chữ số 1-5 bị lặp (vd 11, 22), tự động dùng emoji dự phòng NUM_1..NUM_5 để không bị trùng reaction.
+ * - Tiếp theo: từng chữ số của số thứ tự legit bằng bộ emoji custom 0_..9_ (tuyệt đối không dùng emoji Unicode).
+ *   Nếu số có chữ số lặp lại (vd 11, 100), ưu tiên dùng thêm emoji custom phụ của server nếu có;
+ *   Discord không cho react trùng 1 emoji 2 lần trên cùng 1 tin nhắn nên sẽ bỏ qua nếu chưa có emoji phụ.
  */
-export function buildFeedbackReactionSequence(legitNumber) {
+export function buildFeedbackReactionSequence(legitNumber, digitEmojiMap = null) {
   const sequence = [SERVICE_TICKET_EMOJIS.FEEDBACK_REACT];
-  const used = new Set(sequence);
+  const usedIds = new Set(sequence.map(extractCustomEmojiId));
   const digits = String(Math.max(1, Number(legitNumber) || 1));
 
   for (const ch of digits) {
-    const primary = FEEDBACK_DIGIT_EMOJIS_PRIMARY[ch];
-    const alt = FEEDBACK_DIGIT_EMOJIS_ALT[ch];
-    const picked = [primary, alt].find((emoji) => emoji && !used.has(emoji));
+    const configured = FEEDBACK_DIGIT_EMOJIS[ch];
+    const extra = Array.isArray(digitEmojiMap?.[ch])
+      ? digitEmojiMap[ch]
+      : digitEmojiMap?.[ch]
+        ? [digitEmojiMap[ch]]
+        : [];
+    const candidates = [...extra];
+    if (configured) {
+      const configuredId = extractCustomEmojiId(configured);
+      if (!candidates.some((item) => extractCustomEmojiId(item) === configuredId)) {
+        candidates.unshift(configured);
+      }
+    }
+
+    const picked = candidates.find((emoji) => emoji && !usedIds.has(extractCustomEmojiId(emoji)));
     if (picked) {
       sequence.push(picked);
-      used.add(picked);
+      usedIds.add(extractCustomEmojiId(picked));
     }
   }
 
@@ -1913,9 +2004,10 @@ export async function handleServiceTicketFeedbackMessage(
     return true;
   }
 
-  // 1. Tăng bộ đếm & thả emoji g60 kèm từng chữ số thứ tự lên tin nhắn feedback hợp lệ
+  // 1. Tăng bộ đếm & thả emoji g60 kèm từng chữ số thứ tự custom của server lên tin nhắn feedback hợp lệ
   const legitNumber = await nextFeedbackLegitNumber(client, message.guild.id);
-  const reactionSequence = buildFeedbackReactionSequence(legitNumber);
+  const digitEmojiMap = await resolveGuildDigitEmojiMap(message.guild, client).catch(() => null);
+  const reactionSequence = buildFeedbackReactionSequence(legitNumber, digitEmojiMap);
   for (const emoji of reactionSequence) {
     await message.react(emoji).catch((err) => {
       logger.warn('[ServiceTicket] Không thể auto react feedback:', {

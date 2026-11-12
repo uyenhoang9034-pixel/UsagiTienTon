@@ -20,6 +20,7 @@ import {
   buildFeedbackReceivedPayloadV2,
   buildFeedbackStickyPayloadV2,
   buildFeedbackReactionSequence,
+  resolveGuildDigitEmojiMap,
   buildServiceClosedPayloadV2,
   buildDeliveryDmPayloadV2,
   buildDmTranscriptPayloadV2,
@@ -506,7 +507,10 @@ test('End-to-End Flow: Đếm số riêng từng dịch vụ, giới hạn 2 tic
     },
     client,
   );
-  assert.deepEqual(feedbackReactions1, [SERVICE_TICKET_EMOJIS.FEEDBACK_REACT, '1️⃣']);
+  assert.deepEqual(feedbackReactions1, [
+    SERVICE_TICKET_EMOJIS.FEEDBACK_REACT,
+    SERVICE_TICKET_EMOJIS.NUM_1,
+  ]);
   assert.equal(memberMsgDeleted, false); // Không xóa tin nhắn +1 legit của member
   assert.ok(deletedFeedbackIds.includes('old_sticky_0')); // Xóa sticky cũ bị trùng lặp của bot
   assert.equal(feedbackChannelLog.at(-1).id, 'sticky_1'); // Tin nhắn cuối kênh là sticky mới nhất
@@ -546,7 +550,10 @@ test('End-to-End Flow: Đếm số riêng từng dịch vụ, giới hạn 2 tic
     },
     client,
   );
-  assert.deepEqual(feedbackReactions2, [SERVICE_TICKET_EMOJIS.FEEDBACK_REACT, '2️⃣']);
+  assert.deepEqual(feedbackReactions2, [
+    SERVICE_TICKET_EMOJIS.FEEDBACK_REACT,
+    SERVICE_TICKET_EMOJIS.NUM_2,
+  ]);
   assert.ok(deletedFeedbackIds.includes('sticky_1'));
   assert.equal(feedbackChannelLog.length, 1);
   assert.equal(feedbackChannelLog[0].id, 'sticky_2');
@@ -798,16 +805,38 @@ test('Feedback +1 legit không có đơn hàng: reply đúng người đó và t
     client,
     { invalidDeleteDelayMs: 25 },
   );
-  assert.deepEqual(validReactions, [SERVICE_TICKET_EMOJIS.FEEDBACK_REACT, '1️⃣']);
+  assert.deepEqual(validReactions, [
+    SERVICE_TICKET_EMOJIS.FEEDBACK_REACT,
+    SERVICE_TICKET_EMOJIS.NUM_1,
+  ]);
 
   assert.deepEqual(buildFeedbackReactionSequence(10), [
     SERVICE_TICKET_EMOJIS.FEEDBACK_REACT,
-    '1️⃣',
-    '0️⃣',
+    SERVICE_TICKET_EMOJIS.NUM_1,
+    SERVICE_TICKET_EMOJIS.NUM_0,
+  ]);
+  assert.deepEqual(buildFeedbackReactionSequence(98), [
+    SERVICE_TICKET_EMOJIS.FEEDBACK_REACT,
+    SERVICE_TICKET_EMOJIS.NUM_9,
+    SERVICE_TICKET_EMOJIS.NUM_8,
+  ]);
+  // Nếu server có thêm custom emoji phụ cho chữ số lặp (vd 11), resolveGuildDigitEmojiMap tự ghép không dùng Unicode
+  const customGuildDigitMap = await resolveGuildDigitEmojiMap({
+    id: 'guild_custom_digits',
+    emojis: {
+      fetch: async () => new Collection([
+        ['9001', { id: '9001', name: '1_alt', animated: true }],
+        ['9002', { id: '9002', name: 'trangtrig60', animated: true }], // không nhận nhầm emoji trang trí
+      ]),
+    },
+  });
+  assert.deepEqual(buildFeedbackReactionSequence(11, customGuildDigitMap), [
+    SERVICE_TICKET_EMOJIS.FEEDBACK_REACT,
+    SERVICE_TICKET_EMOJIS.NUM_1,
+    '<a:1_alt:9001>',
   ]);
   assert.deepEqual(buildFeedbackReactionSequence(11), [
     SERVICE_TICKET_EMOJIS.FEEDBACK_REACT,
-    '1️⃣',
     SERVICE_TICKET_EMOJIS.NUM_1,
   ]);
 
