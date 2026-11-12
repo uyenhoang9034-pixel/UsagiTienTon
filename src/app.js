@@ -3,9 +3,6 @@ import 'dotenv/config';
 import {
   Client,
   Collection,
-  GatewayIntentBits,
-  Options,
-  Partials,
   Routes,
 } from 'discord.js';
 
@@ -13,6 +10,10 @@ import { REST } from '@discordjs/rest';
 import express from 'express';
 
 import config from './config/application.js';
+import {
+  buildBotClientOptions,
+  isTTSEnabledByEnv,
+} from './config/ttsConfig.js';
 
 import {
   initializeDatabase,
@@ -34,51 +35,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 class UsagiTienTonBot extends Client {
   constructor() {
-    super({
-      intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.GuildVoiceStates,
-        GatewayIntentBits.MessageContent,
-      ],
-      partials: [
-        Partials.Message,
-        Partials.Channel,
-        Partials.User,
-      ],
-      // 🚀 Tối ưu RAM cho Discord.js: Khóa chặt cache không cần thiết và tự động dọn rác bộ nhớ cực kỳ triệt để
-      makeCache: Options.cacheWithLimits({
-        ...Options.DefaultMakeCacheSettings,
-        GuildMemberManager: 10, // Khóa cứng member cache (chỉ lưu tối đa 10 member mỗi guild)
-        UserManager: 10, // Giới hạn tối đa 10 user trong RAM
-        MessageManager: 1, // Chỉ lưu tối đa 1 tin nhắn gần nhất mỗi channel
-        GuildEmojiManager: 0, // Không cache emoji
-        GuildStickerManager: 0, // Không cache sticker
-        ReactionManager: 0, // Không cache reaction
-        ReactionUserManager: 0, // Không cache reaction user
-        StageInstanceManager: 0,
-        AutoModerationRuleManager: 0,
-        GuildScheduledEventManager: 0,
-        GuildBanManager: 0, // Không cache danh sách ban
-        GuildInviteManager: 0, // Không cache invite
-        ThreadManager: 0, // Không cache thread
-        ThreadMemberManager: 0, // Không cache thread member
-        ApplicationCommandManager: 0,
-        BaseGuildEmojiManager: 0,
-        VoiceStateManager: 15, // Giới hạn 15 voice state cần thiết
-      }),
-      sweepers: {
-        ...Options.DefaultSweeperSettings,
-        messages: {
-          interval: 60, // Mỗi 1 phút quét dọn tin nhắn cũ
-          lifetime: 60, // Giải phóng tin nhắn cũ hơn 1 phút khỏi RAM
-        },
-        users: {
-          interval: 60, // Mỗi 1 phút dọn user cache không còn tương tác
-          filter: () => (user) => user.id !== user.client.user?.id,
-        },
-      },
-    });
+    super(buildBotClientOptions());
 
     this.config = config;
     this.commands = new Collection();
@@ -186,7 +143,7 @@ class UsagiTienTonBot extends Client {
       await this.registerCommands();
 
       startupLog(
-        `ONLINE ✅ | ${this.commands.size} commands | ${this.buttons.size} buttons | ${this.selectMenus.size} menus`,
+        `ONLINE ✅ | ${this.commands.size} commands | ${this.buttons.size} buttons | ${this.selectMenus.size} menus | TTS: ${isTTSEnabledByEnv() ? 'ENABLED 🎙️' : 'DISABLED 💤'}`,
       );
 
       const engines = [];
@@ -224,6 +181,7 @@ class UsagiTienTonBot extends Client {
       res.status(200).json({
         status: 'healthy',
         discordReady: this.isReady(),
+        ttsEnabled: isTTSEnabledByEnv(),
         uptime: process.uptime(),
       }),
     );
@@ -264,6 +222,13 @@ class UsagiTienTonBot extends Client {
     shutdownLog(`Usagi Tiên Tôn shutting down (${reason})...`);
 
     try {
+      if (isTTSEnabledByEnv()) {
+        try {
+          const { ttsManager } = await import('./services/tts/ttsManager.js');
+          await ttsManager.stopAllSessions(`Bot shutdown (${reason})`);
+        } catch {}
+      }
+
       if (this.webServer) {
         await new Promise((resolve) => this.webServer.close(resolve));
       }
@@ -317,4 +282,6 @@ if (typeof global.gc === 'function') {
   }, 15 * 1000).unref();
 }
 
-bot.start();
+if (process.env.USAGI_IMPORT_ONLY !== 'true') {
+  bot.start();
+}

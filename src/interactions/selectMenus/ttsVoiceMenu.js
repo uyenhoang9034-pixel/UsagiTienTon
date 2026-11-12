@@ -1,5 +1,11 @@
 import { MessageFlags } from 'discord.js';
 import { logger } from '../../utils/logger.js';
+import { isTTSEnabledByEnv } from '../../config/ttsConfig.js';
+import {
+  getTTSDisabledNoticeMessage,
+  getTTSGuildConfig,
+  isTTSGuildEnabled,
+} from '../../services/tts/ttsStateService.js';
 import {
   ttsManager,
   hasTTSManagePermission,
@@ -12,6 +18,18 @@ export default {
   async execute(interaction, client, args = []) {
     const [guildId] = args;
     const selectedVoiceId = interaction.values?.[0];
+    const botClient = client || interaction.client;
+
+    if (!isTTSEnabledByEnv() || (guildId && !(await isTTSGuildEnabled(botClient, guildId)))) {
+      const ttsConfig = await getTTSGuildConfig(botClient, guildId);
+      if (guildId && ttsManager.hasSession(guildId)) {
+        await ttsManager.disableGuildTTS(guildId, 'Tính năng TTS đang tắt');
+      }
+      return interaction.reply({
+        content: getTTSDisabledNoticeMessage(ttsConfig),
+        flags: MessageFlags.Ephemeral,
+      });
+    }
 
     if (!selectedVoiceId) {
       return interaction.reply({
@@ -24,7 +42,12 @@ export default {
     const session = ttsManager.getSession(guildId);
 
     if (session) {
-      const isManager = hasTTSManagePermission(interaction.member);
+      const isManager = hasTTSManagePermission(
+        interaction.member,
+        interaction.user?.id,
+        interaction.guild,
+        interaction.memberPermissions,
+      );
 
       // Nếu không phải role Quản lý/Admin, chỉ được đổi giọng 1 lần duy nhất trong phòng voice này
       if (!isManager && ttsManager.hasUserChangedVoice(guildId, interaction.user.id)) {

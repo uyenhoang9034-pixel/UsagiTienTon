@@ -1,6 +1,7 @@
 import { Events } from 'discord.js';
 
 import { logger } from '../utils/logger.js';
+import { isTTSEnabledByEnv } from '../config/ttsConfig.js';
 import { initWordGuessAutoResume } from '../services/wordGuessService.js';
 import { initHskAutoResume } from '../services/hskService.js';
 
@@ -29,6 +30,10 @@ export default {
       logger.warn('Could not initialize HSK 3.0 Arena auto-resume:', error);
     }
 
-    logger.info('Usagi ready: Kết Hôn + Voice TTS + AI.');
+    logger.info(
+      isTTSEnabledByEnv()
+        ? 'Usagi ready: Kết Hôn + Voice TTS + AI.'
+        : 'Usagi ready: Kết Hôn + AI (TTS đang tắt để tiết kiệm RAM).',
+    );
   },
 };

@@ -2,6 +2,7 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 
 import { pgConfig } from './database/postgres.js';
+import { isTTSEnabledByEnv } from './ttsConfig.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -125,7 +126,12 @@ const appConfig = {
 
   features: {
     games: true,
-    voice: true,
+    get voice() {
+      return isTTSEnabledByEnv();
+    },
+    get tts() {
+      return isTTSEnabledByEnv();
+    },
     ai: true,
   },
 

@@ -8,13 +8,15 @@ import {
 } from '../utils/messageAdapter.js';
 import { resolveCommandAlias } from '../config/commands/commandAliases.js';
 import { getCommandPrefix } from '../config/bot.js';
-import { handleTTSMessage } from '../services/tts/ttsManager.js';
+import { isTTSEnabledByEnv } from '../config/ttsConfig.js';
 import { handleAIChatMessage } from '../services/ai/aiChatManager.js';
 import { handleThanVanTuBan } from '../services/thanVanTuBanService.js';
 import { handleQuoteTrigger } from '../services/quotes/quoteService.js';
 import { handleRandomMessage } from '../services/randomService.js';
 import { handleBookingMessage } from '../services/bookingService.js';
 import { handleWordGuessMessage } from '../services/wordGuessService.js';
+
+let cachedHandleTTSMessage = null;
 
 export default {
   name: Events.MessageCreate,
@@ -33,13 +35,16 @@ export default {
       logger.error('Error handling AI chat message:', aiError);
     }
 
-    try {
-      const handledByTTS = await handleTTSMessage(message, client);
-      if (handledByTTS) {
-        return;
+    if (isTTSEnabledByEnv()) {
+      try {
+        cachedHandleTTSMessage ??= (await import('../services/tts/ttsManager.js')).handleTTSMessage;
+        const handledByTTS = await cachedHandleTTSMessage(message, client);
+        if (handledByTTS) {
+          return;
+        }
+      } catch (ttsError) {
+        logger.error('Error handling TTS message:', ttsError);
       }
-    } catch (ttsError) {
-      logger.error('Error handling TTS message:', ttsError);
     }
 
     try {

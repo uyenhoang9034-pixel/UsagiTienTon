@@ -53,6 +53,9 @@ export const getHskUserProgressPrefix = (guildId) =>
 export const getHskUserRegistryKey = (guildId) =>
   `games:hsk:users:${guildId}`;
 
+export const getTTSGuildConfigKey = (guildId) =>
+  guildKey(guildId, 'tts', 'config');
+
 /**
  * =========================================================
  * COMPATIBILITY EXPORTS · OLD MODULES

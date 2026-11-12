@@ -1,33 +1,15 @@
 import { PassThrough } from 'node:stream';
 import { PermissionFlagsBits } from 'discord.js';
 import { logger } from '../../utils/logger.js';
-import { synthesizeSpeech } from './ttsAudioEngine.js';
+import { isTTSEnabledByEnv } from '../../config/ttsConfig.js';
 import { getVoiceById, getDefaultVoice } from './ttsVoices.js';
+import {
+  TTS_MANAGER_ROLE_ID,
+  hasTTSManagePermission,
+  isTTSGuildEnabled,
+} from './ttsStateService.js';
 
-export const TTS_MANAGER_ROLE_ID = '1545305594712432640';
-
-/**
- * Kiểm tra người dùng có quyền Quản lý TTS hay không:
- * - Có Role ID 1545305594712432640
- * - Hoặc là Chủ máy chủ (Server Owner)
- * - Hoặc có quyền Administrator
- */
-export function hasTTSManagePermission(member) {
-  if (!member) return false;
-  if (member.guild?.ownerId && member.id === member.guild.ownerId) return true;
-  if (member.permissions?.has?.(PermissionFlagsBits.Administrator)) return true;
-  if (member.permissions?.has?.(PermissionFlagsBits.ManageGuild)) return true;
-
-  if (member.roles?.cache?.has?.(TTS_MANAGER_ROLE_ID)) return true;
-  if (Array.isArray(member.roles) && member.roles.includes(TTS_MANAGER_ROLE_ID)) return true;
-
-  const hasAdminRole = member.roles?.cache?.some?.((r) =>
-    /^(admin|administrator|quản lý|quản trị viên|quan ly|quan tri vien)$/i.test(r.name?.trim())
-  );
-  if (hasAdminRole) return true;
-
-  return false;
-}
+export { TTS_MANAGER_ROLE_ID, hasTTSManagePermission };
 
 /**
  * Kiểm tra tin nhắn spam:
@@ -160,6 +142,7 @@ export function splitTextIntoChunks(text, maxChunkLength = 160) {
 }
 
 let voiceModule = null;
+let audioEngineModule = null;
 let ffmpegInitialized = false;
 
 async function getVoiceModule() {
@@ -174,6 +157,13 @@ async function getVoiceModule() {
     }
   }
   return voiceModule;
+}
+
+async function getAudioEngine() {
+  if (!audioEngineModule) {
+    audioEngineModule = await import('./ttsAudioEngine.js');
+  }
+  return audioEngineModule;
 }
 
 async function ensureFFmpegPath() {
@@ -223,6 +213,15 @@ class TTSManager {
     mode = 'owner_only',
     speed = '1.0x',
   }) {
+    if (!isTTSEnabledByEnv()) {
+      throw new Error('Tính năng nói thay (TTS) đang được tắt ở cấp hệ thống (ENABLE_TTS=false).');
+    }
+
+    const guildEnabled = await isTTSGuildEnabled(guild?.client, guild?.id);
+    if (!guildEnabled) {
+      throw new Error('Tính năng nói thay (TTS) đang tạm tắt trong máy chủ này để tiết kiệm RAM.');
+    }
+
     // Dừng session cũ nếu đang tồn tại
     if (this.sessions.has(guild.id)) {
       await this.stopSession(guild.id, 'Chuyển sang phiên nói thay mới');
@@ -244,7 +243,7 @@ class TTSManager {
     // Dùng @discordjs/voice (Direct Native Voice Engine với DAVE E2EE)
     // Cho phép phát trực tiếp tất cả âm thanh chất lượng cao (Hoài My, Nam Minh, TikTok, Anime,...)
     // =========================================================================
-    let directVoiceError = null;
+    let connection = null;
     try {
       await ensureFFmpegPath();
       const voice = await getVoiceModule();
@@ -258,7 +257,7 @@ class TTSManager {
       } catch {}
 
       logger.info(`Joining voice channel ${voiceChannel.id} in guild ${guild.id} with @discordjs/voice...`);
-      const connection = voice.joinVoiceChannel({
+      connection = voice.joinVoiceChannel({
         channelId: voiceChannel.id,
         guildId: guild.id,
         adapterCreator: guild.voiceAdapterCreator,
@@ -266,10 +265,8 @@ class TTSManager {
         selfMute: false,
       });
 
-      const stateHistory = [connection.state?.status || 'Signalling'];
       connection.on('stateChange', (oldState, newState) => {
         const transition = `${oldState.status} ➔ ${newState.status}`;
-        stateHistory.push(transition);
         logger.info(`TTS VoiceConnection in guild ${guild.id}: ${transition}`);
       });
 
@@ -351,6 +348,11 @@ class TTSManager {
       this.resetIdleTimer(guild.id);
       return session;
     } catch (err) {
+      if (connection && !this.sessions.has(guild.id)) {
+        try {
+          connection.destroy();
+        } catch {}
+      }
       logger.error(`@discordjs/voice kết nối không thành công trong guild ${guild.id}:`, err);
       throw err || new Error('Không thể khởi tạo kết nối âm thanh trong phòng voice.');
     }
@@ -519,6 +521,7 @@ class TTSManager {
     // ============================================
     try {
       const voice = await getVoiceModule();
+      const { synthesizeSpeech } = await getAudioEngine();
       const voiceIdToUse = item.voiceId || session.voiceId;
       const speedToUse = item.speed || session.speed;
 
@@ -588,6 +591,10 @@ class TTSManager {
    * Tự động chia nhỏ thành các đoạn nếu văn bản dài
    */
   async speakNow(guildId, text, { voiceId, speed, authorName, userId } = {}) {
+    if (!isTTSEnabledByEnv()) {
+      throw new Error('Tính năng nói thay (TTS) đang được tắt ở cấp hệ thống (ENABLE_TTS=false).');
+    }
+
     const session = this.sessions.get(guildId);
     if (!session) {
       throw new Error('Chưa có phiên TTS nào đang hoạt động trong máy chủ này!');
@@ -680,13 +687,26 @@ class TTSManager {
   /**
    * Xử lý tin nhắn trong sự kiện MessageCreate
    */
-  async handleTextMessage(message) {
-    if (!message.guild || message.author.bot) {
+  async handleTextMessage(message, client = null) {
+    if (!isTTSEnabledByEnv()) {
+      return false;
+    }
+
+    if (!message?.guild || message.author?.bot) {
       return false;
     }
 
     const session = this.sessions.get(message.guild.id);
     if (!session) {
+      return false;
+    }
+
+    const guildEnabled = await isTTSGuildEnabled(
+      client || message.client,
+      message.guild.id,
+    );
+    if (!guildEnabled) {
+      await this.stopSession(message.guild.id, 'Tính năng TTS đã bị tắt');
       return false;
     }
 
@@ -747,11 +767,21 @@ class TTSManager {
    * Xử lý sự kiện voiceStateUpdate để tự rời khi một mình hoặc bị ngắt kết nối
    */
   async handleVoiceState(client, oldState, newState) {
+    if (!isTTSEnabledByEnv()) {
+      return;
+    }
+
     const guildId = oldState?.guild?.id || newState?.guild?.id;
     if (!guildId) return;
 
     const session = this.sessions.get(guildId);
     if (!session) return;
+
+    const guildEnabled = await isTTSGuildEnabled(client, guildId);
+    if (!guildEnabled) {
+      await this.stopSession(guildId, 'Tính năng TTS đã bị tắt');
+      return;
+    }
 
     const botId = client.user.id;
 
@@ -787,12 +817,71 @@ class TTSManager {
     }
   }
 
+  isVoiceModuleLoaded() {
+    return Boolean(voiceModule);
+  }
+
+  isAudioEngineLoaded() {
+    return Boolean(audioEngineModule);
+  }
+
+  async disableGuildTTS(guildId, reason = 'Quản lý đã tắt tính năng TTS') {
+    const hadSession = this.sessions.has(guildId);
+    const stoppedSession = await this.stopSession(guildId, reason);
+
+    if (voiceModule && guildId) {
+      try {
+        const existingConn = voiceModule.getVoiceConnection(guildId);
+        if (existingConn) {
+          existingConn.destroy();
+        }
+      } catch {}
+    }
+
+    if (this.sessions.size === 0) {
+      audioEngineModule = null;
+      if (typeof global.gc === 'function') {
+        try {
+          global.gc();
+        } catch {}
+      }
+    }
+
+    return {
+      hadSession,
+      stoppedSession,
+      voiceModuleLoaded: Boolean(voiceModule),
+      audioEngineLoaded: Boolean(audioEngineModule),
+    };
+  }
+
+  async stopAllSessions(reason = 'Tắt toàn bộ phiên TTS') {
+    const guildIds = [...this.sessions.keys()];
+    for (const guildId of guildIds) {
+      await this.stopSession(guildId, reason);
+    }
+
+    if (this.sessions.size === 0) {
+      audioEngineModule = null;
+      if (typeof global.gc === 'function') {
+        try {
+          global.gc();
+        } catch {}
+      }
+    }
+
+    return guildIds.length;
+  }
+
   async getDependencyReport() {
+    if (!voiceModule) {
+      return '💤 @discordjs/voice đang ở chế độ chờ (chưa nạp vào RAM để tiết kiệm bộ nhớ, sẽ tự động nạp khi gọi /tts vao).';
+    }
+
     let voiceReport = '';
     try {
-      const voice = await getVoiceModule();
-      if (typeof voice.generateDependencyReport === 'function') {
-        voiceReport = voice.generateDependencyReport();
+      if (typeof voiceModule.generateDependencyReport === 'function') {
+        voiceReport = voiceModule.generateDependencyReport();
       }
     } catch (err) {
       voiceReport = `Không có @discordjs/voice: ${err?.message || err}`;
@@ -805,7 +894,7 @@ class TTSManager {
 export const ttsManager = new TTSManager();
 
 export async function handleTTSMessage(message, client) {
-  return ttsManager.handleTextMessage(message);
+  return ttsManager.handleTextMessage(message, client);
 }
 
 export async function handleTTSVoiceState(client, oldState, newState) {

@@ -10,9 +10,13 @@ export const commandAliases = {
   hskbxh: 'hsk-bxh',
   bxhhsk: 'hsk-bxh',
   'bxh-hsk': 'hsk-bxh',
+  ttsadmin: 'tts-admin',
 };
 
-export const subcommandAliases = {};
+export const subcommandAliases = {
+  disable: 'tat',
+  enable: 'bat',
+};
 
 export function resolveCommandAlias(commandName = '') {
   const normalized = String(commandName).trim().toLowerCase();

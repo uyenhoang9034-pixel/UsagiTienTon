@@ -11,6 +11,12 @@ import {
 } from 'discord.js';
 
 import { logger } from '../../utils/logger.js';
+import { isTTSEnabledByEnv } from '../../config/ttsConfig.js';
+import {
+  getTTSDisabledNoticeMessage,
+  getTTSGuildConfig,
+  isTTSGuildEnabled,
+} from '../../services/tts/ttsStateService.js';
 import {
   ttsManager,
   hasTTSManagePermission,
@@ -253,7 +259,8 @@ export default {
 
   category: 'Voice',
 
-  async execute(interaction, client) {
+  async execute(interaction, _guildConfig, client) {
+    const botClient = client || interaction.client;
     const subcommand = interaction.options.getSubcommand();
     const guild = interaction.guild;
     const member = interaction.member;
@@ -263,6 +270,20 @@ export default {
         content: 'Lệnh này chỉ dùng được trong máy chủ thôi nha vợ của Kim Nong ơi!',
         flags: MessageFlags.Ephemeral,
       });
+    }
+
+    if (!isTTSEnabledByEnv() || !(await isTTSGuildEnabled(botClient, guild.id))) {
+      const ttsConfig = await getTTSGuildConfig(botClient, guild.id);
+      if (ttsManager.hasSession(guild.id)) {
+        await ttsManager.disableGuildTTS(guild.id, 'Tính năng TTS đang tắt');
+      }
+      const replyPayload = {
+        content: getTTSDisabledNoticeMessage(ttsConfig),
+      };
+      if (!interaction._isPrefixCommand) {
+        replyPayload.flags = MessageFlags.Ephemeral;
+      }
+      return interaction.reply(replyPayload);
     }
 
     try {
@@ -277,7 +298,12 @@ export default {
           });
         }
 
-        const isManager = hasTTSManagePermission(member);
+        const isManager = hasTTSManagePermission(
+          member,
+          member?.id || interaction.user?.id,
+          guild,
+          interaction.memberPermissions,
+        );
         const requestedMode = interaction.options.getString('chedo');
 
         let mode = 'all';
@@ -312,6 +338,7 @@ export default {
 
         // Đọc câu chào mở đầu sau khi phòng voice đã kết nối hoàn tất
         setTimeout(() => {
+          if (!ttsManager.hasSession(guild.id)) return;
           ttsManager
             .speakNow(
               guild.id,
@@ -341,7 +368,12 @@ export default {
           });
         }
 
-        const isManager = hasTTSManagePermission(member);
+        const isManager = hasTTSManagePermission(
+          member,
+          member?.id || interaction.user?.id,
+          guild,
+          interaction.memberPermissions,
+        );
         if (!isManager) {
           return interaction.reply({
             content: `❌ Dạ chỉ Quản lý (role <@&${TTS_MANAGER_ROLE_ID}>) mới có quyền bảo em rời phòng voice thôi ạ! Mọi người chỉ có thể gọi em vào chứ không được đuổi em ra đâu nè 🐰💕`,
@@ -361,7 +393,12 @@ export default {
       if (subcommand === 'giong') {
         const session = ttsManager.getSession(guild.id);
         const chosenVoiceId = interaction.options.getString('chon_giong');
-        const isManager = hasTTSManagePermission(member);
+        const isManager = hasTTSManagePermission(
+          member,
+          member?.id || interaction.user?.id,
+          guild,
+          interaction.memberPermissions,
+        );
 
         // Kiểm tra nếu là role everyone thì chỉ được đổi 1 lần duy nhất trong phòng voice hiện tại
         if (session && !isManager && ttsManager.hasUserChangedVoice(guild.id, member.id)) {
@@ -431,7 +468,12 @@ export default {
           });
         }
 
-        const isManager = hasTTSManagePermission(member);
+        const isManager = hasTTSManagePermission(
+          member,
+          member?.id || interaction.user?.id,
+          guild,
+          interaction.memberPermissions,
+        );
         if (mode === 'owner_only' && !isManager) {
           return interaction.reply({
             content: `❌ Dạ chỉ Quản lý (role <@&${TTS_MANAGER_ROLE_ID}>) mới có quyền dùng chế độ "Chỉ mình tôi" thôi ạ! Mọi người dùng chế độ nói thay chung cho cả kênh nha 🐰💕`,
@@ -454,7 +496,7 @@ export default {
       if (subcommand === 'trangthai') {
         const session = ttsManager.getSession(guild.id);
         if (!session) {
-          const report = await ttsManager.getDependencyReport(client);
+          const report = await ttsManager.getDependencyReport();
           return interaction.reply({
             content:
               `🐰 Hiện tại em chưa vào phòng voice nào cả vợ của Kim Nong ơi!\n• **Bản cập nhật:** \`v2.1.1-tts-dave\`\n• **Báo cáo thư viện voice:**\n\`\`\`\n${report}\n\`\`\`\nChị dùng \`/tts vao\` để em vào nói thay chị nghen 💕`,

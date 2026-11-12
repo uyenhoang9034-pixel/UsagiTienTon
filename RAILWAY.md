@@ -40,6 +40,7 @@ Không bật Serverless / Sleep cho bot Discord.
 | `DATABASE_URL` | Tham chiếu database PostgreSQL đã chuẩn bị |
 | `AUTO_MIGRATE` | `true` với database riêng đã chuẩn bị |
 | `ALLOW_MEMORY_DATABASE` | `false` |
+| `ENABLE_TTS` | `false` *(mặc định tắt triệt để Voice TTS để tiết kiệm RAM; đổi `true` khi cần bật lại `/tts` & `/tts-admin`)* |
 | `LAVALINK_HOST` | Private Domain của service Lavalink |
 | `LAVALINK_PORT` | `2333` |
 | `LAVALINK_PASSWORD` | Cùng mật khẩu với service Lavalink |

@@ -3,6 +3,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 
 import { logger } from '../../utils/logger.js';
+import { isTTSEnabledByEnv } from '../../config/ttsConfig.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -17,9 +18,15 @@ const ALLOWED_EVENT_FILES = new Set([
 export default async function loadEvents(client) {
   const eventsPath = join(__dirname, '../../events');
   const allFiles = await readdir(eventsPath);
+  const ttsEnabled = isTTSEnabledByEnv();
   const eventFiles = allFiles
     .filter((file) => file.endsWith('.js'))
-    .filter((file) => ALLOWED_EVENT_FILES.has(file));
+    .filter((file) => ALLOWED_EVENT_FILES.has(file))
+    .filter((file) => ttsEnabled || file !== 'voiceStateUpdate.js');
+
+  if (!ttsEnabled) {
+    logger.info('TTS is disabled (ENABLE_TTS=false) — skipping voiceStateUpdate event to save RAM.');
+  }
 
   logger.info(
     `Found ${eventFiles.length} allowed event files to load; skipped ${allFiles.length - eventFiles.length} non-scope files`,

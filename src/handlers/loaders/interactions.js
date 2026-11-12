@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname } from 'path';
 
 import { logger } from '../../utils/logger.js';
+import { isTTSEnabledByEnv } from '../../config/ttsConfig.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -16,9 +17,7 @@ const __dirname = dirname(__filename);
  */
 const interactionTypes = ['buttons', 'selectMenus', 'modals'];
 
-const ALLOWED_INTERACTION_PATTERNS = [
-  /^buttons\/tts.*\.js$/,
-  /^buttons\/tts\/.*\.js$/,
+const BASE_ALLOWED_INTERACTION_PATTERNS = [
   /^buttons\/excuse.*\.js$/,
   /^buttons\/excuse\/.*\.js$/,
   /^buttons\/random.*\.js$/,
@@ -29,8 +28,6 @@ const ALLOWED_INTERACTION_PATTERNS = [
   /^buttons\/doantu\/.*\.js$/,
   /^buttons\/hsk.*\.js$/,
   /^buttons\/hsk\/.*\.js$/,
-  /^selectMenus\/tts.*\.js$/,
-  /^selectMenus\/tts\/.*\.js$/,
   /^selectMenus\/hsk.*\.js$/,
   /^selectMenus\/hsk\/.*\.js$/,
   /^modals\/booking.*\.js$/,
@@ -41,8 +38,28 @@ const ALLOWED_INTERACTION_PATTERNS = [
   /^modals\/hsk\/.*\.js$/,
 ];
 
+const TTS_INTERACTION_PATTERNS = [
+  /^buttons\/tts.*\.js$/,
+  /^buttons\/tts\/.*\.js$/,
+  /^selectMenus\/tts.*\.js$/,
+  /^selectMenus\/tts\/.*\.js$/,
+  /^modals\/tts.*\.js$/,
+  /^modals\/tts\/.*\.js$/,
+];
+
 function isAllowedInteraction(relativePath) {
-  return ALLOWED_INTERACTION_PATTERNS.some((pattern) => pattern.test(relativePath));
+  if (BASE_ALLOWED_INTERACTION_PATTERNS.some((pattern) => pattern.test(relativePath))) {
+    return true;
+  }
+
+  if (
+    isTTSEnabledByEnv() &&
+    TTS_INTERACTION_PATTERNS.some((pattern) => pattern.test(relativePath))
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 async function getAllInteractionFiles(directory, fileList = []) {

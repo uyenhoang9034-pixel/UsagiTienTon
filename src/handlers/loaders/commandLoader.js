@@ -4,7 +4,8 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { Collection } from 'discord.js';
 
 import { logger } from '../../utils/logger.js';
-import botConfig from '../../config/bot.js';
+import botConfig, { isCommandCategoryEnabled } from '../../config/bot.js';
+import { isTTSEnabledByEnv } from '../../config/ttsConfig.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -68,6 +69,11 @@ async function getAllowedCommandFiles(commandsPath) {
   const commandFiles = [];
 
   for (const dirName of ALLOWED_COMMAND_DIRS) {
+    if (dirName === 'Voice' && (!isTTSEnabledByEnv() || !isCommandCategoryEnabled('Voice'))) {
+      logger.info('TTS is disabled (ENABLE_TTS=false) — skipping Voice commands to save RAM.');
+      continue;
+    }
+
     const dirPath = path.join(commandsPath, dirName);
 
     try {

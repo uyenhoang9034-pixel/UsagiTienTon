@@ -4,7 +4,7 @@ Discord Bot tích hợp Voice TTS, Kết Hôn (Marriage), và Trợ lý AI Thôn
 
 ## Các tính năng chính
 
-- **Voice TTS (Text-to-Speech):** Nói thay trong voice channel với `@discordjs/voice`, hỗ trợ đổi nhiều giọng đọc tự nhiên (tiếng Việt, tiếng Nhật Anime Waifu, tiếng Anh, v.v.).
+- **Voice TTS (Text-to-Speech):** Nói thay trong voice channel với `@discordjs/voice`, hỗ trợ đổi nhiều giọng đọc tự nhiên (tiếng Việt, tiếng Nhật Anime Waifu, tiếng Anh, v.v.). Mặc định tắt triệt để (`ENABLE_TTS=false`) để tiết kiệm RAM; đặt `ENABLE_TTS=true` khi cần bật lại và quản lý bật/tắt nhanh trong Discord bằng `/tts-admin tat | bat | trangthai`.
 - **Hệ thống Kết Hôn (Marriage):** Đăng ký kết hôn, chăm sóc tình yêu, điểm thân mật, chuỗi ngày bên nhau, tặng quà và bảng xếp hạng tình duyên.
 - **Trợ lý AI (Usagi AI Assistant):** Trò chuyện tự nhiên, persona em bot Usagi múp rụp, xoay vòng nhiều API (Groq, Gemini, OpenRouter), tạo ảnh AI trong kênh chỉ định.
 

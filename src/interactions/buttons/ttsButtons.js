@@ -1,5 +1,11 @@
 import { MessageFlags } from 'discord.js';
 import { logger } from '../../utils/logger.js';
+import { isTTSEnabledByEnv } from '../../config/ttsConfig.js';
+import {
+  getTTSDisabledNoticeMessage,
+  getTTSGuildConfig,
+  isTTSGuildEnabled,
+} from '../../services/tts/ttsStateService.js';
 import {
   ttsManager,
   hasTTSManagePermission,
@@ -25,6 +31,18 @@ export default {
       });
     }
 
+    const botClient = client || interaction.client;
+    if (!isTTSEnabledByEnv() || !(await isTTSGuildEnabled(botClient, guildId))) {
+      const ttsConfig = await getTTSGuildConfig(botClient, guildId);
+      if (ttsManager.hasSession(guildId)) {
+        await ttsManager.disableGuildTTS(guildId, 'Tính năng TTS đang tắt');
+      }
+      return interaction.reply({
+        content: getTTSDisabledNoticeMessage(ttsConfig),
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
     const session = ttsManager.getSession(guildId);
 
     // 1. Nút dừng và rời phòng (chỉ Quản lý mới được bấm)
@@ -36,7 +54,12 @@ export default {
         });
       }
 
-      const isManager = hasTTSManagePermission(interaction.member);
+      const isManager = hasTTSManagePermission(
+        interaction.member,
+        interaction.user?.id,
+        guild,
+        interaction.memberPermissions,
+      );
       if (!isManager) {
         return interaction.reply({
           content: `❌ Dạ chỉ Quản lý (có role <@&${TTS_MANAGER_ROLE_ID}>) mới có quyền yêu cầu em rời phòng voice thôi ạ! Mọi người chỉ có thể gọi em vào chứ không được đuổi em ra đâu nè 🐰💕`,
@@ -62,7 +85,12 @@ export default {
         });
       }
 
-      const isManager = hasTTSManagePermission(interaction.member);
+      const isManager = hasTTSManagePermission(
+        interaction.member,
+        interaction.user?.id,
+        guild,
+        interaction.memberPermissions,
+      );
       const nextMode = session.mode === 'owner_only' ? 'all' : 'owner_only';
 
       if (nextMode === 'owner_only' && !isManager) {
@@ -85,7 +113,12 @@ export default {
 
     // 3. Nút mở bảng chọn giọng
     if (action === 'open_voices') {
-      const isManager = hasTTSManagePermission(interaction.member);
+      const isManager = hasTTSManagePermission(
+        interaction.member,
+        interaction.user?.id,
+        guild,
+        interaction.memberPermissions,
+      );
       if (session && !isManager && ttsManager.hasUserChangedVoice(guildId, interaction.user.id)) {
         return interaction.reply({
           content:

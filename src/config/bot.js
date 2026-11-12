@@ -1,6 +1,8 @@
 import { logger } from '../utils/logger.js';
+import { isTTSEnabledByEnv } from './ttsConfig.js';
 
 const BRAND_COLOR = '#F3AFC8';
+let voiceFeatureOverride = null;
 
 function listEnv(name) {
   return String(process.env[name] || '')
@@ -67,7 +69,18 @@ export const botConfig = {
 
   features: {
     games: true,
-    voice: true,
+    get voice() {
+      return voiceFeatureOverride !== null ? voiceFeatureOverride : isTTSEnabledByEnv();
+    },
+    set voice(value) {
+      voiceFeatureOverride = value === null || value === undefined ? null : Boolean(value);
+    },
+    get tts() {
+      return voiceFeatureOverride !== null ? voiceFeatureOverride : isTTSEnabledByEnv();
+    },
+    set tts(value) {
+      voiceFeatureOverride = value === null || value === undefined ? null : Boolean(value);
+    },
     ai: true,
   },
 
