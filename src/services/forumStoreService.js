@@ -519,6 +519,10 @@ export async function syncForumStorePosts({
         if (obsolete) await obsolete.delete().catch(() => {});
       }
 
+      if (typeof existingThread.setLocked === 'function') {
+        await existingThread.setLocked(true, 'Khóa bài đăng dịch vụ sau khi cập nhật nội dung').catch(() => {});
+      }
+
       savedPosts[key] = {
         threadId: existingThread.id,
         messageId: editedMsgId,
@@ -541,6 +545,10 @@ export async function syncForumStorePosts({
     for (let i = 1; i < payloads.length; i += 1) {
       const sentMessage = await thread.send(payloads[i]);
       if (sentMessage?.id) additionalMessageIds.push(sentMessage.id);
+    }
+
+    if (typeof thread.setLocked === 'function') {
+      await thread.setLocked(true, 'Khóa bài đăng dịch vụ sau khi đăng nội dung').catch(() => {});
     }
 
     savedPosts[key] = {
