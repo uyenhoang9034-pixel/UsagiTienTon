@@ -820,24 +820,44 @@ test('Feedback +1 legit không có đơn hàng: reply đúng người đó và t
     SERVICE_TICKET_EMOJIS.NUM_9,
     SERVICE_TICKET_EMOJIS.NUM_8,
   ]);
-  // Nếu server có thêm custom emoji phụ cho chữ số lặp (vd 11), resolveGuildDigitEmojiMap tự ghép không dùng Unicode
-  const customGuildDigitMap = await resolveGuildDigitEmojiMap({
-    id: 'guild_custom_digits',
-    emojis: {
-      fetch: async () => new Collection([
-        ['9001', { id: '9001', name: '1_alt', animated: true }],
-        ['9002', { id: '9002', name: 'trangtrig60', animated: true }], // không nhận nhầm emoji trang trí
-      ]),
-    },
-  });
-  assert.deepEqual(buildFeedbackReactionSequence(11, customGuildDigitMap), [
-    SERVICE_TICKET_EMOJIS.FEEDBACK_REACT,
-    SERVICE_TICKET_EMOJIS.NUM_1,
-    '<a:1_alt:9001>',
-  ]);
   assert.deepEqual(buildFeedbackReactionSequence(11), [
     SERVICE_TICKET_EMOJIS.FEEDBACK_REACT,
     SERVICE_TICKET_EMOJIS.NUM_1,
+    SERVICE_TICKET_EMOJIS.NUM_1_ALT,
+  ]);
+  assert.deepEqual(buildFeedbackReactionSequence(100), [
+    SERVICE_TICKET_EMOJIS.FEEDBACK_REACT,
+    SERVICE_TICKET_EMOJIS.NUM_1,
+    SERVICE_TICKET_EMOJIS.NUM_0,
+    SERVICE_TICKET_EMOJIS.NUM_0_ALT,
+  ]);
+  // Nếu server hoặc Application Emojis có thêm bộ thứ 3/4 (vd 1_3, 1_4 hoặc up lại file gốc), resolveGuildDigitEmojiMap tự ghép không dùng Unicode
+  const customGuildDigitMap = await resolveGuildDigitEmojiMap(
+    {
+      id: 'guild_custom_digits',
+      emojis: {
+        fetch: async () => new Collection([
+          ['9001', { id: '9001', name: '1_3', animated: true }],
+          ['9002', { id: '9002', name: 'trangtrig60', animated: true }], // không nhận nhầm emoji trang trí
+        ]),
+      },
+    },
+    {
+      application: {
+        emojis: {
+          fetch: async () => new Collection([
+            ['9003', { id: '9003', name: '1563484001765949550_4', animated: true }],
+          ]),
+        },
+      },
+    },
+  );
+  assert.deepEqual(buildFeedbackReactionSequence(1111, customGuildDigitMap), [
+    SERVICE_TICKET_EMOJIS.FEEDBACK_REACT,
+    SERVICE_TICKET_EMOJIS.NUM_1,
+    SERVICE_TICKET_EMOJIS.NUM_1_ALT,
+    '<a:1_3:9001>',
+    '<a:1563484001765949550_4:9003>',
   ]);
 
   // Đợi quá thời gian 25ms để timer dọn đúng tin nhắn của cust_invalid_1

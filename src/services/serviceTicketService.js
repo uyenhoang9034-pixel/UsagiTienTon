@@ -1771,6 +1771,32 @@ export const FEEDBACK_DIGIT_EMOJIS = Object.freeze({
   9: SERVICE_TICKET_EMOJIS.NUM_9,
 });
 
+export const FEEDBACK_DIGIT_EMOJIS_ALT = Object.freeze({
+  0: SERVICE_TICKET_EMOJIS.NUM_0_ALT,
+  1: SERVICE_TICKET_EMOJIS.NUM_1_ALT,
+  2: SERVICE_TICKET_EMOJIS.NUM_2_ALT,
+  3: SERVICE_TICKET_EMOJIS.NUM_3_ALT,
+  4: SERVICE_TICKET_EMOJIS.NUM_4_ALT,
+  5: SERVICE_TICKET_EMOJIS.NUM_5_ALT,
+  6: SERVICE_TICKET_EMOJIS.NUM_6_ALT,
+  7: SERVICE_TICKET_EMOJIS.NUM_7_ALT,
+  8: SERVICE_TICKET_EMOJIS.NUM_8_ALT,
+  9: SERVICE_TICKET_EMOJIS.NUM_9_ALT,
+});
+
+const DIGIT_SOURCE_ID_TO_CHAR = Object.freeze({
+  '1563547154507767890': '0',
+  '1563484001765949550': '1',
+  '1563484061111156828': '2',
+  '1563484342779388045': '3',
+  '1563484724725424209': '4',
+  '1563484794623365151': '5',
+  '1563546730979663982': '6',
+  '1563546852928913440': '7',
+  '1563546943471226930': '8',
+  '1563547068948156478': '9',
+});
+
 const GUILD_DIGIT_EMOJI_CACHE_TTL_MS = 5 * 60 * 1000;
 const guildDigitEmojiCache = new Map();
 
@@ -1792,63 +1818,95 @@ export function parseFeedbackDigitFromEmojiName(name) {
   const normalized = String(name || '').trim().toLowerCase();
   if (!normalized) return null;
 
+  for (const [sourceId, digitChar] of Object.entries(DIGIT_SOURCE_ID_TO_CHAR)) {
+    if (normalized === sourceId || normalized.startsWith(`${sourceId}_`) || normalized.startsWith(`${sourceId}-`) || normalized.startsWith(`${sourceId}~`)) {
+      return digitChar;
+    }
+  }
+
   let match = normalized.match(/^([0-9])_?$/);
   if (match) return match[1];
 
-  match = normalized.match(/^(?:num|digit|so|number)[_-]?([0-9])$/);
+  match = normalized.match(/^(?:num|digit|so|number)[_-]?([0-9])(?:[_-](?:alt|dup|v?\d+|[a-z]))?$/);
   if (match) return match[1];
 
-  match = normalized.match(/^([0-9])[_-](?:alt|2|v2|b|dup)$/);
+  match = normalized.match(/^([0-9])[_-](?:alt|dup|v?\d+|[a-z])$/);
   if (match) return match[1];
 
   return null;
+}
+
+function appendUniqueCustomDigit(map, digit, emojiStr) {
+  if (digit === null || !emojiStr) return;
+  if (!Array.isArray(map[digit])) {
+    map[digit] = [];
+  }
+  const candidateId = extractCustomEmojiId(emojiStr);
+  const exists = map[digit].some((item) => extractCustomEmojiId(item) === candidateId);
+  if (!exists) {
+    map[digit].push(emojiStr);
+  }
 }
 
 export async function resolveGuildDigitEmojiMap(guild, client) {
   const map = {};
   for (let d = 0; d <= 9; d += 1) {
     const key = String(d);
-    const configured = FEEDBACK_DIGIT_EMOJIS[key];
-    map[key] = configured ? [configured] : [];
+    map[key] = [];
+    appendUniqueCustomDigit(map, key, FEEDBACK_DIGIT_EMOJIS[key]);
+    appendUniqueCustomDigit(map, key, FEEDBACK_DIGIT_EMOJIS_ALT[key]);
   }
 
   const guildId = guild?.id ? String(guild.id) : '';
-  if (!guildId) {
-    return map;
-  }
-
-  const cached = guildDigitEmojiCache.get(guildId);
+  const cacheKey = guildId || 'global';
+  const cached = guildDigitEmojiCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.map;
   }
 
-  let fetchedEmojis = null;
-  if (typeof guild?.emojis?.fetch === 'function') {
-    const fetched = await guild.emojis.fetch().catch(() => null);
-    if (fetched) {
-      fetchedEmojis = typeof fetched.values === 'function' ? [...fetched.values()] : [...fetched];
-    }
-  } else if (typeof client?.rest?.get === 'function') {
-    const fetched = await client.rest.get(Routes.guildEmojis(guildId)).catch(() => null);
-    if (Array.isArray(fetched)) {
-      fetchedEmojis = fetched;
+  let didFetchAny = false;
+  const collected = [];
+
+  if (guildId) {
+    if (typeof guild?.emojis?.fetch === 'function') {
+      const fetched = await guild.emojis.fetch().catch(() => null);
+      if (fetched) {
+        didFetchAny = true;
+        collected.push(...(typeof fetched.values === 'function' ? [...fetched.values()] : [...fetched]));
+      }
+    } else if (typeof client?.rest?.get === 'function') {
+      const fetched = await client.rest.get(Routes.guildEmojis(guildId)).catch(() => null);
+      if (Array.isArray(fetched)) {
+        didFetchAny = true;
+        collected.push(...fetched);
+      }
     }
   }
 
-  if (Array.isArray(fetchedEmojis)) {
-    for (const emoji of fetchedEmojis) {
-      const digit = parseFeedbackDigitFromEmojiName(emoji?.name);
-      if (digit === null) continue;
-      const formatted = formatCustomEmojiString(emoji);
-      if (!formatted) continue;
-      const candidateId = extractCustomEmojiId(formatted);
-      const exists = map[digit].some((item) => extractCustomEmojiId(item) === candidateId);
-      if (!exists) {
-        map[digit].push(formatted);
-      }
+  if (typeof client?.application?.emojis?.fetch === 'function') {
+    const appFetched = await client.application.emojis.fetch().catch(() => null);
+    if (appFetched) {
+      didFetchAny = true;
+      collected.push(...(typeof appFetched.values === 'function' ? [...appFetched.values()] : [...appFetched]));
     }
+  } else if (client?.application?.id && typeof client?.rest?.get === 'function' && typeof Routes.applicationEmojis === 'function') {
+    const appFetched = await client.rest.get(Routes.applicationEmojis(client.application.id)).catch(() => null);
+    const items = Array.isArray(appFetched?.items) ? appFetched.items : Array.isArray(appFetched) ? appFetched : null;
+    if (items) {
+      didFetchAny = true;
+      collected.push(...items);
+    }
+  }
 
-    guildDigitEmojiCache.set(guildId, {
+  for (const emoji of collected) {
+    const digit = parseFeedbackDigitFromEmojiName(emoji?.name);
+    if (digit === null) continue;
+    const formatted = formatCustomEmojiString(emoji);
+    appendUniqueCustomDigit(map, digit, formatted);
+  }
+
+  if (didFetchAny) {
+    guildDigitEmojiCache.set(cacheKey, {
       expiresAt: Date.now() + GUILD_DIGIT_EMOJI_CACHE_TTL_MS,
       map,
     });
@@ -1858,11 +1916,10 @@ export async function resolveGuildDigitEmojiMap(guild, client) {
 }
 
 /**
- * Tạo chuỗi emoji custom của server để thả phản ứng cho +1 legit hợp lệ:
+ * Tạo chuỗi emoji custom của server & Application Emojis để thả phản ứng cho +1 legit hợp lệ:
  * - Đầu tiên: emoji g60 (<a:trangtrig60:1569558191551942696>)
- * - Tiếp theo: từng chữ số của số thứ tự legit bằng bộ emoji custom 0_..9_ (tuyệt đối không dùng emoji Unicode).
- *   Nếu số có chữ số lặp lại (vd 11, 100), ưu tiên dùng thêm emoji custom phụ của server nếu có;
- *   Discord không cho react trùng 1 emoji 2 lần trên cùng 1 tin nhắn nên sẽ bỏ qua nếu chưa có emoji phụ.
+ * - Tiếp theo: từng chữ số của số thứ tự legit bằng bộ emoji custom 0_..9_ + bộ Application Emojis phụ (tuyệt đối không dùng Unicode).
+ *   Hỗ trợ tối đa 2 chữ số trùng nhau ngay lập tức (vd 11, 22, 100), và tự động quét thêm bộ 3, 4 nếu có trong server hoặc Application Emojis.
  */
 export function buildFeedbackReactionSequence(legitNumber, digitEmojiMap = null) {
   const sequence = [SERVICE_TICKET_EMOJIS.FEEDBACK_REACT];
@@ -1870,18 +1927,25 @@ export function buildFeedbackReactionSequence(legitNumber, digitEmojiMap = null)
   const digits = String(Math.max(1, Number(legitNumber) || 1));
 
   for (const ch of digits) {
-    const configured = FEEDBACK_DIGIT_EMOJIS[ch];
+    const candidates = [];
+    const pushCandidate = (emoji) => {
+      if (!emoji) return;
+      const candidateId = extractCustomEmojiId(emoji);
+      if (!candidates.some((item) => extractCustomEmojiId(item) === candidateId)) {
+        candidates.push(emoji);
+      }
+    };
+
+    pushCandidate(FEEDBACK_DIGIT_EMOJIS[ch]);
+    pushCandidate(FEEDBACK_DIGIT_EMOJIS_ALT[ch]);
+
     const extra = Array.isArray(digitEmojiMap?.[ch])
       ? digitEmojiMap[ch]
       : digitEmojiMap?.[ch]
         ? [digitEmojiMap[ch]]
         : [];
-    const candidates = [...extra];
-    if (configured) {
-      const configuredId = extractCustomEmojiId(configured);
-      if (!candidates.some((item) => extractCustomEmojiId(item) === configuredId)) {
-        candidates.unshift(configured);
-      }
+    for (const item of extra) {
+      pushCandidate(item);
     }
 
     const picked = candidates.find((emoji) => emoji && !usedIds.has(extractCustomEmojiId(emoji)));
