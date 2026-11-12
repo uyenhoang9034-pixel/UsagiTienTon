@@ -14,6 +14,7 @@ import { handleThanVanTuBan } from '../services/thanVanTuBanService.js';
 import { handleQuoteTrigger } from '../services/quotes/quoteService.js';
 import { handleRandomMessage } from '../services/randomService.js';
 import { handleBookingMessage } from '../services/bookingService.js';
+import { handleServiceTicketMessage } from '../services/serviceTicketService.js';
 import { handleWordGuessMessage } from '../services/wordGuessService.js';
 
 let cachedHandleTTSMessage = null;
@@ -81,6 +82,15 @@ export default {
       }
     } catch (bookingError) {
       logger.error('Error handling Booking trigger:', bookingError);
+    }
+
+    try {
+      const serviceTicketProcessed = await handleServiceTicketMessage(message, client);
+      if (serviceTicketProcessed) {
+        return;
+      }
+    } catch (serviceTicketError) {
+      logger.error('Error handling Service Ticket trigger:', serviceTicketError);
     }
 
     try {
