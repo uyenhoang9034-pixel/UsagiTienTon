@@ -171,7 +171,7 @@ export async function rememberServiceStaffId(client, guildId, userId) {
 /**
  * Lấy danh sách thành viên có role @SP Ticket (không tính bot) và chọn ngẫu nhiên 1 người.
  */
-export async function pickRandomServiceStaff(guild, client = null) {
+export async function pickRandomServiceStaff(guild, client = null, { excludeUserIds = [] } = {}) {
   if (!guild) return null;
   const roleId = SERVICE_TICKET_IDS.SP_TICKET_ROLE_ID;
   const candidateIds = new Set();
@@ -253,7 +253,11 @@ export async function pickRandomServiceStaff(guild, client = null) {
     return null;
   }
 
-  const pickedId = list[Math.floor(Math.random() * list.length)];
+  const excluded = new Set((excludeUserIds || []).filter(Boolean).map(String));
+  const filtered = excluded.size > 0 ? list.filter((id) => !excluded.has(id)) : list;
+  const pool = filtered.length > 0 ? filtered : list;
+
+  const pickedId = pool[Math.floor(Math.random() * pool.length)];
   return pickedId;
 }
 
@@ -672,10 +676,13 @@ export function buildServiceWelcomePayloadV2({
   createdTs = Math.floor(Date.now() / 1000),
 }) {
   const E = SERVICE_TICKET_EMOJIS;
-  const infoLine =
-    ticketType === 'support'
-      ? `- Hỗ trợ: ${serviceInput}`
-      : `- Dịch vụ đã chọn: ${serviceInput}`;
+  const isSupport = ticketType === 'support';
+  const infoLine = isSupport
+    ? `- Hỗ trợ: ${serviceInput}`
+    : `- Dịch vụ đã chọn: ${serviceInput}`;
+  const footerText = isSupport
+    ? `${E.BANG} Bạn vui lòng mô tả chi tiết vấn đề cần hỗ trợ của mình tại đây để bên mình hỗ trợ kịp thời nhé.`
+    : `${E.BANG} Bạn vui lòng mô tả chi tiết yêu cầu / nhu cầu của mình tại đây để bên mình báo giá và tư vấn cụ thể nhé. Khi chốt đơn và thanh toán tức là bạn đã đồng ý với toàn bộ TOS của server!`;
 
   return {
     flags: IS_COMPONENTS_V2,
@@ -711,8 +718,7 @@ export function buildServiceWelcomePayloadV2({
           },
           {
             type: 10,
-            content:
-              `${E.BANG} Bạn vui lòng mô tả chi tiết yêu cầu / nhu cầu của mình tại đây để bên mình báo giá và tư vấn cụ thể nhé. Khi chốt đơn và thanh toán tức là bạn đã đồng ý với toàn bộ TOS của server!`,
+            content: footerText,
           },
         ],
       },
@@ -867,8 +873,8 @@ export function buildFeedbackStickyPayloadV2() {
             type: 10,
             content: [
               `${heart} Chân thành cảm ơn bạn đã sử dụng dịch vụ ở Serendipity!`,
-              `${heart} Xin vui lòng gửi tin nhắn check legit theo cú pháp: +1 legit ...`,
-              '> ... là thông tin thêm như món hàng / ảnh sản phẩm / .. có thể gửi hoặc không tùy ý bạn.',
+              `${heart} Xin vui lòng gửi tin nhắn check legit theo cú pháp: +1 legit + tên sản phẩm`,
+              '> Ví dụ: +1 legit bot discord / +1 legit decor',
             ].join('\n'),
           },
         ],
@@ -944,6 +950,10 @@ export function buildDeliveryDmPayloadV2({
   const staffMention = assignedStaffId
     ? `<@${assignedStaffId}>`
     : `<@&${SERVICE_TICKET_IDS.SP_TICKET_ROLE_ID}>`;
+  const botStaffMention = assignedStaffId
+    ? `<@${assignedStaffId}>`
+    : `<@${SERVICE_TICKET_IDS.DEV_BOT_SUPPORT_USER_ID}>`;
+  const chineseStaffMention = `<@${SERVICE_TICKET_IDS.CHINESE_SUPPORT_USER_ID}>`;
 
   let title = '';
   let bodyIntro = '';
@@ -961,7 +971,7 @@ export function buildDeliveryDmPayloadV2({
     ].join('\n');
     notes = [
       `${E.BANG} **Lưu ý quan trọng:**`,
-      `- Xin hãy kiểm tra kĩ và nếu có thắc mắc xin hãy đề cập <@${SERVICE_TICKET_IDS.DEV_BOT_SUPPORT_USER_ID}> kịp thời để bọn mình hỗ trợ nhanh nhất có thể nhé!`,
+      `- Xin hãy kiểm tra kĩ và nếu có thắc mắc xin hãy đề cập ${botStaffMention} kịp thời để bọn mình hỗ trợ nhanh nhất có thể nhé!`,
       '- Hỗ trợ bảo hành kỹ thuật & sửa bug trong quá trình vận hành theo quy định đã đề cập ở **tos**.',
       `- Vui lòng vào kênh <#${SERVICE_TICKET_IDS.FEEDBACK_CHANNEL_ID}> gửi feedback theo cú pháp **+1 legit** trong vòng 24 giờ để được hỗ trợ bảo hành đầy đủ.`,
       '- **KHÔNG FEEDBACK = KHÔNG BẢO HÀNH!**',
@@ -1015,7 +1025,7 @@ export function buildDeliveryDmPayloadV2({
     notes = [
       `${E.BANG} **Lưu ý quan trọng:**`,
       `- Bạn vui lòng kết bạn Zalo **${SERVICE_TICKET_IDS.CHINESE_TEACHER_ZALO}** để giáo viên trực tiếp trao đổi, gửi tài liệu và sắp xếp lịch học nhé!`,
-      `- Nếu có thắc mắc hay cần hỗ trợ thêm, bạn vui lòng đề cập kịp thời ${staffMention} tại ticket.`,
+      `- Nếu có thắc mắc hay cần hỗ trợ thêm, bạn vui lòng đề cập kịp thời ${chineseStaffMention} tại ticket.`,
       `- Vui lòng vào kênh <#${SERVICE_TICKET_IDS.FEEDBACK_CHANNEL_ID}> gửi feedback theo cú pháp **+1 legit** trong vòng 24 giờ để được hỗ trợ đầy đủ nhé!`,
       '- **KHÔNG FEEDBACK = KHÔNG BẢO HÀNH!**',
     ];
@@ -1292,6 +1302,21 @@ export async function createServiceTicketFromModal(
       },
     ];
 
+    if (serviceKey === 'chinese') {
+      permissionOverwrites.push({
+        id: SERVICE_TICKET_IDS.CHINESE_SUPPORT_USER_ID,
+        type: OverwriteType?.Member ?? 1,
+        allow: [
+          PermissionFlagsBits.ViewChannel,
+          PermissionFlagsBits.SendMessages,
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.AttachFiles,
+          PermissionFlagsBits.EmbedLinks,
+          PermissionFlagsBits.ManageMessages,
+        ],
+      });
+    }
+
     const category =
       guild.channels?.cache?.get?.(SERVICE_TICKET_IDS.CATEGORY_ID) ||
       (typeof guild.channels?.fetch === 'function'
@@ -1306,7 +1331,10 @@ export async function createServiceTicketFromModal(
       permissionOverwrites,
     });
 
-    const assignedStaffId = await pickRandomServiceStaff(guild, client);
+    const assignedStaffId =
+      serviceKey === 'chinese'
+        ? SERVICE_TICKET_IDS.CHINESE_SUPPORT_USER_ID
+        : await pickRandomServiceStaff(guild, client);
 
     const ticketRecord = {
       ticketSystem: 'service',
@@ -1398,6 +1426,14 @@ export async function closeServiceTicket({
       });
   }
 
+  if (typeof channel.setParent === 'function') {
+    await channel
+      .setParent(SERVICE_TICKET_IDS.CLOSED_CATEGORY_ID, { lockPermissions: false })
+      .catch((err) => {
+        logger.warn('[ServiceTicket] Không thể chuyển danh mục khi đóng ticket:', err?.message || err);
+      });
+  }
+
   const closedAt = Date.now();
   const closedTs = Math.floor(closedAt / 1000);
 
@@ -1420,9 +1456,82 @@ export async function closeServiceTicket({
     channelId: channel.id,
     executorId: executor?.id,
     userId: ticket.userId,
+    movedToCategoryId: SERVICE_TICKET_IDS.CLOSED_CATEGORY_ID,
   });
 
   return { ok: true, ticket };
+}
+
+/**
+ * Đổi ngẫu nhiên người hỗ trợ chính cho ticket (&doisp):
+ * - Random lại @SP Ticket (ưu tiên khác người cũ nếu có nhiều người)
+ * - Cập nhật assignedStaffId trong DB để /ib1, /ib2 và DM transcript dùng đúng SP mới
+ * - Gửi lại thông báo đúng form buildAssignedStaffMessage
+ */
+export async function reassignServiceTicketStaff({
+  channel,
+  executor,
+  client,
+}) {
+  if (!channel || !channel.guild) {
+    return { ok: false, errorMessage: '❌ Không xác định được kênh ticket.' };
+  }
+
+  let ticket = await getServiceTicketRecord(client, channel.guild.id, channel.id);
+  if (!ticket) {
+    const topicStr = String(channel.topic || '');
+    const customerMatch = topicStr.match(/CustomerID:(\d+)/);
+    const serviceMatch = topicStr.match(/Service:([a-z0-9-]+)/i);
+    const numberMatch = topicStr.match(/#(\d+)/);
+    const serviceKey = serviceMatch ? serviceMatch[1].toLowerCase() : 'khac';
+    const serviceEntry = SERVICE_CATALOG[serviceKey] || SERVICE_CATALOG.khac;
+
+    ticket = {
+      ticketSystem: 'service',
+      id: channel.id,
+      channelId: channel.id,
+      guildId: channel.guild.id,
+      userId: customerMatch ? customerMatch[1] : null,
+      ticketType: serviceKey === 'hotro' || String(channel.name || '').includes('-hotro-') ? 'support' : 'buy',
+      serviceKey,
+      serviceLabel: serviceEntry?.label || 'Dịch vụ',
+      number: numberMatch ? Number.parseInt(numberMatch[1], 10) : 1,
+      assignedStaffId: null,
+      status: 'open',
+      awaitingFeedback: false,
+      createdAt: channel.createdTimestamp || Date.now(),
+    };
+  }
+
+  const excludeUserIds = ticket.assignedStaffId ? [ticket.assignedStaffId] : [];
+  const newStaffId = await pickRandomServiceStaff(channel.guild, client, { excludeUserIds });
+
+  const updatedTicket = {
+    ...ticket,
+    assignedStaffId: newStaffId,
+    reassignedAt: Date.now(),
+    reassignedBy: executor?.id || null,
+  };
+
+  await saveServiceTicketRecord(client, channel.guild.id, channel.id, updatedTicket);
+
+  const staffNoticePayload = buildAssignedStaffMessage({ staffId: newStaffId });
+  await channel.send(staffNoticePayload);
+
+  logger.info('[ServiceTicket] Đã đổi SP Ticket (&doisp)', {
+    guildId: channel.guild.id,
+    channelId: channel.id,
+    executorId: executor?.id,
+    previousStaffId: ticket.assignedStaffId || null,
+    newStaffId,
+  });
+
+  return {
+    ok: true,
+    previousStaffId: ticket.assignedStaffId || null,
+    newStaffId,
+    ticket: updatedTicket,
+  };
 }
 
 /**
@@ -1744,7 +1853,10 @@ export async function sendServiceDeliveryNotice({
   );
 
   const ticketChannelId = found?.channel?.id || null;
-  const assignedStaffId = found?.record?.assignedStaffId || interaction.user.id;
+  const assignedStaffId =
+    variant === 'chinese'
+      ? SERVICE_TICKET_IDS.CHINESE_SUPPORT_USER_ID
+      : found?.record?.assignedStaffId || interaction.user.id;
 
   const dmPayload = buildDeliveryDmPayloadV2({
     variant,
@@ -1792,9 +1904,10 @@ export async function sendServiceDeliveryNotice({
 /**
  * Xử lý tất cả trigger messageCreate liên quan đến Ticket Dịch Vụ:
  * - Lắng nghe feedback "+1 legit" ở kênh 1570348805155594290
- * - &dichvu: gửi 3 card TOS & tự xóa lệnh
+ * - &dichvu: gửi 3 card TOS & tự xóa lệnh (SP Ticket / Admin / Owner)
  * - &panelticket: gửi bảng mở ticket & tự xóa lệnh (SP Ticket / Admin / Owner)
  * - &nhacfb: nhắc khách feedback trong ticket & tự xóa lệnh (SP Ticket / Admin / Owner)
+ * - &doisp: đổi ngẫu nhiên SP Ticket hỗ trợ chính trong ticket & tự xóa lệnh (SP Ticket / Admin / Owner)
  * - &close: đóng ticket không mua trong ticket dịch vụ & tự xóa lệnh (SP Ticket / Admin / Owner)
  * - &clear: xóa ticket dịch vụ & đẩy log (SP Ticket / Admin / Owner)
  */
@@ -1808,8 +1921,17 @@ export async function handleServiceTicketMessage(message, client) {
     return false;
   }
 
-  // 1. &dichvu — gửi 3 embed Components V2 TOS & tự xóa lệnh
+  if (!message.guild) {
+    return false;
+  }
+
+  // 1. &dichvu — gửi 3 embed Components V2 TOS & tự xóa lệnh (chỉ SP Ticket / Admin / Owner)
   if (/^[&!]dichvu$/i.test(trimmed)) {
+    if (!isServiceTicketStaff(message.member, message.author?.id, client)) {
+      await message.delete().catch(() => {});
+      return true;
+    }
+
     const payloads = buildServiceTosPayloadsV2();
 
     try {
@@ -1826,10 +1948,6 @@ export async function handleServiceTicketMessage(message, client) {
     }
 
     return true;
-  }
-
-  if (!message.guild) {
-    return false;
   }
 
   // 2. Kênh feedback (+1 legit)
@@ -1941,6 +2059,22 @@ export async function handleServiceTicketMessage(message, client) {
       client,
       sendDmTranscript: false,
       reason: 'Xóa ticket bằng lệnh &clear',
+    });
+    return true;
+  }
+
+  // 7. &doisp — SP đổi ngẫu nhiên người hỗ trợ chính cho ticket hiện tại
+  if (/^[&!]doisp(?:\s|$)/i.test(trimmed)) {
+    if (!isServiceTicketStaff(message.member, message.author.id, client)) {
+      await message.delete().catch(() => {});
+      return true;
+    }
+
+    await message.delete().catch(() => {});
+    await reassignServiceTicketStaff({
+      channel: message.channel,
+      executor: message.author,
+      client,
     });
     return true;
   }

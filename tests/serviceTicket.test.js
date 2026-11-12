@@ -24,6 +24,8 @@ import {
   buildServiceLogTranscriptPayload,
   createServiceTicketFromModal,
   closeServiceTicket,
+  reassignServiceTicketStaff,
+  sendServiceDeliveryNotice,
   deleteServiceTicket,
   handleServiceTicketMessage,
 } from '../src/services/serviceTicketService.js';
@@ -105,6 +107,7 @@ function createMockGuild({ client, guildId = 'guild_1', staffIds = ['staff_1', '
         const chId = `chan_${nextChanSeq}`;
         const sentMessages = [];
         const permissionEdits = [];
+        const parentMoves = [];
         const ch = {
           id: chId,
           name: opts.name,
@@ -115,9 +118,15 @@ function createMockGuild({ client, guildId = 'guild_1', staffIds = ['staff_1', '
           createdTimestamp: Date.now(),
           sentMessages,
           permissionEdits,
+          parentMoves,
           send: async (payload) => {
             sentMessages.push(payload);
             return payload;
+          },
+          setParent: async (parentId, setOpts = {}) => {
+            ch.parentId = parentId;
+            parentMoves.push({ parentId, options: setOpts });
+            return ch;
           },
           permissionOverwrites: {
             edit: async (targetId, perms) => {
@@ -167,28 +176,66 @@ test('&dichvu: buildServiceTosPayloadsV2 tạo đúng 3 card Components V2 hợp
   assert.ok(card3Text.includes('# III. LƯU Ý KHÁC'));
 });
 
-test('MessageCreate Trigger: &dichvu gửi liền 3 card Components V2 rồi tự xóa và bỏ qua tin nhắn khác', async () => {
-  const events = [];
+test('MessageCreate Trigger: &dichvu chỉ SP Ticket / Admin / Owner dùng được, gửi 3 card Components V2 rồi tự xóa', async () => {
+  const guild = { id: 'g1', ownerId: 'owner_1' };
+
+  // Member thường không có quyền -> bị xóa lệnh, không gửi card
+  const memberEvents = [];
+  const memberHandled = await handleServiceTicketMessage({
+    content: '&dichvu',
+    guild,
+    author: { id: 'normal_1', bot: false },
+    member: {
+      guild,
+      roles: { cache: new Collection() },
+      permissions: { has: () => false },
+    },
+    channel: {
+      id: 'channel_tos_1',
+      send: async () => assert.fail('Member thường không được gửi &dichvu'),
+    },
+    delete: async () => {
+      memberEvents.push('delete');
+    },
+  });
+  assert.equal(memberHandled, true);
+  assert.deepEqual(memberEvents, ['delete']);
+
+  // SP Ticket / Admin / Owner -> gửi 3 card rồi tự xóa
+  const staffEvents = [];
   const handled = await handleServiceTicketMessage({
     content: '&dichvu',
+    guild,
+    author: { id: 'staff_1', bot: false },
+    member: {
+      guild,
+      roles: { cache: new Collection([[SERVICE_TICKET_IDS.SP_TICKET_ROLE_ID, {}]]) },
+      permissions: { has: () => false },
+    },
     channel: {
       id: 'channel_tos_1',
       send: async (payload) => {
-        events.push({ type: 'send', payload });
+        staffEvents.push({ type: 'send', payload });
         return payload;
       },
     },
     delete: async () => {
-      events.push({ type: 'delete' });
+      staffEvents.push({ type: 'delete' });
     },
   });
 
   assert.equal(handled, true);
-  assert.equal(events.length, 4);
-  assert.equal(events[3].type, 'delete');
+  assert.equal(staffEvents.length, 4);
+  assert.equal(staffEvents[3].type, 'delete');
 
   const ignored = await handleServiceTicketMessage({
     content: '&dichvu test',
+    guild,
+    author: { id: 'staff_1', bot: false },
+    member: {
+      guild,
+      roles: { cache: new Collection([[SERVICE_TICKET_IDS.SP_TICKET_ROLE_ID, {}]]) },
+    },
     channel: { send: async () => assert.fail('Should not send') },
     delete: async () => assert.fail('Should not delete'),
   });
@@ -228,11 +275,24 @@ test('UI Builders: Panel, Welcome, Staff notice, &nhacfb, Feedback nhận, &clos
   assert.deepEqual(panelButtons[2].emoji, SERVICE_TICKET_EMOJIS.BUTTON_SUPPORT);
 
   const welcomeBuy = buildServiceWelcomePayloadV2({ userId: 'u1', ticketType: 'buy', serviceInput: 'chinese' });
-  assert.ok(getAllText(welcomeBuy).includes('- Dịch vụ đã chọn: chinese'));
+  const welcomeBuyText = getAllText(welcomeBuy);
+  assert.ok(welcomeBuyText.includes('- Dịch vụ đã chọn: chinese'));
+  assert.ok(
+    welcomeBuyText.includes(
+      `${SERVICE_TICKET_EMOJIS.BANG} Bạn vui lòng mô tả chi tiết yêu cầu / nhu cầu của mình tại đây để bên mình báo giá và tư vấn cụ thể nhé. Khi chốt đơn và thanh toán tức là bạn đã đồng ý với toàn bộ TOS của server!`,
+    ),
+  );
   assert.equal(welcomeBuy.components[0].components.some((c) => c.type === 1), false);
 
   const welcomeSupport = buildServiceWelcomePayloadV2({ userId: 'u1', ticketType: 'support', serviceInput: 'Bị lỗi bot' });
-  assert.ok(getAllText(welcomeSupport).includes('- Hỗ trợ: Bị lỗi bot'));
+  const welcomeSupportText = getAllText(welcomeSupport);
+  assert.ok(welcomeSupportText.includes('- Hỗ trợ: Bị lỗi bot'));
+  assert.ok(
+    welcomeSupportText.includes(
+      `${SERVICE_TICKET_EMOJIS.BANG} Bạn vui lòng mô tả chi tiết vấn đề cần hỗ trợ của mình tại đây để bên mình hỗ trợ kịp thời nhé.`,
+    ),
+  );
+  assert.ok(!welcomeSupportText.includes('báo giá và tư vấn cụ thể'));
 
   const staffMsg = buildAssignedStaffMessage({ staffId: 'staff_77' });
   assert.equal(staffMsg.flags, undefined);
@@ -258,14 +318,26 @@ test('UI Builders: Panel, Welcome, Staff notice, &nhacfb, Feedback nhận, &clos
   const stickyText = getAllText(stickyFb);
   assert.ok(!stickyText.includes('# '));
   assert.ok(stickyText.includes('<a:heartg8:1567818755793358928> Chân thành cảm ơn bạn đã sử dụng dịch vụ ở Serendipity!'));
-  assert.ok(stickyText.includes('Xin vui lòng gửi tin nhắn check legit theo cú pháp: +1 legit ...'));
-  assert.ok(stickyText.includes('> ... là thông tin thêm như món hàng / ảnh sản phẩm / .. có thể gửi hoặc không tùy ý bạn.'));
+  assert.ok(stickyText.includes('<a:heartg8:1567818755793358928> Xin vui lòng gửi tin nhắn check legit theo cú pháp: +1 legit + tên sản phẩm'));
+  assert.ok(stickyText.includes('> Ví dụ: +1 legit bot discord / +1 legit decor'));
 
   const closedPayload = buildServiceClosedPayloadV2({ executorId: 'staff_1', closedTs: 1700000000 });
   const closedText = getAllText(closedPayload);
   assert.ok(closedText.includes('Đã đóng (không phát sinh đơn hàng).'));
   assert.ok(!closedText.includes('Ghi chú:'));
   assert.equal(closedPayload.components[0].components.find((c) => c.type === 1).components[0].label, 'Xóa ticket');
+
+  const dmBot = buildDeliveryDmPayloadV2({
+    variant: 'bot',
+    guildId: 'g1',
+    userId: 'u1',
+    ticketChannelId: 'ch_1',
+    assignedStaffId: 'staff_2',
+    timestamp: 1700000000,
+  });
+  const dmBotText = getAllText(dmBot);
+  assert.ok(dmBotText.includes('Xin chào <@u1>, đơn hàng Vibe Code Bot Discord của bạn đã hoàn tất!'));
+  assert.ok(dmBotText.includes('<@staff_2>'));
 
   const dmNitro = buildDeliveryDmPayloadV2({
     variant: 'nitro',
@@ -290,7 +362,8 @@ test('UI Builders: Panel, Welcome, Staff notice, &nhacfb, Feedback nhận, &clos
   });
   const dmChineseText = getAllText(dmChinese);
   assert.ok(dmChineseText.includes(SERVICE_TICKET_IDS.CHINESE_TEACHER_ZALO));
-  assert.ok(dmChineseText.includes('<@staff_2>'));
+  assert.ok(dmChineseText.includes(`<@${SERVICE_TICKET_IDS.CHINESE_SUPPORT_USER_ID}>`));
+  assert.ok(!dmChineseText.includes('<@staff_2>'));
   assert.ok(dmChineseText.includes(SERVICE_DM_FOOTER));
 
   const dmTranscript = buildDmTranscriptPayloadV2({
@@ -471,7 +544,7 @@ test('End-to-End Flow: Đếm số riêng từng dịch vụ, giới hạn 2 tic
   assert.equal(logMessages.length, 1);
   assert.ok(deletedChannels.includes(supportRes.channel.id));
 
-  // 6. Nhánh không mua: &close trên buyRes.channel -> ẩn quyền, không DM, xóa chỉ đẩy Log Transcript
+  // 6. Nhánh không mua: &close trên buyRes.channel -> ẩn quyền, chuyển sang danh mục 1570408912480510073, không DM, xóa chỉ đẩy Log Transcript
   await closeServiceTicket({
     channel: buyRes.channel,
     executor: { id: 'staff_1' },
@@ -479,6 +552,11 @@ test('End-to-End Flow: Đếm số riêng từng dịch vụ, giới hạn 2 tic
   });
   assert.equal(buyRes.channel.permissionEdits[0].targetId, 'cust_1');
   assert.equal(buyRes.channel.permissionEdits[0].perms.ViewChannel, false);
+  assert.equal(buyRes.channel.parentId, SERVICE_TICKET_IDS.CLOSED_CATEGORY_ID);
+  assert.deepEqual(buyRes.channel.parentMoves[0], {
+    parentId: SERVICE_TICKET_IDS.CLOSED_CATEGORY_ID,
+    options: { lockPermissions: false },
+  });
   assert.equal(dmMessages.length, 1);
 
   const delNoBuyRes = await deleteServiceTicket({
@@ -492,4 +570,108 @@ test('End-to-End Flow: Đếm số riêng từng dịch vụ, giới hạn 2 tic
   assert.equal(delNoBuyRes.dmSent, false);
   assert.equal(dmMessages.length, 1); // Tuyệt đối không gửi DM khi đóng không mua
   assert.equal(logMessages.length, 2); // Log vẫn được gửi vào 1570357576770654289
+});
+
+test('Chinese ticket cố định SP 1212972766752542753 & lệnh &doisp đổi SP cho /ib1, /ib2', async () => {
+  const client = createMemoryDbClient();
+  const { guild } = createMockGuild({ client, staffIds: ['staff_1', 'staff_2'] });
+  const dmSentPayloads = [];
+  const targetUser = {
+    id: 'cust_cn_1',
+    send: async (payload) => {
+      dmSentPayloads.push(payload);
+      return payload;
+    },
+  };
+
+  // 1. Tạo ticket dịch vụ chinese -> luôn tag 1212972766752542753
+  const cnRes = await createServiceTicketFromModal(
+    { guild, user: { id: 'cust_cn_1', username: 'hocvien' } },
+    client,
+    { mode: 'buy', rawInput: 'chinese - học giao tiếp' },
+  );
+  assert.equal(cnRes.ok, true);
+  assert.equal(cnRes.ticketRecord.assignedStaffId, SERVICE_TICKET_IDS.CHINESE_SUPPORT_USER_ID);
+  assert.ok(
+    cnRes.channel.sentMessages[1].content.includes(
+      `<@${SERVICE_TICKET_IDS.CHINESE_SUPPORT_USER_ID}> sẽ là hỗ trợ chính cho ticket này`,
+    ),
+  );
+
+  // 2. Tạo ticket codebot -> ban đầu random 1 trong staff_1 / staff_2, sau đó dùng &doisp đổi sang người còn lại
+  const botRes = await createServiceTicketFromModal(
+    { guild, user: { id: 'cust_cn_1', username: 'hocvien' } },
+    client,
+    { mode: 'buy', rawInput: 'codebot - bot ticket' },
+  );
+  assert.equal(botRes.ok, true);
+  const initialStaff = botRes.ticketRecord.assignedStaffId;
+  assert.ok(['staff_1', 'staff_2'].includes(initialStaff));
+
+  let doispDeleted = false;
+  const doispHandled = await handleServiceTicketMessage(
+    {
+      content: '&doisp',
+      guild,
+      author: { id: 'staff_1', bot: false },
+      member: {
+        guild,
+        roles: { cache: new Collection([[SERVICE_TICKET_IDS.SP_TICKET_ROLE_ID, {}]]) },
+      },
+      channel: botRes.channel,
+      delete: async () => {
+        doispDeleted = true;
+      },
+    },
+    client,
+  );
+  assert.equal(doispHandled, true);
+  assert.equal(doispDeleted, true);
+
+  const expectedNewStaff = initialStaff === 'staff_1' ? 'staff_2' : 'staff_1';
+  const latestStaffMsg = botRes.channel.sentMessages.at(-1);
+  assert.equal(
+    latestStaffMsg.content,
+    buildAssignedStaffMessage({ staffId: expectedNewStaff }).content,
+  );
+
+  // 3. /ib1 và /ib2 khi gửi DM sẽ dùng SP mới vừa đổi từ &doisp
+  const makeInteraction = (channel) => ({
+    guild,
+    guildId: guild.id,
+    channel,
+    user: { id: 'staff_1' },
+    member: {
+      guild,
+      roles: { cache: new Collection([[SERVICE_TICKET_IDS.SP_TICKET_ROLE_ID, {}]]) },
+    },
+    deferReply: async () => {},
+    editReply: async () => {},
+    reply: async () => {},
+  });
+
+  await sendServiceDeliveryNotice({
+    interaction: makeInteraction(botRes.channel),
+    client,
+    targetUser,
+    variant: 'bot',
+  });
+  assert.ok(getAllText(dmSentPayloads[0]).includes(`<@${expectedNewStaff}>`));
+
+  await sendServiceDeliveryNotice({
+    interaction: makeInteraction(botRes.channel),
+    client,
+    targetUser,
+    variant: 'nitro',
+  });
+  assert.ok(getAllText(dmSentPayloads[1]).includes(`<@${expectedNewStaff}>`));
+
+  // 4. /ib3 luôn nhắc cố định 1212972766752542753
+  await sendServiceDeliveryNotice({
+    interaction: makeInteraction(cnRes.channel),
+    client,
+    targetUser,
+    variant: 'chinese',
+  });
+  assert.ok(getAllText(dmSentPayloads[2]).includes(`<@${SERVICE_TICKET_IDS.CHINESE_SUPPORT_USER_ID}>`));
 });
