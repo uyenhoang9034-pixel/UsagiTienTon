@@ -38,21 +38,26 @@ function createMemoryDbClient() {
   };
 }
 
-test('Forum Store Builders: 4 danh mục chuẩn Components V2 mặc định không màu, mục Chinese đủ nội dung + nút Mở Ticket', () => {
+test('Forum Store Builders: 4 danh mục chuẩn Components V2 mặc định không màu, mục Chinese & Nitro Decor đủ nội dung + nút Mở Ticket', () => {
   for (const key of FORUM_STORE_ORDER) {
-    const payload = buildForumStorePostPayload(key);
-    assert.equal(payload.flags, IS_COMPONENTS_V2);
-    assert.equal(payload.components.length, 1);
+    const payloads = buildForumStorePostPayloads(key);
+    assert.ok(payloads.length >= 1);
+    for (const payload of payloads) {
+      assert.equal(payload.flags, IS_COMPONENTS_V2);
+      assert.equal(payload.components.length, 1);
 
-    const container = payload.components[0];
-    assert.equal(container.type, 17);
-    assert.equal(container.accent_color, undefined);
-    assert.ok(container.components.length <= 10);
+      const container = payload.components[0];
+      assert.equal(container.type, 17);
+      assert.equal(container.accent_color, undefined);
+      assert.ok(container.components.length <= 10);
 
-    const text = getAllText(payload);
-    assert.ok(text.length < 4000);
+      const text = getAllText(payload);
+      assert.ok(text.length < 4000);
+    }
 
-    const actionRow = container.components.find((c) => c.type === 1);
+    const lastPayload = payloads.at(-1);
+    const lastContainer = lastPayload.components[0];
+    const actionRow = lastContainer.components.find((c) => c.type === 1);
     assert.ok(actionRow);
     const btn = actionRow.components[0];
     assert.equal(btn.style, ButtonStyle.Link);
@@ -61,10 +66,24 @@ test('Forum Store Builders: 4 danh mục chuẩn Components V2 mặc định kh�
     assert.equal(btn.url, FORUM_STORE_TICKET_URL);
   }
 
+  const nitroPayloads = buildForumStorePostPayloads('nitrodecor');
+  assert.equal(nitroPayloads.length, 3);
+  const nitroText = nitroPayloads.map(getAllText).join('\n');
+  assert.ok(nitroText.includes('<a:trangtrig50:1567818385306165301> **DỊCH VỤ MUA HỘ DISCORD NITRO & DECORATION** <a:trangtrig51:1567818549794439229>'));
+  assert.ok(nitroText.includes('Nitro Boost gói 1 tháng: 90.000 VNĐ'));
+  assert.ok(nitroText.includes('Nitro Boost gói 1 năm: 810.000 VNĐ'));
+  assert.ok(nitroText.includes('Bảng giá lẻ như sau:'));
+  assert.ok(nitroText.includes('Bảng giá combo như sau:'));
+  assert.ok(nitroText.includes('CAM KẾT & QUY ĐỊNH DỊCH VỤ (TRUNG GIAN ORDER)'));
+  assert.ok(nitroText.includes('Role Super Donate'));
+  assert.ok(nitroText.includes('<a:catg2:1541439091365773362>'));
+
   const chineseText = getAllText(buildForumStorePostPayload('chinese'));
   assert.ok(chineseText.includes('<a:trangtrig50:1567818385306165301> **KHÓA HỌC & KÈM TIẾNG TRUNG 1:1** <a:trangtrig51:1567818549794439229>'));
   assert.ok(chineseText.includes('<a:trangtrig61:1569559986550612051> 1. Các chương trình nhận kèm 1:1:'));
   assert.ok(chineseText.includes('<a:trangtrig61:1569559986550612051> 2. Đặc quyền khi học kèm 1:1:'));
+  assert.ok(chineseText.includes('Tài liệu miễn phí: Tặng kèm file giáo trình, bài tập và hỗ trợ giải đáp thắc mắc ngoài giờ học.'));
+  assert.ok(chineseText.includes('Giáo viên có kinh nghiệm, đã từng du học Trung Quốc, trình độ giảng dạy đủ để đảm nhiệm lớp học.'));
   assert.ok(chineseText.includes('<a:trangtrig61:1569559986550612051> 3. Khung giờ trống hiện tại:'));
   assert.ok(chineseText.includes('<a:trangtrig61:1569559986550612051> 4. Cách thức đăng ký & Tư vấn lộ trình:'));
   assert.ok(chineseText.includes('*Học 1 kèm 1 siêu sát sao – hiểu bài ngay tại lớp – chi phí cực hạt dẻ!*'));
@@ -99,6 +118,12 @@ test('syncForumStorePosts & &postforum: tạo đủ 4 bài lần đầu, cập n
               editedCalls.push({ threadId, msgId, newPayload });
               thread.starterMessage = newPayload;
             },
+            send: async (payload) => ({ id: `msg_${++seq}`, ...payload }),
+            fetch: async () => null,
+          },
+          setLocked: async () => {},
+          delete: async () => {
+            createdThreads.delete(threadId);
           },
         };
         createdThreads.set(threadId, thread);
@@ -175,6 +200,30 @@ test('syncForumStorePosts & &postforum: tạo đủ 4 bài lần đầu, cập n
   assert.equal(res2.created.length, 0);
   assert.equal(res2.updated.length, 4);
   assert.equal(editedCalls.length, 4);
+
+  // Chạy &postforum reset -> xóa các bài cũ mục 2, 3, 4 và tạo lại
+  const resetReplies = [];
+  await handleForumStoreMessage(
+    {
+      content: `&postforum reset <#${forumChannel.id}>`,
+      guild,
+      author: { id: 'staff_1', bot: false },
+      member: {
+        guild,
+        roles: { cache: new Collection([[SERVICE_TICKET_IDS.SP_TICKET_ROLE_ID, {}]]) },
+      },
+      channel: {
+        id: 'cmd_chan',
+        send: async (msg) => {
+          resetReplies.push(msg);
+          return msg;
+        },
+      },
+      delete: async () => {},
+    },
+    client,
+  );
+  assert.ok(resetReplies[0].includes('Tạo mới: **3**, Cập nhật: **1**'));
 });
 
 test('Auto-tag khi kênh chưa có tag & initForumStoreSync tự đăng lên kênh mặc định 1570392561200398407', async () => {
@@ -203,7 +252,15 @@ test('Auto-tag khi kênh chưa có tag & initForumStoreSync tự đăng lên kê
           name,
           appliedTags,
           starterMessage: message,
-          messages: { edit: async () => {} },
+          messages: {
+            edit: async () => {},
+            send: async (payload) => ({ id: `def_msg_${++tagSeq}`, ...payload }),
+            fetch: async () => null,
+          },
+          setLocked: async () => {},
+          delete: async () => {
+            createdThreads.delete(threadId);
+          },
         };
         createdThreads.set(threadId, th);
         return th;

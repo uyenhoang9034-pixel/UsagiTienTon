@@ -47,7 +47,7 @@ export const FORUM_STORE_CATEGORIES = Object.freeze({
     threadTitle: '02 • Nitro Decor',
     defaultTagName: 'Nitro Decor',
     tagHints: ['nitro', 'decor', 'dịch vụ', 'dich vu'],
-    ready: false,
+    ready: true,
   },
   chinese: {
     key: 'chinese',
@@ -239,9 +239,10 @@ export function buildForumStorePostPayloads(categoryKey) {
     return parts.map((content, index) => buildForumV2Message(content, index === 0, index === 5));
   }
 
+  if (categoryKey === 'nitrodecor') return buildNitroDecorForumStorePostPayloads();
   if (categoryKey === 'chinese') return [buildChineseForumStorePostPayload()];
 
-  const placeholderTitles = { nitrodecor: 'NITRO DECOR', khac: 'DỊCH VỤ KHÁC' };
+  const placeholderTitles = { khac: 'DỊCH VỤ KHÁC' };
   const titleText = placeholderTitles[categoryKey] || 'DỊCH VỤ SERVER';
   return [{
     flags: IS_COMPONENTS_V2,
@@ -260,6 +261,93 @@ export function buildForumStorePostPayloads(categoryKey) {
 
 export function buildForumStorePostPayload(categoryKey) {
   return buildForumStorePostPayloads(categoryKey)[0];
+}
+
+function buildNitroDecorForumStorePostPayloads() {
+  const parts = [
+    // Tin nhắn 1: Header + Giới thiệu + I. Danh mục nhận mua hộ
+    {
+      title: true,
+      content: [
+        'Nhận mua hộ trung gian các gói nâng cấp tài khoản, vật phẩm trang trí hồ sơ Discord chính chủ, uy tín, nhanh gọn và bảo hành đầy đủ theo quy định mục **TOS**.',
+        '',
+        '# I. DANH MỤC NHẬN MUA HỘ',
+        '<a:trangtrig62:1569560241190871152> Discord Nitro',
+        '- Nitro Boost gói 1 tháng: 90.000 VNĐ',
+        '- Nitro Boost gói 1 năm: 810.000 VNĐ',
+        '- Không nhận gói 2 tháng, không cần phải nuôi mail, up nitro chính chủ.',
+        '',
+        '<a:trangtrig62:1569560241190871152> Decoration',
+        '- Toàn bộ khung viền ảnh đại diện đang mở bán trên Discord Shop (bao gồm cả các bộ sưu tập sự kiện / giới hạn - miễn còn hạn mua). Chỉ nhận dạng Decor Gift Link (không cần login acc). Các gói combo trang trí hoặc quà tặng gửi trực tiếp cho bạn bè.',
+        '',
+        '<a:trangtrig61:1569559986550612051> Bảng giá lẻ như sau:',
+        '~~66.000đ~~ | 35.000đ',
+        '~~79.000đ~~ | 41.000đ',
+        '~~92.000đ~~ | 51.000đ',
+        '~~105.000đ~~ | 60.000đ',
+        '~~111.000đ~~ | 65.000đ',
+        '~~118.000đ~~ | 70.000đ',
+        '~~131.000đ~~ | 85.000đ',
+        '~~141.000đ~~ | 90.000đ',
+        '',
+        '<a:trangtrig61:1569559986550612051> Bảng giá combo như sau:',
+        '~~118.000đ~~ | 70.000đ',
+        '~~136.000đ~~ | 85.000đ',
+        '~~146.000đ~~ | 95.000đ',
+        '~~155.000đ~~ | 100.000đ',
+        '~~189.000đ~~ | 115.000đ',
+        '~~220.000đ~~ | 145.000đ',
+        '~~300.000đ~~ | 210.000đ',
+      ].join('\n'),
+      button: false,
+    },
+    // Tin nhắn 2: II. Cam kết & Quy định dịch vụ
+    {
+      title: false,
+      content: [
+        '# II. CAM KẾT & QUY ĐỊNH DỊCH VỤ (TRUNG GIAN ORDER)',
+        '<a:trangtrig60:1569558191551942696> Nguồn gốc an toàn: Nguồn thanh toán sạch, chính chủ 100% từ Store cung cấp uy tín, an toàn tuyệt đối cho tài khoản.',
+        '<a:trangtrig60:1569558191551942696> Thời gian xử lý: Tất cả đơn hàng cam kết hoàn thành trong vòng **48 giờ** kể từ khi xác nhận thanh toán (vui lòng hạn chế giục đơn, mình sẽ báo ngay khi Store hoàn tất). Riêng đơn decor gift link là preorder, trong khoảng 1 tuần đổ lại.',
+        '<a:trangtrig60:1569558191551942696> Bảo mật tài khoản (Đối với gói cần Login): Khách hàng vui lòng **đổi Mật khẩu & Mã dự phòng ngay lập tức** sau khi mình báo Done đơn.',
+        '<a:trangtrig60:1569558191551942696> Đối với dạng Link Quà Tặng (Gift Link): Khách hàng cần **bấm nhận ngay khi được gửi link**, mỗi link thường có giới hạn khoảng 48 giờ tính từ lúc bắt đầu tạo link.',
+        '<a:trangtrig60:1569558191551942696> Điều kiện kích hoạt bảo hành: Sau khi nhận hàng thành công, bạn vui lòng **gửi Feedback theo mẫu** tại kênh feedback dịch vụ (ấn nút bên dưới) trong vòng **24 giờ** để được hỗ trợ bảo hành trọn gói.',
+        '',
+        '<a:trangtrig49:1567818140375851018> *Mọi quy định chi tiết về hoàn tiền/refund áp dụng theo điều khoản của Store gốc tại kênh điều khoản dịch vụ (ấn nút bên dưới).*',
+      ].join('\n'),
+      button: false,
+    },
+    // Tin nhắn 3: III. Lưu ý + Nút mở ticket
+    {
+      title: false,
+      content: [
+        '# III. LƯU Ý',
+        '<a:heartg8:1567818755793358928> Role Super Donate (donate ≥ 500.000đ) và role Legendary Donator (donate ≥ 1.000.000đ) sẽ được mua giá gốc (có bảng giá riêng sẽ gửi khi mở ticket).',
+        '<a:heartg8:1567818755793358928> Mình không phải ctv, không pr, mình chỉ là khách hay mua của Store gốc, đã từng mua nhiều và tin tưởng dịch vụ, nên nhận mua hộ (có phí nhẹ) cho ai thực sự cần. Các bạn cũng có thể ghé Store gốc để mua (tạo ticket lấy link) nếu cần, nếu không mua xin đừng nói lời cay đắng. <a:catg2:1541439091365773362>',
+      ].join('\n'),
+      button: true,
+    },
+  ];
+
+  return parts.map((part) => {
+    const components = [];
+    if (part.title) {
+      components.push({
+        type: 10,
+        content: '# <a:trangtrig50:1567818385306165301> **DỊCH VỤ MUA HỘ DISCORD NITRO & DECORATION** <a:trangtrig51:1567818549794439229>',
+      });
+      components.push({ type: 14, divider: true, spacing: 1 });
+    }
+    components.push({ type: 10, content: part.content });
+    if (part.button) {
+      components.push({ type: 14, divider: true, spacing: 1 });
+      components.push(buildOpenTicketButtonRow());
+    }
+    return {
+      flags: IS_COMPONENTS_V2,
+      components: [{ type: 17, components }],
+      allowedMentions: { parse: [] },
+    };
+  });
 }
 
 function buildChineseForumStorePostPayload() {
@@ -283,6 +371,7 @@ function buildChineseForumStorePostPayload() {
           '- Theo sát 100%: Giáo viên chỉ tập trung hướng dẫn duy nhất một mình bạn trong suốt buổi học, chỉnh phát âm và sửa lỗi ngay lập tức, không lo ngại ngùng hay theo không kịp tiến độ.',
           '- Học phí "giá deal": Mức giá ưu đãi đặc biệt dành riêng cho thành viên trong server, có gói đăng ký theo buổi lẻ hoặc theo tháng linh hoạt.',
           '- Tài liệu miễn phí: Tặng kèm file giáo trình, bài tập và hỗ trợ giải đáp thắc mắc ngoài giờ học.',
+          '- Giáo viên có kinh nghiệm, đã từng du học Trung Quốc, trình độ giảng dạy đủ để đảm nhiệm lớp học.',
           '',
           E.SECTION + ' 3. Khung giờ trống hiện tại:',
           '- Lịch nhận lớp: Thứ 3 & Thứ 5 hằng tuần',
@@ -436,6 +525,7 @@ export async function syncForumStorePosts({
   guild,
   forumChannel,
   client,
+  recreateKeys = [],
 }) {
   if (!guild || !forumChannel) {
     return { ok: false, errorMessage: '❌ Không xác định được server hoặc kênh diễn đàn.' };
@@ -453,6 +543,13 @@ export async function syncForumStorePosts({
   const existingState = (await getDatabaseValue(client, storageKey, null)) || {};
   const savedPosts = { ...(existingState.posts || {}) };
   const liveThreadsByName = await listForumThreadsByName(resolvedForum);
+
+  const shouldRecreatePosts =
+    recreateKeys.length > 0
+      ? recreateKeys
+      : !existingState.recreated_v3
+        ? ['nitrodecor', 'chinese', 'khac']
+        : [];
 
   const created = [];
   const updated = [];
@@ -478,6 +575,19 @@ export async function syncForumStorePosts({
 
     if (!existingThread) {
       existingThread = liveThreadsByName.get(entry.threadTitle.toLowerCase()) || null;
+    }
+
+    if (shouldRecreatePosts.includes(key)) {
+      if (existingThread) {
+        if (typeof existingThread.setLocked === 'function') {
+          await existingThread.setLocked(false).catch(() => {});
+        }
+        if (typeof existingThread.delete === 'function') {
+          await existingThread.delete('Xóa bài cũ mục 2, 3, 4 để đăng lại').catch(() => {});
+        }
+        existingThread = null;
+      }
+      delete savedPosts[key];
     }
 
     if (existingThread) {
@@ -565,6 +675,7 @@ export async function syncForumStorePosts({
   await setDatabaseValue(client, storageKey, {
     forumChannelId: resolvedForum.id,
     posts: savedPosts,
+    recreated_v3: true,
     updatedAt: Date.now(),
   });
 
@@ -629,7 +740,9 @@ export async function handleForumStoreMessage(message, client) {
     return true;
   }
 
-  const arg = String(match[1] || '').trim();
+  const rawArg = String(match[1] || '').trim();
+  const isReset = /\b(reset|recreate|remake|repost|xoa|xóa)\b/i.test(rawArg);
+  const arg = rawArg.replace(/\b(reset|recreate|remake|repost|xoa|xóa)\b/gi, '').trim();
   const channelIdMatch = arg.match(/(?:<#)?(\d{15,22})>?/);
   const targetChannelId = channelIdMatch
     ? channelIdMatch[1]
@@ -655,6 +768,7 @@ export async function handleForumStoreMessage(message, client) {
       guild: message.guild,
       forumChannel,
       client,
+      recreateKeys: isReset ? ['nitrodecor', 'chinese', 'khac'] : [],
     });
 
     if (!result.ok) {
