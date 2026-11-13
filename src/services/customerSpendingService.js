@@ -121,6 +121,16 @@ function payload(components) {
   };
 }
 
+async function sendPrivate(message, data) {
+  try {
+    await message.author.send(data);
+    return true;
+  } catch {
+    await message.channel.send(data).catch(() => {});
+    return false;
+  }
+}
+
 function transactionPayload({ guild, member, staff, record, total, oldRank, newRank }) {
   const e = emojis(guild);
   const adding = record.type === "add";
@@ -320,7 +330,7 @@ export async function handleCustomerSpendingMessage(message, client) {
 
   if (transactionCommand) {
     if (!message.member?.roles?.cache?.has?.(STAFF_ROLE_ID)) {
-      await message.channel.send({
+      await sendPrivate(message, {
         content: emojis(message.guild).bang +
           " Bạn không có quyền sử dụng tính năng này, chỉ có <@&" + STAFF_ROLE_ID + "> mới có thể sử dụng tính năng.",
       });
@@ -331,7 +341,7 @@ export async function handleCustomerSpendingMessage(message, client) {
     const amount = match ? parseAmount(match[3]) : null;
     const note = match?.[4]?.trim();
     if (!match || !amount || !note) {
-      await message.channel.send({
+      await sendPrivate(message, {
         content: emojis(message.guild).bang +
           " Cú pháp không hợp lệ! Vui lòng sử dụng đúng cú pháp sau:\n- Ghi nhận: +dv @User Số tiền Ghi chú\n- Refund: -dv @User Số tiền Ghi chú",
       });
@@ -364,21 +374,21 @@ export async function handleCustomerSpendingMessage(message, client) {
 
   const lookup = content.match(/^&ttgd\s+<@!?(\d+)>$/i);
   if (!lookup) {
-    await message.channel.send({ content: "Cú pháp: &ttgd @User" });
+    await sendPrivate(message, { content: "Cú pháp: &ttgd @User" });
     return true;
   }
   const member = await message.guild.members.fetch(lookup[1]).catch(() => null);
   if (!member) {
-    await message.channel.send({ content: emojis(message.guild).bang + " Không tìm thấy thành viên được nhắc đến." });
+    await sendPrivate(message, { content: emojis(message.guild).bang + " Không tìm thấy thành viên được nhắc đến." });
     return true;
   }
   const value = await getDatabaseValue(client, keyFor(message.guild.id, member.id), null);
   const records = Array.isArray(value?.records) ? value.records : [];
   if (!records.length) {
-    await message.channel.send(noDataPayload(message.guild));
+    await sendPrivate(message, noDataPayload(message.guild));
     return true;
   }
-  await message.channel.send(profilePayload({
+  await sendPrivate(message, profilePayload({
     guild: message.guild, member, records, page: 1, requesterId: message.author.id,
   }));
   return true;
@@ -386,15 +396,16 @@ export async function handleCustomerSpendingMessage(message, client) {
 
 export async function handleCustomerSpendingPage(interaction, client, args = []) {
   const [guildId, userId, pageRaw, requesterId] = args;
-  if (!interaction.guild || interaction.guild.id !== guildId || interaction.user.id !== requesterId) {
+  const guild = interaction.guild || await client.guilds.fetch(guildId).catch(() => null);
+  if (!guild || guild.id !== guildId || interaction.user.id !== requesterId) {
     return interaction.reply({ content: "Bạn không có quyền thao tác trên bảng tra cứu này.", ephemeral: true });
   }
-  const member = await interaction.guild.members.fetch(userId).catch(() => null);
+  const member = await guild.members.fetch(userId).catch(() => null);
   if (!member) return interaction.reply({ content: "Không tìm thấy thành viên.", ephemeral: true });
   const value = await getDatabaseValue(client, keyFor(guildId, userId), null);
   const records = Array.isArray(value?.records) ? value.records : [];
-  if (!records.length) return interaction.update(noDataPayload(interaction.guild));
+  if (!records.length) return interaction.update(noDataPayload(guild));
   return interaction.update(profilePayload({
-    guild: interaction.guild, member, records, page: Number(pageRaw), requesterId,
+    guild, member, records, page: Number(pageRaw), requesterId,
   }));
 }
