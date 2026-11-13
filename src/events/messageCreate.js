@@ -16,6 +16,7 @@ import { handleRandomMessage } from '../services/randomService.js';
 import { handleBookingMessage } from '../services/bookingService.js';
 import { handleForumStoreMessage } from '../services/forumStoreService.js';
 import { handleServiceTicketMessage } from '../services/serviceTicketService.js';
+import { handleCustomerSpendingMessage } from '../services/customerSpendingService.js';
 import { handleWordGuessMessage } from '../services/wordGuessService.js';
 
 let cachedHandleTTSMessage = null;
@@ -74,6 +75,13 @@ export default {
       }
     } catch (randomError) {
       logger.error('Error handling Random trigger:', randomError);
+    }
+
+    try {
+      const spendingProcessed = await handleCustomerSpendingMessage(message, client);
+      if (spendingProcessed) return;
+    } catch (spendingError) {
+      logger.error('Error handling Customer Spending message:', spendingError);
     }
 
     try {

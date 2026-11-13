@@ -26,6 +26,8 @@ const BASE_ALLOWED_INTERACTION_PATTERNS = [
   /^buttons\/booking\/.*\.js$/,
   /^buttons\/serviceTicket.*\.js$/,
   /^buttons\/serviceTicket\/.*\.js$/,
+  /^buttons\/customerSpending.*\.js$/,
+  /^buttons\/customerSpending\/.*\.js$/,
   /^buttons\/doantu.*\.js$/,
   /^buttons\/doantu\/.*\.js$/,
   /^buttons\/hsk.*\.js$/,
