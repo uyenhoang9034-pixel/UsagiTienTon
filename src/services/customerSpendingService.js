@@ -6,12 +6,23 @@ import { logger } from "../utils/logger.js";
 const COMPONENTS_V2 = 1 << 15;
 const STAFF_ROLE_ID = SERVICE_TICKET_IDS.SP_TICKET_ROLE_ID;
 const PAGE_SIZE = 5;
+
+// Điền ID role Discord vào các chuỗi rỗng sau khi tạo role.
+// Để trống sẽ bỏ qua đồng bộ role, không tự tìm theo tên và không tự tạo role.
+const RANK_ROLE_IDS = {
+  GUEST: "",
+  SILVER: "",
+  GOLD: "",
+  PLATINUM: "",
+  DIAMOND: "",
+};
+
 const RANKS = [
-  { name: "Usagi Guest", threshold: 0 },
-  { name: "Usagi Silver", threshold: 300000 },
-  { name: "Usagi Gold", threshold: 600000 },
-  { name: "Usagi Platinum", threshold: 1000000 },
-  { name: "Usagi Diamond", threshold: 2500000 },
+  { name: "Usagi Guest", threshold: 0, roleId: RANK_ROLE_IDS.GUEST },
+  { name: "Usagi Silver", threshold: 300000, roleId: RANK_ROLE_IDS.SILVER },
+  { name: "Usagi Gold", threshold: 600000, roleId: RANK_ROLE_IDS.GOLD },
+  { name: "Usagi Platinum", threshold: 1000000, roleId: RANK_ROLE_IDS.PLATINUM },
+  { name: "Usagi Diamond", threshold: 2500000, roleId: RANK_ROLE_IDS.DIAMOND },
 ];
 const queues = new Map();
 
@@ -253,14 +264,30 @@ function profilePayload({ guild, member, records, page, requesterId }) {
 
 async function syncRankRole(guild, member, rank) {
   try {
+    // Chỉ thao tác với role có ID được cấu hình; ID để trống thì bỏ qua an toàn.
+    if (!rank.roleId) {
+      logger.info("[CustomerSpending] Rank role ID is not configured for: " + rank.name);
+      return;
+    }
+
     const fetched = await guild.roles.fetch().catch(() => guild.roles.cache);
     const cache = fetched?.cache || fetched || guild.roles.cache;
-    const rankRoles = RANKS.map((item) => cache.find((role) => role.name === item.name)).filter(Boolean);
-    const target = rankRoles.find((role) => role.name === rank.name);
-    const remove = rankRoles.filter((role) => role.id !== target?.id && member.roles.cache.has(role.id));
+    const configuredRoles = RANKS
+      .filter((item) => item.roleId)
+      .map((item) => cache.get(item.roleId))
+      .filter(Boolean);
+    const target = cache.get(rank.roleId);
+
+    if (!target) {
+      logger.warn("[CustomerSpending] Configured rank role ID was not found: " + rank.name);
+      return;
+    }
+
+    const remove = configuredRoles.filter((role) =>
+      role.id !== target.id && member.roles.cache.has(role.id)
+    );
     if (remove.length) await member.roles.remove(remove);
-    if (target && !member.roles.cache.has(target.id)) await member.roles.add(target);
-    if (!target) logger.warn("[CustomerSpending] Missing rank role: " + rank.name);
+    if (!member.roles.cache.has(target.id)) await member.roles.add(target);
   } catch (error) {
     logger.error("[CustomerSpending] Rank role update failed:", error);
   }
