@@ -1137,6 +1137,8 @@ export function buildDmTranscriptPayloadV2({
         `- Dịch vụ: ${serviceLabel}`,
         `- Hỗ trợ chính: ${staffText}`,
         `- Thời gian xuất transcript: <t:${exportedTs}:F>`,
+        '',
+        `${E.DOWNLOAD_HINT || '<a:trangtrig49:1567818140375851018>'} Vui lòng "tải xuống - download" file transcript để lưu bản đầy đủ nhất.`,
       ].join('\n'),
     },
   ];

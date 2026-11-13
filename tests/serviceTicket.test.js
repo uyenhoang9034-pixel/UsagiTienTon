@@ -381,6 +381,11 @@ test('UI Builders: Panel, Welcome, Staff notice, &nhacfb, Feedback nhận, &clos
   });
   assert.ok(getAllText(dmTranscript).includes('LỊCH SỬ GIAO DỊCH (TRANSCRIPT)'));
   assert.ok(getAllText(dmTranscript).includes('<@staff_2>'));
+  assert.ok(
+    getAllText(dmTranscript).includes(
+      '<a:trangtrig49:1567818140375851018> Vui lòng "tải xuống - download" file transcript để lưu bản đầy đủ nhất.',
+    ),
+  );
   assert.equal(
     dmTranscript.components[0].components.some(
       (c) => c.type === 13 && c.file?.url === 'attachment://transcript-ticket-codebot-1.html',
@@ -576,6 +581,11 @@ test('End-to-End Flow: Đếm số riêng từng dịch vụ, giới hạn 2 tic
   assert.equal(delFeedbackRes.ok, true);
   assert.equal(delFeedbackRes.dmSent, true);
   assert.equal(dmMessages.length, 1);
+  assert.ok(
+    getAllText(dmMessages[0].payload).includes(
+      '<a:trangtrig49:1567818140375851018> Vui lòng "tải xuống - download" file transcript để lưu bản đầy đủ nhất.',
+    ),
+  );
   assert.equal(logMessages.length, 1);
   assert.ok(deletedChannels.includes(supportRes.channel.id));
 
