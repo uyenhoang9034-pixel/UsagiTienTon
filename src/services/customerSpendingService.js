@@ -135,13 +135,11 @@ function payload(components) {
 }
 
 async function sendPrivate(message, data) {
-  try {
-    await message.author.send(data);
-    return true;
-  } catch {
-    await message.channel.send(data).catch(() => {});
-    return false;
-  }
+  // Các phản hồi của lệnh prefix hiển thị trực tiếp trong kênh hiện tại, không gửi DM.
+  await message.channel.send(data).catch((error) => {
+    logger.warn("[CustomerSpending] Could not send channel response:", error);
+  });
+  return true;
 }
 
 function transactionPayload({ guild, member, staff, record, total, oldRank, newRank }) {
