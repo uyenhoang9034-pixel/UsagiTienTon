@@ -42,6 +42,12 @@ const BASE_ALLOWED_INTERACTION_PATTERNS = [
   /^modals\/doantu\/.*\.js$/,
   /^modals\/hsk.*\.js$/,
   /^modals\/hsk\/.*\.js$/,
+  /^buttons\/prism.*\.js$/,
+  /^buttons\/prism\/.*\.js$/,
+  /^selectMenus\/prism.*\.js$/,
+  /^selectMenus\/prism\/.*\.js$/,
+  /^modals\/prism.*\.js$/,
+  /^modals\/prism\/.*\.js$/,
 ];
 
 const TTS_INTERACTION_PATTERNS = [
