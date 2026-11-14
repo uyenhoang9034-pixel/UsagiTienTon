@@ -333,12 +333,12 @@ function transactionPayload({ guild, member, staff, record, total, oldRank, newR
   const oldIndex = RANKS.findIndex((item) => item.name === oldRank.name);
   const newIndex = RANKS.findIndex((item) => item.name === newRank.name);
   if (newIndex > oldIndex) {
-    fields.push(text(e.heart + " **Chúc mừng bạn đã được thăng hạng!**\\n" + oldRank.name + " → " + newRank.name));
+    fields.push(text(e.heart + " **Chúc mừng bạn đã được thăng hạng!**\n" + oldRank.name + " → " + newRank.name));
     if (newRank.name === "Usagi Platinum" || newRank.name === "Usagi Diamond") {
       fields.push(text("<a:trangtrig45:1547239010190237819> Sử dụng lệnh `&bgrank` để xem bảng giá ưu đãi dành riêng cho role **" + newRank.name + "** nhé!"));
     }
   } else if (newIndex < oldIndex) {
-    fields.push(text(e.bang + " **Xin chia buồn, bạn đã bị hạ cấp!**\\n" + oldRank.name + " → " + newRank.name));
+    fields.push(text(e.bang + " **Xin chia buồn, bạn đã bị hạ cấp!**\n" + oldRank.name + " → " + newRank.name));
   }
   fields.push(text("-# " + dateTime(record.createdAt)));
   return payload(fields);
@@ -531,9 +531,9 @@ async function saveTransaction({ client, guild, channel, staff, member, type, am
 export async function handleCustomerSpendingMessage(message, client) {
   if (!message?.guild || message.author?.bot || typeof message.content !== "string") return false;
   const content = message.content.trim();
-  const transactionCommand = /^[+-]dv(?:\\s|$)/i.test(content);
-  const lookupCommand = /^&ttgd(?:\\s|$)/i.test(content);
-  const rankPriceCommand = /^&bgrank\\s*$/i.test(content);
+  const transactionCommand = /^[+-]dv(?:\s|$)/i.test(content);
+  const lookupCommand = /^&ttgd(?:\s|$)/i.test(content);
+  const rankPriceCommand = /^&bgrank\s*$/i.test(content);
   if (!transactionCommand && !lookupCommand && !rankPriceCommand) return false;
 
   await message.delete().catch(() => {});
