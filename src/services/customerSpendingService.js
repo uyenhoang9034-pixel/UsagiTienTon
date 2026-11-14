@@ -155,17 +155,71 @@ function buildRankOverviewPayload() {
   return payload(components);
 }
 
+const RANK_OVERVIEW_FORUM_CHANNEL_ID = "1570392561200398407";
+const RANK_OVERVIEW_THREAD_TITLE = "05 • RANK KHÁCH HÀNG";
+
+async function publishRankOverviewToForum(message) {
+  const storageKey = "guild:" + message.guild.id + ":customer_rank_overview_forum_thread";
+  const forum = await message.client.channels.fetch(RANK_OVERVIEW_FORUM_CHANNEL_ID).catch(() => null);
+  if (!forum || !forum.threads?.create || !forum.isThreadOnly?.()) {
+    throw new Error("Kênh cấu hình không tồn tại hoặc không phải kênh diễn đàn.");
+  }
+
+  const saved = await getDatabaseValue(message.client, storageKey, null);
+  let thread = saved?.threadId
+    ? await forum.threads.fetch(saved.threadId).catch(() => null)
+    : null;
+
+  if (thread) {
+    if (thread.archived) await thread.setArchived(false).catch(() => {});
+    const starter = await thread.fetchStarterMessage().catch(() => null);
+    if (starter) {
+      await starter.edit(buildRankOverviewPayload());
+      return { created: false, thread };
+    }
+    thread = null;
+  }
+
+  thread = await forum.threads.create({
+    name: RANK_OVERVIEW_THREAD_TITLE,
+    message: buildRankOverviewPayload(),
+    reason: "Đăng bảng cấp bậc khách hàng Usagi",
+  });
+  await setDatabaseValue(message.client, storageKey, {
+    guildId: message.guild.id,
+    channelId: RANK_OVERVIEW_FORUM_CHANNEL_ID,
+    threadId: thread.id,
+    updatedAt: Date.now(),
+  });
+  return { created: true, thread };
+}
+
 async function handleRankOverviewCommand(message) {
   const member = message.member ||
     await message.guild.members.fetch(message.author.id).catch(() => null);
   if (!isRankPriceAdmin(member, message.guild, message.author.id)) {
     await message.channel.send({
-      content: RANK_PRICE_EMOJIS.notice + " Bạn không có quyền sử dụng lệnh này. Chỉ admin mới có thể xem bảng rank dịch vụ.",
+      content: RANK_PRICE_EMOJIS.notice + " Bạn không có quyền sử dụng lệnh này. Chỉ admin mới có thể đăng hoặc cập nhật bảng rank dịch vụ.",
       allowedMentions: { parse: [] },
     });
     return true;
   }
-  await message.channel.send(buildRankOverviewPayload());
+
+  try {
+    const result = await publishRankOverviewToForum(message);
+    await message.channel.send({
+      content: RANK_PRICE_EMOJIS.notice + (result.created
+        ? " Đã đăng bài **05 • RANK KHÁCH HÀNG** lên diễn đàn <#" + RANK_OVERVIEW_FORUM_CHANNEL_ID + ">!"
+        : " Đã cập nhật bài **05 • RANK KHÁCH HÀNG** trong diễn đàn <#" + RANK_OVERVIEW_FORUM_CHANNEL_ID + ">!"),
+      allowedMentions: { parse: [] },
+    });
+  } catch (error) {
+    logger.error("[CustomerSpending] Could not publish rank overview forum post:", error);
+    await message.channel.send({
+      content: RANK_PRICE_EMOJIS.notice + " Không thể đăng bảng rank lên diễn đàn. Vui lòng kiểm tra quyền **Tạo bài trong diễn đàn**, **Gửi tin nhắn** và **Nhúng liên kết** của bot.",
+      allowedMentions: { parse: [] },
+    });
+  }
   return true;
 }
 
