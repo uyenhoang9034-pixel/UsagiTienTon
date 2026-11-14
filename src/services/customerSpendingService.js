@@ -132,6 +132,43 @@ function isRankPriceAdmin(member, guild, userId) {
     member.roles?.cache?.has?.("1545305594712432640") === true;
 }
 
+function buildRankOverviewPayload() {
+  const rankEmoji = "<a:trangtrig55:1567819383449980948>";
+  const unlockEmoji = "<a:ilyg1:1546041656648929380>";
+  const components = [
+    { type: 10, content: "# <a:trangtrig50:1567818385306165301> **RANK DỊCH VỤ** <a:trangtrig51:1567818549794439229>" },
+    { type: 14, divider: true, spacing: 1 },
+    { type: 10, content: "Các mốc chi tiêu tích lũy để đạt từng cấp bậc dịch vụ:" },
+    { type: 14, divider: true, spacing: 1 },
+  ];
+  for (const rank of RANKS) {
+    components.push({
+      type: 10,
+      content: rankEmoji + " **" + rank.name + "**\\nTổng chi tiêu đạt: **" + money(rank.threshold) + "**" +
+        (rank.name === "Usagi Platinum" || rank.name === "Usagi Diamond"
+          ? "\\n" + unlockEmoji + " Mở khóa bảng giá riêng với giá siêu ưu đãi."
+          : ""),
+    });
+  }
+  components.push({ type: 14, divider: true, spacing: 1 });
+  components.push({ type: 10, content: "-# Cấp bậc được xét dựa trên tổng chi tiêu dịch vụ tích lũy của thành viên." });
+  return payload(components);
+}
+
+async function handleRankOverviewCommand(message) {
+  const member = message.member ||
+    await message.guild.members.fetch(message.author.id).catch(() => null);
+  if (!isRankPriceAdmin(member, message.guild, message.author.id)) {
+    await message.channel.send({
+      content: RANK_PRICE_EMOJIS.notice + " Bạn không có quyền sử dụng lệnh này. Chỉ admin mới có thể xem bảng rank dịch vụ.",
+      allowedMentions: { parse: [] },
+    });
+    return true;
+  }
+  await message.channel.send(buildRankOverviewPayload());
+  return true;
+}
+
 async function handleRankPriceCommand(message) {
   const member = message.member ||
     await message.guild.members.fetch(message.author.id).catch(() => null);
@@ -549,13 +586,19 @@ export async function handleCustomerSpendingMessage(message, client) {
   const content = message.content.trim();
   const transactionCommand = /^[+-]dv(?:\s|$)/i.test(content);
   const lookupCommand = /^&ttgd(?:\s|$)/i.test(content);
-  const rankPriceCommand = /^&bgrank\s*$/i.test(content);
-  if (!transactionCommand && !lookupCommand && !rankPriceCommand) return false;
+  const rankPriceCommand = /^&bgrank\\s*$/i.test(content);
+  const rankOverviewCommand = /^&rank\\s*$/i.test(content);
+  if (!transactionCommand && !lookupCommand && !rankPriceCommand && !rankOverviewCommand) return false;
 
   await message.delete().catch(() => {});
 
   if (rankPriceCommand) {
     await handleRankPriceCommand(message);
+    return true;
+  }
+
+  if (rankOverviewCommand) {
+    await handleRankOverviewCommand(message);
     return true;
   }
 
