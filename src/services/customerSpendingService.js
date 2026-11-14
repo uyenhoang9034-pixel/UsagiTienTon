@@ -648,8 +648,8 @@ export async function handleCustomerSpendingMessage(message, client) {
   const content = message.content.trim();
   const transactionCommand = /^[+-]dv(?:\s|$)/i.test(content);
   const lookupCommand = /^&ttgd(?:\s|$)/i.test(content);
-  const rankPriceCommand = /^&bgrank\\s*$/i.test(content);
-  const rankOverviewCommand = /^&rank\\s*$/i.test(content);
+  const rankPriceCommand = /^&bgrank\s*$/i.test(content);
+  const rankOverviewCommand = /^&rank\s*$/i.test(content);
   if (!transactionCommand && !lookupCommand && !rankPriceCommand && !rankOverviewCommand) return false;
 
   await message.delete().catch(() => {});
