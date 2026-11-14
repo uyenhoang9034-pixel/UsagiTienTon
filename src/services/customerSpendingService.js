@@ -255,6 +255,7 @@ function profilePayload({ guild, member, records, page, requesterId, simulated =
 
   const components = [
     text(title(guild, "THÔNG TIN KHÁCH HÀNG")),
+    ...(simulated ? [text("⚠️ **DỮ LIỆU MÔ PHỎNG — chỉ dùng để kiểm thử giao diện, không được lưu vào hệ thống.**")] : []),
     {
       type: 12,
       items: [{ media: { url: member.displayAvatarURL({ extension: "png", size: 256 }) }, description: "Ảnh đại diện khách hàng" }],
