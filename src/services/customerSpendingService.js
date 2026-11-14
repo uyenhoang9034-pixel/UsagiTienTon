@@ -126,7 +126,7 @@ function buildRankPriceDeniedPayload(guildId) {
 
 function isRankPriceAdmin(member, guild, userId) {
   if (!member) return false;
-  if (member.permissions?.has?.("Administrator")) return true;
+  if (member.permissions?.has?.(8n)) return true;
   if (String(guild?.ownerId || "") === String(userId || member.id || "")) return true;
   return member.roles?.cache?.has?.("1541303749916754001") === true ||
     member.roles?.cache?.has?.("1545305594712432640") === true;
