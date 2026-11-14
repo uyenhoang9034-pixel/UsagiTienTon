@@ -86,6 +86,47 @@ function netSpent(records) {
   return records.reduce((sum, item) => sum + (item.type === "add" ? 1 : -1) * Number(item.amount || 0), 0);
 }
 
+function buildMockTestHistory(userId) {
+  // Dữ liệu giả ổn định trong ngày để chuyển trang không làm thay đổi lịch sử.
+  const dayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
+  const seedText = String(userId) + dayKey;
+  let seed = 0;
+  for (const char of seedText) seed = (seed * 31 + char.charCodeAt(0)) >>> 0;
+  const random = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  const services = ["Dạy Kèm Tiếng Trung", "Vibe Code Bot Discord", "Nitro Decor", "Dịch vụ thiết kế Discord"];
+  const amounts = [150000, 200000, 250000, 300000, 350000, 450000, 500000, 600000];
+  const now = Date.now();
+  return Array.from({ length: 8 }, (_, index) => {
+    const type = index === 3 || index === 6 ? "subtract" : "add";
+    const amount = amounts[Math.floor(random() * amounts.length)];
+    const note = type === "add" ? services[Math.floor(random() * services.length)] : "Điều chỉnh / hoàn tiền kiểm thử";
+    return {
+      id: "mock-" + index,
+      type,
+      amount,
+      note,
+      displayNote: note,
+      ticketNumber: 120 + Math.floor(random() * 880),
+      staffId: "872792190651334707",
+      createdAt: now - (index + 1) * (1 + Math.floor(random() * 8)) * 86400000,
+      testMode: true,
+    };
+  });
+}
+
+async function getLookupRecords(client, guildId, userId) {
+  const value = await getDatabaseValue(client, keyFor(guildId, userId), null);
+  const savedRecords = Array.isArray(value?.records) ? value.records : [];
+  if (savedRecords.length) return { records: savedRecords, simulated: false };
+  if (NO_SAVE_TEST_USER_IDS.has(userId)) {
+    return { records: buildMockTestHistory(userId), simulated: true };
+  }
+  return { records: [], simulated: false };
+}
+
 function rankFor(total) {
   let current = RANKS[0];
   for (const rank of RANKS) if (total >= rank.threshold) current = rank;
@@ -189,7 +230,7 @@ function noDataPayload(guild) {
   ]);
 }
 
-function profilePayload({ guild, member, records, page, requesterId }) {
+function profilePayload({ guild, member, records, page, requesterId, simulated = false }) {
   const e = emojis(guild);
   const total = Math.max(0, netSpent(records));
   const rank = rankFor(total);
@@ -432,14 +473,14 @@ export async function handleCustomerSpendingMessage(message, client) {
     await sendPrivate(message, { content: emojis(message.guild).bang + " Không tìm thấy thành viên cần tra cứu." });
     return true;
   }
-  const value = await getDatabaseValue(client, keyFor(message.guild.id, member.id), null);
-  const records = Array.isArray(value?.records) ? value.records : [];
+  const lookupData = await getLookupRecords(client, message.guild.id, member.id);
+  const { records, simulated } = lookupData;
   if (!records.length) {
     await sendPrivate(message, noDataPayload(message.guild));
     return true;
   }
   await sendPrivate(message, profilePayload({
-    guild: message.guild, member, records, page: 1, requesterId: message.author.id,
+    guild: message.guild, member, records, page: 1, requesterId: message.author.id, simulated,
   }));
   return true;
 }
@@ -452,10 +493,10 @@ export async function handleCustomerSpendingPage(interaction, client, args = [])
   }
   const member = await guild.members.fetch(userId).catch(() => null);
   if (!member) return interaction.reply({ content: "Không tìm thấy thành viên.", ephemeral: true });
-  const value = await getDatabaseValue(client, keyFor(guildId, userId), null);
-  const records = Array.isArray(value?.records) ? value.records : [];
+  const lookupData = await getLookupRecords(client, guildId, userId);
+  const { records, simulated } = lookupData;
   if (!records.length) return interaction.update(noDataPayload(guild));
   return interaction.update(profilePayload({
-    guild, member, records, page: Number(pageRaw), requesterId,
+    guild, member, records, page: Number(pageRaw), requesterId, simulated,
   }));
 }
