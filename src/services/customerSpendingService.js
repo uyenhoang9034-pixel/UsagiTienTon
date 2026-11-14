@@ -129,7 +129,8 @@ function isRankPriceAdmin(member, guild, userId) {
   if (member.permissions?.has?.(8n)) return true;
   if (String(guild?.ownerId || "") === String(userId || member.id || "")) return true;
   return member.roles?.cache?.has?.("1541303749916754001") === true ||
-    member.roles?.cache?.has?.("1545305594712432640") === true;
+    member.roles?.cache?.has?.("1545305594712432640") === true ||
+    member.roles?.cache?.has?.(STAFF_ROLE_ID) === true;
 }
 
 function buildRankOverviewPayload() {
@@ -144,9 +145,9 @@ function buildRankOverviewPayload() {
   for (const rank of RANKS) {
     components.push({
       type: 10,
-      content: rankEmoji + " **" + rank.name + "**\\nTổng chi tiêu đạt: **" + money(rank.threshold) + "**" +
+      content: rankEmoji + " **" + rank.name + "**\nTổng chi tiêu đạt: **" + money(rank.threshold) + "**" +
         (rank.name === "Usagi Platinum" || rank.name === "Usagi Diamond"
-          ? "\\n" + unlockEmoji + " Mở khóa bảng giá riêng với giá siêu ưu đãi."
+          ? "\n" + unlockEmoji + " Mở khóa bảng giá riêng với giá siêu ưu đãi."
           : ""),
     });
   }
@@ -184,9 +185,46 @@ async function publishRankOverviewToForum(message) {
     thread = null;
   }
 
+  // Nếu trong database chưa lưu threadId, tìm kiếm bài đăng hiện có theo tiêu đề để tránh tạo bài trùng lặp
+  if (!thread && typeof forum.threads?.fetchActive === "function") {
+    const active = await forum.threads.fetchActive().catch(() => null);
+    const existing = active?.threads?.find?.(
+      (th) => th?.name?.trim().toLowerCase() === RANK_OVERVIEW_THREAD_TITLE.toLowerCase()
+    );
+    if (existing) {
+      if (existing.archived) await existing.setArchived(false).catch(() => {});
+      const starter = await existing.fetchStarterMessage().catch(() => null);
+      if (starter) {
+        await starter.edit(buildRankOverviewPayload());
+        await setDatabaseValue(message.client, storageKey, {
+          guildId: message.guild.id,
+          channelId: RANK_OVERVIEW_FORUM_CHANNEL_ID,
+          threadId: existing.id,
+          updatedAt: Date.now(),
+        });
+        return { created: false, thread: existing };
+      }
+    }
+  }
+
+  // Kiểm tra tag diễn đàn (phòng trường hợp kênh Forum bật RequireTag)
+  const availableTags = Array.isArray(forum.availableTags) ? forum.availableTags : [];
+  let appliedTags = [];
+  if (availableTags.length > 0) {
+    const matchedTag = availableTags.find((t) =>
+      /rank|cấp bậc|cap bac|dịch vụ|dich vu/i.test(String(t?.name || ""))
+    );
+    if (matchedTag?.id) {
+      appliedTags = [matchedTag.id];
+    } else if (forum.flags?.has?.(1 << 4) || forum.flags?.has?.(16)) {
+      appliedTags = [availableTags[0].id];
+    }
+  }
+
   thread = await forum.threads.create({
     name: RANK_OVERVIEW_THREAD_TITLE,
     message: buildRankOverviewPayload(),
+    ...(appliedTags.length > 0 ? { appliedTags } : {}),
     reason: "Đăng bảng cấp bậc khách hàng Usagi",
   });
   await setDatabaseValue(message.client, storageKey, {
@@ -222,7 +260,7 @@ async function handleRankOverviewCommand(message) {
     const errorCode = error?.code ? " (mã lỗi: " + error.code + ")" : "";
     const errorMessage = String(error?.message || "Lỗi không xác định").slice(0, 700);
     await message.channel.send({
-      content: RANK_PRICE_EMOJIS.notice + " **Không thể đăng bảng rank lên diễn đàn.**\\nNguyên nhân: " + errorMessage + errorCode + "\\nHãy kiểm tra quyền **Xem kênh**, **Gửi tin nhắn trong bài**, **Tạo bài trong diễn đàn** và quyền gửi Components V2 của bot.",
+      content: RANK_PRICE_EMOJIS.notice + " **Không thể đăng bảng rank lên diễn đàn.**\nNguyên nhân: " + errorMessage + errorCode + "\nHãy kiểm tra quyền **Xem kênh**, **Gửi tin nhắn trong bài**, **Tạo bài trong diễn đàn** và quyền gửi Components V2 của bot.",
       allowedMentions: { parse: [] },
     }).catch((sendError) => {
       logger.error("[CustomerSpending] Could not report forum publishing error:", sendError);
@@ -710,9 +748,9 @@ export async function handleCustomerSpendingMessage(message, client) {
 
   // Mặc định mọi thành viên đều tra cứu hồ sơ của chính mình bằng &ttgd.
   // Chỉ role SP Ticket (STAFF_ROLE_ID) mới được truyền ID/mention để tra cứu người khác.
-  const lookup = content.match(/^&ttgd(?:\\s+(?:<@!?(\\d+)>|(\\d+)))?$/i);
+  const lookup = content.match(/^&ttgd(?:\s+(?:<@!?(\d+)>|(\d+)))?$/i);
   if (!lookup) {
-    await sendPrivate(message, { content: "Cú pháp tra cứu:\\n- Cá nhân: &ttgd\\n- Admin (SP Ticket): &ttgd ID_User hoặc &ttgd @User" });
+    await sendPrivate(message, { content: "Cú pháp tra cứu:\n- Cá nhân: &ttgd\n- Admin (SP Ticket): &ttgd ID_User hoặc &ttgd @User" });
     return true;
   }
 
