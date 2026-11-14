@@ -105,7 +105,7 @@ function emojis(guild) {
     left: emoji(guild, "trangtrig50", SERVICE_TICKET_EMOJIS.HEADER_L),
     right: emoji(guild, "trangtrig51", SERVICE_TICKET_EMOJIS.HEADER_R),
     label: emoji(guild, "trangtrig61", SERVICE_TICKET_EMOJIS.SUB_SECTION),
-    summary: emoji(guild, "trangtrig62", SERVICE_TICKET_EMOJIS.SUB_SECTION),
+    summary: emoji(guild, "trangtrig62", "<a:trangtrig62:1569560241190871152>"),
     bullet: emoji(guild, "trangtrig60", SERVICE_TICKET_EMOJIS.BULLET_SERVICE),
     history: emoji(guild, "trangtrig49", SERVICE_TICKET_EMOJIS.DOWNLOAD_HINT),
     heart: emoji(guild, "heartg1", SERVICE_TICKET_EMOJIS.HEART),
