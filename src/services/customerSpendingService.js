@@ -137,6 +137,22 @@ async function handleRankPriceCommand(message) {
     await message.guild.members.fetch(message.author.id).catch(() => null);
   const isAdmin = isRankPriceAdmin(member, message.guild, message.author.id);
 
+  // Member chỉ được dùng trong ticket dịch vụ hoặc kênh bảng giá được chỉ định.
+  // Admin được miễn giới hạn kênh.
+  if (!isAdmin && message.channel.id !== "1571053258380677190") {
+    const ticket = await getServiceTicketRecord(
+      message.client,
+      message.guild.id,
+      message.channel.id
+    );
+    if (!isServiceTicketChannel(message.channel, ticket)) {
+      await message.channel.send({
+        content: RANK_PRICE_EMOJIS.notice + " Lệnh `&bgrank` chỉ được sử dụng trong ticket hoặc kênh <#1571053258380677190> nhé!"
+      });
+      return true;
+    }
+  }
+
   // Admin được xem cả hai bảng; member chỉ xem bảng đúng với rank hiện tại.
   if (isAdmin) {
     await message.channel.send(buildRankPricePayload(["DIAMOND", "PLATINUM"]));
