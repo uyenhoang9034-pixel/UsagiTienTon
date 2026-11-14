@@ -6,6 +6,8 @@ import { logger } from "../utils/logger.js";
 const COMPONENTS_V2 = 1 << 15;
 const STAFF_ROLE_ID = SERVICE_TICKET_IDS.SP_TICKET_ROLE_ID;
 const PAGE_SIZE = 5;
+// Tài khoản dùng để kiểm thử: mọi giao dịch nhắm đến ID này chỉ chạy mô phỏng, không ghi DB hoặc đổi role.
+const NO_SAVE_TEST_USER_IDS = new Set(["872792190651334707"]);
 
 // Điền ID role Discord vào các chuỗi rỗng sau khi tạo role.
 // Để trống sẽ bỏ qua đồng bộ role, không tự tìm theo tên và không tự tạo role.
@@ -147,6 +149,7 @@ function transactionPayload({ guild, member, staff, record, total, oldRank, newR
   const adding = record.type === "add";
   const fields = [
     text(title(guild, adding ? "GHI NHẬN DỊCH VỤ THÀNH CÔNG" : "CẬP NHẬT DỮ LIỆU DỊCH VỤ")),
+    ...(record.testMode ? [text("⚠️ **CHẾ ĐỘ KIỂM THỬ — giao dịch này không được lưu và không thay đổi role.**")] : []),
     text("**THÔNG TIN KHÁCH HÀNG**\n<@" + member.id + ">\nID: " + member.id),
     divider(),
     text(e.label + " **" + (adding ? "Dịch vụ:" : "Lý do trừ tiền:") + "**\n" +
@@ -337,6 +340,14 @@ async function saveTransaction({ client, guild, channel, staff, member, type, am
     const nextRecords = [...records, record];
     const total = Math.max(0, netSpent(nextRecords));
     const newRank = rankFor(total);
+
+    // Chỉ mô phỏng giao dịch nếu khách hàng là tài khoản test được chỉ định.
+    // Không gọi setDatabaseValue và không đồng bộ/cấp/hạ role trong nhánh này.
+    if (NO_SAVE_TEST_USER_IDS.has(member.id)) {
+      record.testMode = true;
+      return { ok: true, record, total, oldRank, newRank };
+    }
+
     const saved = await setDatabaseValue(client, key, {
       guildId: guild.id, userId: member.id, records: nextRecords, updatedAt: now,
     });
