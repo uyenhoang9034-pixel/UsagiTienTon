@@ -26,6 +26,134 @@ const RANKS = [
   { name: "Usagi Platinum", threshold: 1000000, roleId: RANK_ROLE_IDS.PLATINUM },
   { name: "Usagi Diamond", threshold: 2500000, roleId: RANK_ROLE_IDS.DIAMOND },
 ];
+
+const RANK_PRICE_EMOJIS = Object.freeze({
+  titleLeft: "<a:trangtrig50:1567818385306165301>",
+  titleRight: "<a:trangtrig51:1567818549794439229>",
+  section: "<a:trangtrig46:1547240249761996812>",
+  notice: "<a:bang2:1546891483250954290>",
+});
+
+const RANK_PRICE_LISTS = Object.freeze({
+  PLATINUM: {
+    name: "Usagi Platinum",
+    title: "USAGI PLATINUM SPECIAL PRICE LIST",
+    retail: [
+      ["66.000đ", "34.000đ"], ["79.000đ", "41.000đ"],
+      ["92.000đ", "51.000đ"], ["105.000đ", "58.000đ"],
+      ["111.000đ", "62.000đ"], ["118.000đ", "68.000đ"],
+      ["131.000đ", "83.000đ"], ["141.000đ", "88.000đ"],
+    ],
+    combo: [
+      ["118.000đ", "68.000đ"], ["136.000đ", "82.000đ"],
+      ["146.000đ", "92.000đ"], ["155.000đ", "98.000đ"],
+      ["189.000đ", "112.000đ"], ["220.000đ", "142.000đ"],
+      ["300.000đ", "205.000đ"],
+    ],
+  },
+  DIAMOND: {
+    name: "Usagi Diamond",
+    title: "USAGI DIAMOND SPECIAL PRICE LIST",
+    retail: [
+      ["66.000đ", "33.000đ"], ["79.000đ", "40.000đ"],
+      ["92.000đ", "50.000đ"], ["105.000đ", "55.000đ"],
+      ["111.000đ", "60.000đ"], ["118.000đ", "65.000đ"],
+      ["131.000đ", "80.000đ"], ["141.000đ", "83.000đ"],
+    ],
+    combo: [
+      ["118.000đ", "65.000đ"], ["136.000đ", "80.000đ"],
+      ["146.000đ", "90.000đ"], ["155.000đ", "95.000đ"],
+      ["189.000đ", "110.000đ"], ["220.000đ", "140.000đ"],
+      ["300.000đ", "200.000đ"],
+    ],
+  },
+});
+
+function rankPriceRows(rows) {
+  return rows.map(([original, discounted]) => "~~" + original + "~~  →  **" + discounted + "**").join("\n");
+}
+
+function buildRankPriceContainer(rankKey) {
+  const item = RANK_PRICE_LISTS[rankKey];
+  return {
+    type: 17,
+    components: [
+      { type: 10, content: "# " + RANK_PRICE_EMOJIS.titleLeft + " **" + item.title + "** " + RANK_PRICE_EMOJIS.titleRight },
+      { type: 14, divider: true, spacing: 1 },
+      { type: 10, content: "Bảng giá ưu đãi dành riêng cho thành viên " + item.name.replace("Usagi ", "") },
+      { type: 14, divider: true, spacing: 1 },
+      { type: 10, content: RANK_PRICE_EMOJIS.section + " **BẢNG GIÁ LẺ**\n" + rankPriceRows(item.retail) },
+      { type: 14, divider: true, spacing: 1 },
+      { type: 10, content: RANK_PRICE_EMOJIS.section + " **BẢNG GIÁ COMBO**\n" + rankPriceRows(item.combo) },
+      { type: 14, divider: true, spacing: 1 },
+      { type: 10, content: "-# Bảng giá ưu đãi chỉ dành riêng cho thành viên có role " + item.name + ". Vui lòng không chia sẻ bảng giá này." },
+    ],
+  };
+}
+
+function buildRankPricePayload(rankKeys) {
+  return {
+    flags: COMPONENTS_V2,
+    components: rankKeys.map(buildRankPriceContainer),
+    allowedMentions: { parse: [], repliedUser: false },
+  };
+}
+
+function buildRankPriceDeniedPayload(guildId) {
+  return {
+    flags: COMPONENTS_V2,
+    components: [{
+      type: 17,
+      components: [
+        {
+          type: 10,
+          content: RANK_PRICE_EMOJIS.notice + " Xin lỗi bạn, bạn không thể dùng lệnh này vì bạn chưa đạt mức rank tối thiểu. Hãy đặt đơn ngay để đạt mốc được ưu đãi giảm giá nhé!",
+        },
+        {
+          type: 1,
+          components: [{
+            type: 2,
+            style: 5,
+            label: "Mở Ticket",
+            url: "https://discord.com/channels/" + guildId + "/" + SERVICE_TICKET_IDS.PANEL_CHANNEL_ID,
+          }],
+        },
+      ],
+    }],
+    allowedMentions: { parse: [] },
+  };
+}
+
+function isRankPriceAdmin(member, guild, userId) {
+  if (!member) return false;
+  if (member.permissions?.has?.("Administrator")) return true;
+  if (String(guild?.ownerId || "") === String(userId || member.id || "")) return true;
+  return member.roles?.cache?.has?.("1541303749916754001") === true ||
+    member.roles?.cache?.has?.("1545305594712432640") === true;
+}
+
+async function handleRankPriceCommand(message) {
+  const member = message.member ||
+    await message.guild.members.fetch(message.author.id).catch(() => null);
+  const isAdmin = isRankPriceAdmin(member, message.guild, message.author.id);
+
+  // Admin được xem cả hai bảng; member chỉ xem bảng đúng với rank hiện tại.
+  if (isAdmin) {
+    await message.channel.send(buildRankPricePayload(["DIAMOND", "PLATINUM"]));
+    return true;
+  }
+  if (member?.roles?.cache?.has?.(RANK_ROLE_IDS.DIAMOND)) {
+    await message.channel.send(buildRankPricePayload(["DIAMOND"]));
+    return true;
+  }
+  if (member?.roles?.cache?.has?.(RANK_ROLE_IDS.PLATINUM)) {
+    await message.channel.send(buildRankPricePayload(["PLATINUM"]));
+    return true;
+  }
+  await message.channel.send(buildRankPriceDeniedPayload(message.guild.id));
+  return true;
+}
+
 const queues = new Map();
 
 export function normalizeServiceDisplayName(rawNote) {
@@ -205,9 +333,12 @@ function transactionPayload({ guild, member, staff, record, total, oldRank, newR
   const oldIndex = RANKS.findIndex((item) => item.name === oldRank.name);
   const newIndex = RANKS.findIndex((item) => item.name === newRank.name);
   if (newIndex > oldIndex) {
-    fields.push(text(e.heart + " **Chúc mừng bạn đã được thăng hạng!**\n" + oldRank.name + " → " + newRank.name));
+    fields.push(text(e.heart + " **Chúc mừng bạn đã được thăng hạng!**\\n" + oldRank.name + " → " + newRank.name));
+    if (newRank.name === "Usagi Platinum" || newRank.name === "Usagi Diamond") {
+      fields.push(text("<a:trangtrig45:1547239010190237819> Sử dụng lệnh `&bgrank` để xem bảng giá ưu đãi dành riêng cho role **" + newRank.name + "** nhé!"));
+    }
   } else if (newIndex < oldIndex) {
-    fields.push(text(e.bang + " **Xin chia buồn, bạn đã bị hạ cấp!**\n" + oldRank.name + " → " + newRank.name));
+    fields.push(text(e.bang + " **Xin chia buồn, bạn đã bị hạ cấp!**\\n" + oldRank.name + " → " + newRank.name));
   }
   fields.push(text("-# " + dateTime(record.createdAt)));
   return payload(fields);
@@ -400,11 +531,17 @@ async function saveTransaction({ client, guild, channel, staff, member, type, am
 export async function handleCustomerSpendingMessage(message, client) {
   if (!message?.guild || message.author?.bot || typeof message.content !== "string") return false;
   const content = message.content.trim();
-  const transactionCommand = /^[+-]dv(?:\s|$)/i.test(content);
-  const lookupCommand = /^&ttgd(?:\s|$)/i.test(content);
-  if (!transactionCommand && !lookupCommand) return false;
+  const transactionCommand = /^[+-]dv(?:\\s|$)/i.test(content);
+  const lookupCommand = /^&ttgd(?:\\s|$)/i.test(content);
+  const rankPriceCommand = /^&bgrank\\s*$/i.test(content);
+  if (!transactionCommand && !lookupCommand && !rankPriceCommand) return false;
 
   await message.delete().catch(() => {});
+
+  if (rankPriceCommand) {
+    await handleRankPriceCommand(message);
+    return true;
+  }
 
   if (transactionCommand) {
     if (!message.member?.roles?.cache?.has?.(STAFF_ROLE_ID)) {
