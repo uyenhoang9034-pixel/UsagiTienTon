@@ -410,14 +410,28 @@ export async function handleCustomerSpendingMessage(message, client) {
     return true;
   }
 
-  const lookup = content.match(/^&ttgd\s+<@!?(\d+)>$/i);
+  // Mặc định mọi thành viên đều tra cứu hồ sơ của chính mình bằng &ttgd.
+  // Chỉ role SP Ticket (STAFF_ROLE_ID) mới được truyền ID/mention để tra cứu người khác.
+  const lookup = content.match(/^&ttgd(?:\\s+(?:<@!?(\\d+)>|(\\d+)))?$/i);
   if (!lookup) {
-    await sendPrivate(message, { content: "Cú pháp: &ttgd @User" });
+    await sendPrivate(message, { content: "Cú pháp tra cứu:\\n- Cá nhân: &ttgd\\n- Admin (SP Ticket): &ttgd ID_User hoặc &ttgd @User" });
     return true;
   }
-  const member = await message.guild.members.fetch(lookup[1]).catch(() => null);
+
+  const requestedUserId = lookup[1] || lookup[2] || message.author.id;
+  const isStaffAdmin = message.member?.roles?.cache?.has?.(STAFF_ROLE_ID) === true;
+  const isLookingUpOther = requestedUserId !== message.author.id;
+
+  if (isLookingUpOther && !isStaffAdmin) {
+    await sendPrivate(message, {
+      content: emojis(message.guild).bang + " Bạn chỉ có thể tra cứu thông tin dịch vụ của chính mình.",
+    });
+    return true;
+  }
+
+  const member = await message.guild.members.fetch(requestedUserId).catch(() => null);
   if (!member) {
-    await sendPrivate(message, { content: emojis(message.guild).bang + " Không tìm thấy thành viên được nhắc đến." });
+    await sendPrivate(message, { content: emojis(message.guild).bang + " Không tìm thấy thành viên cần tra cứu." });
     return true;
   }
   const value = await getDatabaseValue(client, keyFor(message.guild.id, member.id), null);
