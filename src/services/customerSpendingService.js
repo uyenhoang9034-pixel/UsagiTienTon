@@ -161,8 +161,12 @@ const RANK_OVERVIEW_THREAD_TITLE = "05 • RANK KHÁCH HÀNG";
 async function publishRankOverviewToForum(message) {
   const storageKey = "guild:" + message.guild.id + ":customer_rank_overview_forum_thread";
   const forum = await message.client.channels.fetch(RANK_OVERVIEW_FORUM_CHANNEL_ID).catch(() => null);
-  if (!forum || !forum.threads?.create || !forum.isThreadOnly?.()) {
-    throw new Error("Kênh cấu hình không tồn tại hoặc không phải kênh diễn đàn.");
+  if (!forum) {
+    throw new Error("Không tìm thấy kênh diễn đàn " + RANK_OVERVIEW_FORUM_CHANNEL_ID + ". Kiểm tra bot có quyền xem kênh hay không.");
+  }
+  // Discord API ChannelType.GuildForum = 15. Dùng type trực tiếp để tránh phụ thuộc type-guard khác phiên bản discord.js.
+  if (forum.type !== 15 || !forum.threads?.create) {
+    throw new Error("Kênh " + RANK_OVERVIEW_FORUM_CHANNEL_ID + " có type=" + forum.type + ", không phải GuildForum (15).");
   }
 
   const saved = await getDatabaseValue(message.client, storageKey, null);
@@ -215,9 +219,13 @@ async function handleRankOverviewCommand(message) {
     });
   } catch (error) {
     logger.error("[CustomerSpending] Could not publish rank overview forum post:", error);
+    const errorCode = error?.code ? " (mã lỗi: " + error.code + ")" : "";
+    const errorMessage = String(error?.message || "Lỗi không xác định").slice(0, 700);
     await message.channel.send({
-      content: RANK_PRICE_EMOJIS.notice + " Không thể đăng bảng rank lên diễn đàn. Vui lòng kiểm tra quyền **Tạo bài trong diễn đàn**, **Gửi tin nhắn** và **Nhúng liên kết** của bot.",
+      content: RANK_PRICE_EMOJIS.notice + " **Không thể đăng bảng rank lên diễn đàn.**\\nNguyên nhân: " + errorMessage + errorCode + "\\nHãy kiểm tra quyền **Xem kênh**, **Gửi tin nhắn trong bài**, **Tạo bài trong diễn đàn** và quyền gửi Components V2 của bot.",
       allowedMentions: { parse: [] },
+    }).catch((sendError) => {
+      logger.error("[CustomerSpending] Could not report forum publishing error:", sendError);
     });
   }
   return true;
