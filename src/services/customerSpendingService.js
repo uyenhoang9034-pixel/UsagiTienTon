@@ -10,11 +10,11 @@ const PAGE_SIZE = 5;
 // Điền ID role Discord vào các chuỗi rỗng sau khi tạo role.
 // Để trống sẽ bỏ qua đồng bộ role, không tự tìm theo tên và không tự tạo role.
 const RANK_ROLE_IDS = {
-  GUEST: "",
-  SILVER: "",
-  GOLD: "",
-  PLATINUM: "",
-  DIAMOND: "",
+  GUEST: "1570996973379518524",
+  SILVER: "1570997425257058457",
+  GOLD: "1570997522032369704",
+  PLATINUM: "1570997606946050168",
+  DIAMOND: "1570997774839980162",
 };
 
 const RANKS = [
