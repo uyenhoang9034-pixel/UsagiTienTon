@@ -317,7 +317,7 @@ async function saveTransaction({ client, guild, channel, staff, member, type, am
     const existing = await getDatabaseValue(client, key, null);
     const records = Array.isArray(existing?.records) ? existing.records : [];
     const before = Math.max(0, netSpent(records));
-    if (type === "subtract" && amount > before) {
+    if (type === "subtract" && amount > before && !NO_SAVE_TEST_USER_IDS.has(member.id)) {
       return { ok: false, error: "Số tiền trừ vượt quá tổng chi tiêu hiện tại (" + money(before) + ")." };
     }
 
