@@ -157,9 +157,9 @@ function buildRankOverviewPayload() {
 }
 
 const RANK_OVERVIEW_FORUM_CHANNEL_ID = "1570392561200398407";
-const RANK_OVERVIEW_THREAD_TITLE = "05 • RANK KHÁCH HÀNG";
+const RANK_OVERVIEW_THREAD_TITLE = "05 • Rank Dịch Vụ";
 
-async function publishRankOverviewToForum(message) {
+async function publishRankOverviewToForum(message, { forceRecreate = false } = {}) {
   const storageKey = "guild:" + message.guild.id + ":customer_rank_overview_forum_thread";
   const forum = await message.client.channels.fetch(RANK_OVERVIEW_FORUM_CHANNEL_ID).catch(() => null);
   if (!forum) {
@@ -175,36 +175,72 @@ async function publishRankOverviewToForum(message) {
     ? await forum.threads.fetch(saved.threadId).catch(() => null)
     : null;
 
-  if (thread) {
-    if (thread.archived) await thread.setArchived(false).catch(() => {});
-    const starter = await thread.fetchStarterMessage().catch(() => null);
-    if (starter) {
-      await starter.edit(buildRankOverviewPayload());
-      return { created: false, thread };
+  // Tìm bài viết cũ trong forum để xóa (nếu là bài cũ mang tên "05 • RANK KHÁCH HÀNG" hoặc yêu cầu forceRecreate)
+  let oldThreadToDelete = null;
+  if (typeof forum.threads?.fetchActive === "function") {
+    const active = await forum.threads.fetchActive().catch(() => null);
+    if (active?.threads) {
+      for (const th of active.threads.values()) {
+        const name = th?.name?.trim().toLowerCase();
+        if (
+          name === "05 • rank khách hàng" ||
+          name === "05 rank khách hàng" ||
+          name === "05 • rank khach hang" ||
+          name === "05 rank khach hang"
+        ) {
+          oldThreadToDelete = th;
+          break;
+        }
+        if (!thread && (name === RANK_OVERVIEW_THREAD_TITLE.toLowerCase() || name === "05 rank dịch vụ")) {
+          thread = th;
+        }
+      }
+    }
+  }
+
+  // Nếu bài đã lưu trong DB có tên cũ là "05 • RANK KHÁCH HÀNG", đánh dấu xóa
+  if (thread && !oldThreadToDelete) {
+    const savedName = thread?.name?.trim().toLowerCase();
+    if (
+      savedName === "05 • rank khách hàng" ||
+      savedName === "05 rank khách hàng" ||
+      savedName === "05 • rank khach hang" ||
+      savedName === "05 rank khach hang"
+    ) {
+      oldThreadToDelete = thread;
+    }
+  }
+
+  let deletedOldPost = false;
+  if (oldThreadToDelete) {
+    if (typeof oldThreadToDelete.delete === "function") {
+      await oldThreadToDelete.delete("Xóa bài cũ theo yêu cầu của vợ Kim Nong để đăng lại " + RANK_OVERVIEW_THREAD_TITLE).catch(() => {});
+      deletedOldPost = true;
+    }
+    if (thread?.id === oldThreadToDelete.id) {
+      thread = null;
+    }
+  }
+
+  if (forceRecreate && thread) {
+    if (typeof thread.delete === "function") {
+      await thread.delete("Xóa bài cũ để tạo lại " + RANK_OVERVIEW_THREAD_TITLE).catch(() => {});
+      deletedOldPost = true;
     }
     thread = null;
   }
 
-  // Nếu trong database chưa lưu threadId, tìm kiếm bài đăng hiện có theo tiêu đề để tránh tạo bài trùng lặp
-  if (!thread && typeof forum.threads?.fetchActive === "function") {
-    const active = await forum.threads.fetchActive().catch(() => null);
-    const existing = active?.threads?.find?.(
-      (th) => th?.name?.trim().toLowerCase() === RANK_OVERVIEW_THREAD_TITLE.toLowerCase()
-    );
-    if (existing) {
-      if (existing.archived) await existing.setArchived(false).catch(() => {});
-      const starter = await existing.fetchStarterMessage().catch(() => null);
-      if (starter) {
-        await starter.edit(buildRankOverviewPayload());
-        await setDatabaseValue(message.client, storageKey, {
-          guildId: message.guild.id,
-          channelId: RANK_OVERVIEW_FORUM_CHANNEL_ID,
-          threadId: existing.id,
-          updatedAt: Date.now(),
-        });
-        return { created: false, thread: existing };
-      }
+  if (thread) {
+    if (thread.archived) await thread.setArchived(false).catch(() => {});
+    if (thread.name !== RANK_OVERVIEW_THREAD_TITLE && typeof thread.setName === "function") {
+      await thread.setName(RANK_OVERVIEW_THREAD_TITLE).catch(() => {});
     }
+    const starter = await thread.fetchStarterMessage().catch(() => null);
+    if (starter) {
+      await starter.edit(buildRankOverviewPayload());
+      return { created: false, recreated: deletedOldPost, thread };
+    }
+    thread = null;
   }
 
   // Kiểm tra tag diễn đàn (phòng trường hợp kênh Forum bật RequireTag)
@@ -225,7 +261,7 @@ async function publishRankOverviewToForum(message) {
     name: RANK_OVERVIEW_THREAD_TITLE,
     message: buildRankOverviewPayload(),
     ...(appliedTags.length > 0 ? { appliedTags } : {}),
-    reason: "Đăng bảng cấp bậc khách hàng Usagi",
+    reason: "Đăng bảng rank dịch vụ Usagi",
   });
   await setDatabaseValue(message.client, storageKey, {
     guildId: message.guild.id,
@@ -233,7 +269,7 @@ async function publishRankOverviewToForum(message) {
     threadId: thread.id,
     updatedAt: Date.now(),
   });
-  return { created: true, thread };
+  return { created: true, recreated: deletedOldPost, thread };
 }
 
 async function handleRankOverviewCommand(message) {
@@ -247,12 +283,18 @@ async function handleRankOverviewCommand(message) {
     return true;
   }
 
+  const isReset = /\b(reset|recreate|remake|repost|xoa|xóa|del|delete)\b/i.test(message.content);
+
   try {
-    const result = await publishRankOverviewToForum(message);
+    const result = await publishRankOverviewToForum(message, { forceRecreate: isReset });
+    let actionDesc = "Đã cập nhật bài";
+    if (result.recreated) {
+      actionDesc = "Đã xóa bài cũ và đăng lại bài";
+    } else if (result.created) {
+      actionDesc = "Đã đăng bài";
+    }
     await message.channel.send({
-      content: RANK_PRICE_EMOJIS.notice + (result.created
-        ? " Đã đăng bài **05 • RANK KHÁCH HÀNG** lên diễn đàn <#" + RANK_OVERVIEW_FORUM_CHANNEL_ID + ">!"
-        : " Đã cập nhật bài **05 • RANK KHÁCH HÀNG** trong diễn đàn <#" + RANK_OVERVIEW_FORUM_CHANNEL_ID + ">!"),
+      content: RANK_PRICE_EMOJIS.notice + " " + actionDesc + " **" + RANK_OVERVIEW_THREAD_TITLE + "** lên diễn đàn <#" + RANK_OVERVIEW_FORUM_CHANNEL_ID + ">!",
       allowedMentions: { parse: [] },
     });
   } catch (error) {
@@ -686,8 +728,8 @@ export async function handleCustomerSpendingMessage(message, client) {
   const content = message.content.trim();
   const transactionCommand = /^[+-]dv(?:\s|$)/i.test(content);
   const lookupCommand = /^&ttgd(?:\s|$)/i.test(content);
-  const rankPriceCommand = /^&bgrank\s*$/i.test(content);
-  const rankOverviewCommand = /^&rank\s*$/i.test(content);
+  const rankPriceCommand = /^&bgrank(?:\s+.*)?$/i.test(content);
+  const rankOverviewCommand = /^&rank(?:\s+.*)?$/i.test(content);
   if (!transactionCommand && !lookupCommand && !rankPriceCommand && !rankOverviewCommand) return false;
 
   await message.delete().catch(() => {});
