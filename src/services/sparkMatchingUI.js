@@ -169,7 +169,7 @@ export function buildSparkAnonymousChatPayload(match) {
 
 export function buildSparkIncomingMessagePayload(match, messageContent) {
   const row = new ActionRowBuilder().addComponents(
-    button(`spark_chat_reply:${match.matchId}`, 'Trả Lời Tin Nhắn'),
+    button(`spark_chat_reply:${match.matchId}`, 'Trả Lời Tin Nhắn', ButtonStyle.Secondary, EMOJI.trangtrig30),
     button(`spark_chat_end:${match.matchId}`, 'Kết Thúc', ButtonStyle.Secondary, EMOJI.bang2),
   );
   return container(
@@ -303,5 +303,3 @@ export function buildSparkThreadWelcomePayload(match, threadUrl) {
   }
   return container(...components);
 }
-
-/* SPARK_THREAD_WELCOME_REPLACED */
