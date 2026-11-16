@@ -294,7 +294,7 @@ export async function finishSparkMatch(guild, matchId, reason, endedBy = null) {
 
   const { buildSparkFinalPayload } = await import('./sparkMatchingUI.js');
   const thread = match.threadId ? await guild.channels.fetch(match.threadId).catch(() => null) : null;
-  if (thread?.isTextBased()) await thread.send(buildSparkFinalPayload(match));
+  if (thread?.isTextBased()) await thread.send(await buildSparkFinalPayload(match));
   if (thread?.isThread?.()) {
     await thread.setLocked(true, 'Spark Matching kết thúc; chờ feedback và thao tác đóng thread.');
   }
