@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, StringSelectMenuBuilder } from 'discord.js';
 import { SPARK_MATCHING_CONFIG } from '../config/sparkMatchingConfig.js';
 import { getSparkConfig } from './sparkMatchingService.js';
 
@@ -195,4 +195,70 @@ export function buildSparkAdminDashboardPayload({ config, profiles, matches }) {
       ],
     }],
   };
+}
+
+export function buildSparkAdminMatchPickerPayload(profiles, selection = {}) {
+  const approved = profiles.filter((profile) => profile.status === 'approved');
+  const maleProfiles = approved.filter((profile) => /nam|male|man/i.test(profile.data?.gender || ''));
+  const femaleProfiles = approved.filter((profile) => /nữ|nu|female|woman/i.test(profile.data?.gender || ''));
+  const pageSize = 25;
+  const malePage = Math.max(0, Math.min(selection.malePage || 0, Math.max(0, Math.ceil(maleProfiles.length / pageSize) - 1)));
+  const femalePage = Math.max(0, Math.min(selection.femalePage || 0, Math.max(0, Math.ceil(femaleProfiles.length / pageSize) - 1)));
+  const maleOptions = maleProfiles.slice(malePage * pageSize, (malePage + 1) * pageSize).map((profile) => ({
+    label: (profile.usernameAtSubmission || profile.userId).slice(0, 80),
+    value: profile.userId,
+    description: ((profile.data?.age || '?') + ' tuổi · ' + (profile.data?.area || 'Chưa rõ khu vực')).slice(0, 100),
+    default: selection.maleId === profile.userId,
+  }));
+  const femaleOptions = femaleProfiles.slice(femalePage * pageSize, (femalePage + 1) * pageSize).map((profile) => ({
+    label: (profile.usernameAtSubmission || profile.userId).slice(0, 80),
+    value: profile.userId,
+    description: ((profile.data?.age || '?') + ' tuổi · ' + (profile.data?.area || 'Chưa rõ khu vực')).slice(0, 100),
+    default: selection.femaleId === profile.userId,
+  }));
+
+  const components = [
+    text('<:trangtrig50:1567818385306165301> **SPARK MATCHING · GHÉP ĐÔI THỦ CÔNG** <:trangtrig51:1567818549794439229>'),
+    divider(),
+    text('Chỉ những hồ sơ đã được admin duyệt và chưa có lượt ghép đôi đang hoạt động mới xuất hiện trong danh sách.'),
+  ];
+
+  if (maleOptions.length) {
+    components.push(text('**CHỌN HỒ SƠ NAM** · Trang ' + (malePage + 1) + '/' + Math.max(1, Math.ceil(maleProfiles.length / pageSize))));
+    components.push(new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder().setCustomId('spark_admin_pick_male').setPlaceholder('Chọn thành viên nam').addOptions(maleOptions),
+    ).toJSON());
+  } else {
+    components.push(text('**HỒ SƠ NAM:** Chưa có hồ sơ đã duyệt phù hợp.'));
+  }
+
+  if (maleProfiles.length > pageSize) {
+    components.push(new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('spark_admin_male_page:' + Math.max(0, malePage - 1)).setLabel('Nam · Trang trước').setStyle(ButtonStyle.Secondary).setDisabled(malePage === 0),
+      new ButtonBuilder().setCustomId('spark_admin_male_page:' + Math.min(Math.ceil(maleProfiles.length / pageSize) - 1, malePage + 1)).setLabel('Nam · Trang sau').setStyle(ButtonStyle.Secondary).setDisabled(malePage >= Math.ceil(maleProfiles.length / pageSize) - 1),
+    ).toJSON());
+  }
+
+  if (femaleOptions.length) {
+    components.push(text('**CHỌN HỒ SƠ NỮ** · Trang ' + (femalePage + 1) + '/' + Math.max(1, Math.ceil(femaleProfiles.length / pageSize))));
+    components.push(new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder().setCustomId('spark_admin_pick_female').setPlaceholder('Chọn thành viên nữ').addOptions(femaleOptions),
+    ).toJSON());
+  } else {
+    components.push(text('**HỒ SƠ NỮ:** Chưa có hồ sơ đã duyệt phù hợp.'));
+  }
+
+  if (femaleProfiles.length > pageSize) {
+    components.push(new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('spark_admin_female_page:' + Math.max(0, femalePage - 1)).setLabel('Nữ · Trang trước').setStyle(ButtonStyle.Secondary).setDisabled(femalePage === 0),
+      new ButtonBuilder().setCustomId('spark_admin_female_page:' + Math.min(Math.ceil(femaleProfiles.length / pageSize) - 1, femalePage + 1)).setLabel('Nữ · Trang sau').setStyle(ButtonStyle.Secondary).setDisabled(femalePage >= Math.ceil(femaleProfiles.length / pageSize) - 1),
+    ).toJSON());
+  }
+
+  const confirmRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('spark_admin_match_confirm').setLabel('Xác Nhận Ghép Đôi').setStyle(ButtonStyle.Secondary).setDisabled(!selection.maleId || !selection.femaleId),
+  );
+  components.push(divider(), text('**Đã chọn:** ' + (selection.maleId ? '<@' + selection.maleId + '>' : 'Chưa chọn nam') + ' × ' + (selection.femaleId ? '<@' + selection.femaleId + '>' : 'Chưa chọn nữ')), confirmRow.toJSON());
+
+  return { flags: SPARK_COMPONENTS_V2 | MessageFlags.Ephemeral, components: [{ type: 17, components }] };
 }
