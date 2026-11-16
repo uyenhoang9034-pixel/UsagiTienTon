@@ -23,10 +23,16 @@ const container = (...components) => ({
 const text = (content) => ({ type: 10, content });
 const divider = () => ({ type: 14, divider: true, spacing: 1 });
 
-export function buildSparkStartPayload() {
-  const row = new ActionRowBuilder().addComponents(
-    button('spark_register_start', 'Bắt Đầu Điền Hồ Sơ', ButtonStyle.Secondary, EMOJI.heartg1),
-  );
+export function buildSparkStartPayload(client) {
+  const registerEmoji = client?.emojis?.cache?.find((emoji) => emoji.name === 'trangtrig30');
+  const registerButton = new ButtonBuilder()
+    .setCustomId('spark_register_start')
+    .setLabel('ĐĂNG KÝ THAM GIA')
+    .setStyle(ButtonStyle.Secondary);
+  if (registerEmoji) {
+    registerButton.setEmoji({ id: registerEmoji.id, name: registerEmoji.name, animated: registerEmoji.animated });
+  }
+  const row = new ActionRowBuilder().addComponents(registerButton);
   return container(
     text(SPARK_MATCHING_CONFIG.title),
     divider(),
