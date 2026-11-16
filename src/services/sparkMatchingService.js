@@ -528,10 +528,8 @@ export async function submitSparkRevealVote(guild, matchId, userId, agreed) {
   if (match.revealVotes[match.userAId] && match.revealVotes[match.userBId]) {
     const result = await createSparkPublicThread(guild, match);
     if (!result.ok) return result;
-    await result.thread.send({
-      content: 'Chào mừng hai bạn đến với không gian riêng của Sparkmate! Danh tính của hai bạn đã được công khai theo sự đồng ý của cả hai.',
-      allowedMentions: { users: [match.userAId, match.userBId] },
-    });
+    const { buildSparkThreadWelcomePayload } = await import('./sparkMatchingUI.js');
+    await result.thread.send(buildSparkThreadWelcomePayload(match));
     return { ok: true, thread: result.thread };
   }
 
