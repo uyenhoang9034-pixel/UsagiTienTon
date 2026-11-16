@@ -76,4 +76,30 @@ export default [
     },
   },
 
+
+  {
+    name: 'spark_request_specific',
+    async execute(interaction) {
+      const requestedUserId = value(interaction, 'requestedUserId');
+      if (!/^\\d{17,20}$/.test(requestedUserId)) {
+        return interaction.reply({ content: 'Discord User ID không hợp lệ. Bạn hãy sao chép ID người dùng gồm 17–20 chữ số nhé.', flags: MessageFlags.Ephemeral });
+      }
+      if (requestedUserId === interaction.user.id) {
+        return interaction.reply({ content: 'Bạn không thể yêu cầu ghép đôi với chính mình.', flags: MessageFlags.Ephemeral });
+      }
+      const target = await interaction.guild.members.fetch(requestedUserId).catch(() => null);
+      if (!target) {
+        return interaction.reply({ content: 'Cupid chỉ có thể gửi lời mời đến thành viên đang ở trong máy chủ này.', flags: MessageFlags.Ephemeral });
+      }
+      const session = await saveSparkRegistrationStep(interaction.guildId, interaction.user.id, { requestedUserId });
+      if (!session) return interaction.reply({ content: 'Phiên đăng ký đã hết hạn. Hãy bắt đầu lại bằng /spark.', flags: MessageFlags.Ephemeral });
+      const result = await submitSparkProfile(interaction.guild, interaction.user);
+      if (!result.ok) return interaction.reply({ content: 'Cupid chưa thể gửi hồ sơ: ' + result.code, flags: MessageFlags.Ephemeral });
+      return interaction.reply({
+        content: 'Cupid đã gửi hồ sơ cùng yêu cầu ghép đôi cụ thể đến khu vực xét duyệt riêng tư. Nếu admin duyệt, Cupid sẽ gửi lời mời trực tiếp đến người bạn đã chọn. Người đó vẫn có quyền đồng ý hoặc từ chối nhé!',
+        flags: MessageFlags.Ephemeral,
+      });
+    },
+  },
+
 ];
