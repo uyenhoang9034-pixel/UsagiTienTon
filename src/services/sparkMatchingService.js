@@ -131,6 +131,15 @@ export async function submitSparkProfile(guild, user) {
   const missing = required.filter((key) => !String(data[key] || '').trim());
   if (missing.length) return { ok: false, code: 'INCOMPLETE_PROFILE', missing };
 
+  const config = await getSparkConfig(guild.id);
+  const channelId = /nữ|nu|female|woman/i.test(data.gender)
+    ? config.femaleReviewChannelId
+    : config.maleReviewChannelId;
+  const reviewChannel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
+  if (!reviewChannel?.isTextBased()) {
+    return { ok: false, code: 'REVIEW_CHANNEL_UNAVAILABLE' };
+  }
+
   const profile = {
     profileId: `SP-${Date.now().toString(36).toUpperCase()}`,
     guildId: guild.id,
@@ -147,26 +156,24 @@ export async function submitSparkProfile(guild, user) {
 
   const profiles = await getSparkProfiles(guild.id);
   const existingIndex = profiles.findIndex((item) => item.userId === user.id);
+  const previousProfile = existingIndex >= 0 ? profiles[existingIndex] : null;
   if (existingIndex >= 0) profiles[existingIndex] = profile;
   else profiles.push(profile);
   await write(SPARK_STORAGE_KEYS.profiles(guild.id), profiles);
-  await cancelSparkRegistration(guild.id, user.id);
 
-  const config = await getSparkConfig(guild.id);
-  const channelId = /nữ|female|woman/i.test(data.gender)
-    ? config.femaleReviewChannelId
-    : config.maleReviewChannelId;
-  const reviewChannel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
-
-  if (reviewChannel?.isTextBased()) {
+  try {
     const { buildSparkAdminProfilePayload } = await import('./sparkMatchingUI.js');
     const message = await reviewChannel.send(buildSparkAdminProfilePayload(profile));
     profile.reviewMessageId = message.id;
-    await write(SPARK_STORAGE_KEYS.profiles(guild.id), profiles.map((item) =>
-      item.profileId === profile.profileId ? profile : item
-    ));
+    await write(SPARK_STORAGE_KEYS.profiles(guild.id), profiles);
+  } catch {
+    const restored = profiles.filter((item) => item.profileId !== profile.profileId);
+    if (previousProfile) restored.push(previousProfile);
+    await write(SPARK_STORAGE_KEYS.profiles(guild.id), restored);
+    return { ok: false, code: 'REVIEW_CHANNEL_UNAVAILABLE' };
   }
 
+  await cancelSparkRegistration(guild.id, user.id);
   return { ok: true, profile };
 }
 
