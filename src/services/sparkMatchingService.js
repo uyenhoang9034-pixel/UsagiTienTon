@@ -177,7 +177,7 @@ export async function reviewSparkProfile(guild, profileId, adminId, decision, re
   if (member) {
     const payload = decision === 'approve'
       ? { content: 'Cupid đã duyệt hồ sơ Spark Matching của bạn rồi nè! Hãy kiên nhẫn chờ Cupid tìm Sparkmate phù hợp nhé.' }
-      : { content: `Cupid rất tiếc phải thông báo hồ sơ chưa được duyệt.\nLý do: ${profile.rejectionReason || 'Chưa có ghi chú.'}\nBạn có thể đăng ký lại sau khi chỉnh sửa hồ sơ.` };
+      : { content: `Cupid rất tiếc phải thông báo hồ sơ chưa được duyệt.\nLý do: ${profile.rejectionReason || 'Chưa có ghi chú.'}\n${profile.reapplyAllowed ? 'Bạn có thể chỉnh sửa thông tin và đăng ký lại.' : 'Theo quyết định của đội ngũ quản trị, bạn sẽ không thể đăng ký lại Spark Matching.'}` };
     await member.send(payload).catch(() => {});
   }
   return { ok: true, profile };
