@@ -84,7 +84,7 @@ export default [
       const requestedUserId = interaction.fields.getTextInputValue('requestedUserId').trim();
       const orientation = interaction.fields.getTextInputValue('orientation').trim();
       const otherRequirements = interaction.fields.getTextInputValue('otherRequirements').trim();
-      if (requestedUserId && !/^\\d{17,20}$/.test(requestedUserId)) {
+      if (requestedUserId && !/^\d{17,20}$/.test(requestedUserId)) {
         return interaction.reply({ content: 'Discord User ID không hợp lệ. Bạn hãy sao chép ID người dùng gồm 17–20 chữ số nhé.', flags: MessageFlags.Ephemeral });
       }
       if (requestedUserId === interaction.user.id) {
