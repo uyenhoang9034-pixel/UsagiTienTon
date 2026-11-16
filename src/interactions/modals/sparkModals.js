@@ -102,4 +102,22 @@ export default [
     },
   },
 
+
+  {
+    name: 'spark_profile_reject_retry',
+    async execute(interaction, client, args) {
+      const result = await reviewSparkProfile(interaction.guild, args[0], interaction.user.id, 'reject', value(interaction, 'reason'), { reapplyAllowed: true });
+      if (!result.ok) return interaction.reply({ content: 'Hồ sơ không còn ở trạng thái chờ duyệt.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: 'Đã từ chối hồ sơ và cho phép thành viên chỉnh sửa để đăng ký lại.', flags: MessageFlags.Ephemeral });
+    },
+  },
+  {
+    name: 'spark_profile_reject_final',
+    async execute(interaction, client, args) {
+      const result = await reviewSparkProfile(interaction.guild, args[0], interaction.user.id, 'reject', value(interaction, 'reason'), { reapplyAllowed: false });
+      if (!result.ok) return interaction.reply({ content: 'Hồ sơ không còn ở trạng thái chờ duyệt.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: 'Đã từ chối hồ sơ và khóa quyền đăng ký lại Spark Matching.', flags: MessageFlags.Ephemeral });
+    },
+  },
+
 ];
