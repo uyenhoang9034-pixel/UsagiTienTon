@@ -20,6 +20,10 @@ export default {
     .addSubcommand((sub) => sub.setName('status').setDescription('Xem trạng thái và thống kê SPARK MATCHING'))
     .addSubcommand((sub) => sub.setName('dashboard').setDescription('Mở bảng quản trị SPARK MATCHING'))
     .addSubcommand((sub) => sub
+      .setName('details')
+      .setDescription('Xem chi tiết một lượt ghép đôi và hai hồ sơ')
+      .addStringOption((o) => o.setName('match-id').setDescription('Mã lượt ghép đôi').setRequired(true)))
+    .addSubcommand((sub) => sub
       .setName('cancel')
       .setDescription('Admin kết thúc một lượt ghép đôi')
       .addStringOption((o) => o.setName('match-id').setDescription('Mã lượt ghép đôi').setRequired(true)))
@@ -106,6 +110,44 @@ export default {
         flags: MessageFlags.Ephemeral,
       });
     }
+    if (subcommand === 'details') {
+      const matchId = interaction.options.getString('match-id');
+      const [matches, profiles] = await Promise.all([
+        getSparkMatches(interaction.guildId),
+        getSparkProfiles(interaction.guildId),
+      ]);
+      const match = matches.find((item) => item.matchId === matchId) || (await (async () => {
+        const history = await (await import('../../services/sparkMatchingService.js')).getSparkHistory(interaction.guildId);
+        return history.find((item) => item.matchId === matchId);
+      })());
+      if (!match) return interaction.reply({ content: 'Không tìm thấy lượt ghép đôi này.', flags: MessageFlags.Ephemeral });
+      const a = profiles.find((item) => item.userId === match.userAId);
+      const b = profiles.find((item) => item.userId === match.userBId);
+      const profileSummary = (profile) => profile
+        ? '**' + profile.usernameAtSubmission + '** · ' + (profile.data?.age || '?') + ' tuổi · ' + (profile.data?.gender || 'Chưa rõ') + ' · ' + (profile.data?.area || 'Chưa rõ khu vực') + '\\n' + (profile.data?.about || 'Không có phần giới thiệu')
+        : 'Không có hồ sơ (có thể là yêu cầu cụ thể hoặc lượt test).';
+      return interaction.reply({
+        content: [
+          '**CHI TIẾT LƯỢT SPARK MATCHING · ' + match.matchId + '**',
+          '• Trạng thái: ' + match.status,
+          '• Loại ghép đôi: ' + (match.matchType || 'admin') + (match.test ? ' · TEST' : ''),
+          '• Bắt đầu: <t:' + Math.floor(match.createdAt / 1000) + ':F>',
+          '• Hết hạn ẩn danh: ' + (match.anonymousExpiresAt ? '<t:' + Math.floor(match.anonymousExpiresAt / 1000) + ':F>' : '—'),
+          '• Thread: ' + (match.threadId ? '<#' + match.threadId + '>' : 'Chưa tạo'),
+          '• Feedback: ' + (match.feedbackBy?.length || 0) + ' người đã gửi',
+          '',
+          '**HỒ SƠ THÀNH VIÊN A · <@' + match.userAId + '>**',
+          profileSummary(a),
+          '',
+          '**HỒ SƠ THÀNH VIÊN B · <@' + match.userBId + '>**',
+          profileSummary(b),
+          '',
+          '**GHI CHÚ ADMIN:** ' + (match.adminNotes || 'Chưa có ghi chú.'),
+        ].join('\\n'),
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
     if (subcommand === 'cancel') {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const matchId = interaction.options.getString('match-id');
