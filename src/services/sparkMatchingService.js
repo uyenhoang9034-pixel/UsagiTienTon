@@ -245,6 +245,14 @@ export async function createSparkMatch(guild, userAId, userBId, options = {}) {
   matches.push(match);
   await write(SPARK_STORAGE_KEYS.matches(guild.id), matches);
 
+  if (!options.test) {
+    for (const profile of [a, b].filter(Boolean)) {
+      profile.status = 'matched';
+      profile.matchId = match.matchId;
+    }
+    await write(SPARK_STORAGE_KEYS.profiles(guild.id), profiles);
+  }
+
   const { buildSparkMatchInvitePayload } = await import('./sparkMatchingUI.js');
   try {
     if (options.requested) {
@@ -256,17 +264,11 @@ export async function createSparkMatch(guild, userAId, userBId, options = {}) {
       ]);
     }
   } catch {
-    const latestMatches = await getSparkMatches(guild.id);
-    await write(SPARK_STORAGE_KEYS.matches(guild.id), latestMatches.filter((item) => item.matchId !== match.matchId));
+    await archiveSparkMatch(guild, match, 'dm_unavailable');
+    await Promise.all([memberA, memberB].map((member) =>
+      member.send('Cupid chưa thể gửi lời mời đến cả hai tài khoản, nên lượt ghép đôi này đã được hủy. Bạn có thể thử lại sau nhé.').catch(() => {})
+    ));
     return { ok: false, code: 'DM_UNAVAILABLE' };
-  }
-
-  if (!options.test) {
-    for (const profile of [a, b].filter(Boolean)) {
-      profile.status = 'matched';
-      profile.matchId = match.matchId;
-    }
-    await write(SPARK_STORAGE_KEYS.profiles(guild.id), profiles);
   }
 
   return { ok: true, match };
