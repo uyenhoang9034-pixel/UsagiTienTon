@@ -53,6 +53,7 @@ export async function getSparkProfile(guildId, userId) {
 export async function getSparkActiveMatchForUser(guildId, userId) {
   const matches = await getSparkMatches(guildId);
   return matches.find((item) =>
+    item.test !== true &&
     ['invited', 'anonymous', 'reveal_pending', 'thread', 'connection_pending', 'feedback_pending'].includes(item.status) &&
     [item.userAId, item.userBId, item.requestedUserId].filter(Boolean).includes(String(userId))
   ) || null;
@@ -238,11 +239,13 @@ export async function createSparkMatch(guild, userAId, userBId, options = {}) {
   matches.push(match);
   await write(SPARK_STORAGE_KEYS.matches(guild.id), matches);
 
-  for (const profile of [a, b].filter(Boolean)) {
-    profile.status = 'matched';
-    profile.matchId = match.matchId;
+  if (!options.test) {
+    for (const profile of [a, b].filter(Boolean)) {
+      profile.status = 'matched';
+      profile.matchId = match.matchId;
+    }
+    await write(SPARK_STORAGE_KEYS.profiles(guild.id), profiles);
   }
-  await write(SPARK_STORAGE_KEYS.profiles(guild.id), profiles);
 
   return { ok: true, match };
 }
