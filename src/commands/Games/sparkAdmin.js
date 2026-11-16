@@ -134,8 +134,8 @@ export default {
       ]);
       const match = matches.find((item) => item.matchId === matchId) || history.find((item) => item.matchId === matchId);
       if (!match) return interaction.reply({ content: 'Không tìm thấy lượt ghép đôi này.', flags: MessageFlags.Ephemeral });
-      const a = profiles.find((item) => item.userId === match.userAId);
-      const b = profiles.find((item) => item.userId === match.userBId);
+      const a = match.profileSnapshots?.userA || profiles.find((item) => item.userId === match.userAId);
+      const b = match.profileSnapshots?.userB || profiles.find((item) => item.userId === match.userBId);
       const profileSummary = (profile) => profile
         ? '**' + profile.usernameAtSubmission + '** · ' + (profile.data?.age || '?') + ' tuổi · ' + (profile.data?.gender || 'Chưa rõ') + ' · ' + (profile.data?.area || 'Chưa rõ khu vực') + '\n' + (profile.data?.about || 'Không có phần giới thiệu')
         : 'Không có hồ sơ (có thể là yêu cầu cụ thể hoặc lượt test).';
