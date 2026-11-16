@@ -184,7 +184,7 @@ export async function createSparkMatch(guild, userAId, userBId, options = {}) {
   const profiles = await getSparkProfiles(guild.id);
   const a = profiles.find((item) => item.userId === String(userAId) && item.status === 'approved');
   const b = profiles.find((item) => item.userId === String(userBId) && item.status === 'approved');
-  if (!options.test && (!a || !b)) return { ok: false, code: 'PROFILE_NOT_APPROVED' };
+  if (!options.test && (!a || (!b && !options.requested))) return { ok: false, code: 'PROFILE_NOT_APPROVED' };
 
   const busy = await Promise.all([userAId, userBId].map((id) => getSparkActiveMatchForUser(guild.id, id)));
   if (busy.some(Boolean)) return { ok: false, code: 'USER_BUSY' };
@@ -201,7 +201,7 @@ export async function createSparkMatch(guild, userAId, userBId, options = {}) {
     guildId: guild.id,
     userAId: String(userAId),
     userBId: String(userBId),
-    matchType: options.matchType || 'admin',
+    matchType: options.matchType || (options.requested ? 'specific_request' : 'admin'),
     status: 'invited',
     createdAt: now,
     anonymousExpiresAt: now + SPARK_MATCHING_CONFIG.anonymousChatDurationMs,
