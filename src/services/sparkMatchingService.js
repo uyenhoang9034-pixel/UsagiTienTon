@@ -240,6 +240,10 @@ export async function createSparkMatch(guild, userAId, userBId, options = {}) {
     test: options.test === true,
   };
 
+  const matches = await getSparkMatches(guild.id);
+  matches.push(match);
+  await write(SPARK_STORAGE_KEYS.matches(guild.id), matches);
+
   const { buildSparkMatchInvitePayload } = await import('./sparkMatchingUI.js');
   try {
     if (options.requested) {
@@ -251,12 +255,10 @@ export async function createSparkMatch(guild, userAId, userBId, options = {}) {
       ]);
     }
   } catch {
+    const latestMatches = await getSparkMatches(guild.id);
+    await write(SPARK_STORAGE_KEYS.matches(guild.id), latestMatches.filter((item) => item.matchId !== match.matchId));
     return { ok: false, code: 'DM_UNAVAILABLE' };
   }
-
-  const matches = await getSparkMatches(guild.id);
-  matches.push(match);
-  await write(SPARK_STORAGE_KEYS.matches(guild.id), matches);
 
   if (!options.test) {
     for (const profile of [a, b].filter(Boolean)) {
