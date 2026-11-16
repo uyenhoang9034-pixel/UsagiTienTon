@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, ChannelType, MessageFlags } from 'discord.js';
 import {
   getSparkConfig, updateSparkConfig, getSparkProfiles, getSparkMatches,
-  createSparkMatch, isSparkAdmin,
+  createSparkMatch, isSparkAdmin, cancelSparkMatchByAdmin,
 } from '../../services/sparkMatchingService.js';
 
 export default {
@@ -19,6 +19,10 @@ export default {
     .addSubcommand((sub) => sub.setName('disable').setDescription('Tạm dừng đăng ký và ghép đôi'))
     .addSubcommand((sub) => sub.setName('status').setDescription('Xem trạng thái và thống kê SPARK MATCHING'))
     .addSubcommand((sub) => sub.setName('dashboard').setDescription('Mở bảng quản trị SPARK MATCHING'))
+    .addSubcommand((sub) => sub
+      .setName('cancel')
+      .setDescription('Admin kết thúc một lượt ghép đôi')
+      .addStringOption((o) => o.setName('match-id').setDescription('Mã lượt ghép đôi').setRequired(true)))
     .addSubcommand((sub) => sub
       .setName('test')
       .setDescription('Admin tự test ghép đôi với một thành viên cụ thể')
@@ -98,6 +102,20 @@ export default {
         flags: MessageFlags.Ephemeral,
       });
     }
+    if (subcommand === 'cancel') {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const matchId = interaction.options.getString('match-id');
+      const result = await cancelSparkMatchByAdmin(interaction.guild, matchId, interaction.user.id);
+      if (!result.ok) {
+        return interaction.editReply(result.code === 'ALREADY_FEEDBACK_PENDING'
+          ? 'Lượt này đã ở trạng thái chờ feedback và không thể hủy theo cách này.'
+          : 'Không tìm thấy lượt ghép đôi đang hoạt động.');
+      }
+      return interaction.editReply(result.feedbackPending
+        ? 'Đã kết thúc lượt ghép đôi. Thread được khóa và đang chờ ít nhất một người gửi feedback.'
+        : 'Đã kết thúc lượt ghép đôi và thông báo cho hai thành viên.');
+    }
+
     if (subcommand === 'test') {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const target = interaction.options.getUser('doi-tuong');
