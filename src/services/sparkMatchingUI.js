@@ -102,14 +102,17 @@ export async function buildSparkFinalPayload(match) {
     button(`spark_thread_close:${match.matchId}`, 'Đóng Thread'),
   );
   const isEarly = match.endedReason === 'early';
+  const endingText = isEarly
+    ? 'Có vẻ như một trong hai bạn muốn kết thúc cuộc trò chuyện sớm hơn dự kiến. Cupid đã ghi nhận yêu cầu và tạm khóa cuộc trò chuyện. Hai bạn sẽ không thể tiếp tục nhắn tin trong thread này nữa.'
+    : match.endedReason === 'connection_accepted'
+      ? 'Thật vui vì cả hai đã đồng ý tiếp tục giữ kết nối sau Spark Matching! Cupid chúc hai bạn có thật nhiều khoảnh khắc đẹp bên nhau.'
+      : match.endedReason === 'connection_declined'
+        ? 'Có vẻ như hai bạn chưa đủ duyên để tiếp tục hành trình này. Cupid cảm ơn cả hai vì đã dành thời gian tìm hiểu nhau nhé.'
+        : 'Hành trình Spark Matching của hai bạn đã đi đến hồi kết. Cảm ơn vì đã dành thời gian đồng hành cùng Cupid.';
   return container(
     text('(trangtrig50) **SPARK MATCHING · HÀNH TRÌNH TẠM DỪNG** (trangtrig51)'),
     divider(),
-    text(
-      isEarly
-        ? 'Có vẻ như một trong hai bạn muốn kết thúc cuộc trò chuyện sớm hơn dự kiến. Cupid đã ghi nhận yêu cầu và tạm khóa cuộc trò chuyện. Hai bạn sẽ không thể tiếp tục nhắn tin trong thread này nữa.'
-        : 'Hành trình Spark Matching của hai bạn đã đi đến hồi kết. Cảm ơn vì đã dành thời gian tìm hiểu nhau và đồng hành cùng Cupid.',
-    ),
+    text(endingText),
     text('**Trước khi khép lại hành trình, đừng quên gửi feedback cho bé Cupid nhé!** Những chia sẻ của hai bạn sẽ giúp Cupid cải thiện Spark Matching tốt hơn.'),
     divider(),
     text('(trangtrig49) Chỉ cần một trong hai người gửi feedback tại kênh được liên kết, cả hai sẽ có thể đóng thread.'),
