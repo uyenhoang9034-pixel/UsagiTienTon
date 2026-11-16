@@ -194,7 +194,7 @@ export default [
     name: 'spark_register_submit',
     async execute(interaction) {
       const result = await submitSparkProfile(interaction.guild, interaction.user);
-      if (!result.ok) return replyError(interaction, 'Cupid chưa thể gửi hồ sơ: ' + result.code);
+      if (!result.ok) return replyError(interaction, result.code === 'REVIEW_CHANNEL_UNAVAILABLE' ? 'Cupid chưa gửi được hồ sơ vì kênh xét duyệt đang thiếu hoặc bot chưa có quyền gửi tin nhắn. Bạn hãy báo admin kiểm tra cấu hình nhé!' : 'Cupid chưa thể gửi hồ sơ: ' + result.code);
       return interaction.update({ content: 'Cupid đã gửi hồ sơ của bạn đến khu vực xét duyệt riêng tư. Hãy kiên nhẫn chờ thông báo qua DM nhé! Bạn không thể tạo hồ sơ mới khi hồ sơ hiện tại còn hiệu lực.', components: [] });
     },
   },
