@@ -1,0 +1,355 @@
+import { db } from '../utils/database/wrapper.js';
+import {
+  SPARK_MATCHING_CONFIG,
+  SPARK_STORAGE_KEYS,
+  getDefaultSparkGuildConfig,
+} from '../config/sparkMatchingConfig.js';
+
+const clone = (value) => JSON.parse(JSON.stringify(value));
+
+async function read(key, fallback) {
+  const value = await db.get(key, fallback);
+  return value ?? fallback;
+}
+
+async function write(key, value) {
+  await db.set(key, value);
+  return value;
+}
+
+export async function getSparkConfig(guildId) {
+  const defaults = getDefaultSparkGuildConfig();
+  const stored = await read(SPARK_STORAGE_KEYS.config(guildId), {});
+  return { ...defaults, ...(stored || {}) };
+}
+
+export async function updateSparkConfig(guildId, patch) {
+  const current = await getSparkConfig(guildId);
+  const next = { ...current, ...patch, updatedAt: Date.now() };
+  await write(SPARK_STORAGE_KEYS.config(guildId), next);
+  return next;
+}
+
+export async function getSparkProfiles(guildId) {
+  const value = await read(SPARK_STORAGE_KEYS.profiles(guildId), []);
+  return Array.isArray(value) ? value : [];
+}
+
+export async function getSparkMatches(guildId) {
+  const value = await read(SPARK_STORAGE_KEYS.matches(guildId), []);
+  return Array.isArray(value) ? value : [];
+}
+
+export async function getSparkHistory(guildId) {
+  const value = await read(SPARK_STORAGE_KEYS.history(guildId), []);
+  return Array.isArray(value) ? value : [];
+}
+
+export async function getSparkProfile(guildId, userId) {
+  const profiles = await getSparkProfiles(guildId);
+  return profiles.find((item) => item.userId === String(userId)) || null;
+}
+
+export async function getSparkActiveMatchForUser(guildId, userId) {
+  const matches = await getSparkMatches(guildId);
+  return matches.find((item) =>
+    ['invited', 'anonymous', 'reveal_pending', 'thread', 'feedback_pending'].includes(item.status) &&
+    [item.userAId, item.userBId, item.requestedUserId].filter(Boolean).includes(String(userId))
+  ) || null;
+}
+
+export async function beginSparkRegistration(guild, member) {
+  const config = await getSparkConfig(guild.id);
+  if (!config.enabled || !config.registrationEnabled) {
+    return { ok: false, code: 'REGISTRATION_DISABLED' };
+  }
+
+  const existingProfile = await getSparkProfile(guild.id, member.id);
+  const activeMatch = await getSparkActiveMatchForUser(guild.id, member.id);
+  if (existingProfile && ['pending', 'approved', 'matched'].includes(existingProfile.status)) {
+    return { ok: false, code: 'PROFILE_EXISTS' };
+  }
+  if (activeMatch) return { ok: false, code: 'ACTIVE_MATCH' };
+
+  const sessions = await read(SPARK_STORAGE_KEYS.sessions(guild.id), {});
+  sessions[member.id] = {
+    userId: member.id,
+    guildId: guild.id,
+    step: 1,
+    data: {},
+    startedAt: Date.now(),
+  };
+  await write(SPARK_STORAGE_KEYS.sessions(guild.id), sessions);
+
+  const role = await guild.roles.fetch(config.memberRoleId).catch(() => null);
+  if (!role) return { ok: false, code: 'ROLE_NOT_FOUND' };
+  await member.roles.add(role, 'Đăng ký tham gia Spark Matching');
+
+  return { ok: true };
+}
+
+export async function getSparkRegistrationSession(guildId, userId) {
+  const sessions = await read(SPARK_STORAGE_KEYS.sessions(guildId), {});
+  return sessions[String(userId)] || null;
+}
+
+export async function saveSparkRegistrationStep(guildId, userId, stepData) {
+  const sessions = await read(SPARK_STORAGE_KEYS.sessions(guildId), {});
+  const session = sessions[String(userId)];
+  if (!session) return null;
+  session.data = { ...session.data, ...stepData };
+  session.step += 1;
+  sessions[String(userId)] = session;
+  await write(SPARK_STORAGE_KEYS.sessions(guildId), sessions);
+  return session;
+}
+
+export async function cancelSparkRegistration(guildId, userId) {
+  const sessions = await read(SPARK_STORAGE_KEYS.sessions(guildId), {});
+  delete sessions[String(userId)];
+  await write(SPARK_STORAGE_KEYS.sessions(guildId), sessions);
+}
+
+export async function submitSparkProfile(guild, user) {
+  const session = await getSparkRegistrationSession(guild.id, user.id);
+  if (!session) return { ok: false, code: 'SESSION_EXPIRED' };
+
+  const data = session.data || {};
+  const required = ['age', 'gender', 'matchGender', 'area', 'intention', 'about', 'hobbies', 'relationshipHappy', 'traits', 'ageRange'];
+  const missing = required.filter((key) => !String(data[key] || '').trim());
+  if (missing.length) return { ok: false, code: 'INCOMPLETE_PROFILE', missing };
+
+  const profile = {
+    profileId: `SP-${Date.now().toString(36).toUpperCase()}`,
+    guildId: guild.id,
+    userId: user.id,
+    usernameAtSubmission: user.username,
+    data: clone(data),
+    status: 'pending',
+    submittedAt: Date.now(),
+    reviewedAt: null,
+    reviewedBy: null,
+    rejectionReason: null,
+    matchId: null,
+  };
+
+  const profiles = await getSparkProfiles(guild.id);
+  const existingIndex = profiles.findIndex((item) => item.userId === user.id);
+  if (existingIndex >= 0) profiles[existingIndex] = profile;
+  else profiles.push(profile);
+  await write(SPARK_STORAGE_KEYS.profiles(guild.id), profiles);
+  await cancelSparkRegistration(guild.id, user.id);
+
+  const config = await getSparkConfig(guild.id);
+  const channelId = /nữ|female|woman/i.test(data.gender)
+    ? config.femaleReviewChannelId
+    : config.maleReviewChannelId;
+  const reviewChannel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
+
+  if (reviewChannel?.isTextBased()) {
+    const { buildSparkAdminProfilePayload } = await import('./sparkMatchingUI.js');
+    const message = await reviewChannel.send(buildSparkAdminProfilePayload(profile));
+    profile.reviewMessageId = message.id;
+    await write(SPARK_STORAGE_KEYS.profiles(guild.id), profiles.map((item) =>
+      item.profileId === profile.profileId ? profile : item
+    ));
+  }
+
+  return { ok: true, profile };
+}
+
+export async function reviewSparkProfile(guild, profileId, adminId, decision, reason = '') {
+  const profiles = await getSparkProfiles(guild.id);
+  const profile = profiles.find((item) => item.profileId === String(profileId));
+  if (!profile || profile.status !== 'pending') return { ok: false, code: 'PROFILE_NOT_PENDING' };
+
+  profile.status = decision === 'approve' ? 'approved' : 'rejected';
+  profile.reviewedAt = Date.now();
+  profile.reviewedBy = String(adminId);
+  profile.rejectionReason = decision === 'reject' ? String(reason).slice(0, 500) : null;
+  await write(SPARK_STORAGE_KEYS.profiles(guild.id), profiles);
+
+  const member = await guild.members.fetch(profile.userId).catch(() => null);
+  if (member) {
+    const payload = decision === 'approve'
+      ? { content: 'Cupid đã duyệt hồ sơ Spark Matching của bạn rồi nè! Hãy kiên nhẫn chờ Cupid tìm Sparkmate phù hợp nhé.' }
+      : { content: `Cupid rất tiếc phải thông báo hồ sơ chưa được duyệt.\nLý do: ${profile.rejectionReason || 'Chưa có ghi chú.'}\nBạn có thể đăng ký lại sau khi chỉnh sửa hồ sơ.` };
+    await member.send(payload).catch(() => {});
+  }
+  return { ok: true, profile };
+}
+
+export async function createSparkMatch(guild, userAId, userBId, options = {}) {
+  if (String(userAId) === String(userBId)) return { ok: false, code: 'SAME_USER' };
+  const profiles = await getSparkProfiles(guild.id);
+  const a = profiles.find((item) => item.userId === String(userAId) && item.status === 'approved');
+  const b = profiles.find((item) => item.userId === String(userBId) && item.status === 'approved');
+  if (!a || !b) return { ok: false, code: 'PROFILE_NOT_APPROVED' };
+
+  const busy = await Promise.all([userAId, userBId].map((id) => getSparkActiveMatchForUser(guild.id, id)));
+  if (busy.some(Boolean)) return { ok: false, code: 'USER_BUSY' };
+
+  const now = Date.now();
+  const match = {
+    matchId: `SM-${now.toString(36).toUpperCase()}`,
+    guildId: guild.id,
+    userAId: String(userAId),
+    userBId: String(userBId),
+    matchType: options.matchType || 'admin',
+    status: 'invited',
+    createdAt: now,
+    anonymousExpiresAt: now + SPARK_MATCHING_CONFIG.anonymousChatDurationMs,
+    threadExpiresAt: null,
+    revealVotes: {},
+    connectionVotes: {},
+    feedbackBy: [],
+    threadId: null,
+    endedAt: null,
+    endedReason: null,
+    test: options.test === true,
+  };
+
+  const matches = await getSparkMatches(guild.id);
+  matches.push(match);
+  await write(SPARK_STORAGE_KEYS.matches(guild.id), matches);
+
+  a.status = 'matched';
+  b.status = 'matched';
+  a.matchId = match.matchId;
+  b.matchId = match.matchId;
+  await write(SPARK_STORAGE_KEYS.profiles(guild.id), profiles);
+
+  const [memberA, memberB] = await Promise.all([
+    guild.members.fetch(userAId).catch(() => null),
+    guild.members.fetch(userBId).catch(() => null),
+  ]);
+  if (!memberA || !memberB) return { ok: false, code: 'MEMBER_NOT_FOUND' };
+
+  const { buildSparkMatchInvitePayload } = await import('./sparkMatchingUI.js');
+  await Promise.all([
+    memberA.send(buildSparkMatchInvitePayload(match, memberB.user)).catch(() => null),
+    memberB.send(buildSparkMatchInvitePayload(match, memberA.user)).catch(() => null),
+  ]);
+
+  return { ok: true, match };
+}
+
+export async function recordSparkFeedback(guildId, matchId, userId) {
+  const matches = await getSparkMatches(guildId);
+  const match = matches.find((item) => item.matchId === String(matchId));
+  if (!match) return { ok: false, code: 'MATCH_NOT_FOUND' };
+  if (!match.feedbackBy.includes(String(userId))) {
+    match.feedbackBy.push(String(userId));
+    await write(SPARK_STORAGE_KEYS.matches(guildId), matches);
+  }
+  return { ok: true, readyToClose: match.feedbackBy.length >= 1 };
+}
+
+export async function finishSparkMatch(guild, matchId, reason, endedBy = null) {
+  const matches = await getSparkMatches(guild.id);
+  const match = matches.find((item) => item.matchId === String(matchId));
+  if (!match || match.status === 'closed') return { ok: false, code: 'MATCH_NOT_FOUND' };
+
+  match.status = 'feedback_pending';
+  match.endedReason = reason;
+  match.endedBy = endedBy ? String(endedBy) : null;
+  match.endedAt = Date.now();
+  match.chatLocked = true;
+  await write(SPARK_STORAGE_KEYS.matches(guild.id), matches);
+
+  const { buildSparkFinalPayload } = await import('./sparkMatchingUI.js');
+  const thread = match.threadId ? await guild.channels.fetch(match.threadId).catch(() => null) : null;
+  if (thread?.isTextBased()) await thread.send(buildSparkFinalPayload(match));
+  if (thread?.isThread?.()) {
+    await thread.setLocked(true, 'Spark Matching kết thúc; chờ feedback và thao tác đóng thread.');
+  }
+  return { ok: true, match };
+}
+
+export async function closeSparkMatchAfterFeedback(guild, matchId, userId) {
+  const matches = await getSparkMatches(guild.id);
+  const match = matches.find((item) => item.matchId === String(matchId));
+  if (!match || match.status !== 'feedback_pending') return { ok: false, code: 'NOT_WAITING_FEEDBACK' };
+  if (!match.feedbackBy?.length) return { ok: false, code: 'FEEDBACK_REQUIRED' };
+  if (![match.userAId, match.userBId].includes(String(userId))) return { ok: false, code: 'NOT_PARTICIPANT' };
+
+  const thread = match.threadId ? await guild.channels.fetch(match.threadId).catch(() => null) : null;
+  if (thread?.isThread?.()) await thread.setArchived(true, 'Đã nhận feedback Spark Matching.');
+
+  match.status = 'closed';
+  match.closedAt = Date.now();
+  await write(SPARK_STORAGE_KEYS.matches(guild.id), matches);
+
+  const profiles = await getSparkProfiles(guild.id);
+  for (const profile of profiles) {
+    if (profile.matchId === match.matchId) {
+      profile.status = 'rejected';
+      profile.matchId = null;
+    }
+  }
+  await write(SPARK_STORAGE_KEYS.profiles(guild.id), profiles);
+
+  const history = await getSparkHistory(guild.id);
+  history.push(clone(match));
+  await write(SPARK_STORAGE_KEYS.history(guild.id), history);
+  return { ok: true };
+}
+
+export async function createSparkPublicThread(guild, match) {
+  const config = await getSparkConfig(guild.id);
+  const parent = await guild.channels.fetch(config.threadParentChannelId).catch(() => null);
+  if (!parent?.threads?.create) return { ok: false, code: 'THREAD_CHANNEL_INVALID' };
+
+  const thread = await parent.threads.create({
+    name: `Spark · ${match.matchId}`.slice(0, 100),
+    autoArchiveDuration: 1440,
+    type: 12,
+    reason: 'Hai thành viên đồng ý công khai danh tính Spark Matching.',
+  });
+
+  await thread.members.add(match.userAId).catch(() => {});
+  await thread.members.add(match.userBId).catch(() => {});
+  match.threadId = thread.id;
+  match.status = 'thread';
+  match.threadExpiresAt = Date.now() + config.publicThreadDurationMs;
+  const matches = await getSparkMatches(guild.id);
+  const index = matches.findIndex((item) => item.matchId === match.matchId);
+  if (index >= 0) matches[index] = match;
+  await write(SPARK_STORAGE_KEYS.matches(guild.id), matches);
+
+  return { ok: true, thread };
+}
+
+export async function expireSparkMatches(client) {
+  for (const guild of client.guilds.cache.values()) {
+    const matches = await getSparkMatches(guild.id);
+    for (const match of matches) {
+      if (match.status === 'closed' || match.status === 'feedback_pending') continue;
+      const expiry = match.status === 'thread' ? match.threadExpiresAt : match.anonymousExpiresAt;
+      if (!expiry || expiry > Date.now()) continue;
+      const guildFresh = await client.guilds.fetch(guild.id).catch(() => null);
+      if (!guildFresh) continue;
+      if (match.status === 'thread') {
+        const { buildSparkConnectionConfirmPayload } = await import('./sparkMatchingUI.js');
+        const thread = await guildFresh.channels.fetch(match.threadId).catch(() => null);
+        if (thread?.isTextBased()) await thread.send(buildSparkConnectionConfirmPayload(match));
+        match.status = 'connection_pending';
+      } else if (match.status === 'anonymous') {
+        match.status = 'reveal_pending';
+        const { buildSparkRevealPayload } = await import('./sparkMatchingUI.js');
+        const [a,b] = await Promise.all([guildFresh.members.fetch(match.userAId).catch(()=>null),guildFresh.members.fetch(match.userBId).catch(()=>null)]);
+        await Promise.all([a,b].filter(Boolean).map((m)=>m.send(buildSparkRevealPayload(match)).catch(()=>{})));
+      }
+      const all = await getSparkMatches(guild.id);
+      const idx = all.findIndex((item)=>item.matchId===match.matchId);
+      if(idx>=0) all[idx]=match;
+      await write(SPARK_STORAGE_KEYS.matches(guild.id),all);
+    }
+  }
+}
+
+export function isSparkAdmin(member) {
+  if (member?.permissions?.has?.('Administrator')) return true;
+  const roles = member?.roles?.cache;
+  return SPARK_MATCHING_CONFIG.adminRoleIds.some((id) => roles?.has?.(id));
+}
