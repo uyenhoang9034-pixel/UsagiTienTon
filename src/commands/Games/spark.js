@@ -8,6 +8,9 @@ export default {
     .setDescription('Mở bảng đăng ký SPARK MATCHING'),
   category: 'Games',
   async execute(interaction) {
+    if (!interaction.guildId) {
+      return interaction.reply({ content: 'SPARK MATCHING chỉ hoạt động trong máy chủ đã thiết lập.', flags: MessageFlags.Ephemeral });
+    }
     const config = await getSparkConfig(interaction.guildId);
     if (!config.enabled || !config.registrationEnabled) {
       return interaction.reply({
