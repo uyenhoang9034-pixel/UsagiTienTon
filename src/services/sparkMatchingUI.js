@@ -111,3 +111,32 @@ export async function buildSparkFinalPayload(match) {
     row.toJSON(),
   );
 }
+
+export function buildSparkAnonymousChatPayload(match) {
+  const row = new ActionRowBuilder().addComponents(
+    button(`spark_chat_reply:${match.matchId}`, 'Trả Lời Tin Nhắn'),
+    button(`spark_chat_end:${match.matchId}`, 'Kết Thúc'),
+  );
+  return container(
+    text(SPARK_MATCHING_CONFIG.title),
+    divider(),
+    text('Hai bạn đã đồng ý bắt đầu trò chuyện ẩn danh! Hãy nhắn tin trực tiếp cho Cupid qua DM; Cupid sẽ chuyển tiếp tin nhắn mà không tiết lộ danh tính người gửi.'),
+    text('(trangtrig49) Thời gian trò chuyện ẩn danh tối đa là 24 giờ.'),
+    row.toJSON(),
+  );
+}
+
+export function buildSparkIncomingMessagePayload(match, messageContent) {
+  const row = new ActionRowBuilder().addComponents(
+    button(`spark_chat_reply:${match.matchId}`, 'Trả Lời Tin Nhắn'),
+    button(`spark_chat_end:${match.matchId}`, 'Kết Thúc'),
+  );
+  return container(
+    text('(trangtrig50) **BẠN CÓ MỘT TIN NHẮN MỚI TỪ SPARKMATE** (trangtrig51)'),
+    divider(),
+    text(String(messageContent || '[Tin nhắn trống]').slice(0, 3500)),
+    divider(),
+    text('Bạn có thể nhấn **Trả Lời Tin Nhắn** để gửi phản hồi cho Sparkmate.'),
+    row.toJSON(),
+  );
+}
