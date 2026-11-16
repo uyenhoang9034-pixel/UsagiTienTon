@@ -251,4 +251,4 @@ export default [
 
 ];
 
-const SPARK_FEEDBACK_REQUIRED = '<a:bang2:1546040703375904801> Bạn ơi quên feedback cho bé Cupid rồi kìaaa huhu... Feedback giùm bé nha rồi mới đóng thread được nè!!!!';
+const SPARK_FEEDBACK_REQUIRED = '<:bang2:1546891483250954290> Bạn ơi quên feedback cho bé Cupid rồi kìaaa huhu... Feedback giùm bé nha rồi mới đóng thread được nè!!!!';
