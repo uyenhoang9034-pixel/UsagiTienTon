@@ -351,3 +351,16 @@ test('Prism Leaderboard: 4 sections (Thần thái, Chân thành, Nổi loạn, T
   assert.ok(json.includes('**30**'));
   assert.ok(!json.includes('**90** điểm'));
 });
+
+test('Prism Admin: isPrismEnabled and setPrismEnabled toggle state correctly', async () => {
+  const { isPrismEnabled, setPrismEnabled } = await import('../src/services/prismHandler.js');
+  assert.equal(typeof isPrismEnabled, 'function');
+  assert.equal(typeof setPrismEnabled, 'function');
+
+  // Test setPrismEnabled toggling
+  await setPrismEnabled(false);
+  assert.equal(isPrismEnabled(), false);
+
+  await setPrismEnabled(true);
+  assert.equal(isPrismEnabled(), true);
+});

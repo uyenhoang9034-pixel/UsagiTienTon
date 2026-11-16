@@ -3,6 +3,7 @@
  * Handlers cho toàn bộ Select Menus của "Sắc Màu Định Mệnh".
  */
 
+import { PermissionFlagsBits, MessageFlags } from 'discord.js';
 import {
   handlePrismSelectIdentity,
   handlePrismOutfitSelect,
@@ -10,6 +11,7 @@ import {
   handlePrismBagGiftCrush,
   handlePrismShopBuyItem,
   handlePrismShopBuyGift,
+  isPrismEnabled,
 } from '../../services/prismHandler.js';
 import { logger } from '../../utils/logger.js';
 
@@ -18,6 +20,24 @@ function createSafeSelectHandler(name, fn) {
     name,
     async execute(interaction, client, args) {
       try {
+        if (!isPrismEnabled()) {
+          const isAdmin =
+            interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) ||
+            interaction.member?.permissions?.has(PermissionFlagsBits.Administrator) ||
+            String(interaction.guild?.ownerId || '') === String(interaction.user.id);
+
+          if (!isAdmin) {
+            const disabledNotice = {
+              content: '⏸️ Tính năng mini-game "Sắc Màu Định Mệnh" hiện đang tạm thời đóng để bảo trì/cập nhật. Vui lòng quay lại sau nhé!',
+              flags: MessageFlags.Ephemeral,
+            };
+            if (interaction.replied || interaction.deferred) {
+              return interaction.followUp(disabledNotice).catch(() => {});
+            }
+            return interaction.reply(disabledNotice).catch(() => {});
+          }
+        }
+
         await fn(interaction, client, args);
       } catch (error) {
         logger.error(`[PrismSelect:${name}] Error:`, error);

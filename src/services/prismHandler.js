@@ -63,6 +63,38 @@ export const PRISM_ROLE_ID = process.env.PRISM_ROLE_ID || '1571137417250078791';
 export const PRISM_CHANNEL_ID = process.env.PRISM_CHANNEL_ID || '1571146973522821202';
 
 let isTableInitialized = false;
+let isPrismGameEnabled = true;
+
+/**
+ * Kiểm tra xem tính năng mini-game Sắc Màu Định Mệnh có đang bật hay không
+ */
+export function isPrismEnabled() {
+  return isPrismGameEnabled;
+}
+
+/**
+ * Bật hoặc tắt tính năng mini-game Sắc Màu Định Mệnh và lưu vào Database
+ */
+export async function setPrismEnabled(enabled) {
+  isPrismGameEnabled = Boolean(enabled);
+  await ensurePrismTable();
+  const pool = await getPool();
+  if (pool) {
+    try {
+      await pool.query(
+        `
+          INSERT INTO prism_settings (key, value)
+          VALUES ('is_enabled', $1::jsonb)
+          ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+        `,
+        [JSON.stringify(isPrismGameEnabled)],
+      );
+    } catch (err) {
+      logger.error('[Prism] Failed to persist is_enabled in prism_settings:', err);
+    }
+  }
+  return isPrismGameEnabled;
+}
 
 /**
  * Lấy đối tượng PostgreSQL pool
@@ -79,7 +111,7 @@ async function getPool() {
 }
 
 /**
- * Tự động khởi tạo bảng prism_players và tự động ALTER TABLE bổ sung các cột mới nếu chưa có
+ * Tự động khởi tạo bảng prism_players, prism_settings và tự động ALTER TABLE bổ sung các cột mới nếu chưa có
  */
 export async function ensurePrismTable() {
   if (isTableInitialized) return;
@@ -109,11 +141,88 @@ export async function ensurePrismTable() {
       ALTER TABLE prism_players ADD COLUMN IF NOT EXISTS daily_limits JSONB DEFAULT '{}'::jsonb;
     `);
 
+    // Bảng cài đặt hệ thống Prism (is_enabled, ...)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS prism_settings (
+        key VARCHAR(64) PRIMARY KEY,
+        value JSONB NOT NULL
+      );
+    `);
+
+    const settingRes = await pool.query(
+      "SELECT value FROM prism_settings WHERE key = 'is_enabled' LIMIT 1;"
+    );
+    if (settingRes.rows.length > 0) {
+      isPrismGameEnabled = Boolean(settingRes.rows[0].value);
+    }
+
     isTableInitialized = true;
-    logger.info('[Prism] Table prism_players verified & upgraded with new columns.');
+    logger.info('[Prism] Table prism_players & prism_settings verified & upgraded.');
   } catch (error) {
     logger.error('[Prism] ensurePrismTable error:', error);
   }
+}
+
+/**
+ * Xóa toàn bộ Bảng Giao Diện Tổng cũ ở từng thread của từng member và gửi lại bảng mới nhất
+ */
+export async function refreshAllMemberHubs(client) {
+  await ensurePrismTable();
+  const pool = await getPool();
+  if (!pool) {
+    return { success: 0, failed: 0, total: 0 };
+  }
+
+  const res = await pool.query(
+    "SELECT * FROM prism_players WHERE thread_id IS NOT NULL AND identity_key IS NOT NULL;"
+  );
+  const players = res.rows;
+  let successCount = 0;
+  let failedCount = 0;
+
+  for (const player of players) {
+    try {
+      const thread = await client.channels.fetch(player.thread_id).catch(() => null);
+      if (!thread || !thread.isThread?.()) {
+        failedCount++;
+        continue;
+      }
+
+      // 1. Xóa tin nhắn Hub cũ nếu có
+      if (player.hub_message_id) {
+        const oldMsg = await thread.messages.fetch(player.hub_message_id).catch(() => null);
+        if (oldMsg) {
+          await oldMsg.delete().catch((err) => {
+            logger.warn(`[Prism] Could not delete old hub message ${player.hub_message_id}: ${err.message}`);
+          });
+        }
+      }
+
+      // 2. Gửi lại bảng giao diện mới
+      const payload = buildPrismHubPayload(player);
+      const newMsg = await thread.send(payload);
+
+      // 3. Cập nhật hub_message_id mới vào DB
+      await pool.query(
+        "UPDATE prism_players SET hub_message_id = $1 WHERE user_id = $2;",
+        [newMsg.id, player.user_id],
+      );
+
+      successCount++;
+
+      // Delay nhỏ 150ms để tôn trọng rate limit Discord
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    } catch (err) {
+      logger.error(`[Prism] Failed to refresh hub for user ${player.user_id}:`, err);
+      failedCount++;
+    }
+  }
+
+  return {
+    success: successCount,
+    failed: failedCount,
+    total: players.length,
+  };
 }
 
 /**
