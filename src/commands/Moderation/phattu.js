@@ -18,7 +18,7 @@ export default {
       option.setName('solan').setDescription('Số lần phải lau dọn').setMinValue(1).setMaxValue(10000).setRequired(true))
     .addStringOption(option =>
       option.setName('lydo').setDescription('Lý do phạt tù').setMaxLength(500).setRequired(true))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
   category: 'moderation',
 
   async execute(interaction, config, client) {

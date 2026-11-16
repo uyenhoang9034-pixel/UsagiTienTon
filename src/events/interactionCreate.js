@@ -1,6 +1,7 @@
 import { Events, MessageFlags } from 'discord.js';
 
 import { logger } from '../utils/logger.js';
+import { checkCommandRoleHierarchy } from '../config/roleHierarchy.js';
 
 async function sendInteractionError(interaction, error) {
   const message =
@@ -56,6 +57,14 @@ export default {
         if (!command) {
           logger.warn(`Unknown slash command: ${interaction.commandName}`);
           return;
+        }
+
+        const permCheck = checkCommandRoleHierarchy(interaction, interaction.commandName);
+        if (!permCheck.allowed) {
+          return interaction.reply({
+            content: permCheck.reason,
+            flags: MessageFlags.Ephemeral,
+          });
         }
 
         await command.execute(interaction, null, client);

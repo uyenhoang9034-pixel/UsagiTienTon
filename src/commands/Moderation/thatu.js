@@ -15,7 +15,7 @@ export default {
     .setDescription('Thả một phạm nhân khỏi Nhà Tù và khôi phục role cũ.')
     .addUserOption(option =>
       option.setName('thanhvien').setDescription('Phạm nhân cần thả').setRequired(true))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
   category: 'moderation',
 
   async execute(interaction, config, client) {

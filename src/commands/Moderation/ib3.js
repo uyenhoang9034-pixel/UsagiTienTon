@@ -1,10 +1,11 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { sendServiceDeliveryNotice } from '../../services/serviceTicketService.js';
 
 export default {
   data: new SlashCommandBuilder()
     .setName('ib3')
     .setDescription('Gửi DM thông báo đăng ký khóa học Tiếng Trung 1:1 thành công.')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addUserOption((option) =>
       option
         .setName('user')

@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from 'discord.js';
 import {
   isBookingAdmin,
   isBookingTicketChannel,
@@ -9,7 +9,8 @@ import { logger } from '../../utils/logger.js';
 export default {
   data: new SlashCommandBuilder()
     .setName('close')
-    .setDescription('Đóng kênh ticket (ẩn với khách, không xóa kênh và không gửi transcript).'),
+    .setDescription('Đóng kênh ticket (ẩn với khách, không xóa kênh và không gửi transcript).')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
   category: 'Moderation',
 
   async execute(interaction, config, client) {

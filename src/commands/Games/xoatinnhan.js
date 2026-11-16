@@ -85,7 +85,7 @@ export default {
   data: new SlashCommandBuilder()
     .setName('xoatinnhan')
     .setDescription('Admin: Xóa số lượng tin nhắn gần nhất trong kênh.')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addIntegerOption((option) =>
       option
         .setName('soluong')

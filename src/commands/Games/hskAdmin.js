@@ -1,4 +1,4 @@
-import { ChannelType, SlashCommandBuilder } from 'discord.js';
+import { ChannelType, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import {
   HSK_ADMIN_ROLE_ID,
   HSK_ARENA_LEVEL_CHOICES,
@@ -29,6 +29,7 @@ export default {
   data: new SlashCommandBuilder()
     .setName('hsk-admin')
     .setDescription('Quản trị Đấu trường & Phòng Ôn Luyện HSK 3.0 (riêng tư cho Admin)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand((sub) =>
       sub
         .setName('panel')

@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { HSK_EMOJIS } from '../../config/hskConfig.js';
 import {
   buildHskLeaderboardViewPayload,
@@ -20,6 +20,7 @@ export default {
   data: new SlashCommandBuilder()
     .setName('hsk')
     .setDescription('Ôn luyện tiếng Trung chuẩn HSK 3.0 cá nhân (Trắc nghiệm, Flashcard SRS, Sổ tay)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addStringOption((opt) =>
       opt
         .setName('tukhoa')

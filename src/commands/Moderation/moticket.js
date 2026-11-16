@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from 'discord.js';
 import { isBookingAdmin, isBookingTicketChannel, reopenBookingTicket } from '../../services/bookingService.js';
 import { logger } from '../../utils/logger.js';
 
@@ -6,6 +6,7 @@ export default {
   data: new SlashCommandBuilder()
     .setName('moticket')
     .setDescription('Mở lại kênh ticket khi lỡ đóng nhầm (cấp lại quyền cho khách).')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addBooleanOption((option) =>
       option
         .setName('gui_transcript')

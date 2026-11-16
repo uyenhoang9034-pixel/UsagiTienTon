@@ -36,6 +36,7 @@ export default {
   data: new SlashCommandBuilder()
     .setName('doantu-admin')
     .setDescription('Quản trị trò chơi Đoán Từ Tiếng Việt (riêng tư cho Admin)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand((sub) =>
       sub
         .setName('panel')
