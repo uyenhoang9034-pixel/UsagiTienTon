@@ -23,22 +23,38 @@ const container = (...components) => ({
 const text = (content) => ({ type: 10, content });
 const divider = () => ({ type: 14, divider: true, spacing: 1 });
 
-export function buildSparkStartPayload(client) {
-  const registerEmoji = client?.emojis?.cache?.find((emoji) => emoji.name === 'trangtrig30');
+export function buildSparkStartPayload() {
   const registerButton = new ButtonBuilder()
     .setCustomId('spark_register_start')
     .setLabel('ĐĂNG KÝ THAM GIA')
-    .setStyle(ButtonStyle.Secondary);
-  if (registerEmoji) {
-    registerButton.setEmoji({ id: registerEmoji.id, name: registerEmoji.name, animated: registerEmoji.animated });
-  }
+    .setStyle(ButtonStyle.Secondary)
+    .setEmoji({ id: '1546905942476464178', name: 'trangtrig30', animated: true });
+
   const row = new ActionRowBuilder().addComponents(registerButton);
+
   return container(
     text(SPARK_MATCHING_CONFIG.title),
     divider(),
-    text('Cupid đang tìm kiếm những Sparkmate phù hợp để giúp bạn bắt đầu một hành trình mới.\n\nHãy điền hồ sơ thật chân thành để Cupid hiểu hơn về bạn nhé!'),
+    text(
+      'Chào mừng bạn đến với showroom Spark Matching! “Spark” ở đây chính là gợi lên cảm giác rung động ban đầu. Và người tham gia sẽ được gọi với cái tên mỹ miều là **Sparkmate**.\n\n' +
+      'Tất cả mọi tình cảm đều bắt nguồn từ những rung động ban sơ ấy, nên hãy trân trọng và nắm bắt những cơ hội tạo nên câu chuyện tình yêu đó nhé! Đây là nơi để bạn có thể gặp gỡ, làm quen và tìm kiếm một người đồng hành, một người bạn tri kỉ, một anh bạn trai / cô bạn gái đồng điệu về linh hồn. Liệu bạn đã sẵn sàng tìm kiếm một người đặc biệt chưa?'
+    ),
     divider(),
-    text('Thông tin của bạn sẽ được giữ kín và chỉ được đội ngũ quản trị sử dụng để xét duyệt, ghép đôi. Danh tính chỉ được tiết lộ khi cả hai cùng đồng ý.\n\nLưu ý: Cupid không tự động phân nhóm theo độ tuổi; admin sẽ xem xét hồ sơ thủ công. Bạn không thể tạo hồ sơ mới khi hồ sơ hiện tại còn hiệu lực. Hãy bật nhận tin nhắn riêng để Cupid có thể gửi thông báo nhé.'),
+    text(
+      '<a:trangtrig49:1547240340908240926> **THÔNG TIN CỦA BẠN ĐƯỢC BẢO MẬT**\n' +
+      'Mọi thông tin đăng ký sẽ được bảo mật và danh tính của bạn sẽ được ẩn danh cho đến khi cả hai cùng đồng ý công khai thông tin của nhau.'
+    ),
+    divider(),
+    text(
+      '<a:heartg1:1545307544808071258> **CÁCH THỨC THAM GIA**\n' +
+      '1. Điền hồ sơ hẹn hò theo hướng dẫn của Cupid.\n' +
+      '2. Chờ đội ngũ quản trị xét duyệt hồ sơ. Sau khi được duyệt, bạn có thể để hệ thống ghép đôi hoặc gửi Discord ID của Sparkmate mà bạn muốn tìm hiểu.\n' +
+      '3. Nếu ghép đôi thành công, hai bạn sẽ trò chuyện ẩn danh qua Cupid trong tối đa **24 giờ**.\n' +
+      '4. Nếu cả hai cùng đồng ý công khai danh tính, Cupid sẽ tạo một thread riêng để hai bạn tiếp tục trò chuyện trong tối đa **48 giờ**. Sau đó, Cupid sẽ gửi xác nhận để cả hai quyết định có muốn tiếp tục kết nối hay không.'
+    ),
+    text(
+      '<:bang2:1546891483250954290> Nếu bạn gửi yêu cầu ghép đôi với một Sparkmate cụ thể, đối phương vẫn có quyền từ chối lời mời. Hãy đảm bảo rằng bạn đã bật nhận tin nhắn riêng từ bot để không bỏ lỡ thông báo nhé!'
+    ),
     row.toJSON(),
   );
 }
