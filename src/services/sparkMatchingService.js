@@ -53,7 +53,7 @@ export async function getSparkProfile(guildId, userId) {
 export async function getSparkActiveMatchForUser(guildId, userId) {
   const matches = await getSparkMatches(guildId);
   return matches.find((item) =>
-    ['invited', 'anonymous', 'reveal_pending', 'thread', 'feedback_pending'].includes(item.status) &&
+    ['invited', 'anonymous', 'reveal_pending', 'thread', 'connection_pending', 'feedback_pending'].includes(item.status) &&
     [item.userAId, item.userBId, item.requestedUserId].filter(Boolean).includes(String(userId))
   ) || null;
 }
@@ -184,10 +184,16 @@ export async function createSparkMatch(guild, userAId, userBId, options = {}) {
   const profiles = await getSparkProfiles(guild.id);
   const a = profiles.find((item) => item.userId === String(userAId) && item.status === 'approved');
   const b = profiles.find((item) => item.userId === String(userBId) && item.status === 'approved');
-  if (!a || !b) return { ok: false, code: 'PROFILE_NOT_APPROVED' };
+  if (!options.test && (!a || !b)) return { ok: false, code: 'PROFILE_NOT_APPROVED' };
 
   const busy = await Promise.all([userAId, userBId].map((id) => getSparkActiveMatchForUser(guild.id, id)));
   if (busy.some(Boolean)) return { ok: false, code: 'USER_BUSY' };
+
+  const [memberA, memberB] = await Promise.all([
+    guild.members.fetch(userAId).catch(() => null),
+    guild.members.fetch(userBId).catch(() => null),
+  ]);
+  if (!memberA || !memberB) return { ok: false, code: 'MEMBER_NOT_FOUND' };
 
   const now = Date.now();
   const match = {
@@ -200,6 +206,7 @@ export async function createSparkMatch(guild, userAId, userBId, options = {}) {
     createdAt: now,
     anonymousExpiresAt: now + SPARK_MATCHING_CONFIG.anonymousChatDurationMs,
     threadExpiresAt: null,
+    inviteVotes: {},
     revealVotes: {},
     connectionVotes: {},
     feedbackBy: [],
@@ -209,27 +216,25 @@ export async function createSparkMatch(guild, userAId, userBId, options = {}) {
     test: options.test === true,
   };
 
+  const { buildSparkMatchInvitePayload } = await import('./sparkMatchingUI.js');
+  try {
+    await Promise.all([
+      memberA.send(buildSparkMatchInvitePayload(match, memberB.user)),
+      memberB.send(buildSparkMatchInvitePayload(match, memberA.user)),
+    ]);
+  } catch {
+    return { ok: false, code: 'DM_UNAVAILABLE' };
+  }
+
   const matches = await getSparkMatches(guild.id);
   matches.push(match);
   await write(SPARK_STORAGE_KEYS.matches(guild.id), matches);
 
-  a.status = 'matched';
-  b.status = 'matched';
-  a.matchId = match.matchId;
-  b.matchId = match.matchId;
+  for (const profile of [a, b].filter(Boolean)) {
+    profile.status = 'matched';
+    profile.matchId = match.matchId;
+  }
   await write(SPARK_STORAGE_KEYS.profiles(guild.id), profiles);
-
-  const [memberA, memberB] = await Promise.all([
-    guild.members.fetch(userAId).catch(() => null),
-    guild.members.fetch(userBId).catch(() => null),
-  ]);
-  if (!memberA || !memberB) return { ok: false, code: 'MEMBER_NOT_FOUND' };
-
-  const { buildSparkMatchInvitePayload } = await import('./sparkMatchingUI.js');
-  await Promise.all([
-    memberA.send(buildSparkMatchInvitePayload(match, memberB.user)).catch(() => null),
-    memberB.send(buildSparkMatchInvitePayload(match, memberA.user)).catch(() => null),
-  ]);
 
   return { ok: true, match };
 }
