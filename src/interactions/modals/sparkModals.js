@@ -103,7 +103,7 @@ export default [
       });
       if (!session) return interaction.reply({ content: 'Phiên đăng ký đã hết hạn. Hãy bắt đầu lại bằng /spark.', flags: MessageFlags.Ephemeral });
       const result = await submitSparkProfile(interaction.guild, interaction.user);
-      if (!result.ok) return interaction.reply({ content: 'Cupid chưa thể gửi hồ sơ: ' + result.code, flags: MessageFlags.Ephemeral });
+      if (!result.ok) return interaction.reply({ content: result.code === 'REVIEW_CHANNEL_UNAVAILABLE' ? 'Cupid chưa gửi được hồ sơ vì kênh xét duyệt đang thiếu hoặc bot chưa có quyền gửi tin nhắn. Bạn hãy báo admin kiểm tra cấu hình nhé!' : 'Cupid chưa thể gửi hồ sơ: ' + result.code, flags: MessageFlags.Ephemeral });
       return interaction.reply({
         content: 'Cupid đã gửi hồ sơ đến khu vực xét duyệt riêng tư. Nếu bạn gửi yêu cầu ghép đôi cụ thể, admin sẽ xem xét và Cupid chỉ gửi lời mời khi yêu cầu được duyệt. Người được chọn vẫn có quyền đồng ý hoặc từ chối nhé!',
         flags: MessageFlags.Ephemeral,
