@@ -262,3 +262,13 @@ export function buildSparkAdminMatchPickerPayload(profiles, selection = {}) {
 
   return { flags: SPARK_COMPONENTS_V2 | MessageFlags.Ephemeral, components: [{ type: 17, components }] };
 }
+
+export function buildSparkThreadWelcomePayload(match) {
+  return container(
+    text('<:trangtrig50:1567818385306165301> **SPARK MATCHING · PRIVATE THREAD** <:trangtrig51:1567818549794439229>'),
+    divider(),
+    text('Chúc mừng <@' + match.userAId + '> và <@' + match.userBId + '>! Cả hai đã đồng ý công khai danh tính. Đây sẽ là không gian riêng để hai bạn tiếp tục tìm hiểu nhau.'),
+    divider(),
+    text('<:bang2:1546891483250954290> Nếu một trong hai cảm thấy không ổn muốn dừng lại ngay, bạn có thể dùng lệnh `/ketthuc` để bot lập tức đóng thread và kết thúc ghép đôi nhé! Tuy nhiên, hãy cẩn thận và suy nghĩ kĩ trước khi thực sự dùng lệnh để kết thúc trò chuyện, vì khi kết thúc rồi sẽ không mở lại được đâu ạ!'),
+  );
+}
