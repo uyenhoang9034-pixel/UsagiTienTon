@@ -37,12 +37,13 @@ export default [
       };
       const session = await saveSparkRegistrationStep(interaction.guildId, interaction.user.id, data);
       if (!session) return interaction.reply({ content: 'Phiên đăng ký đã hết hạn. Hãy bắt đầu lại bằng /spark.', flags: MessageFlags.Ephemeral });
-      const result = await submitSparkProfile(interaction.guild, interaction.user);
-      if (!result.ok) {
-        return interaction.reply({ content: 'Cupid chưa thể gửi hồ sơ: ' + result.code, flags: MessageFlags.Ephemeral });
-      }
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('spark_register_submit').setLabel('Gửi Hồ Sơ').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('spark_request_specific').setLabel('Yêu Cầu Ghép Đôi Cụ Thể').setStyle(ButtonStyle.Secondary),
+      );
       return interaction.reply({
-        content: 'Cupid đã gửi hồ sơ của bạn đến khu vực xét duyệt riêng tư. Hãy kiên nhẫn chờ thông báo qua DM nhé! Bạn không thể tạo hồ sơ mới khi hồ sơ hiện tại còn hiệu lực.',
+        content: 'Thông tin hồ sơ đã hoàn tất. Bạn có thể gửi hồ sơ ngay hoặc thêm Discord User ID của người mà bạn muốn Cupid xem xét ghép đôi cụ thể.',
+        components: [row],
         flags: MessageFlags.Ephemeral,
       });
     },
