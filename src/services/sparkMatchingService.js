@@ -353,3 +353,41 @@ export function isSparkAdmin(member) {
   const roles = member?.roles?.cache;
   return SPARK_MATCHING_CONFIG.adminRoleIds.some((id) => roles?.has?.(id));
 }
+
+export async function getSparkMatchByThread(guildId, threadId) {
+  const matches = await getSparkMatches(guildId);
+  return matches.find((item) => String(item.threadId) === String(threadId) && item.status !== 'closed') || null;
+}
+
+export async function endSparkMatchFromThread(guild, threadId, userId) {
+  const match = await getSparkMatchByThread(guild.id, threadId);
+  if (!match) return { ok: false, code: 'MATCH_NOT_FOUND' };
+  if (![match.userAId, match.userBId].includes(String(userId))) {
+    return { ok: false, code: 'NOT_PARTICIPANT' };
+  }
+  if (match.status === 'feedback_pending') return { ok: false, code: 'ALREADY_ENDING' };
+  return finishSparkMatch(guild, match.matchId, 'early', userId);
+}
+
+export async function handleSparkFeedbackMessage(message) {
+  if (!message.guild || message.author?.bot) return false;
+  const config = await getSparkConfig(message.guild.id);
+  if (String(message.channelId) !== String(config.feedbackChannelId)) return false;
+
+  const matches = await getSparkMatches(message.guild.id);
+  const match = matches.find((item) =>
+    item.status === 'feedback_pending' &&
+    [item.userAId, item.userBId].includes(String(message.author.id))
+  );
+  if (!match) return false;
+
+  if (!Array.isArray(match.feedbackBy)) match.feedbackBy = [];
+  if (!match.feedbackBy.includes(String(message.author.id))) {
+    match.feedbackBy.push(String(message.author.id));
+    match.feedbackMessageIds = [...(match.feedbackMessageIds || []), message.id];
+    await write(SPARK_STORAGE_KEYS.matches(message.guild.id), matches);
+  }
+
+  await message.reply('Cupid đã nhận feedback của bạn rồi nè! Bây giờ một trong hai bạn có thể quay lại thread và nhấn **Đóng Thread** nhé.').catch(() => {});
+  return true;
+}
