@@ -5,6 +5,7 @@ import { isTTSEnabledByEnv } from '../config/ttsConfig.js';
 import { initWordGuessAutoResume } from '../services/wordGuessService.js';
 import { initHskAutoResume } from '../services/hskService.js';
 import { initForumStoreSync } from '../services/forumStoreService.js';
+import { expireSparkMatches } from '../services/sparkMatchingService.js';
 
 export default {
   name: Events.ClientReady,
