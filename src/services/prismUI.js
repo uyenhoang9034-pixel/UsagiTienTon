@@ -971,8 +971,8 @@ export function buildPrismQuestsPayload(playerRecord, questsData, noticeText = '
     const statusBadge = q.claimed
       ? 'Đã nhận thưởng'
       : isCompleted
-      ? '**Đã hoàn thành!**'
-      : `Đang làm (${q.progress}/${q.target})`;
+        ? '**Đã hoàn thành!**'
+        : `Đang làm (${q.progress}/${q.target})`;
 
     questLines.push(
       `${PRISM_EMOJIS.trangtrig61} **${q.title}**\nTiến độ: **${q.progress}/${q.target}** | Thưởng: +**${q.reward}** ${PRISM_EMOJIS.xucauvong} | Trạng thái: ${statusBadge}`,

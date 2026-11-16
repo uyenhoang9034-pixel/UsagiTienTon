@@ -1055,3 +1055,4 @@ class PostgreSQLDatabase {
 const pgDb = new PostgreSQLDatabase();
 
 export { PostgreSQLDatabase, pgDb };
+export default pgDb;

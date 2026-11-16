@@ -13,7 +13,7 @@ import {
 } from '../../services/prismHandler.js';
 import { buildPrismSetupPayload } from '../../services/prismUI.js';
 import { logger } from '../../utils/logger.js';
-import pgDb from '../../utils/postgresDatabase.js';
+import { pgDb } from '../../utils/postgresDatabase.js';
 
 export default {
   data: new SlashCommandBuilder()
