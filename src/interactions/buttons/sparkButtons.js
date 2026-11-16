@@ -89,6 +89,78 @@ export default [
       return interaction.reply({ content: 'Cupid đã đóng thread. Cảm ơn hai bạn đã tham gia Spark Matching!', flags: MessageFlags.Ephemeral });
     },
   },
+
+  {
+    name: 'spark_invite_accept',
+    async execute(interaction) {
+      const result = await respondSparkInvite(interaction.guild, interaction.customId.split(':')[1], interaction.user.id, true);
+      if (!result.ok) return replyError(interaction, 'Lời mời này đã hết hạn hoặc không còn hợp lệ.');
+      return interaction.reply({ content: result.started ? 'Cả hai đã đồng ý! Cupid đã mở cuộc trò chuyện ẩn danh qua DM.' : 'Cupid đã ghi nhận câu trả lời. Đang chờ Sparkmate phản hồi nhé!', flags: MessageFlags.Ephemeral });
+    },
+  },
+  {
+    name: 'spark_invite_decline',
+    async execute(interaction) {
+      const result = await respondSparkInvite(interaction.guild, interaction.customId.split(':')[1], interaction.user.id, false);
+      if (!result.ok) return replyError(interaction, 'Lời mời này đã hết hạn hoặc không còn hợp lệ.');
+      return interaction.reply({ content: 'Cupid đã ghi nhận lời từ chối. Cảm ơn bạn đã phản hồi nhé!', flags: MessageFlags.Ephemeral });
+    },
+  },
+  {
+    name: 'spark_reveal_yes',
+    async execute(interaction) {
+      const result = await submitSparkRevealVote(interaction.guild, interaction.customId.split(':')[1], interaction.user.id, true);
+      if (!result.ok) return replyError(interaction, 'Yêu cầu công khai danh tính không còn hợp lệ.');
+      return interaction.reply({ content: result.thread ? 'Cả hai đã đồng ý! Cupid đã tạo thread riêng cho hai bạn.' : 'Cupid đã ghi nhận lựa chọn của bạn và đang chờ Sparkmate.', flags: MessageFlags.Ephemeral });
+    },
+  },
+  {
+    name: 'spark_reveal_no',
+    async execute(interaction) {
+      const result = await submitSparkRevealVote(interaction.guild, interaction.customId.split(':')[1], interaction.user.id, false);
+      if (!result.ok) return replyError(interaction, 'Yêu cầu này không còn hợp lệ.');
+      return interaction.reply({ content: 'Cupid đã ghi nhận lựa chọn của bạn.', flags: MessageFlags.Ephemeral });
+    },
+  },
+  {
+    name: 'spark_connection_yes',
+    async execute(interaction) {
+      const result = await submitSparkConnectionVote(interaction.guild, interaction.customId.split(':')[1], interaction.user.id, true);
+      if (!result.ok) return replyError(interaction, 'Lượt xác nhận kết nối không còn hợp lệ.');
+      return interaction.reply({ content: result.connected ? 'Cả hai đã đồng ý kết nối! Cupid đã gửi thông báo cuối cùng.' : 'Cupid đã ghi nhận lựa chọn của bạn và đang chờ Sparkmate.', flags: MessageFlags.Ephemeral });
+    },
+  },
+  {
+    name: 'spark_connection_no',
+    async execute(interaction) {
+      const result = await submitSparkConnectionVote(interaction.guild, interaction.customId.split(':')[1], interaction.user.id, false);
+      if (!result.ok) return replyError(interaction, 'Lượt xác nhận kết nối không còn hợp lệ.');
+      return interaction.reply({ content: 'Cupid đã ghi nhận lựa chọn của bạn và gửi thông báo kết thúc.', flags: MessageFlags.Ephemeral });
+    },
+  },
+  {
+    name: 'spark_chat_reply',
+    async execute(interaction) {
+      const matchId = interaction.customId.split(':')[1];
+      const modal = new ModalBuilder().setCustomId('spark_chat_reply:' + matchId).setTitle('GỬI TIN NHẮN')
+        .addComponents(new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId('message').setLabel('Tin nhắn của bạn').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1800),
+        ));
+      return interaction.showModal(modal);
+    },
+  },
+  {
+    name: 'spark_chat_end',
+    async execute(interaction, client) {
+      const matchId = interaction.customId.split(':')[1];
+      const guild = client.guilds.cache.find((item) => item.members.cache.has(interaction.user.id));
+      if (!guild) return replyError(interaction, 'Cupid không tìm thấy máy chủ của lượt ghép đôi.');
+      const result = await endSparkAnonymousChat(guild, matchId, interaction.user.id);
+      if (!result.ok) return replyError(interaction, 'Cuộc trò chuyện này đã kết thúc hoặc không còn hợp lệ.');
+      return interaction.reply({ content: 'Cupid đã kết thúc cuộc trò chuyện ẩn danh.', flags: MessageFlags.Ephemeral });
+    },
+  },
+
 ];
 
 const SPARK_FEEDBACK_REQUIRED = '<a:bang2:1546040703375904801> Bạn ơi quên feedback cho bé Cupid rồi kìaaa huhu... Feedback giùm bé nha rồi mới đóng thread được nè!!!!';
