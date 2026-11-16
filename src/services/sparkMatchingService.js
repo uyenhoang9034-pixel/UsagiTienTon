@@ -1,5 +1,6 @@
 import { db } from '../utils/database/wrapper.js';
 import { PermissionFlagsBits } from 'discord.js';
+import { randomUUID } from 'node:crypto';
 import {
   SPARK_MATCHING_CONFIG,
   SPARK_STORAGE_KEYS,
@@ -141,7 +142,7 @@ export async function submitSparkProfile(guild, user) {
   }
 
   const profile = {
-    profileId: `SP-${Date.now().toString(36).toUpperCase()}`,
+    profileId: `SP-${randomUUID().slice(0, 8).toUpperCase()}`,
     guildId: guild.id,
     userId: user.id,
     usernameAtSubmission: user.username,
@@ -221,7 +222,7 @@ export async function createSparkMatch(guild, userAId, userBId, options = {}) {
 
   const now = Date.now();
   const match = {
-    matchId: `SM-${now.toString(36).toUpperCase()}`,
+    matchId: `SM-${randomUUID().slice(0, 8).toUpperCase()}`,
     guildId: guild.id,
     userAId: String(userAId),
     userBId: String(userBId),
