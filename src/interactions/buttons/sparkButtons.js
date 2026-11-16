@@ -6,6 +6,7 @@ import {
   beginSparkRegistration, reviewSparkProfile, closeSparkMatchAfterFeedback,
   respondSparkInvite, submitSparkRevealVote, submitSparkConnectionVote,
   endSparkAnonymousChat, getSparkMatches, submitSparkProfile, createSparkMatch,
+  getSparkProfiles, getSparkHistory, getSparkConfig, isSparkAdmin,
 } from '../../services/sparkMatchingService.js';
 
 
@@ -246,6 +247,81 @@ export default [
           new TextInputBuilder().setCustomId('reason').setLabel('Lý do từ chối').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(500),
         ));
       return interaction.showModal(modal);
+    },
+  },
+
+
+  {
+    name: 'spark_admin_pending',
+    async execute(interaction) {
+      if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền xem khu vực quản trị.');
+      const profiles = await getSparkProfiles(interaction.guildId);
+      const items = profiles.filter((profile) => profile.status === 'pending').slice(0, 20);
+      const body = items.length
+        ? items.map((profile) => '• **' + profile.profileId + '** · <@' + profile.userId + '> · ' + (profile.data?.gender || 'Chưa rõ') + ' · ' + (profile.data?.age || '?') + ' tuổi').join('\n')
+        : 'Hiện không có hồ sơ nào đang chờ duyệt.';
+      return interaction.reply({ content: '**HỒ SƠ CHỜ DUYỆT**\n' + body, flags: MessageFlags.Ephemeral });
+    },
+  },
+  {
+    name: 'spark_admin_requests',
+    async execute(interaction) {
+      if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền xem khu vực quản trị.');
+      const profiles = await getSparkProfiles(interaction.guildId);
+      const items = profiles.filter((profile) => profile.status === 'pending' && profile.data?.requestedUserId).slice(0, 20);
+      const body = items.length
+        ? items.map((profile) => '• **' + profile.profileId + '** · Người đăng ký: <@' + profile.userId + '> · Người được yêu cầu: <@' + profile.data.requestedUserId + '>').join('\n')
+        : 'Hiện không có yêu cầu ghép đôi cụ thể đang chờ duyệt.';
+      return interaction.reply({ content: '**YÊU CẦU GHÉP ĐÔI CỤ THỂ**\n' + body + '\n\nAdmin có thể duyệt trực tiếp tại bài hồ sơ trong kênh xét duyệt riêng.', flags: MessageFlags.Ephemeral });
+    },
+  },
+  {
+    name: 'spark_admin_active',
+    async execute(interaction) {
+      if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền xem khu vực quản trị.');
+      const matches = (await getSparkMatches(interaction.guildId)).filter((match) => match.status !== 'closed').slice(-20).reverse();
+      const body = matches.length
+        ? matches.map((match) => '• **' + match.matchId + '** · <@' + match.userAId + '> × <@' + match.userBId + '> · ' + match.status + (match.test ? ' · TEST' : '') + (match.threadId ? ' · <#' + match.threadId + '>' : '')).join('\n')
+        : 'Không có cặp đôi nào đang hoạt động.';
+      return interaction.reply({ content: '**CẶP ĐÔI ĐANG HOẠT ĐỘNG**\n' + body, flags: MessageFlags.Ephemeral });
+    },
+  },
+  {
+    name: 'spark_admin_history',
+    async execute(interaction) {
+      if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền xem khu vực quản trị.');
+      const history = (await getSparkHistory(interaction.guildId)).slice(-20).reverse();
+      const body = history.length
+        ? history.map((match) => '• **' + match.matchId + '** · <@' + match.userAId + '> × <@' + match.userBId + '> · ' + (match.matchType || 'admin') + ' · ' + (match.endedReason || 'closed')).join('\n')
+        : 'Chưa có lịch sử ghép đôi.';
+      return interaction.reply({ content: '**LỊCH SỬ SPARK MATCHING**\n' + body, flags: MessageFlags.Ephemeral });
+    },
+  },
+  {
+    name: 'spark_admin_settings',
+    async execute(interaction) {
+      if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền xem khu vực quản trị.');
+      const config = await getSparkConfig(interaction.guildId);
+      return interaction.reply({
+        content: [
+          '**CÀI ĐẶT SPARK MATCHING**',
+          '• Hồ sơ nam: ' + (config.maleReviewChannelId ? '<#' + config.maleReviewChannelId + '>' : 'Chưa cấu hình'),
+          '• Hồ sơ nữ: ' + (config.femaleReviewChannelId ? '<#' + config.femaleReviewChannelId + '>' : 'Chưa cấu hình'),
+          '• Feedback: <#' + config.feedbackChannelId + '>',
+          '• Thread riêng: <#' + config.threadParentChannelId + '>',
+          '• Role thành viên: <@&' + config.memberRoleId + '>',
+          '• Anonymous: ' + Math.round(config.anonymousChatDurationMs / 3600000) + ' giờ',
+          '• Thread: ' + Math.round(config.publicThreadDurationMs / 3600000) + ' giờ',
+        ].join('\n'),
+        flags: MessageFlags.Ephemeral,
+      });
+    },
+  },
+  {
+    name: 'spark_admin_match',
+    async execute(interaction) {
+      if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền ghép đôi.');
+      return interaction.reply({ content: 'Để ghép đôi hai hồ sơ đã được duyệt, dùng /spark-admin match và chọn hai thành viên. Chức năng chọn hồ sơ bằng menu có phân trang sẽ được hoàn thiện ở bước tiếp theo.', flags: MessageFlags.Ephemeral });
     },
   },
 
