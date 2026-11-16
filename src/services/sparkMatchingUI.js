@@ -32,7 +32,7 @@ export function buildSparkStartPayload() {
     divider(),
     text('Cupid đang tìm kiếm những Sparkmate phù hợp để giúp bạn bắt đầu một hành trình mới.\n\nHãy điền hồ sơ thật chân thành để Cupid hiểu hơn về bạn nhé!'),
     divider(),
-    text('Thông tin của bạn sẽ được giữ kín và chỉ được đội ngũ quản trị sử dụng để xét duyệt, ghép đôi. Danh tính chỉ được tiết lộ khi cả hai cùng đồng ý.\\n\\nLưu ý: Cupid không tự động phân nhóm theo độ tuổi; admin sẽ xem xét hồ sơ thủ công. Bạn không thể tạo hồ sơ mới khi hồ sơ hiện tại còn hiệu lực. Hãy bật nhận tin nhắn riêng để Cupid có thể gửi thông báo nhé.'),
+    text('Thông tin của bạn sẽ được giữ kín và chỉ được đội ngũ quản trị sử dụng để xét duyệt, ghép đôi. Danh tính chỉ được tiết lộ khi cả hai cùng đồng ý.\n\nLưu ý: Cupid không tự động phân nhóm theo độ tuổi; admin sẽ xem xét hồ sơ thủ công. Bạn không thể tạo hồ sơ mới khi hồ sơ hiện tại còn hiệu lực. Hãy bật nhận tin nhắn riêng để Cupid có thể gửi thông báo nhé.'),
     row.toJSON(),
   );
 }
@@ -180,13 +180,13 @@ export function buildSparkAdminDashboardPayload({ config, profiles, matches }) {
         text('<:trangtrig50:1567818385306165301> **SPARK MATCHING · ADMIN DASHBOARD** <:trangtrig51:1567818549794439229>'),
         divider(),
         text(
-          '**THỐNG KÊ HỒ SƠ**\\n' +
-          '• Hồ sơ nam: **' + male + '**\\n' +
-          '• Hồ sơ nữ: **' + female + '**\\n' +
-          '• Chờ duyệt: **' + pending + '**\\n' +
-          '• Cặp đôi chưa kết thúc: **' + active + '**\\n\\n' +
-          '**TRẠNG THÁI**\\n' +
-          '• Hệ thống: **' + (config.enabled ? 'Đang bật' : 'Đang tắt') + '**\\n' +
+          '**THỐNG KÊ HỒ SƠ**\n' +
+          '• Hồ sơ nam: **' + male + '**\n' +
+          '• Hồ sơ nữ: **' + female + '**\n' +
+          '• Chờ duyệt: **' + pending + '**\n' +
+          '• Cặp đôi chưa kết thúc: **' + active + '**\n\n' +
+          '**TRẠNG THÁI**\n' +
+          '• Hệ thống: **' + (config.enabled ? 'Đang bật' : 'Đang tắt') + '**\n' +
           '• Đăng ký: **' + (config.registrationEnabled ? 'Đang mở' : 'Đang đóng') + '**'
         ),
         divider(),
