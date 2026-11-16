@@ -198,8 +198,9 @@ export default [
     async execute(interaction) {
       const modal = new ModalBuilder().setCustomId('spark_request_specific').setTitle('THÔNG TIN BỔ SUNG')
         .addComponents(new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId('orientation').setLabel('Xu hướng tính dục / bản dạng giới (nếu muốn chia sẻ)').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(150),
-          new TextInputBuilder().setCustomId('requestedUserId').setLabel('Discord User ID của người bạn muốn ghép đôi (nếu có)').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(25),
+          new TextInputBuilder().setCustomId('orientation').setLabel('Xu hướng tính dục / bản dạng giới (tùy chọn)').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(150),
+          new TextInputBuilder().setCustomId('requestedUserId').setLabel('Discord User ID người bạn muốn ghép đôi').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(25),
+          new TextInputBuilder().setCustomId('otherRequirements').setLabel('Yêu cầu khác (tùy chọn)').setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(500),
         ));
       return interaction.showModal(modal);
     },
