@@ -407,6 +407,7 @@ export async function endSparkMatchFromThread(guild, threadId, userId) {
 
 export async function handleSparkFeedbackMessage(message) {
   if (!message.guild || message.author?.bot) return false;
+  if (!String(message.content || '').trim() && !message.attachments?.size) return false;
   const config = await getSparkConfig(message.guild.id);
   if (String(message.channelId) !== String(config.feedbackChannelId)) return false;
 
