@@ -559,7 +559,21 @@ export async function submitSparkRevealVote(guild, matchId, userId, agreed) {
     const result = await createSparkPublicThread(guild, match);
     if (!result.ok) return result;
     const { buildSparkThreadWelcomePayload } = await import('./sparkMatchingUI.js');
-    await result.thread.send(buildSparkThreadWelcomePayload(match));
+    await result.thread.send(buildSparkThreadWelcomePayload(match, result.thread.url));
+    const [memberA, memberB] = await Promise.all([
+      guild.members.fetch(match.userAId).catch(() => null),
+      guild.members.fetch(match.userBId).catch(() => null),
+    ]);
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = await import('discord.js');
+    const threadLinkRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setLabel('Đến Thread').setStyle(ButtonStyle.Link).setURL(result.thread.url),
+    );
+    await Promise.all([memberA, memberB].filter(Boolean).map((member) =>
+      member.send({
+        content: 'Cả hai đã đồng ý công khai danh tính! Cupid đã tạo thread riêng cho hai bạn.',
+        components: [threadLinkRow],
+      }).catch(() => {})
+    ));
     return { ok: true, thread: result.thread };
   }
 
