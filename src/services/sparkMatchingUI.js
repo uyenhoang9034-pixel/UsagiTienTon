@@ -7,7 +7,7 @@ export const SPARK_COMPONENTS_V2 = MessageFlags.IsComponentsV2 ?? (1 << 15);
 const EMOJI = {
   heartg1: { id: '1545307544808071258', name: 'heartg1' },
   heartg8: { id: '1567818755793358928', name: 'heartg8' },
-  bang2: { id: '1546891483250954290', name: 'bang2' },
+  bang2: '⚠️',
   trangtrig30: { id: '1546905942476464178', name: 'trangtrig30', animated: true },
 };
 const button = (customId, label, style = ButtonStyle.Secondary, emoji = null) => {
@@ -54,7 +54,7 @@ export function buildSparkStartPayload() {
       '4. Nếu cả hai cùng đồng ý công khai danh tính, Cupid sẽ tạo một thread riêng để hai bạn tiếp tục trò chuyện trong tối đa **48 giờ**. Sau đó, Cupid sẽ gửi xác nhận để cả hai quyết định có muốn tiếp tục kết nối hay không.'
     ),
     text(
-      '<:bang2:1546891483250954290> Nếu bạn gửi yêu cầu ghép đôi với một Sparkmate cụ thể, đối phương vẫn có quyền từ chối lời mời. Hãy đảm bảo rằng bạn đã bật nhận tin nhắn riêng từ bot để không bỏ lỡ thông báo nhé!'
+      '⚠️ Nếu bạn gửi yêu cầu ghép đôi với một Sparkmate cụ thể, đối phương vẫn có quyền từ chối lời mời. Hãy đảm bảo rằng bạn đã bật nhận tin nhắn riêng từ bot để không bỏ lỡ thông báo nhé!'
     ),
     row.toJSON(),
   );
@@ -294,7 +294,7 @@ export function buildSparkThreadWelcomePayload(match, threadUrl) {
     divider(),
     text('Chúc mừng <@' + match.userAId + '> và <@' + match.userBId + '>! Cả hai đã đồng ý công khai danh tính. Đây sẽ là không gian riêng để hai bạn tiếp tục tìm hiểu nhau.'),
     divider(),
-    text('<:bang2:1546891483250954290> Nếu một trong hai cảm thấy không ổn muốn dừng lại ngay, bạn có thể dùng lệnh `/ketthuc` để bot lập tức đóng thread và kết thúc ghép đôi nhé! Tuy nhiên, hãy cẩn thận và suy nghĩ kĩ trước khi thực sự dùng lệnh để kết thúc trò chuyện, vì khi kết thúc rồi sẽ không mở lại được đâu ạ!'),
+    text('⚠️ Nếu một trong hai cảm thấy không ổn muốn dừng lại ngay, bạn có thể dùng lệnh `/ketthuc` để bot lập tức đóng thread và kết thúc ghép đôi nhé! Tuy nhiên, hãy cẩn thận và suy nghĩ kĩ trước khi thực sự dùng lệnh để kết thúc trò chuyện, vì khi kết thúc rồi sẽ không mở lại được đâu ạ!'),
   ];
   if (threadUrl) {
     components.push(new ActionRowBuilder().addComponents(
