@@ -340,12 +340,20 @@ export async function expireSparkMatches(client) {
   for (const guild of client.guilds.cache.values()) {
     const matches = await getSparkMatches(guild.id);
     for (const match of matches) {
-      if (match.status === 'closed' || match.status === 'feedback_pending') continue;
+      if (['closed', 'feedback_pending', 'connection_pending', 'reveal_pending'].includes(match.status)) continue;
       const expiry = match.status === 'thread' ? match.threadExpiresAt : match.anonymousExpiresAt;
       if (!expiry || expiry > Date.now()) continue;
       const guildFresh = await client.guilds.fetch(guild.id).catch(() => null);
       if (!guildFresh) continue;
-      if (match.status === 'thread') {
+      if (match.status === 'invited') {
+        await archiveSparkMatch(guildFresh, match, 'invite_timeout');
+        const [a, b] = await Promise.all([
+          guildFresh.members.fetch(match.userAId).catch(() => null),
+          guildFresh.members.fetch(match.userBId).catch(() => null),
+        ]);
+        await Promise.all([a, b].filter(Boolean).map((member) => member.send('Lời mời Spark Matching đã hết hạn vì chưa nhận đủ phản hồi. Cupid đã khép lại lượt ghép đôi này nhé.').catch(() => {})));
+        continue;
+      } else if (match.status === 'thread') {
         const { buildSparkConnectionConfirmPayload } = await import('./sparkMatchingUI.js');
         const thread = await guildFresh.channels.fetch(match.threadId).catch(() => null);
         if (thread?.isTextBased()) await thread.send(buildSparkConnectionConfirmPayload(match));
@@ -596,4 +604,24 @@ export async function updateSparkAdminMatchSelection(guildId, adminId, patch) {
   const next = { ...current, ...patch, updatedAt: Date.now() };
   await write(`spark:admin-match-select:${guildId}:${adminId}`, next);
   return next;
+}
+
+export async function cancelSparkMatchByAdmin(guild, matchId, adminId) {
+  const matches = await getSparkMatches(guild.id);
+  const match = matches.find((item) => item.matchId === String(matchId));
+  if (!match || match.status === 'closed') return { ok: false, code: 'MATCH_NOT_FOUND' };
+  if (match.status === 'feedback_pending') return { ok: false, code: 'ALREADY_FEEDBACK_PENDING' };
+
+  if (match.threadId && ['thread', 'connection_pending'].includes(match.status)) {
+    await finishSparkMatch(guild, match.matchId, 'admin_cancel', adminId);
+    return { ok: true, feedbackPending: true };
+  }
+
+  const [a, b] = await Promise.all([
+    guild.members.fetch(match.userAId).catch(() => null),
+    guild.members.fetch(match.userBId).catch(() => null),
+  ]);
+  await Promise.all([a, b].filter(Boolean).map((member) => member.send('Cupid xin thông báo lượt ghép đôi hiện đã được admin kết thúc. Cảm ơn bạn đã tham gia Spark Matching nhé!').catch(() => {})));
+  await archiveSparkMatch(guild, match, 'admin_cancel');
+  return { ok: true, feedbackPending: false };
 }
