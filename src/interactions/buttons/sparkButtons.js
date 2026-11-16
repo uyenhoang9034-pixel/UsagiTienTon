@@ -4,6 +4,8 @@ import {
 } from 'discord.js';
 import {
   beginSparkRegistration, reviewSparkProfile, closeSparkMatchAfterFeedback,
+  respondSparkInvite, submitSparkRevealVote, submitSparkConnectionVote,
+  endSparkAnonymousChat,
 } from '../../services/sparkMatchingService.js';
 
 function replyError(interaction, content) {
