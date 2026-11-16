@@ -227,6 +227,28 @@ export default [
     },
   },
 
+
+  {
+    name: 'spark_profile_reject_retry',
+    async execute(interaction, client, args) {
+      const modal = new ModalBuilder().setCustomId('spark_profile_reject_retry:' + args[0]).setTitle('TỪ CHỐI HỒ SƠ')
+        .addComponents(new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId('reason').setLabel('Lý do từ chối').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(500),
+        ));
+      return interaction.showModal(modal);
+    },
+  },
+  {
+    name: 'spark_profile_reject_final',
+    async execute(interaction, client, args) {
+      const modal = new ModalBuilder().setCustomId('spark_profile_reject_final:' + args[0]).setTitle('TỪ CHỐI HỒ SƠ')
+        .addComponents(new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId('reason').setLabel('Lý do từ chối').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(500),
+        ));
+      return interaction.showModal(modal);
+    },
+  },
+
 ];
 
 const SPARK_FEEDBACK_REQUIRED = '<a:bang2:1546040703375904801> Bạn ơi quên feedback cho bé Cupid rồi kìaaa huhu... Feedback giùm bé nha rồi mới đóng thread được nè!!!!';
