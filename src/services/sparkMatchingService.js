@@ -302,14 +302,15 @@ export async function finishSparkMatch(guild, matchId, reason, endedBy = null) {
   match.endedReason = reason;
   match.endedBy = endedBy ? String(endedBy) : null;
   match.endedAt = Date.now();
-  match.chatLocked = true;
+  const lockThread = ['early', 'admin_cancel'].includes(reason);
+  match.chatLocked = lockThread;
   await write(SPARK_STORAGE_KEYS.matches(guild.id), matches);
 
   const { buildSparkFinalPayload } = await import('./sparkMatchingUI.js');
   const thread = match.threadId ? await guild.channels.fetch(match.threadId).catch(() => null) : null;
   if (thread?.isTextBased()) await thread.send(await buildSparkFinalPayload(match));
-  if (thread?.isThread?.()) {
-    await thread.setLocked(true, 'Spark Matching kết thúc; chờ feedback và thao tác đóng thread.');
+  if (lockThread && thread?.isThread?.()) {
+    await thread.setLocked(true, 'Spark Matching kết thúc sớm; chờ feedback và thao tác đóng thread.');
   }
   return { ok: true, match };
 }
