@@ -8,6 +8,7 @@ const EMOJI = {
   heartg1: { id: '1545307544808071258', name: 'heartg1' },
   heartg8: { id: '1567818755793358928', name: 'heartg8' },
   bang2: { id: '1546891483250954290', name: 'bang2' },
+  trangtrig30: { id: '1546905942476464178', name: 'trangtrig30', animated: true },
 };
 const button = (customId, label, style = ButtonStyle.Secondary, emoji = null) => {
   const builder = new ButtonBuilder().setCustomId(customId).setLabel(label).setStyle(style);
@@ -86,7 +87,7 @@ export function buildSparkAdminProfilePayload(profile) {
 
 export function buildSparkMatchInvitePayload(match, otherUser) {
   const row = new ActionRowBuilder().addComponents(
-    button(`spark_invite_accept:${match.matchId}`, 'Bắt Đầu Trò Chuyện'),
+    button(`spark_invite_accept:${match.matchId}`, 'Bắt Đầu Trò Chuyện', ButtonStyle.Secondary, EMOJI.trangtrig30),
     button(`spark_invite_decline:${match.matchId}`, 'Từ Chối'),
   );
   return container(
@@ -154,7 +155,7 @@ export async function buildSparkFinalPayload(match) {
 
 export function buildSparkAnonymousChatPayload(match) {
   const row = new ActionRowBuilder().addComponents(
-    button(`spark_chat_reply:${match.matchId}`, 'Trả Lời Tin Nhắn'),
+    button(`spark_chat_reply:${match.matchId}`, 'Trả Lời Tin Nhắn', ButtonStyle.Secondary, EMOJI.trangtrig30),
     button(`spark_chat_end:${match.matchId}`, 'Kết Thúc', ButtonStyle.Secondary, EMOJI.bang2),
   );
   return container(
@@ -169,7 +170,7 @@ export function buildSparkAnonymousChatPayload(match) {
 export function buildSparkIncomingMessagePayload(match, messageContent) {
   const row = new ActionRowBuilder().addComponents(
     button(`spark_chat_reply:${match.matchId}`, 'Trả Lời Tin Nhắn'),
-    button(`spark_chat_end:${match.matchId}`, 'Kết Thúc'),
+    button(`spark_chat_end:${match.matchId}`, 'Kết Thúc', ButtonStyle.Secondary, EMOJI.bang2),
   );
   return container(
     text('<a:trangtrig50:1567818385306165301> **BẠN CÓ MỘT TIN NHẮN MỚI TỪ SPARKMATE** <a:trangtrig51:1567818549794439229>'),
@@ -287,12 +288,20 @@ export function buildSparkAdminMatchPickerPayload(profiles, selection = {}) {
   return { flags: SPARK_COMPONENTS_V2 | MessageFlags.Ephemeral, components: [{ type: 17, components }] };
 }
 
-export function buildSparkThreadWelcomePayload(match) {
-  return container(
+export function buildSparkThreadWelcomePayload(match, threadUrl) {
+  const components = [
     text('<a:trangtrig50:1567818385306165301> **SPARK MATCHING · PRIVATE THREAD** <a:trangtrig51:1567818549794439229>'),
     divider(),
     text('Chúc mừng <@' + match.userAId + '> và <@' + match.userBId + '>! Cả hai đã đồng ý công khai danh tính. Đây sẽ là không gian riêng để hai bạn tiếp tục tìm hiểu nhau.'),
     divider(),
     text('<:bang2:1546891483250954290> Nếu một trong hai cảm thấy không ổn muốn dừng lại ngay, bạn có thể dùng lệnh `/ketthuc` để bot lập tức đóng thread và kết thúc ghép đôi nhé! Tuy nhiên, hãy cẩn thận và suy nghĩ kĩ trước khi thực sự dùng lệnh để kết thúc trò chuyện, vì khi kết thúc rồi sẽ không mở lại được đâu ạ!'),
-  );
+  ];
+  if (threadUrl) {
+    components.push(new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setLabel('Đến Thread').setStyle(ButtonStyle.Link).setURL(threadUrl),
+    ).toJSON());
+  }
+  return container(...components);
 }
+
+/* SPARK_THREAD_WELCOME_REPLACED */
