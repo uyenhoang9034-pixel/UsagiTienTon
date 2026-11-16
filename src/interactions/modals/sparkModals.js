@@ -1,6 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from 'discord.js';
 import {
   saveSparkRegistrationStep, submitSparkProfile, reviewSparkProfile,
+  sendSparkAnonymousReply, getSparkMatches,
 } from '../../services/sparkMatchingService.js';
 
 const value = (interaction, id) => interaction.fields.getTextInputValue(id).trim();
@@ -54,4 +55,24 @@ export default [
       return interaction.reply({ content: 'Đã từ chối hồ sơ ' + args[0] + ' và gửi lý do đến thành viên.', flags: MessageFlags.Ephemeral });
     },
   },
+
+  {
+    name: 'spark_chat_reply',
+    async execute(interaction, client, args) {
+      const matchId = args[0];
+      let guildId = null;
+      for (const guild of client.guilds.cache.values()) {
+        const matches = await getSparkMatches(guild.id);
+        if (matches.some((match) => match.matchId === String(matchId))) {
+          guildId = guild.id;
+          break;
+        }
+      }
+      if (!guildId) return interaction.reply({ content: 'Cupid không tìm thấy cuộc trò chuyện này.', flags: MessageFlags.Ephemeral });
+      const result = await sendSparkAnonymousReply(guildId, matchId, interaction.user.id, value(interaction, 'message'), client);
+      if (!result.ok) return interaction.reply({ content: 'Cuộc trò chuyện đã kết thúc hoặc không thể gửi tin nhắn.', flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: 'Cupid đã chuyển tin nhắn của bạn đến Sparkmate rồi nè!', flags: MessageFlags.Ephemeral });
+    },
+  },
+
 ];
