@@ -5,6 +5,7 @@ import { isTTSEnabledByEnv } from '../config/ttsConfig.js';
 import { initWordGuessAutoResume } from '../services/wordGuessService.js';
 import { initHskAutoResume } from '../services/hskService.js';
 import { initForumStoreSync } from '../services/forumStoreService.js';
+import { expireSparkMatches } from '../services/sparkMatchingService.js';
 
 export default {
   name: Events.ClientReady,
@@ -36,6 +37,11 @@ export default {
     } catch (error) {
       logger.warn('Could not initialize Forum Store sync:', error);
     }
+
+    const sparkSweep = setInterval(() => {
+      expireSparkMatches(client).catch((error) => logger.warn('Spark Matching expiry sweep failed:', error));
+    }, 60 * 1000);
+    sparkSweep.unref?.();
 
     logger.info(
       isTTSEnabledByEnv()

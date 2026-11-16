@@ -44,10 +44,16 @@ const BASE_ALLOWED_INTERACTION_PATTERNS = [
   /^modals\/hsk\/.*\.js$/,
   /^buttons\/prism.*\.js$/,
   /^buttons\/prism\/.*\.js$/,
+  /^buttons\/spark.*\.js$/,
+  /^buttons\/spark\/.*\.js$/,
   /^selectMenus\/prism.*\.js$/,
   /^selectMenus\/prism\/.*\.js$/,
+  /^selectMenus\/spark.*\.js$/,
+  /^selectMenus\/spark\/.*\.js$/,
   /^modals\/prism.*\.js$/,
   /^modals\/prism\/.*\.js$/,
+  /^modals\/spark.*\.js$/,
+  /^modals\/spark\/.*\.js$/,
 ];
 
 const TTS_INTERACTION_PATTERNS = [

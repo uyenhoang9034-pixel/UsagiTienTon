@@ -57,6 +57,7 @@ export function buildBotClientOptions(env = process.env) {
     intents: [
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.DirectMessages,
       ...(ttsEnabled ? [GatewayIntentBits.GuildVoiceStates] : []),
       GatewayIntentBits.MessageContent,
     ],
