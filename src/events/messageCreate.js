@@ -31,6 +31,13 @@ export default {
     }
 
     try {
+      const sparkFeedbackProcessed = await handleSparkFeedbackMessage(message);
+      if (sparkFeedbackProcessed) return;
+    } catch (sparkFeedbackError) {
+      logger.error('Error handling Spark Matching feedback:', sparkFeedbackError);
+    }
+
+    try {
       const handledByAI = await handleAIChatMessage(message, client);
       if (handledByAI) {
         return;
