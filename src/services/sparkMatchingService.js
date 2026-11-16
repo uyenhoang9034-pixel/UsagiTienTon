@@ -670,3 +670,25 @@ export async function cancelSparkMatchByAdmin(guild, matchId, adminId) {
   await archiveSparkMatch(guild, match, 'admin_cancel');
   return { ok: true, feedbackPending: false };
 }
+
+export async function setSparkAdminNote(guildId, matchId, adminId, note) {
+  const matches = await getSparkMatches(guildId);
+  const activeIndex = matches.findIndex((item) => item.matchId === String(matchId));
+  if (activeIndex >= 0) {
+    matches[activeIndex].adminNotes = String(note).slice(0, 1000);
+    matches[activeIndex].adminNoteUpdatedBy = String(adminId);
+    matches[activeIndex].adminNoteUpdatedAt = Date.now();
+    await write(SPARK_STORAGE_KEYS.matches(guildId), matches);
+    return { ok: true };
+  }
+  const history = await getSparkHistory(guildId);
+  const historyIndex = history.findIndex((item) => item.matchId === String(matchId));
+  if (historyIndex >= 0) {
+    history[historyIndex].adminNotes = String(note).slice(0, 1000);
+    history[historyIndex].adminNoteUpdatedBy = String(adminId);
+    history[historyIndex].adminNoteUpdatedAt = Date.now();
+    await write(SPARK_STORAGE_KEYS.history(guildId), history);
+    return { ok: true };
+  }
+  return { ok: false, code: 'MATCH_NOT_FOUND' };
+}
