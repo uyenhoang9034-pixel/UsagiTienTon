@@ -196,9 +196,10 @@ export default [
   {
     name: 'spark_request_specific',
     async execute(interaction) {
-      const modal = new ModalBuilder().setCustomId('spark_request_specific').setTitle('YÊU CẦU GHÉP ĐÔI CỤ THỂ')
+      const modal = new ModalBuilder().setCustomId('spark_request_specific').setTitle('THÔNG TIN BỔ SUNG')
         .addComponents(new ActionRowBuilder().addComponents(
-          new TextInputBuilder().setCustomId('requestedUserId').setLabel('Discord User ID của người đó?').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(25),
+          new TextInputBuilder().setCustomId('orientation').setLabel('Xu hướng tính dục / bản dạng giới (nếu muốn chia sẻ)').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(150),
+          new TextInputBuilder().setCustomId('requestedUserId').setLabel('Discord User ID của người bạn muốn ghép đôi (nếu có)').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(25),
         ));
       return interaction.showModal(modal);
     },
