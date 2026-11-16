@@ -66,8 +66,11 @@ export async function beginSparkRegistration(guild, member) {
     return { ok: false, code: 'REGISTRATION_DISABLED' };
   }
 
-  const existingProfile = await getSparkProfile(guild.id, member.id);
-  const activeMatch = await getSparkActiveMatchForUser(guild.id, member.id);
+  const userId = String(member?.id || member?.user?.id || '');
+  if (!userId) return { ok: false, code: 'MEMBER_NOT_FOUND' };
+
+  const existingProfile = await getSparkProfile(guild.id, userId);
+  const activeMatch = await getSparkActiveMatchForUser(guild.id, userId);
   if (existingProfile && ['pending', 'approved', 'matched'].includes(existingProfile.status)) {
     return { ok: false, code: 'PROFILE_EXISTS' };
   }
@@ -76,19 +79,23 @@ export async function beginSparkRegistration(guild, member) {
   }
   if (activeMatch) return { ok: false, code: 'ACTIVE_MATCH' };
 
+  const role = await guild.roles.fetch(config.memberRoleId).catch(() => null);
+  if (!role) return { ok: false, code: 'ROLE_NOT_FOUND' };
+  const guildMember = typeof member?.roles?.add === 'function'
+    ? member
+    : await guild.members.fetch(userId).catch(() => null);
+  if (!guildMember?.roles?.add) return { ok: false, code: 'MEMBER_NOT_FOUND' };
+
   const sessions = await read(SPARK_STORAGE_KEYS.sessions(guild.id), {});
-  sessions[member.id] = {
-    userId: member.id,
+  sessions[userId] = {
+    userId,
     guildId: guild.id,
     step: 1,
     data: {},
     startedAt: Date.now(),
   };
   await write(SPARK_STORAGE_KEYS.sessions(guild.id), sessions);
-
-  const role = await guild.roles.fetch(config.memberRoleId).catch(() => null);
-  if (!role) return { ok: false, code: 'ROLE_NOT_FOUND' };
-  await member.roles.add(role, 'Đăng ký tham gia Spark Matching');
+  await guildMember.roles.add(role, 'Đăng ký tham gia Spark Matching');
 
   return { ok: true };
 }
