@@ -18,7 +18,7 @@ import { handleForumStoreMessage } from '../services/forumStoreService.js';
 import { handleServiceTicketMessage } from '../services/serviceTicketService.js';
 import { handleCustomerSpendingMessage } from '../services/customerSpendingService.js';
 import { handleWordGuessMessage } from '../services/wordGuessService.js';
-import { handleSparkFeedbackMessage } from '../services/sparkMatchingService.js';
+import { handleSparkFeedbackMessage, handleSparkAnonymousMessage } from '../services/sparkMatchingService.js';
 
 let cachedHandleTTSMessage = null;
 
@@ -26,7 +26,14 @@ export default {
   name: Events.MessageCreate,
 
   async execute(message, client) {
-    if (message.author?.bot || !message.guild) {
+    if (message.author?.bot) return;
+
+    if (!message.guild) {
+      try {
+        await handleSparkAnonymousMessage(message, client);
+      } catch (sparkDmError) {
+        logger.error('Error relaying Spark Matching DM:', sparkDmError);
+      }
       return;
     }
 
