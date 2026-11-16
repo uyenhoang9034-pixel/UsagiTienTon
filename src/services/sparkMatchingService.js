@@ -190,6 +190,10 @@ export async function createSparkMatch(guild, userAId, userBId, options = {}) {
   const profiles = await getSparkProfiles(guild.id);
   const a = profiles.find((item) => item.userId === String(userAId) && item.status === 'approved');
   const b = profiles.find((item) => item.userId === String(userBId) && item.status === 'approved');
+  const targetProfile = profiles.find((item) => item.userId === String(userBId));
+  if (options.requested && targetProfile && !['approved', 'rejected'].includes(targetProfile.status)) {
+    return { ok: false, code: 'USER_BUSY' };
+  }
   if (!options.test && (!a || (!b && !options.requested))) return { ok: false, code: 'PROFILE_NOT_APPROVED' };
 
   const busy = await Promise.all([userAId, userBId].map((id) => getSparkActiveMatchForUser(guild.id, id)));
