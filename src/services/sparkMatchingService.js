@@ -391,3 +391,180 @@ export async function handleSparkFeedbackMessage(message) {
   await message.reply('Cupid đã nhận feedback của bạn rồi nè! Bây giờ một trong hai bạn có thể quay lại thread và nhấn **Đóng Thread** nhé.').catch(() => {});
   return true;
 }
+
+async function saveSparkMatchList(guildId, matches) {
+  await write(SPARK_STORAGE_KEYS.matches(guildId), matches);
+}
+
+async function unlockSparkProfiles(guildId, matchId) {
+  const profiles = await getSparkProfiles(guildId);
+  for (const profile of profiles) {
+    if (profile.matchId === matchId) {
+      profile.status = 'approved';
+      profile.matchId = null;
+    }
+  }
+  await write(SPARK_STORAGE_KEYS.profiles(guildId), profiles);
+}
+
+async function archiveSparkMatch(guild, match, reason) {
+  match.status = 'closed';
+  match.endedAt = Date.now();
+  match.endedReason = reason;
+  const matches = await getSparkMatches(guild.id);
+  const index = matches.findIndex((item) => item.matchId === match.matchId);
+  if (index >= 0) matches[index] = match;
+  await saveSparkMatchList(guild.id, matches);
+  await unlockSparkProfiles(guild.id, match.matchId);
+  const history = await getSparkHistory(guild.id);
+  history.push(clone(match));
+  await write(SPARK_STORAGE_KEYS.history(guild.id), history);
+}
+
+export async function respondSparkInvite(guild, matchId, userId, accepted) {
+  const matches = await getSparkMatches(guild.id);
+  const match = matches.find((item) => item.matchId === String(matchId));
+  if (!match || match.status !== 'invited') return { ok: false, code: 'INVITE_EXPIRED' };
+  if (![match.userAId, match.userBId].includes(String(userId))) return { ok: false, code: 'NOT_PARTICIPANT' };
+
+  match.inviteVotes = match.inviteVotes || {};
+  if (!accepted) {
+    const otherId = match.userAId === String(userId) ? match.userBId : match.userAId;
+    await archiveSparkMatch(guild, match, 'invite_declined');
+    const other = await guild.members.fetch(otherId).catch(() => null);
+    await other?.send('Sparkmate đã từ chối lời mời trò chuyện. Cupid đã khép lại lượt ghép đôi này; bạn có thể tiếp tục đăng ký hoặc chờ một Sparkmate khác nhé.').catch(() => {});
+    return { ok: true, declined: true };
+  }
+
+  match.inviteVotes[String(userId)] = true;
+  if (match.inviteVotes[match.userAId] && match.inviteVotes[match.userBId]) {
+    match.status = 'anonymous';
+    match.anonymousStartedAt = Date.now();
+    const config = await getSparkConfig(guild.id);
+    match.anonymousExpiresAt = Date.now() + config.anonymousChatDurationMs;
+    const all = await getSparkMatches(guild.id);
+    const index = all.findIndex((item) => item.matchId === match.matchId);
+    if (index >= 0) all[index] = match;
+    await saveSparkMatchList(guild.id, all);
+    const { buildSparkAnonymousChatPayload } = await import('./sparkMatchingUI.js');
+    const [a, b] = await Promise.all([
+      guild.members.fetch(match.userAId).catch(() => null),
+      guild.members.fetch(match.userBId).catch(() => null),
+    ]);
+    await Promise.all([a, b].filter(Boolean).map((member) => member.send(buildSparkAnonymousChatPayload(match)).catch(() => {})));
+    return { ok: true, started: true, match };
+  }
+
+  await saveSparkMatchList(guild.id, matches);
+  return { ok: true, waiting: true };
+}
+
+export async function submitSparkRevealVote(guild, matchId, userId, agreed) {
+  const matches = await getSparkMatches(guild.id);
+  const match = matches.find((item) => item.matchId === String(matchId));
+  if (!match || match.status !== 'reveal_pending') return { ok: false, code: 'NOT_REVEAL_PENDING' };
+  if (![match.userAId, match.userBId].includes(String(userId))) return { ok: false, code: 'NOT_PARTICIPANT' };
+
+  match.revealVotes = match.revealVotes || {};
+  match.revealVotes[String(userId)] = Boolean(agreed);
+  if (!agreed) {
+    const [a, b] = await Promise.all([
+      guild.members.fetch(match.userAId).catch(() => null),
+      guild.members.fetch(match.userBId).catch(() => null),
+    ]);
+    await Promise.all([a, b].filter(Boolean).map((member) => member.send('Có vẻ như hai bạn chưa đủ duyên để cùng tiếp tục hành trình này. Cảm ơn bạn đã dành thời gian trò chuyện cùng Cupid nhé!').catch(() => {})));
+    await archiveSparkMatch(guild, match, 'reveal_declined');
+    return { ok: true, ended: true };
+  }
+
+  if (match.revealVotes[match.userAId] && match.revealVotes[match.userBId]) {
+    const result = await createSparkPublicThread(guild, match);
+    if (!result.ok) return result;
+    await result.thread.send({
+      content: 'Chào mừng hai bạn đến với không gian riêng của Sparkmate! Danh tính của hai bạn đã được công khai theo sự đồng ý của cả hai.',
+      allowedMentions: { users: [match.userAId, match.userBId] },
+    });
+    return { ok: true, thread: result.thread };
+  }
+
+  const index = matches.findIndex((item) => item.matchId === match.matchId);
+  if (index >= 0) matches[index] = match;
+  await saveSparkMatchList(guild.id, matches);
+  return { ok: true, waiting: true };
+}
+
+export async function submitSparkConnectionVote(guild, matchId, userId, agreed) {
+  const matches = await getSparkMatches(guild.id);
+  const match = matches.find((item) => item.matchId === String(matchId));
+  if (!match || !['thread', 'connection_pending'].includes(match.status)) return { ok: false, code: 'NOT_CONNECTION_PENDING' };
+  if (![match.userAId, match.userBId].includes(String(userId))) return { ok: false, code: 'NOT_PARTICIPANT' };
+
+  match.connectionVotes = match.connectionVotes || {};
+  match.connectionVotes[String(userId)] = Boolean(agreed);
+  const index = matches.findIndex((item) => item.matchId === match.matchId);
+  if (index >= 0) matches[index] = match;
+  await saveSparkMatchList(guild.id, matches);
+
+  if (!agreed) {
+    await finishSparkMatch(guild, match.matchId, 'connection_declined', userId);
+    return { ok: true, ended: true };
+  }
+  if (match.connectionVotes[match.userAId] && match.connectionVotes[match.userBId]) {
+    await finishSparkMatch(guild, match.matchId, 'connection_accepted', userId);
+    return { ok: true, connected: true };
+  }
+  return { ok: true, waiting: true };
+}
+
+export async function handleSparkAnonymousMessage(message, client) {
+  if (message.author?.bot || message.guild) return false;
+  for (const guild of client.guilds.cache.values()) {
+    const matches = await getSparkMatches(guild.id);
+    const match = matches.find((item) =>
+      item.status === 'anonymous' &&
+      [item.userAId, item.userBId].includes(String(message.author.id))
+    );
+    if (!match) continue;
+
+    const recipientId = match.userAId === String(message.author.id) ? match.userBId : match.userAId;
+    const recipient = await client.users.fetch(recipientId).catch(() => null);
+    if (!recipient) {
+      await message.reply('Cupid chưa thể chuyển tin nhắn vì đối phương không nhận được DM.').catch(() => {});
+      return true;
+    }
+
+    const attachmentLines = [...message.attachments.values()].map((attachment) => attachment.url);
+    const content = [message.content?.trim(), ...attachmentLines].filter(Boolean).join('\n');
+    const { buildSparkIncomingMessagePayload } = await import('./sparkMatchingUI.js');
+    await recipient.send(buildSparkIncomingMessagePayload(match, content || '[Tin nhắn đính kèm]')).catch(async () => {
+      await message.reply('Cupid không thể chuyển tin nhắn. Có thể đối phương đã tắt DM.').catch(() => {});
+    });
+    return true;
+  }
+  return false;
+}
+
+export async function sendSparkAnonymousReply(guildId, matchId, senderId, content, client) {
+  const matches = await getSparkMatches(guildId);
+  const match = matches.find((item) => item.matchId === String(matchId) && item.status === 'anonymous');
+  if (!match || ![match.userAId, match.userBId].includes(String(senderId))) return { ok: false };
+  const recipientId = match.userAId === String(senderId) ? match.userBId : match.userAId;
+  const recipient = await client.users.fetch(recipientId).catch(() => null);
+  if (!recipient) return { ok: false };
+  const { buildSparkIncomingMessagePayload } = await import('./sparkMatchingUI.js');
+  await recipient.send(buildSparkIncomingMessagePayload(match, String(content).slice(0, 1800))).catch(() => {});
+  return { ok: true };
+}
+
+export async function endSparkAnonymousChat(guild, matchId, userId) {
+  const matches = await getSparkMatches(guild.id);
+  const match = matches.find((item) => item.matchId === String(matchId) && item.status === 'anonymous');
+  if (!match || ![match.userAId, match.userBId].includes(String(userId))) return { ok: false };
+  const [a, b] = await Promise.all([
+    guild.members.fetch(match.userAId).catch(() => null),
+    guild.members.fetch(match.userBId).catch(() => null),
+  ]);
+  await Promise.all([a, b].filter(Boolean).map((member) => member.send('Cuộc trò chuyện ẩn danh đã kết thúc. Cảm ơn bạn đã tham gia Spark Matching nhé!').catch(() => {})));
+  await archiveSparkMatch(guild, match, 'anonymous_ended');
+  return { ok: true };
+}
