@@ -34,6 +34,11 @@ export const PRISM_EMOJIS = Object.freeze({
   giftg1: '<a:giftg1:1543150714732412948>',           // Hộp Mù Bí Ẩn
   trangtrig52: '<a:trangtrig52:1567818998475657246>', // Danh sách Mini-game (Text Hub)
   trangtrig61: '<a:trangtrig61:1569559986550612051>', // Nhiệm vụ ngày
+  rank_1: '<a:1_:1563484001765949550>',               // Top 1 BXH
+  rank_2: '<a:2_:1563484061111156828>',               // Top 2 BXH
+  rank_3: '<a:3_:1563484342779388045>',               // Top 3 BXH
+  rank_4: '<a:4_:1563484724725424209>',               // Top 4 BXH
+  rank_5: '<a:5_:1563484794623365151>',               // Top 5 BXH
 });
 
 export const IDENTITY_PROFILES = Object.freeze({

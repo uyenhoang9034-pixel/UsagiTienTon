@@ -1020,6 +1020,20 @@ export function buildPrismQuestsPayload(playerRecord, questsData, noticeText = '
 }
 
 /**
+ * Helper lấy badge thứ hạng 1, 2, 3, 4, 5 (sử dụng custom emoji số của server)
+ */
+function getRankBadge(index) {
+  const rankEmojis = [
+    PRISM_EMOJIS.rank_1,
+    PRISM_EMOJIS.rank_2,
+    PRISM_EMOJIS.rank_3,
+    PRISM_EMOJIS.rank_4,
+    PRISM_EMOJIS.rank_5,
+  ];
+  return rankEmojis[index] || `**#${index + 1}**`;
+}
+
+/**
  * Format danh sách người chơi cho BXH đơn lẻ (Thần thái / Chân thành / Nổi loạn)
  */
 function formatSingleStatRanking(players = [], statKey, statEmoji, statName) {
@@ -1028,9 +1042,9 @@ function formatSingleStatRanking(players = [], statKey, statEmoji, statName) {
   }
   return players.map((p, index) => {
     const idProfile = IDENTITY_PROFILES[p.identity_key] || IDENTITY_PROFILES.pansexual;
-    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `**#${index + 1}**`;
+    const rankBadge = getRankBadge(index);
     const pts = p[statKey] || 0;
-    return `${medal} <@${p.user_id}> • ${statEmoji} **${pts}** ${statName} *(${idProfile.name})*`;
+    return `${rankBadge} <@${p.user_id}> • ${statEmoji} **${pts}** ${statName} *(${idProfile.name})*`;
   });
 }
 
@@ -1044,11 +1058,11 @@ function formatTotalRanking(players = []) {
   }
   return players.map((p, index) => {
     const idProfile = IDENTITY_PROFILES[p.identity_key] || IDENTITY_PROFILES.pansexual;
-    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `**#${index + 1}**`;
+    const rankBadge = getRankBadge(index);
     const slay = p.slay_points || 0;
     const heart = p.heart_points || 0;
     const rebel = p.rebel_points || 0;
-    return `${medal} <@${p.user_id}> • ${PRISM_EMOJIS.trangtrig41} **${slay}** | ${PRISM_EMOJIS.heartg3} **${heart}** | ${PRISM_EMOJIS.trangtrig29} **${rebel}** *(${idProfile.name})*`;
+    return `${rankBadge} <@${p.user_id}> • ${PRISM_EMOJIS.trangtrig41} **${slay}** | ${PRISM_EMOJIS.heartg3} **${heart}** | ${PRISM_EMOJIS.trangtrig29} **${rebel}** *(${idProfile.name})*`;
   });
 }
 
@@ -1068,7 +1082,7 @@ export function buildPrismLeaderboardPayload(userRecord, leaderboardData = {}, u
   const userLines = [
     `**Bản dạng của bạn:** ${profile.emoji} **${profile.name}**`,
     `${PRISM_EMOJIS.trangtrig41} Thần thái: **${userRecord?.slay_points || 0}** | ${PRISM_EMOJIS.heartg3} Chân thành: **${userRecord?.heart_points || 0}** | ${PRISM_EMOJIS.trangtrig29} Nổi loạn: **${userRecord?.rebel_points || 0}**`,
-    `=> **Hạng tổng:** **#${userRank || 'N/A'}** | ${PRISM_EMOJIS.xucauvong} **${userRecord?.rainbow_coins || 0} Xu Cầu Vồng**`,
+    `${PRISM_EMOJIS.trangtrig20} **Hạng tổng:** **#${userRank || 'N/A'}** | ${PRISM_EMOJIS.xucauvong} **${userRecord?.rainbow_coins || 0} Xu Cầu Vồng**`,
   ];
 
   const slayLines = formatSingleStatRanking(topSlay, 'slay_points', PRISM_EMOJIS.trangtrig41, 'Thần thái');

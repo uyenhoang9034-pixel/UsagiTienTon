@@ -334,6 +334,10 @@ test('Prism Leaderboard: 4 sections (Thần thái, Chân thành, Nổi loạn, T
   assert.ok(json.includes('# 3. BXH NỔI LOẠN'));
   assert.ok(json.includes('# 4. BXH TỔNG'));
 
+  // Custom rank badges and Hạng tổng emoji
+  assert.ok(json.includes('<a:trangtrig20:1546092997299667055> **Hạng tổng:**'));
+  assert.ok(json.includes('<a:1_:1563484001765949550> <@111>'));
+
   // Section 1: Thần thái points
   assert.ok(json.includes('<@111>'));
   assert.ok(json.includes('50** Thần thái'));
