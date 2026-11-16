@@ -318,7 +318,7 @@ export async function createSparkPublicThread(guild, match) {
 
   const thread = await parent.threads.create({
     name: `Spark · ${match.matchId}`.slice(0, 100),
-    autoArchiveDuration: 1440,
+    autoArchiveDuration: 10080,
     type: 12,
     reason: 'Hai thành viên đồng ý công khai danh tính Spark Matching.',
   });
