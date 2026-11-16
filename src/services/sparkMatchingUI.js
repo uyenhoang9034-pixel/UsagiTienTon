@@ -48,12 +48,11 @@ export function buildSparkAdminProfilePayload(profile) {
     reviewButtons.splice(1, 0, button(`spark_request_approve:${profile.profileId}`, 'Duyệt Yêu Cầu Ghép Đôi', ButtonStyle.Secondary));
   }
   const row = new ActionRowBuilder().addComponents(...reviewButtons);
+  const details = `**Mã hồ sơ:** ${profile.profileId}\n**Discord ID:** ${profile.userId}\n**Tên lúc đăng ký:** ${profile.usernameAtSubmission || 'Không có'}\n**Tuổi:** ${data.age}\n**Giới tính:** ${data.gender}\n**Xu hướng tính dục / bản dạng giới:** ${data.orientation || 'Không chia sẻ'}\n**Mong muốn ghép đôi:** ${data.matchGender}\n**Khu vực:** ${data.area}\n**Mục đích:** ${data.intention}\n\n**Giới thiệu:**\n${data.about}\n\n**Sở thích:**\n${data.hobbies}\n\n**Điều khiến bạn vui trong một mối quan hệ:**\n${data.relationshipHappy}\n\n**Tính cách Sparkmate mong muốn:**\n${data.traits}\n\n**Độ tuổi mong muốn:**\n${data.ageRange}\n\n**Yêu cầu khác:**\n${data.otherRequirements || 'Không có'}\n**Người muốn ghép đôi cụ thể:** ${data.requestedUserId || 'Không có'}`;
   return container(
     text('<:trangtrig50:1567818385306165301> **SPARK MATCHING · HỒ SƠ CHỜ DUYỆT** <:trangtrig51:1567818549794439229>'),
     divider(),
-    text(
-      `**Mã hồ sơ:** ${profile.profileId}\n**Discord ID:** ${profile.userId}\n**Tên lúc đăng ký:** ${profile.usernameAtSubmission || 'Không có'}\n**Tuổi:** ${data.age}\n**Giới tính:** ${data.gender}\n**Xu hướng tính dục / bản dạng giới:** ${data.orientation || 'Không chia sẻ'}\n**Mong muốn ghép đôi:** ${data.matchGender}\n**Khu vực:** ${data.area}\n**Mục đích:** ${data.intention}\n\n**Giới thiệu:**\n${data.about}\n\n**Sở thích:**\n${data.hobbies}\n\n**Điều khiến bạn vui trong một mối quan hệ:**\n${data.relationshipHappy}\n\n**Tính cách Sparkmate mong muốn:**\n${data.traits}\n\n**Độ tuổi mong muốn:**\n${data.ageRange}\n\n**Yêu cầu khác:**\n${data.otherRequirements || 'Không có'}\n**Người muốn ghép đôi cụ thể:** ${data.requestedUserId || 'Không có'}`,
-    ),
+    text(details.slice(0, 3900)),
     divider(),
     text(`Thời gian gửi: <t:${Math.floor(profile.submittedAt / 1000)}:F>`),
     row.toJSON(),
