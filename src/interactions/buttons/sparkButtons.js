@@ -5,8 +5,17 @@ import {
 import {
   beginSparkRegistration, reviewSparkProfile, closeSparkMatchAfterFeedback,
   respondSparkInvite, submitSparkRevealVote, submitSparkConnectionVote,
-  endSparkAnonymousChat,
+  endSparkAnonymousChat, getSparkMatches,
 } from '../../services/sparkMatchingService.js';
+
+
+async function resolveGuildForMatch(client, matchId) {
+  for (const guild of client.guilds.cache.values()) {
+    const matches = await getSparkMatches(guild.id);
+    if (matches.some((item) => item.matchId === String(matchId))) return guild;
+  }
+  return null;
+}
 
 function replyError(interaction, content) {
   return interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => {});
@@ -93,7 +102,10 @@ export default [
   {
     name: 'spark_invite_accept',
     async execute(interaction) {
-      const result = await respondSparkInvite(interaction.guild, interaction.customId.split(':')[1], interaction.user.id, true);
+      const matchId = interaction.customId.split(':')[1];
+      const guild = await resolveGuildForMatch(client, matchId);
+      if (!guild) return replyError(interaction, 'Không tìm thấy lượt ghép đôi này.');
+      const result = await respondSparkInvite(guild, matchId, interaction.user.id, true);
       if (!result.ok) return replyError(interaction, 'Lời mời này đã hết hạn hoặc không còn hợp lệ.');
       return interaction.reply({ content: result.started ? 'Cả hai đã đồng ý! Cupid đã mở cuộc trò chuyện ẩn danh qua DM.' : 'Cupid đã ghi nhận câu trả lời. Đang chờ Sparkmate phản hồi nhé!', flags: MessageFlags.Ephemeral });
     },
@@ -101,7 +113,10 @@ export default [
   {
     name: 'spark_invite_decline',
     async execute(interaction) {
-      const result = await respondSparkInvite(interaction.guild, interaction.customId.split(':')[1], interaction.user.id, false);
+      const matchId = interaction.customId.split(':')[1];
+      const guild = await resolveGuildForMatch(client, matchId);
+      if (!guild) return replyError(interaction, 'Không tìm thấy lượt ghép đôi này.');
+      const result = await respondSparkInvite(guild, matchId, interaction.user.id, false);
       if (!result.ok) return replyError(interaction, 'Lời mời này đã hết hạn hoặc không còn hợp lệ.');
       return interaction.reply({ content: 'Cupid đã ghi nhận lời từ chối. Cảm ơn bạn đã phản hồi nhé!', flags: MessageFlags.Ephemeral });
     },
@@ -109,7 +124,10 @@ export default [
   {
     name: 'spark_reveal_yes',
     async execute(interaction) {
-      const result = await submitSparkRevealVote(interaction.guild, interaction.customId.split(':')[1], interaction.user.id, true);
+      const matchId = interaction.customId.split(':')[1];
+      const guild = await resolveGuildForMatch(client, matchId);
+      if (!guild) return replyError(interaction, 'Không tìm thấy lượt ghép đôi này.');
+      const result = await submitSparkRevealVote(guild, matchId, interaction.user.id, true);
       if (!result.ok) return replyError(interaction, 'Yêu cầu công khai danh tính không còn hợp lệ.');
       return interaction.reply({ content: result.thread ? 'Cả hai đã đồng ý! Cupid đã tạo thread riêng cho hai bạn.' : 'Cupid đã ghi nhận lựa chọn của bạn và đang chờ Sparkmate.', flags: MessageFlags.Ephemeral });
     },
@@ -117,7 +135,10 @@ export default [
   {
     name: 'spark_reveal_no',
     async execute(interaction) {
-      const result = await submitSparkRevealVote(interaction.guild, interaction.customId.split(':')[1], interaction.user.id, false);
+      const matchId = interaction.customId.split(':')[1];
+      const guild = await resolveGuildForMatch(client, matchId);
+      if (!guild) return replyError(interaction, 'Không tìm thấy lượt ghép đôi này.');
+      const result = await submitSparkRevealVote(guild, matchId, interaction.user.id, false);
       if (!result.ok) return replyError(interaction, 'Yêu cầu này không còn hợp lệ.');
       return interaction.reply({ content: 'Cupid đã ghi nhận lựa chọn của bạn.', flags: MessageFlags.Ephemeral });
     },
@@ -153,7 +174,7 @@ export default [
     name: 'spark_chat_end',
     async execute(interaction, client) {
       const matchId = interaction.customId.split(':')[1];
-      const guild = client.guilds.cache.find((item) => item.members.cache.has(interaction.user.id));
+      const guild = await resolveGuildForMatch(client, matchId);
       if (!guild) return replyError(interaction, 'Cupid không tìm thấy máy chủ của lượt ghép đôi.');
       const result = await endSparkAnonymousChat(guild, matchId, interaction.user.id);
       if (!result.ok) return replyError(interaction, 'Cuộc trò chuyện này đã kết thúc hoặc không còn hợp lệ.');
