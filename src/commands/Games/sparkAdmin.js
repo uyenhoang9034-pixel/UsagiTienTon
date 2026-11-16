@@ -18,6 +18,7 @@ export default {
     .addSubcommand((sub) => sub.setName('enable').setDescription('Mở SPARK MATCHING và cho phép đăng ký'))
     .addSubcommand((sub) => sub.setName('disable').setDescription('Tạm dừng đăng ký và ghép đôi'))
     .addSubcommand((sub) => sub.setName('status').setDescription('Xem trạng thái và thống kê SPARK MATCHING'))
+    .addSubcommand((sub) => sub.setName('dashboard').setDescription('Mở bảng quản trị SPARK MATCHING'))
     .addSubcommand((sub) => sub
       .setName('test')
       .setDescription('Admin tự test ghép đôi với một thành viên cụ thể')
@@ -68,6 +69,16 @@ export default {
       await updateSparkConfig(interaction.guildId, { enabled: false, registrationEnabled: false });
       return interaction.reply({ content: 'Đã tạm dừng SPARK MATCHING. Hồ sơ và các cặp đôi đang hoạt động vẫn được lưu lại.', flags: MessageFlags.Ephemeral });
     }
+    if (subcommand === 'dashboard') {
+      const [config, profiles, matches] = await Promise.all([
+        getSparkConfig(interaction.guildId),
+        getSparkProfiles(interaction.guildId),
+        getSparkMatches(interaction.guildId),
+      ]);
+      const { buildSparkAdminDashboardPayload } = await import('../../services/sparkMatchingUI.js');
+      return interaction.reply(buildSparkAdminDashboardPayload({ config, profiles, matches }));
+    }
+
     if (subcommand === 'status') {
       const [config, profiles, matches] = await Promise.all([
         getSparkConfig(interaction.guildId), getSparkProfiles(interaction.guildId), getSparkMatches(interaction.guildId),
