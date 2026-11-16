@@ -18,6 +18,6 @@ export default {
         flags: MessageFlags.Ephemeral,
       });
     }
-    return interaction.reply(buildSparkStartPayload());
+    return interaction.reply(buildSparkStartPayload(interaction.client));
   },
 };
