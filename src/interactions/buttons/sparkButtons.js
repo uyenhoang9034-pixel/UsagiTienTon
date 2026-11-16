@@ -113,7 +113,7 @@ export default [
       const guild = await resolveGuildForMatch(client, matchId);
       if (!guild) return replyError(interaction, 'Không tìm thấy lượt ghép đôi này.');
       const result = await respondSparkInvite(guild, matchId, interaction.user.id, true);
-      if (!result.ok) return replyError(interaction, 'Lời mời này đã hết hạn hoặc không còn hợp lệ.');
+      if (!result.ok) return replyError(interaction, result.code === 'INVITE_NOT_READY' ? 'Cupid vẫn đang chuẩn bị lời mời. Bạn thử nhấn lại sau một chút nhé!' : 'Lời mời này đã hết hạn hoặc không còn hợp lệ.');
       return interaction.reply({ content: result.started ? 'Cả hai đã đồng ý! Cupid đã mở cuộc trò chuyện ẩn danh qua DM.' : 'Cupid đã ghi nhận câu trả lời. Đang chờ Sparkmate phản hồi nhé!', flags: MessageFlags.Ephemeral });
     },
   },
