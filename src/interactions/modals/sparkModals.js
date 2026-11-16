@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from 'discord.js';
 import {
-  saveSparkRegistrationStep, submitSparkProfile, reviewSparkProfile,
+  saveSparkRegistrationStep, submitSparkProfile, reviewSparkProfile, isSparkAdmin,
   sendSparkAnonymousReply, getSparkMatches,
 } from '../../services/sparkMatchingService.js';
 
@@ -51,6 +51,7 @@ export default [
   {
     name: 'spark_profile_reject',
     async execute(interaction, client, args) {
+      if (!isSparkAdmin(interaction.member)) return interaction.reply({ content: 'Bạn không có quyền duyệt hồ sơ Spark Matching.', flags: MessageFlags.Ephemeral });
       const result = await reviewSparkProfile(interaction.guild, args[0], interaction.user.id, 'reject', value(interaction, 'reason'));
       if (!result.ok) return interaction.reply({ content: 'Hồ sơ không còn ở trạng thái chờ duyệt.', flags: MessageFlags.Ephemeral });
       return interaction.reply({ content: 'Đã từ chối hồ sơ ' + args[0] + ' và gửi lý do đến thành viên.', flags: MessageFlags.Ephemeral });
@@ -114,6 +115,7 @@ export default [
   {
     name: 'spark_profile_reject_retry',
     async execute(interaction, client, args) {
+      if (!isSparkAdmin(interaction.member)) return interaction.reply({ content: 'Bạn không có quyền duyệt hồ sơ Spark Matching.', flags: MessageFlags.Ephemeral });
       const result = await reviewSparkProfile(interaction.guild, args[0], interaction.user.id, 'reject', value(interaction, 'reason'), { reapplyAllowed: true });
       if (!result.ok) return interaction.reply({ content: 'Hồ sơ không còn ở trạng thái chờ duyệt.', flags: MessageFlags.Ephemeral });
       return interaction.reply({ content: 'Đã từ chối hồ sơ và cho phép thành viên chỉnh sửa để đăng ký lại.', flags: MessageFlags.Ephemeral });
@@ -122,6 +124,7 @@ export default [
   {
     name: 'spark_profile_reject_final',
     async execute(interaction, client, args) {
+      if (!isSparkAdmin(interaction.member)) return interaction.reply({ content: 'Bạn không có quyền duyệt hồ sơ Spark Matching.', flags: MessageFlags.Ephemeral });
       const result = await reviewSparkProfile(interaction.guild, args[0], interaction.user.id, 'reject', value(interaction, 'reason'), { reapplyAllowed: false });
       if (!result.ok) return interaction.reply({ content: 'Hồ sơ không còn ở trạng thái chờ duyệt.', flags: MessageFlags.Ephemeral });
       return interaction.reply({ content: 'Đã từ chối hồ sơ và khóa quyền đăng ký lại Spark Matching.', flags: MessageFlags.Ephemeral });
