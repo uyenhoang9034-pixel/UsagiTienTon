@@ -575,9 +575,16 @@ export async function handleSparkAnonymousMessage(message, client) {
     }
 
     const attachmentLines = [...message.attachments.values()].map((attachment) => attachment.url);
-    const content = [message.content?.trim(), ...attachmentLines].filter(Boolean).join('\n');
+    const safeText = String(message.content || '')
+      .replace(/<@!?\\d+>/g, '[mention]')
+      .replace(/<@&\\d+>/g, '[role mention]')
+      .replace(/@everyone|@here/gi, '[everyone]');
+    const content = [safeText.trim(), ...attachmentLines].filter(Boolean).join('\n');
     const { buildSparkIncomingMessagePayload } = await import('./sparkMatchingUI.js');
-    await recipient.send(buildSparkIncomingMessagePayload(match, content || '[Tin nhắn đính kèm]')).catch(async () => {
+    await recipient.send({
+      ...buildSparkIncomingMessagePayload(match, content || '[Tin nhắn đính kèm]'),
+      allowedMentions: { parse: [] },
+    }).catch(async () => {
       await message.reply('Cupid không thể chuyển tin nhắn. Có thể đối phương đã tắt DM.').catch(() => {});
     });
     return true;
