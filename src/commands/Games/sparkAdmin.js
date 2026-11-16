@@ -19,6 +19,10 @@ export default {
     .addSubcommand((sub) => sub.setName('disable').setDescription('Tạm dừng đăng ký và ghép đôi'))
     .addSubcommand((sub) => sub.setName('status').setDescription('Xem trạng thái và thống kê SPARK MATCHING'))
     .addSubcommand((sub) => sub
+      .setName('test')
+      .setDescription('Admin tự test ghép đôi với một thành viên cụ thể')
+      .addUserOption((o) => o.setName('doi-tuong').setDescription('Thành viên nhận lời mời test').setRequired(true)))
+    .addSubcommand((sub) => sub
       .setName('match')
       .setDescription('Ghép đôi hai hồ sơ đã được duyệt')
       .addUserOption((o) => o.setName('nguoi-thu-nhat').setDescription('Thành viên thứ nhất').setRequired(true))
@@ -83,6 +87,25 @@ export default {
         flags: MessageFlags.Ephemeral,
       });
     }
+    if (subcommand === 'test') {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const target = interaction.options.getUser('doi-tuong');
+      const result = await createSparkMatch(interaction.guild, interaction.user.id, target.id, {
+        matchType: 'admin_test',
+        test: true,
+      });
+      if (!result.ok) {
+        const messages = {
+          SAME_USER: 'Bạn không thể test với chính mình.',
+          USER_BUSY: 'Bạn hoặc thành viên được chọn đang có lượt ghép đôi chưa kết thúc.',
+          MEMBER_NOT_FOUND: 'Không tìm thấy thành viên trong máy chủ.',
+          DM_UNAVAILABLE: 'Cupid không thể gửi DM đến một trong hai tài khoản. Hãy kiểm tra cài đặt nhận tin nhắn riêng.',
+        };
+        return interaction.editReply(messages[result.code] || 'Không thể tạo lượt test.');
+      }
+      return interaction.editReply('Đã tạo lượt test ' + result.match.matchId + '. Người được chọn vẫn phải tự đồng ý lời mời; dữ liệu test được đánh dấu riêng và không yêu cầu hồ sơ đã duyệt.');
+    }
+
     if (subcommand === 'match') {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const a = interaction.options.getUser('nguoi-thu-nhat');
