@@ -225,6 +225,7 @@ export async function createSparkMatch(guild, userAId, userBId, options = {}) {
     guildId: guild.id,
     userAId: String(userAId),
     userBId: String(userBId),
+    profileSnapshots: options.test ? { userA: null, userB: null } : { userA: a ? clone(a) : null, userB: b ? clone(b) : null },
     matchType: options.matchType || (options.requested ? 'specific_request' : 'admin'),
     status: 'invited',
     createdAt: now,
