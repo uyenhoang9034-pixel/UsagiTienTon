@@ -342,8 +342,15 @@ export async function createSparkPublicThread(guild, match) {
     reason: 'Hai thành viên đồng ý công khai danh tính Spark Matching.',
   });
 
-  await thread.members.add(match.userAId).catch(() => {});
-  await thread.members.add(match.userBId).catch(() => {});
+  try {
+    await Promise.all([
+      thread.members.add(match.userAId),
+      thread.members.add(match.userBId),
+    ]);
+  } catch {
+    await thread.delete('Không thể thêm đủ thành viên vào private thread Spark Matching.').catch(() => {});
+    return { ok: false, code: 'THREAD_MEMBER_ADD_FAILED' };
+  }
   match.threadId = thread.id;
   match.status = 'thread';
   match.threadExpiresAt = Date.now() + config.publicThreadDurationMs;
