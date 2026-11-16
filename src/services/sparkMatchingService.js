@@ -206,7 +206,7 @@ export async function createSparkMatch(guild, userAId, userBId, options = {}) {
     createdAt: now,
     anonymousExpiresAt: now + SPARK_MATCHING_CONFIG.anonymousChatDurationMs,
     threadExpiresAt: null,
-    inviteVotes: {},
+    inviteVotes: options.requested ? { [String(userAId)]: true } : {},
     revealVotes: {},
     connectionVotes: {},
     feedbackBy: [],
@@ -218,10 +218,14 @@ export async function createSparkMatch(guild, userAId, userBId, options = {}) {
 
   const { buildSparkMatchInvitePayload } = await import('./sparkMatchingUI.js');
   try {
-    await Promise.all([
-      memberA.send(buildSparkMatchInvitePayload(match, memberB.user)),
-      memberB.send(buildSparkMatchInvitePayload(match, memberA.user)),
-    ]);
+    if (options.requested) {
+      await memberB.send(buildSparkMatchInvitePayload(match, memberA.user));
+    } else {
+      await Promise.all([
+        memberA.send(buildSparkMatchInvitePayload(match, memberB.user)),
+        memberB.send(buildSparkMatchInvitePayload(match, memberA.user)),
+      ]);
+    }
   } catch {
     return { ok: false, code: 'DM_UNAVAILABLE' };
   }
