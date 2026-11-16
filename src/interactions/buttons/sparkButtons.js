@@ -98,6 +98,9 @@ export default [
         NOT_PARTICIPANT: 'Chỉ hai thành viên trong cặp đôi mới có thể đóng thread này.',
         NOT_WAITING_FEEDBACK: 'Thread này hiện không ở trạng thái chờ đóng.',
       };
+      if (!result.ok && result.code === 'FEEDBACK_REQUIRED') {
+        return interaction.reply({ content: SPARK_FEEDBACK_REQUIRED });
+      }
       if (!result.ok) return replyError(interaction, messages[result.code] || 'Không thể đóng thread.');
       return interaction.reply({ content: 'Cupid đã đóng thread. Cảm ơn hai bạn đã tham gia Spark Matching!', flags: MessageFlags.Ephemeral });
     },
