@@ -103,7 +103,7 @@ export default [
 
   {
     name: 'spark_invite_accept',
-    async execute(interaction) {
+    async execute(interaction, client) {
       const matchId = interaction.customId.split(':')[1];
       const guild = await resolveGuildForMatch(client, matchId);
       if (!guild) return replyError(interaction, 'Không tìm thấy lượt ghép đôi này.');
@@ -114,7 +114,7 @@ export default [
   },
   {
     name: 'spark_invite_decline',
-    async execute(interaction) {
+    async execute(interaction, client) {
       const matchId = interaction.customId.split(':')[1];
       const guild = await resolveGuildForMatch(client, matchId);
       if (!guild) return replyError(interaction, 'Không tìm thấy lượt ghép đôi này.');
@@ -125,7 +125,7 @@ export default [
   },
   {
     name: 'spark_reveal_yes',
-    async execute(interaction) {
+    async execute(interaction, client) {
       const matchId = interaction.customId.split(':')[1];
       const guild = await resolveGuildForMatch(client, matchId);
       if (!guild) return replyError(interaction, 'Không tìm thấy lượt ghép đôi này.');
@@ -136,7 +136,7 @@ export default [
   },
   {
     name: 'spark_reveal_no',
-    async execute(interaction) {
+    async execute(interaction, client) {
       const matchId = interaction.customId.split(':')[1];
       const guild = await resolveGuildForMatch(client, matchId);
       if (!guild) return replyError(interaction, 'Không tìm thấy lượt ghép đôi này.');
