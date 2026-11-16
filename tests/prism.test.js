@@ -186,3 +186,58 @@ test('Prism UI: Payloads comply with Components V2 requirements', () => {
   assert.equal(modal.data.title, 'Nhắn Tin Cho Người Ấy');
   assert.ok(!modal.data.title.includes('<'), 'Modal title must be pure text without emoji');
 });
+
+test('Prism UI & Data: Custom emojis match user specifications', () => {
+  // 1. Vương Miện Tự Hào
+  assert.equal(PRISM_EMOJIS.trangtrig14, '<a:trangtrig14:1546047912969113622>');
+  assert.equal(PRISM_ITEMS.crown.emoji, '<a:trangtrig14:1546047912969113622>');
+
+  // 2. Cặp Vé Xem Phim Đôi & Hộp Mù Bí Ẩn
+  assert.equal(PRISM_EMOJIS.trangtrig19, '<a:trangtrig19:1546068350030053406>');
+  assert.equal(PRISM_ITEMS.movie_tickets.emoji, '<a:trangtrig19:1546068350030053406>');
+  assert.equal(PRISM_EMOJIS.giftg1, '<a:giftg1:1543150714732412948>');
+  assert.equal(PRISM_ITEMS.mystery_box.emoji, '<a:giftg1:1543150714732412948>');
+
+  // 3. Mini-game list emoji vs Hub Button emoji
+  assert.equal(PRISM_EMOJIS.trangtrig52, '<a:trangtrig52:1567818998475657246>');
+  assert.equal(PRISM_EMOJIS.trangtrig62, '<a:trangtrig62:1569560241190871152>');
+
+  // 4. Daily Quests emoji
+  assert.equal(PRISM_EMOJIS.trangtrig61, '<a:trangtrig61:1569559986550612051>');
+
+  const mockPlayer = {
+    user_id: '123456789',
+    identity_key: 'pansexual',
+    slay_points: 30,
+    heart_points: 25,
+    rebel_points: 20,
+    rainbow_coins: 150,
+    inventory: { lollipop: 2, fan: 1, crown: 1, movie_tickets: 1 },
+    active_buffs: {},
+  };
+
+  // Check Hub text has trangtrig52
+  const hubPayload = buildPrismHubPayload(mockPlayer);
+  const hubJson = JSON.stringify(hubPayload);
+  assert.ok(hubJson.includes('<a:trangtrig52:1567818998475657246> **Tình Huống Khó Đỡ:**'));
+  assert.ok(hubJson.includes('<a:trangtrig52:1567818998475657246> **Sàn Diễn Outfit:**'));
+  assert.ok(hubJson.includes('<a:trangtrig52:1567818998475657246> **Chat Chit Cùng Crush:**'));
+  assert.ok(hubJson.includes('<a:trangtrig52:1567818998475657246> **Vòng Quay Định Mệnh:**'));
+
+  // Check Bag has crown & movie tickets updated emojis
+  const bagPayload = buildPrismBagPayload(mockPlayer);
+  const bagJson = JSON.stringify(bagPayload);
+  assert.ok(bagJson.includes('<a:trangtrig14:1546047912969113622> `[Cực Hiếm]` **Vương Miện Tự Hào**'));
+  assert.ok(bagJson.includes('<a:trangtrig19:1546068350030053406> **Cặp Vé Xem Phim Đôi**'));
+
+  // Check Shop has mystery box & movie tickets updated emojis
+  const shopPayload = buildPrismShopPayload(mockPlayer);
+  const shopJson = JSON.stringify(shopPayload);
+  assert.ok(shopJson.includes('<a:giftg1:1543150714732412948> **Hộp Mù Bí Ẩn**'));
+  assert.ok(shopJson.includes('<a:trangtrig19:1546068350030053406> **Cặp Vé Xem Phim Đôi**'));
+
+  // Check Quests has trangtrig61
+  const questsPayload = buildPrismQuestsPayload(mockPlayer, getOrGenerateDailyQuests(null));
+  const questsJson = JSON.stringify(questsPayload);
+  assert.ok(questsJson.includes('<a:trangtrig61:1569559986550612051> **'));
+});

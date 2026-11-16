@@ -29,6 +29,11 @@ export const PRISM_EMOJIS = Object.freeze({
   xuc_xac_may_man_discord: '<a:xuc_xac_may_man_discord:1571141488039956611>',
   boba: '<a:boba:1571141477755654324>',
   flowerswhite: '<a:flowerswhite:1571141475691925594>',
+  trangtrig14: '<a:trangtrig14:1546047912969113622>', // Vương Miện Tự Hào
+  trangtrig19: '<a:trangtrig19:1546068350030053406>', // Cặp Vé Xem Phim Đôi
+  giftg1: '<a:giftg1:1543150714732412948>',           // Hộp Mù Bí Ẩn
+  trangtrig52: '<a:trangtrig52:1567818998475657246>', // Danh sách Mini-game (Text Hub)
+  trangtrig61: '<a:trangtrig61:1569559986550612051>', // Nhiệm vụ ngày
 });
 
 export const IDENTITY_PROFILES = Object.freeze({
@@ -124,7 +129,7 @@ export const PRISM_ITEMS = Object.freeze({
   crown: {
     key: 'crown',
     name: 'Vương Miện Tự Hào',
-    emoji: '<a:trangtrig62:1569560241190871152>',
+    emoji: '<a:trangtrig14:1546047912969113622>',
     rarity: 'Cực Hiếm',
     category: 'souvenir',
     price: null, // Không bán ở shop, chỉ rớt hoặc mở hộp mù
@@ -151,7 +156,7 @@ export const PRISM_ITEMS = Object.freeze({
   mystery_box: {
     key: 'mystery_box',
     name: 'Hộp Mù Bí Ẩn',
-    emoji: '<a:trangtrig62:1569560241190871152>',
+    emoji: '<a:giftg1:1543150714732412948>',
     rarity: 'Đặc Biệt',
     category: 'mystery',
     price: 100,
@@ -178,7 +183,7 @@ export const PRISM_ITEMS = Object.freeze({
   movie_tickets: {
     key: 'movie_tickets',
     name: 'Cặp Vé Xem Phim Đôi',
-    emoji: '<a:trangtrig62:1569560241190871152>',
+    emoji: '<a:trangtrig19:1546068350030053406>',
     category: 'gift',
     price: 150,
     desc: 'Buổi hẹn hò riêng tư lãng mạn, nhận lời khen ngọt ngào và điểm cộng cực lớn.',
@@ -196,7 +201,7 @@ export function openMysteryBox() {
       type: 'item',
       itemKey: 'crown',
       name: 'Vương Miện Tự Hào (Cực Hiếm)',
-      emoji: PRISM_EMOJIS.trangtrig62,
+      emoji: PRISM_EMOJIS.trangtrig14,
     };
   } else if (roll < 20) {
     return {
@@ -234,7 +239,7 @@ export function rollLootDrop() {
       itemKey: 'crown',
       name: 'Vương Miện Tự Hào',
       rarity: 'Cực Hiếm',
-      emoji: PRISM_EMOJIS.trangtrig62,
+      emoji: PRISM_EMOJIS.trangtrig14,
     };
   } else if (roll < 7) {
     // 2 + 5 = 7

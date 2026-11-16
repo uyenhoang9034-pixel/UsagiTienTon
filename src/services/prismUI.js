@@ -294,11 +294,11 @@ export function buildPrismHubPayload(playerRecord) {
     'Chào mừng bạn đến với sân chơi tự do! Hãy chọn một hoạt động bên dưới để tích lũy điểm và khám phá những tình huống thú vị nhé!',
     '',
     '**Danh sách Mini-Game:**',
-    `${PRISM_EMOJIS.trangtrig62} **Tình Huống Khó Đỡ:** Xử lý các pha ứng xử "căng não" với gia đình, họ hàng và xã hội theo cách A/B/C.`,
-    `${PRISM_EMOJIS.trangtrig62} **Sàn Diễn Outfit:** Phối đồ bằng chữ theo chủ đề để hội bạn thân chấm điểm độ "cháy".`,
-    `${PRISM_EMOJIS.trangtrig62} **Chat Chit Cùng Crush:** Thử tài nhắn tin thả thính và đọc vị tín hiệu từ đối phương.`,
-    `${PRISM_EMOJIS.trangtrig62} **Vòng Quay Định Mệnh:** Thử vận may ngẫu nhiên trên phố Cầu Vồng — hên xui không biết trước!`,
-    `${PRISM_EMOJIS.trangtrig62} Sẽ còn update dần thêm trong tương lai.`,
+    `${PRISM_EMOJIS.trangtrig52} **Tình Huống Khó Đỡ:** Xử lý các pha ứng xử "căng não" với gia đình, họ hàng và xã hội theo cách A/B/C.`,
+    `${PRISM_EMOJIS.trangtrig52} **Sàn Diễn Outfit:** Phối đồ bằng chữ theo chủ đề để hội bạn thân chấm điểm độ "cháy".`,
+    `${PRISM_EMOJIS.trangtrig52} **Chat Chit Cùng Crush:** Thử tài nhắn tin thả thính và đọc vị tín hiệu từ đối phương.`,
+    `${PRISM_EMOJIS.trangtrig52} **Vòng Quay Định Mệnh:** Thử vận may ngẫu nhiên trên phố Cầu Vồng — hên xui không biết trước!`,
+    `${PRISM_EMOJIS.trangtrig52} Sẽ còn update dần thêm trong tương lai.`,
   ];
 
   // Hàng 1
@@ -790,7 +790,7 @@ export function buildPrismBagPayload(playerRecord, noticeText = '') {
     '**1. Vật Phẩm Kỷ Niệm & Hỗ Trợ:**',
     `${PRISM_EMOJIS.lcbluelollipop} \`[Thường]\` **Kẹo Mút Lục Sắc** \`(x${countLollipop})\` — Dùng để cộng random \`+8 ~ +15\` Chân thành.`,
     `${PRISM_EMOJIS.remdance} \`[Hiếm]\` **Quạt Xếp Ánh Kim** \`(x${countFan})\` — Dùng để cộng random \`+15 ~ +25\` Thần thái.`,
-    `${PRISM_EMOJIS.trangtrig62} \`[Cực Hiếm]\` **Vương Miện Tự Hào** \`(x${countCrown})\` — Dùng để cộng random \`+20 ~ +35\` cho cả 3 chỉ số.`,
+    `${PRISM_EMOJIS.trangtrig14} \`[Cực Hiếm]\` **Vương Miện Tự Hào** \`(x${countCrown})\` — Dùng để cộng random \`+20 ~ +35\` cho cả 3 chỉ số.`,
     `${PRISM_EMOJIS.bua_ho_menh_discord} \`[Hỗ Trợ]\` **Bùa Hộ Mệnh** \`(x${countAmulet})\` — Bấm dùng để kích hoạt bảo vệ (\`amulet + 1\`), chặn 1 lần bị trừ điểm.`,
     `${PRISM_EMOJIS.xuc_xac_may_man_discord} \`[Hỗ Trợ]\` **Xúc Xắc May Mắn** \`(x${countDice})\` — Bấm dùng để kích hoạt buff (\`dice + 1\`), nhân đôi (\`x2\`) hoặc nhân ba (\`x3\`) điểm ở lượt mini-game tiếp theo.`,
   ];
@@ -799,7 +799,7 @@ export function buildPrismBagPayload(playerRecord, noticeText = '') {
     '**2. Quà Tặng Dành Cho Người Ấy:**',
     `${PRISM_EMOJIS.boba} **Trà Sữa Trân Châu Đường Đen** \`(x${countBoba})\``,
     `${PRISM_EMOJIS.flowerswhite} **Bó Hoa Tươi Thắm** \`(x${countFlowers})\``,
-    `${PRISM_EMOJIS.trangtrig62} **Cặp Vé Xem Phim Đôi** \`(x${countMovie})\``,
+    `${PRISM_EMOJIS.trangtrig19} **Cặp Vé Xem Phim Đôi** \`(x${countMovie})\``,
   ];
 
   // Menu 1: Chọn vật phẩm để sử dụng
@@ -877,14 +877,14 @@ export function buildPrismShopPayload(playerRecord, noticeText = '') {
     `${PRISM_EMOJIS.remdance} **Quạt Xếp Ánh Kim** (\`85\` ${PRISM_EMOJIS.xucauvong})`,
     `${PRISM_EMOJIS.bua_ho_menh_discord} **Bùa Hộ Mệnh** (\`90\` ${PRISM_EMOJIS.xucauvong})`,
     `${PRISM_EMOJIS.xuc_xac_may_man_discord} **Xúc Xắc May Mắn** (\`120\` ${PRISM_EMOJIS.xucauvong})`,
-    `${PRISM_EMOJIS.trangtrig62} **Hộp Mù Bí Ẩn** (\`100\` ${PRISM_EMOJIS.xucauvong}) — Mở ngay: 2% Vương Miện, 18% Quạt Xếp, 50% Kẹo Mút, 30% hoàn 30~60 Xu!`,
+    `${PRISM_EMOJIS.giftg1} **Hộp Mù Bí Ẩn** (\`100\` ${PRISM_EMOJIS.xucauvong}) — Mở ngay: 2% Vương Miện, 18% Quạt Xếp, 50% Kẹo Mút, 30% hoàn 30~60 Xu!`,
   ];
 
   const group2Lines = [
     '**2. Quà Tặng Crush (Chỉ mua được ở Shop):**',
     `${PRISM_EMOJIS.boba} **Trà Sữa Trân Châu Đường Đen** (\`50\` ${PRISM_EMOJIS.xucauvong})`,
     `${PRISM_EMOJIS.flowerswhite} **Bó Hoa Tươi Thắm** (\`80\` ${PRISM_EMOJIS.xucauvong})`,
-    `${PRISM_EMOJIS.trangtrig62} **Cặp Vé Xem Phim Đôi** (\`150\` ${PRISM_EMOJIS.xucauvong})`,
+    `${PRISM_EMOJIS.trangtrig19} **Cặp Vé Xem Phim Đôi** (\`150\` ${PRISM_EMOJIS.xucauvong})`,
   ];
 
   const buyItemSelect = new ActionRowBuilder().addComponents(
@@ -971,7 +971,7 @@ export function buildPrismQuestsPayload(playerRecord, questsData, noticeText = '
       : `Đang làm (${q.progress}/${q.target})`;
 
     questLines.push(
-      `${PRISM_EMOJIS.trangtrig62} **${q.title}**\nTiến độ: **${q.progress}/${q.target}** | Thưởng: +**${q.reward}** ${PRISM_EMOJIS.xucauvong} | Trạng thái: ${statusBadge}`,
+      `${PRISM_EMOJIS.trangtrig61} **${q.title}**\nTiến độ: **${q.progress}/${q.target}** | Thưởng: +**${q.reward}** ${PRISM_EMOJIS.xucauvong} | Trạng thái: ${statusBadge}`,
       '',
     );
   }

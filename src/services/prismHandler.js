@@ -665,7 +665,7 @@ export async function handlePrismBagUseItem(interaction, client) {
     pointDelta.slay += slayPts;
     pointDelta.heart += heartPts;
     pointDelta.rebel += rebelPts;
-    notice = `👑 Bạn đã đội **Vương Miện Tự Hào**, toàn bộ chỉ số bùng nổ (+**${slayPts}** Thần thái | +**${heartPts}** Chân thành | +**${rebelPts}** Nổi loạn)!`;
+    notice = `${PRISM_EMOJIS.trangtrig14} Bạn đã đội **Vương Miện Tự Hào**, toàn bộ chỉ số bùng nổ (+**${slayPts}** Thần thái | +**${heartPts}** Chân thành | +**${rebelPts}** Nổi loạn)!`;
   } else if (itemKey === 'amulet') {
     buffs.amulet = (buffs.amulet || 0) + 1;
     notice = `🛡️ Bạn đã kích hoạt **Bùa Hộ Mệnh**! Sẵn sàng bảo vệ và chặn 1 lần bị trừ điểm ở lượt mini-game bất kỳ.`;
@@ -805,10 +805,10 @@ export async function handlePrismShopBuyItem(interaction, client) {
     const boxResult = openMysteryBox();
     if (boxResult.type === 'item') {
       inv[boxResult.itemKey] = (inv[boxResult.itemKey] || 0) + 1;
-      notice = `🎁 **Mở Hộp Mù Bí Ẩn thành công!**\nBạn đã trúng: ${boxResult.emoji} **${boxResult.name}**! Vật phẩm đã được chuyển vào Túi đồ.`;
+      notice = `${PRISM_EMOJIS.giftg1} **Mở Hộp Mù Bí Ẩn thành công!**\nBạn đã trúng: ${boxResult.emoji} **${boxResult.name}**! Vật phẩm đã được chuyển vào Túi đồ.`;
     } else {
       newCoins += boxResult.coins;
-      notice = `🎁 **Mở Hộp Mù Bí Ẩn:**\nChúc bạn may mắn lần sau! Hộp mù hoàn lại cho bạn ${boxResult.emoji} **${boxResult.name}**!`;
+      notice = `${PRISM_EMOJIS.giftg1} **Mở Hộp Mù Bí Ẩn:**\nChúc bạn may mắn lần sau! Hộp mù hoàn lại cho bạn ${boxResult.emoji} **${boxResult.name}**!`;
     }
   } else {
     inv[itemKey] = (inv[itemKey] || 0) + 1;
