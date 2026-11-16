@@ -53,7 +53,7 @@ export function buildSparkAdminProfilePayload(profile) {
   const row = new ActionRowBuilder().addComponents(...reviewButtons);
   const details = `**Mã hồ sơ:** ${profile.profileId}\n**Discord ID:** ${profile.userId}\n**Tên lúc đăng ký:** ${profile.usernameAtSubmission || 'Không có'}\n**Tuổi:** ${data.age}\n**Giới tính:** ${data.gender}\n**Xu hướng tính dục / bản dạng giới:** ${data.orientation || 'Không chia sẻ'}\n**Mong muốn ghép đôi:** ${data.matchGender}\n**Khu vực:** ${data.area}\n**Mục đích:** ${data.intention}\n\n**Giới thiệu:**\n${data.about}\n\n**Sở thích:**\n${data.hobbies}\n\n**Điều khiến bạn vui trong một mối quan hệ:**\n${data.relationshipHappy}\n\n**Tính cách Sparkmate mong muốn:**\n${data.traits}\n\n**Độ tuổi mong muốn:**\n${data.ageRange}\n\n**Yêu cầu khác:**\n${data.otherRequirements || 'Không có'}\n**Người muốn ghép đôi cụ thể:** ${data.requestedUserId || 'Không có'}`;
   return container(
-    text('<:trangtrig50:1567818385306165301> **SPARK MATCHING · HỒ SƠ CHỜ DUYỆT** <:trangtrig51:1567818549794439229>'),
+    text('<a:trangtrig50:1567818385306165301> **SPARK MATCHING · HỒ SƠ CHỜ DUYỆT** <a:trangtrig51:1567818549794439229>'),
     divider(),
     text(details.slice(0, 3900)),
     divider(),
@@ -82,7 +82,7 @@ export function buildSparkRevealPayload(match) {
     button(`spark_reveal_no:${match.matchId}`, 'Kết Thúc!', ButtonStyle.Secondary, EMOJI.bang2),
   );
   return container(
-    text('<:trangtrig50:1567818385306165301> **THE SPARK · TIẾP TỤC HÀNH TRÌNH?** <:trangtrig51:1567818549794439229>'),
+    text('<a:trangtrig50:1567818385306165301> **THE SPARK · TIẾP TỤC HÀNH TRÌNH?** <a:trangtrig51:1567818549794439229>'),
     divider(),
     text('Thời gian trò chuyện ẩn danh đã kết thúc. Cupid muốn hỏi liệu bạn có muốn cùng Sparkmate công khai danh tính và tiếp tục trò chuyện trong một thread riêng không?'),
     divider(),
@@ -97,7 +97,7 @@ export function buildSparkConnectionConfirmPayload(match) {
     button(`spark_connection_no:${match.matchId}`, 'Kết Thúc!', ButtonStyle.Secondary, EMOJI.bang2),
   );
   return container(
-    text('<:trangtrig50:1567818385306165301> **SPARK MATCHING · XÁC NHẬN KẾT NỐI** <:trangtrig51:1567818549794439229>'),
+    text('<a:trangtrig50:1567818385306165301> **SPARK MATCHING · XÁC NHẬN KẾT NỐI** <a:trangtrig51:1567818549794439229>'),
     divider(),
     text('Hai bạn đã có thời gian trò chuyện trực tiếp. Cupid muốn xác nhận liệu cả hai có muốn tiếp tục giữ kết nối sau hành trình này không.'),
     row.toJSON(),
@@ -120,7 +120,7 @@ export async function buildSparkFinalPayload(match) {
         ? 'Có vẻ như hai bạn chưa đủ duyên để tiếp tục hành trình này. Cupid cảm ơn cả hai vì đã dành thời gian tìm hiểu nhau nhé.'
         : 'Hành trình Spark Matching của hai bạn đã đi đến hồi kết. Cảm ơn vì đã dành thời gian đồng hành cùng Cupid.';
   return container(
-    text('<:trangtrig50:1567818385306165301> **SPARK MATCHING · HÀNH TRÌNH TẠM DỪNG** <:trangtrig51:1567818549794439229>'),
+    text('<a:trangtrig50:1567818385306165301> **SPARK MATCHING · HÀNH TRÌNH TẠM DỪNG** <a:trangtrig51:1567818549794439229>'),
     divider(),
     text(endingText),
     text('**Trước khi khép lại hành trình, đừng quên gửi feedback cho bé Cupid nhé!** Những chia sẻ của hai bạn sẽ giúp Cupid cải thiện Spark Matching tốt hơn.'),
@@ -150,7 +150,7 @@ export function buildSparkIncomingMessagePayload(match, messageContent) {
     button(`spark_chat_end:${match.matchId}`, 'Kết Thúc'),
   );
   return container(
-    text('<:trangtrig50:1567818385306165301> **BẠN CÓ MỘT TIN NHẮN MỚI TỪ SPARKMATE** <:trangtrig51:1567818549794439229>'),
+    text('<a:trangtrig50:1567818385306165301> **BẠN CÓ MỘT TIN NHẮN MỚI TỪ SPARKMATE** <a:trangtrig51:1567818549794439229>'),
     divider(),
     text(String(messageContent || '[Tin nhắn trống]').slice(0, 3500)),
     divider(),
@@ -179,7 +179,7 @@ export function buildSparkAdminDashboardPayload({ config, profiles, matches }) {
     components: [{
       type: 17,
       components: [
-        text('<:trangtrig50:1567818385306165301> **SPARK MATCHING · ADMIN DASHBOARD** <:trangtrig51:1567818549794439229>'),
+        text('<a:trangtrig50:1567818385306165301> **SPARK MATCHING · ADMIN DASHBOARD** <a:trangtrig51:1567818549794439229>'),
         divider(),
         text(
           '**THỐNG KÊ HỒ SƠ**\n' +
@@ -220,7 +220,7 @@ export function buildSparkAdminMatchPickerPayload(profiles, selection = {}) {
   }));
 
   const components = [
-    text('<:trangtrig50:1567818385306165301> **SPARK MATCHING · GHÉP ĐÔI THỦ CÔNG** <:trangtrig51:1567818549794439229>'),
+    text('<a:trangtrig50:1567818385306165301> **SPARK MATCHING · GHÉP ĐÔI THỦ CÔNG** <a:trangtrig51:1567818549794439229>'),
     divider(),
     text('Chỉ những hồ sơ đã được admin duyệt và chưa có lượt ghép đôi đang hoạt động mới xuất hiện trong danh sách.'),
   ];
@@ -267,7 +267,7 @@ export function buildSparkAdminMatchPickerPayload(profiles, selection = {}) {
 
 export function buildSparkThreadWelcomePayload(match) {
   return container(
-    text('<:trangtrig50:1567818385306165301> **SPARK MATCHING · PRIVATE THREAD** <:trangtrig51:1567818549794439229>'),
+    text('<a:trangtrig50:1567818385306165301> **SPARK MATCHING · PRIVATE THREAD** <a:trangtrig51:1567818549794439229>'),
     divider(),
     text('Chúc mừng <@' + match.userAId + '> và <@' + match.userBId + '>! Cả hai đã đồng ý công khai danh tính. Đây sẽ là không gian riêng để hai bạn tiếp tục tìm hiểu nhau.'),
     divider(),
