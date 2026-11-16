@@ -48,6 +48,8 @@ const BASE_ALLOWED_INTERACTION_PATTERNS = [
   /^buttons\/spark\/.*\.js$/,
   /^selectMenus\/prism.*\.js$/,
   /^selectMenus\/prism\/.*\.js$/,
+  /^selectMenus\/spark.*\.js$/,
+  /^selectMenus\/spark\/.*\.js$/,
   /^modals\/prism.*\.js$/,
   /^modals\/prism\/.*\.js$/,
   /^modals\/spark.*\.js$/,
