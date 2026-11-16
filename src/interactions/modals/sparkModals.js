@@ -39,10 +39,10 @@ export default [
       if (!session) return interaction.reply({ content: 'Phiên đăng ký đã hết hạn. Hãy bắt đầu lại bằng /spark.', flags: MessageFlags.Ephemeral });
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('spark_register_submit').setLabel('Gửi Hồ Sơ').setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId('spark_request_specific').setLabel('Yêu Cầu Ghép Đôi Cụ Thể').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('spark_request_specific').setLabel('Thông Tin Bổ Sung').setStyle(ButtonStyle.Secondary),
       );
       return interaction.reply({
-        content: 'Thông tin hồ sơ đã hoàn tất. Bạn có thể gửi hồ sơ ngay hoặc thêm Discord User ID của người mà bạn muốn Cupid xem xét ghép đôi cụ thể.',
+        content: 'Thông tin hồ sơ đã hoàn tất. Bạn có thể gửi hồ sơ ngay hoặc bổ sung xu hướng tính dục, bản dạng giới, yêu cầu riêng hay Discord User ID của người bạn muốn ghép đôi.',
         components: [row],
         flags: MessageFlags.Ephemeral,
       });
