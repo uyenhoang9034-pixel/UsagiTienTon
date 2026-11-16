@@ -584,3 +584,16 @@ export async function endSparkAnonymousChat(guild, matchId, userId) {
   await archiveSparkMatch(guild, match, 'anonymous_ended');
   return { ok: true };
 }
+
+export async function getSparkAdminMatchSelection(guildId, adminId) {
+  return read(`spark:admin-match-select:${guildId}:${adminId}`, {
+    maleId: null, femaleId: null, malePage: 0, femalePage: 0,
+  });
+}
+
+export async function updateSparkAdminMatchSelection(guildId, adminId, patch) {
+  const current = await getSparkAdminMatchSelection(guildId, adminId);
+  const next = { ...current, ...patch, updatedAt: Date.now() };
+  await write(`spark:admin-match-select:${guildId}:${adminId}`, next);
+  return next;
+}
