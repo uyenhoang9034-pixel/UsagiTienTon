@@ -18,6 +18,7 @@ import { handleForumStoreMessage } from '../services/forumStoreService.js';
 import { handleServiceTicketMessage } from '../services/serviceTicketService.js';
 import { handleCustomerSpendingMessage } from '../services/customerSpendingService.js';
 import { handleWordGuessMessage } from '../services/wordGuessService.js';
+import { handleSparkFeedbackMessage } from '../services/sparkMatchingService.js';
 
 let cachedHandleTTSMessage = null;
 
