@@ -41,7 +41,7 @@ export function buildSparkStartPayload() {
     ),
     divider(),
     text(
-      '<a:trangtrig49:1547240340908240926> **THÔNG TIN CỦA BẠN ĐƯỢC BẢO MẬT**\n' +
+      '<a:trangtrig49:1567818140375851018> **THÔNG TIN CỦA BẠN ĐƯỢC BẢO MẬT**\n' +
       'Mọi thông tin đăng ký sẽ được bảo mật và danh tính của bạn sẽ được ẩn danh cho đến khi cả hai cùng đồng ý công khai thông tin của nhau.'
     ),
     divider(),
