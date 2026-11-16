@@ -31,10 +31,14 @@ export function buildSparkStartPayload() {
 
 export function buildSparkAdminProfilePayload(profile) {
   const data = profile.data || {};
-  const row = new ActionRowBuilder().addComponents(
+  const reviewButtons = [
     button(`spark_profile_approve:${profile.profileId}`, 'Duyệt Hồ Sơ', ButtonStyle.Secondary),
     button(`spark_profile_reject:${profile.profileId}`, 'Từ Chối', ButtonStyle.Secondary),
-  );
+  ];
+  if (data.requestedUserId) {
+    reviewButtons.splice(1, 0, button(`spark_request_approve:${profile.profileId}`, 'Duyệt Yêu Cầu Ghép Đôi', ButtonStyle.Secondary));
+  }
+  const row = new ActionRowBuilder().addComponents(...reviewButtons);
   return container(
     text('(trangtrig50) **SPARK MATCHING · HỒ SƠ CHỜ DUYỆT** (trangtrig51)'),
     divider(),
