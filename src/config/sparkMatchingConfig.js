@@ -7,9 +7,9 @@ export const SPARK_MATCHING_CONFIG = Object.freeze({
   profileIntroMaxLength: 1000,
   shortAnswerMaxLength: 600,
   adminRoleIds: ['1541303749916754001', '1545305594712432640'],
-  title: '(trangtrig50) **SPARK MATCHING** (trangtrig51)',
+  title: '<:trangtrig50:1567818385306165301> **SPARK MATCHING** <:trangtrig51:1567818549794439229>',
   emojis: {
-    bang2: '<a:bang2:1546040703375904801>',
+    bang2: '<:bang2:1546891483250954290>',
   },
 });
 
