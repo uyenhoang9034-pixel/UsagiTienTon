@@ -1,4 +1,5 @@
 import { db } from '../utils/database/wrapper.js';
+import { PermissionFlagsBits } from 'discord.js';
 import {
   SPARK_MATCHING_CONFIG,
   SPARK_STORAGE_KEYS,
@@ -373,9 +374,20 @@ export async function expireSparkMatches(client) {
 }
 
 export function isSparkAdmin(member) {
-  if (member?.permissions?.has?.('Administrator')) return true;
-  const roles = member?.roles?.cache;
-  return SPARK_MATCHING_CONFIG.adminRoleIds.some((id) => roles?.has?.(id));
+  if (!member) return false;
+  if (member.permissions?.has?.(PermissionFlagsBits.Administrator)) return true;
+  if (member.memberPermissions?.has?.(PermissionFlagsBits.Administrator)) return true;
+  if (member.guild?.ownerId && String(member.guild.ownerId) === String(member.user?.id || member.id)) return true;
+
+  const roleIds = member.roles?.cache
+    ? [...member.roles.cache.keys()]
+    : Array.isArray(member.roles)
+      ? member.roles
+      : Array.isArray(member._roles)
+        ? member._roles
+        : [];
+
+  return SPARK_MATCHING_CONFIG.adminRoleIds.some((id) => roleIds.includes(id));
 }
 
 export async function getSparkMatchByThread(guildId, threadId) {
