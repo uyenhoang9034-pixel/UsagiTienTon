@@ -33,7 +33,8 @@ export function buildSparkAdminProfilePayload(profile) {
   const data = profile.data || {};
   const reviewButtons = [
     button(`spark_profile_approve:${profile.profileId}`, 'Duyệt Hồ Sơ', ButtonStyle.Secondary),
-    button(`spark_profile_reject:${profile.profileId}`, 'Từ Chối', ButtonStyle.Secondary),
+    button(`spark_profile_reject_retry:${profile.profileId}`, 'Từ Chối · Cho Đăng Ký Lại', ButtonStyle.Secondary),
+    button(`spark_profile_reject_final:${profile.profileId}`, 'Từ Chối · Không Đăng Ký Lại', ButtonStyle.Secondary),
   ];
   if (data.requestedUserId) {
     reviewButtons.splice(1, 0, button(`spark_request_approve:${profile.profileId}`, 'Duyệt Yêu Cầu Ghép Đôi', ButtonStyle.Secondary));
