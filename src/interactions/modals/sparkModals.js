@@ -82,6 +82,7 @@ export default [
     async execute(interaction) {
       const requestedUserId = interaction.fields.getTextInputValue('requestedUserId').trim();
       const orientation = interaction.fields.getTextInputValue('orientation').trim();
+      const otherRequirements = interaction.fields.getTextInputValue('otherRequirements').trim();
       if (requestedUserId && !/^\\d{17,20}$/.test(requestedUserId)) {
         return interaction.reply({ content: 'Discord User ID không hợp lệ. Bạn hãy sao chép ID người dùng gồm 17–20 chữ số nhé.', flags: MessageFlags.Ephemeral });
       }
@@ -97,6 +98,7 @@ export default [
       const session = await saveSparkRegistrationStep(interaction.guildId, interaction.user.id, {
         ...(requestedUserId ? { requestedUserId } : {}),
         ...(orientation ? { orientation } : {}),
+        ...(otherRequirements ? { otherRequirements } : {}),
       });
       if (!session) return interaction.reply({ content: 'Phiên đăng ký đã hết hạn. Hãy bắt đầu lại bằng /spark.', flags: MessageFlags.Ephemeral });
       const result = await submitSparkProfile(interaction.guild, interaction.user);
