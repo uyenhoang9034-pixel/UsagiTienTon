@@ -7,6 +7,7 @@ import {
   respondSparkInvite, submitSparkRevealVote, submitSparkConnectionVote,
   endSparkAnonymousChat, getSparkMatches, submitSparkProfile, createSparkMatch,
   getSparkProfiles, getSparkHistory, getSparkConfig, isSparkAdmin,
+  getSparkAdminMatchSelection, updateSparkAdminMatchSelection,
 } from '../../services/sparkMatchingService.js';
 
 
@@ -321,7 +322,46 @@ export default [
     name: 'spark_admin_match',
     async execute(interaction) {
       if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền ghép đôi.');
-      return interaction.reply({ content: 'Để ghép đôi hai hồ sơ đã được duyệt, dùng /spark-admin match và chọn hai thành viên. Chức năng chọn hồ sơ bằng menu có phân trang sẽ được hoàn thiện ở bước tiếp theo.', flags: MessageFlags.Ephemeral });
+      const profiles = await getSparkProfiles(interaction.guildId);
+      const selection = await getSparkAdminMatchSelection(interaction.guildId, interaction.user.id);
+      const { buildSparkAdminMatchPickerPayload } = await import('../../services/sparkMatchingUI.js');
+      return interaction.reply(buildSparkAdminMatchPickerPayload(profiles, selection));
+    },
+  },
+
+
+  {
+    name: 'spark_admin_male_page',
+    async execute(interaction, client, args) {
+      if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền ghép đôi.');
+      const page = Math.max(0, Number(args[0]) || 0);
+      const selection = await updateSparkAdminMatchSelection(interaction.guildId, interaction.user.id, { malePage: page });
+      const profiles = await getSparkProfiles(interaction.guildId);
+      const { buildSparkAdminMatchPickerPayload } = await import('../../services/sparkMatchingUI.js');
+      return interaction.update(buildSparkAdminMatchPickerPayload(profiles, selection));
+    },
+  },
+  {
+    name: 'spark_admin_female_page',
+    async execute(interaction, client, args) {
+      if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền ghép đôi.');
+      const page = Math.max(0, Number(args[0]) || 0);
+      const selection = await updateSparkAdminMatchSelection(interaction.guildId, interaction.user.id, { femalePage: page });
+      const profiles = await getSparkProfiles(interaction.guildId);
+      const { buildSparkAdminMatchPickerPayload } = await import('../../services/sparkMatchingUI.js');
+      return interaction.update(buildSparkAdminMatchPickerPayload(profiles, selection));
+    },
+  },
+  {
+    name: 'spark_admin_match_confirm',
+    async execute(interaction) {
+      if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền ghép đôi.');
+      const selection = await getSparkAdminMatchSelection(interaction.guildId, interaction.user.id);
+      if (!selection.maleId || !selection.femaleId) return replyError(interaction, 'Bạn cần chọn đủ hồ sơ nam và nữ.');
+      const result = await createSparkMatch(interaction.guild, selection.maleId, selection.femaleId);
+      if (!result.ok) return replyError(interaction, result.code === 'USER_BUSY' ? 'Một trong hai thành viên đang có lượt ghép đôi khác.' : 'Không thể tạo lượt ghép đôi từ hai hồ sơ này.');
+      await updateSparkAdminMatchSelection(interaction.guildId, interaction.user.id, { maleId: null, femaleId: null });
+      return interaction.update({ content: 'Cupid đã gửi lời mời ghép đôi **' + result.match.matchId + '** đến cả hai thành viên.', components: [] });
     },
   },
 
