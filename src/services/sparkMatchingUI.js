@@ -156,3 +156,43 @@ export function buildSparkIncomingMessagePayload(match, messageContent) {
     row.toJSON(),
   );
 }
+
+export function buildSparkAdminDashboardPayload({ config, profiles, matches }) {
+  const pending = profiles.filter((profile) => profile.status === 'pending').length;
+  const male = profiles.filter((profile) => profile.status !== 'rejected' && /nam|male|man/i.test(profile.data?.gender || '')).length;
+  const female = profiles.filter((profile) => profile.status !== 'rejected' && /nữ|nu|female|woman/i.test(profile.data?.gender || '')).length;
+  const active = matches.filter((match) => match.status !== 'closed').length;
+  const rowOne = new ActionRowBuilder().addComponents(
+    button('spark_admin_pending', 'Hồ Sơ Chờ Duyệt'),
+    button('spark_admin_match', 'Ghép Đôi Thủ Công'),
+    button('spark_admin_requests', 'Yêu Cầu Cụ Thể'),
+  );
+  const rowTwo = new ActionRowBuilder().addComponents(
+    button('spark_admin_active', 'Cặp Đôi Đang Hoạt Động'),
+    button('spark_admin_history', 'Lịch Sử'),
+    button('spark_admin_settings', 'Cài Đặt'),
+  );
+  return {
+    flags: SPARK_COMPONENTS_V2 | MessageFlags.Ephemeral,
+    components: [{
+      type: 17,
+      components: [
+        text('<:trangtrig50:1567818385306165301> **SPARK MATCHING · ADMIN DASHBOARD** <:trangtrig51:1567818549794439229>'),
+        divider(),
+        text(
+          '**THỐNG KÊ HỒ SƠ**\\n' +
+          '• Hồ sơ nam: **' + male + '**\\n' +
+          '• Hồ sơ nữ: **' + female + '**\\n' +
+          '• Chờ duyệt: **' + pending + '**\\n' +
+          '• Cặp đôi chưa kết thúc: **' + active + '**\\n\\n' +
+          '**TRẠNG THÁI**\\n' +
+          '• Hệ thống: **' + (config.enabled ? 'Đang bật' : 'Đang tắt') + '**\\n' +
+          '• Đăng ký: **' + (config.registrationEnabled ? 'Đang mở' : 'Đang đóng') + '**'
+        ),
+        divider(),
+        rowOne.toJSON(),
+        rowTwo.toJSON(),
+      ],
+    }],
+  };
+}
