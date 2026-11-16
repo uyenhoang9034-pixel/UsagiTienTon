@@ -114,7 +114,7 @@ export const PRISM_ITEMS = Object.freeze({
     emoji: '<a:lcbluelollipop:1571141483476811826>',
     rarity: 'Thường',
     category: 'souvenir',
-    price: 40,
+    price: 100,
     desc: 'Dùng để cộng random +8 ~ +15 Chân thành.',
   },
   fan: {
@@ -123,7 +123,7 @@ export const PRISM_ITEMS = Object.freeze({
     emoji: '<a:remdance:1571141481580990504>',
     rarity: 'Hiếm',
     category: 'souvenir',
-    price: 85,
+    price: 200,
     desc: 'Dùng để cộng random +15 ~ +25 Thần thái.',
   },
   crown: {
@@ -141,7 +141,7 @@ export const PRISM_ITEMS = Object.freeze({
     emoji: '<a:bua_ho_menh_discord:1571141485448138762>',
     rarity: 'Hỗ Trợ',
     category: 'buff',
-    price: 90,
+    price: 300,
     desc: 'Bấm dùng để kích hoạt trạng thái bảo vệ (amulet + 1), chặn 1 lần bị trừ điểm.',
   },
   dice: {
@@ -150,7 +150,7 @@ export const PRISM_ITEMS = Object.freeze({
     emoji: '<a:xuc_xac_may_man_discord:1571141488039956611>',
     rarity: 'Hỗ Trợ',
     category: 'buff',
-    price: 120,
+    price: 320,
     desc: 'Bấm dùng để kích hoạt buff (dice + 1), nhân đôi (x2) hoặc nhân ba (x3) điểm ở lượt mini-game tiếp theo.',
   },
   mystery_box: {
@@ -159,7 +159,7 @@ export const PRISM_ITEMS = Object.freeze({
     emoji: '<a:giftg1:1543150714732412948>',
     rarity: 'Đặc Biệt',
     category: 'mystery',
-    price: 100,
+    price: 1000,
     desc: 'Mở ra cơ hội trúng Vương Miện (2%), Quạt Xếp (18%), Kẹo Mút (50%), hoặc hoàn 30~60 Xu (30%).',
   },
 
@@ -169,7 +169,7 @@ export const PRISM_ITEMS = Object.freeze({
     name: 'Trà Sữa Trân Châu Đường Đen',
     emoji: '<a:boba:1571141477755654324>',
     category: 'gift',
-    price: 50,
+    price: 200,
     desc: 'Món quà ngọt ngào khiến đối phương cảm động, cộng điểm Chân thành & Thần thái.',
   },
   flowers: {
@@ -177,7 +177,7 @@ export const PRISM_ITEMS = Object.freeze({
     name: 'Bó Hoa Tươi Thắm',
     emoji: '<a:flowerswhite:1571141475691925594>',
     category: 'gift',
-    price: 80,
+    price: 300,
     desc: 'Bó hoa tươi rạng rỡ mang năng lượng yêu thương, cộng nhiều điểm Chân thành & Thần thái.',
   },
   movie_tickets: {
@@ -185,7 +185,7 @@ export const PRISM_ITEMS = Object.freeze({
     name: 'Cặp Vé Xem Phim Đôi',
     emoji: '<a:trangtrig19:1546068350030053406>',
     category: 'gift',
-    price: 150,
+    price: 900,
     desc: 'Buổi hẹn hò riêng tư lãng mạn, nhận lời khen ngọt ngào và điểm cộng cực lớn.',
   },
 });
@@ -290,6 +290,70 @@ export function getVietnamDateString() {
     day: '2-digit',
   });
   return formatter.format(new Date());
+}
+
+/**
+ * Giới hạn số lượt tham gia mini-game mỗi ngày (khóa cứng)
+ * - Tình huống khó đỡ: tối đa 10 lần/ngày
+ * - Sàn diễn outfit: max 3 lần/ngày
+ * - Chat chit: max 2 lần/ngày
+ * - Vòng quay: max 1 lần/ngày
+ */
+export const PRISM_DAILY_LIMITS = Object.freeze({
+  story: 10,
+  outfit: 3,
+  chat: 2,
+  spin: 1,
+});
+
+export const PRISM_GAME_NAMES = Object.freeze({
+  story: 'Tình Huống Khó Đỡ',
+  outfit: 'Sàn Diễn Outfit',
+  chat: 'Chat Chit Cùng Crush',
+  spin: 'Vòng Quay Định Mệnh',
+});
+
+/**
+ * Lấy hoặc khởi tạo cấu trúc đếm giới hạn ngày cho người chơi
+ */
+export function getOrGenerateDailyLimits(stored) {
+  const today = getVietnamDateString();
+  if (stored && stored.date === today && stored.counts) {
+    return {
+      date: today,
+      counts: {
+        story: Number(stored.counts.story) || 0,
+        outfit: Number(stored.counts.outfit) || 0,
+        chat: Number(stored.counts.chat) || 0,
+        spin: Number(stored.counts.spin) || 0,
+      },
+    };
+  }
+  return {
+    date: today,
+    counts: {
+      story: 0,
+      outfit: 0,
+      chat: 0,
+      spin: 0,
+    },
+  };
+}
+
+/**
+ * Kiểm tra xem người chơi có được phép tham gia mini-game hay đã chạm trần giới hạn ngày
+ */
+export function checkDailyLimit(storedLimits, gameType) {
+  const limitsData = getOrGenerateDailyLimits(storedLimits);
+  const current = limitsData.counts[gameType] || 0;
+  const max = PRISM_DAILY_LIMITS[gameType] ?? 999;
+  return {
+    allowed: current < max,
+    current,
+    max,
+    remaining: Math.max(0, max - current),
+    limitsData,
+  };
 }
 
 /**

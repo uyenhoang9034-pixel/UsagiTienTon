@@ -4,6 +4,9 @@ import {
   PRISM_EMOJIS,
   IDENTITY_PROFILES,
   PRISM_ITEMS,
+  PRISM_DAILY_LIMITS,
+  checkDailyLimit,
+  getOrGenerateDailyLimits,
   STORY_SCENARIOS,
   OUTFIT_THEMES,
   OUTFIT_TOPS,
@@ -240,4 +243,111 @@ test('Prism UI & Data: Custom emojis match user specifications', () => {
   const questsPayload = buildPrismQuestsPayload(mockPlayer, getOrGenerateDailyQuests(null));
   const questsJson = JSON.stringify(questsPayload);
   assert.ok(questsJson.includes('<a:trangtrig61:1569559986550612051> **'));
+});
+
+test('Prism Shop: Updated item prices match specifications', () => {
+  assert.equal(PRISM_ITEMS.lollipop.price, 100);
+  assert.equal(PRISM_ITEMS.fan.price, 200);
+  assert.equal(PRISM_ITEMS.amulet.price, 300);
+  assert.equal(PRISM_ITEMS.dice.price, 320);
+  assert.equal(PRISM_ITEMS.mystery_box.price, 1000);
+  assert.equal(PRISM_ITEMS.boba.price, 200);
+  assert.equal(PRISM_ITEMS.flowers.price, 300);
+  assert.equal(PRISM_ITEMS.movie_tickets.price, 900);
+
+  const mockPlayer = {
+    user_id: '123456789',
+    identity_key: 'pansexual',
+    slay_points: 30,
+    heart_points: 25,
+    rebel_points: 20,
+    rainbow_coins: 1500,
+    inventory: {},
+    active_buffs: {},
+  };
+
+  const shopPayload = buildPrismShopPayload(mockPlayer);
+  const shopJson = JSON.stringify(shopPayload);
+  assert.ok(shopJson.includes('**Kẹo Mút Lục Sắc** (`100`'));
+  assert.ok(shopJson.includes('**Quạt Xếp Ánh Kim** (`200`'));
+  assert.ok(shopJson.includes('**Bùa Hộ Mệnh** (`300`'));
+  assert.ok(shopJson.includes('**Xúc Xắc May Mắn** (`320`'));
+  assert.ok(shopJson.includes('**Hộp Mù Bí Ẩn** (`1000`'));
+  assert.ok(shopJson.includes('**Trà Sữa Trân Châu Đường Đen** (`200`'));
+  assert.ok(shopJson.includes('**Bó Hoa Tươi Thắm** (`300`'));
+  assert.ok(shopJson.includes('**Cặp Vé Xem Phim Đôi** (`900`'));
+});
+
+test('Prism Limits: Daily hard limits for mini-games are enforced', () => {
+  assert.equal(PRISM_DAILY_LIMITS.story, 10);
+  assert.equal(PRISM_DAILY_LIMITS.outfit, 3);
+  assert.equal(PRISM_DAILY_LIMITS.chat, 2);
+  assert.equal(PRISM_DAILY_LIMITS.spin, 1);
+
+  const initialLimits = getOrGenerateDailyLimits(null);
+  assert.equal(initialLimits.counts.story, 0);
+  assert.equal(initialLimits.counts.outfit, 0);
+  assert.equal(initialLimits.counts.chat, 0);
+  assert.equal(initialLimits.counts.spin, 0);
+
+  // Check within limit
+  assert.equal(checkDailyLimit(initialLimits, 'story').allowed, true);
+  assert.equal(checkDailyLimit(initialLimits, 'outfit').allowed, true);
+  assert.equal(checkDailyLimit(initialLimits, 'chat').allowed, true);
+  assert.equal(checkDailyLimit(initialLimits, 'spin').allowed, true);
+
+  // Check reaching limit
+  const maxedLimits = {
+    date: getVietnamDateString(),
+    counts: { story: 10, outfit: 3, chat: 2, spin: 1 },
+  };
+  assert.equal(checkDailyLimit(maxedLimits, 'story').allowed, false);
+  assert.equal(checkDailyLimit(maxedLimits, 'outfit').allowed, false);
+  assert.equal(checkDailyLimit(maxedLimits, 'chat').allowed, false);
+  assert.equal(checkDailyLimit(maxedLimits, 'spin').allowed, false);
+});
+
+test('Prism Leaderboard: 4 sections (Thần thái, Chân thành, Nổi loạn, Tổng) are rendered', () => {
+  const mockPlayer = {
+    user_id: '123456789',
+    identity_key: 'pansexual',
+    slay_points: 30,
+    heart_points: 25,
+    rebel_points: 20,
+    rainbow_coins: 150,
+  };
+
+  const mockLeaderboardData = {
+    topSlay: [{ user_id: '111', identity_key: 'gay', slay_points: 50 }],
+    topHeart: [{ user_id: '222', identity_key: 'lesbian', heart_points: 60 }],
+    topRebel: [{ user_id: '333', identity_key: 'nonbinary', rebel_points: 40 }],
+    topTotal: [
+      { user_id: '444', identity_key: 'pansexual', slay_points: 30, heart_points: 30, rebel_points: 30, total_points: 90 },
+    ],
+  };
+
+  const payload = buildPrismLeaderboardPayload(mockPlayer, mockLeaderboardData, 1);
+  const json = JSON.stringify(payload);
+
+  assert.ok(json.includes('# 1. BXH THẦN THÁI'));
+  assert.ok(json.includes('# 2. BXH CHÂN THÀNH'));
+  assert.ok(json.includes('# 3. BXH NỔI LOẠN'));
+  assert.ok(json.includes('# 4. BXH TỔNG'));
+
+  // Section 1: Thần thái points
+  assert.ok(json.includes('<@111>'));
+  assert.ok(json.includes('50** Thần thái'));
+
+  // Section 2: Chân thành points
+  assert.ok(json.includes('<@222>'));
+  assert.ok(json.includes('60** Chân thành'));
+
+  // Section 3: Nổi loạn points
+  assert.ok(json.includes('<@333>'));
+  assert.ok(json.includes('40** Nổi loạn'));
+
+  // Section 4: BXH Tổng displays the 3 individual scores without the sum
+  assert.ok(json.includes('<@444>'));
+  assert.ok(json.includes('**30**'));
+  assert.ok(!json.includes('**90** điểm'));
 });

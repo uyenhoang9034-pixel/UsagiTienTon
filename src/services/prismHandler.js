@@ -30,6 +30,10 @@ import {
   rollLootDrop,
   openMysteryBox,
   getOrGenerateDailyQuests,
+  getOrGenerateDailyLimits,
+  checkDailyLimit,
+  PRISM_DAILY_LIMITS,
+  PRISM_GAME_NAMES,
   formatWithIdentity,
   formatPointChanges,
   PRISM_EMOJIS,
@@ -52,6 +56,7 @@ import {
   buildPrismShopPayload,
   buildPrismQuestsPayload,
   buildPrismLeaderboardPayload,
+  buildPrismLimitNoticePayload,
 } from './prismUI.js';
 
 export const PRISM_ROLE_ID = process.env.PRISM_ROLE_ID || '1571137417250078791';
@@ -101,6 +106,7 @@ export async function ensurePrismTable() {
       ALTER TABLE prism_players ADD COLUMN IF NOT EXISTS inventory JSONB DEFAULT '{}'::jsonb;
       ALTER TABLE prism_players ADD COLUMN IF NOT EXISTS active_buffs JSONB DEFAULT '{"amulet": 0, "dice": 0}'::jsonb;
       ALTER TABLE prism_players ADD COLUMN IF NOT EXISTS daily_quests JSONB DEFAULT '{}'::jsonb;
+      ALTER TABLE prism_players ADD COLUMN IF NOT EXISTS daily_limits JSONB DEFAULT '{}'::jsonb;
     `);
 
     isTableInitialized = true;
@@ -212,8 +218,12 @@ async function processGameEndRewards(player, rawPointChanges, questType, client)
     inv[lootDropped.itemKey] = (inv[lootDropped.itemKey] || 0) + 1;
   }
 
-  // 5. Cập nhật nhiệm vụ ngày
+  // 5. Cập nhật nhiệm vụ ngày & giới hạn ngày
   const { questData } = updateQuestProgressInternal(player.daily_quests, questType);
+  const limitsData = getOrGenerateDailyLimits(player.daily_limits);
+  if (limitsData.counts[questType] !== undefined) {
+    limitsData.counts[questType] += 1;
+  }
 
   // 6. Ghi vào PostgreSQL
   const res = await pool.query(
@@ -225,8 +235,9 @@ async function processGameEndRewards(player, rawPointChanges, questType, client)
           rainbow_coins = rainbow_coins + $4,
           inventory = $5::jsonb,
           active_buffs = $6::jsonb,
-          daily_quests = $7::jsonb
-      WHERE user_id = $8
+          daily_quests = $7::jsonb,
+          daily_limits = $8::jsonb
+      WHERE user_id = $9
       RETURNING *;
     `,
     [
@@ -237,6 +248,7 @@ async function processGameEndRewards(player, rawPointChanges, questType, client)
       JSON.stringify(inv),
       JSON.stringify(buffs),
       JSON.stringify(questData),
+      JSON.stringify(limitsData),
       userId,
     ],
   );
@@ -248,6 +260,11 @@ async function processGameEndRewards(player, rawPointChanges, questType, client)
     updateHubMessage(client, updatedPlayer.thread_id, updatedPlayer.hub_message_id, updatedPlayer);
   }
 
+  const canSpinAgain =
+    questType === 'spin'
+      ? (limitsData.counts.spin < (PRISM_DAILY_LIMITS.spin || 1))
+      : true;
+
   return {
     updatedPlayer,
     finalPoints,
@@ -255,6 +272,7 @@ async function processGameEndRewards(player, rawPointChanges, questType, client)
     amuletTriggered,
     coinsGained,
     lootDropped,
+    canSpinAgain,
   };
 }
 
@@ -404,24 +422,40 @@ export async function handlePrismHubAction(interaction, client, action) {
 
   // Mini-game 1: Tình Huống Khó Đỡ
   if (action === 'prism_mg_story') {
+    const limit = checkDailyLimit(player.daily_limits, 'story');
+    if (!limit.allowed) {
+      return interaction.reply(buildPrismLimitNoticePayload('story', limit.current, limit.max));
+    }
     const scenarioIdx = Math.floor(Math.random() * STORY_SCENARIOS.length);
     return interaction.reply(buildPrismStoryPayload(scenarioIdx, player));
   }
 
   // Mini-game 2: Sàn Diễn Outfit
   if (action === 'prism_mg_outfit') {
+    const limit = checkDailyLimit(player.daily_limits, 'outfit');
+    if (!limit.allowed) {
+      return interaction.reply(buildPrismLimitNoticePayload('outfit', limit.current, limit.max));
+    }
     const themeIdx = Math.floor(Math.random() * OUTFIT_THEMES.length);
     return interaction.reply(buildPrismOutfitPayload(themeIdx, 0, 0, 0, player));
   }
 
   // Mini-game 3: Chat Chit Cùng Crush
   if (action === 'prism_mg_chat') {
+    const limit = checkDailyLimit(player.daily_limits, 'chat');
+    if (!limit.allowed) {
+      return interaction.reply(buildPrismLimitNoticePayload('chat', limit.current, limit.max));
+    }
     const messageIdx = Math.floor(Math.random() * CRUSH_MESSAGES.length);
     return interaction.reply(buildPrismChatPayload(messageIdx, CRUSH_MESSAGES[messageIdx], player));
   }
 
   // Mini-game 4: Vòng Quay Định Mệnh
   if (action === 'prism_mg_spin') {
+    const limit = checkDailyLimit(player.daily_limits, 'spin');
+    if (!limit.allowed) {
+      return interaction.reply(buildPrismLimitNoticePayload('spin', limit.current, limit.max));
+    }
     return interaction.reply(buildPrismSpinPayload(player));
   }
 
@@ -451,37 +485,80 @@ export async function handlePrismHubAction(interaction, client, action) {
     return interaction.reply(buildPrismQuestsPayload(player, questData));
   }
 
-  // Xem Điểm & BXH Top 10
+  // Xem Điểm & BXH (4 Bảng: Thần thái, Chân thành, Nổi loạn & Tổng)
   if (action === 'prism_leaderboard') {
     const pool = await getPool();
-    let topPlayers = [];
+    let leaderboardData = {
+      topSlay: [],
+      topHeart: [],
+      topRebel: [],
+      topTotal: [],
+    };
     let userRank = null;
 
     if (pool) {
-      const topRes = await pool.query(`
-        SELECT user_id, identity_key, slay_points, heart_points, rebel_points,
-               (slay_points + heart_points + rebel_points) AS total_points
-        FROM prism_players
-        WHERE identity_key IS NOT NULL
-        ORDER BY total_points DESC
-        LIMIT 10;
-      `);
-      topPlayers = topRes.rows;
+      try {
+        const [slayRes, heartRes, rebelRes, totalRes] = await Promise.all([
+          pool.query(`
+            SELECT user_id, identity_key, COALESCE(slay_points, 0) AS slay_points
+            FROM prism_players
+            WHERE identity_key IS NOT NULL
+            ORDER BY slay_points DESC, user_id ASC
+            LIMIT 5;
+          `),
+          pool.query(`
+            SELECT user_id, identity_key, COALESCE(heart_points, 0) AS heart_points
+            FROM prism_players
+            WHERE identity_key IS NOT NULL
+            ORDER BY heart_points DESC, user_id ASC
+            LIMIT 5;
+          `),
+          pool.query(`
+            SELECT user_id, identity_key, COALESCE(rebel_points, 0) AS rebel_points
+            FROM prism_players
+            WHERE identity_key IS NOT NULL
+            ORDER BY rebel_points DESC, user_id ASC
+            LIMIT 5;
+          `),
+          pool.query(`
+            SELECT user_id, identity_key,
+                   COALESCE(slay_points, 0) AS slay_points,
+                   COALESCE(heart_points, 0) AS heart_points,
+                   COALESCE(rebel_points, 0) AS rebel_points,
+                   (COALESCE(slay_points, 0) + COALESCE(heart_points, 0) + COALESCE(rebel_points, 0)) AS total_points
+            FROM prism_players
+            WHERE identity_key IS NOT NULL
+            ORDER BY total_points DESC, user_id ASC
+            LIMIT 5;
+          `),
+        ]);
 
-      const rankRes = await pool.query(
-        `
-          SELECT COUNT(*) + 1 AS rank
-          FROM prism_players
-          WHERE (slay_points + heart_points + rebel_points) > 
-                ($1 + $2 + $3)
-            AND identity_key IS NOT NULL;
-        `,
-        [player.slay_points, player.heart_points, player.rebel_points],
-      );
-      userRank = rankRes.rows[0]?.rank || 1;
+        leaderboardData = {
+          topSlay: slayRes.rows,
+          topHeart: heartRes.rows,
+          topRebel: rebelRes.rows,
+          topTotal: totalRes.rows,
+        };
+
+        const userTotal =
+          (player.slay_points || 0) + (player.heart_points || 0) + (player.rebel_points || 0);
+
+        const rankRes = await pool.query(
+          `
+            SELECT COUNT(*) + 1 AS rank
+            FROM prism_players
+            WHERE (COALESCE(slay_points, 0) + COALESCE(heart_points, 0) + COALESCE(rebel_points, 0)) > $1::int
+              AND identity_key IS NOT NULL;
+          `,
+          [userTotal],
+        );
+        userRank = rankRes.rows[0]?.rank || 1;
+      } catch (err) {
+        logger.error('[Prism] Leaderboard query error:', err);
+      }
     }
 
-    return interaction.reply(buildPrismLeaderboardPayload(player, topPlayers, userRank));
+    return interaction.reply(buildPrismLeaderboardPayload(player, leaderboardData, userRank));
   }
 }
 
@@ -492,10 +569,14 @@ export async function handlePrismStoryChoice(interaction, client, args) {
   const scenarioIdx = parseInt(args?.[0], 10) || 0;
   const choiceKey = args?.[1] || 'A';
 
+  const player = await getPrismPlayer(interaction.user.id);
+  const limit = checkDailyLimit(player?.daily_limits, 'story');
+  if (!limit.allowed) {
+    return interaction.update(buildPrismLimitNoticePayload('story', limit.current, limit.max));
+  }
+
   const scenario = STORY_SCENARIOS[scenarioIdx] || STORY_SCENARIOS[0];
   const choice = scenario.choices[choiceKey] || scenario.choices.A;
-
-  const player = await getPrismPlayer(interaction.user.id);
   const rawPoints = calculatePointChanges(choice.points);
 
   const rewardInfo = await processGameEndRewards(player, rawPoints, 'story', client);
@@ -510,6 +591,10 @@ export async function handlePrismStoryChoice(interaction, client, args) {
  */
 export async function handlePrismStoryNext(interaction) {
   const player = await getPrismPlayer(interaction.user.id);
+  const limit = checkDailyLimit(player?.daily_limits, 'story');
+  if (!limit.allowed) {
+    return interaction.update(buildPrismLimitNoticePayload('story', limit.current, limit.max));
+  }
   const nextIdx = Math.floor(Math.random() * STORY_SCENARIOS.length);
   return interaction.update(buildPrismStoryPayload(nextIdx, player));
 }
@@ -572,6 +657,11 @@ export async function handlePrismOutfitSubmit(interaction, client, args) {
     OUTFIT_FRIEND_PRAISES[Math.floor(Math.random() * OUTFIT_FRIEND_PRAISES.length)];
 
   const player = await getPrismPlayer(interaction.user.id);
+  const limit = checkDailyLimit(player?.daily_limits, 'outfit');
+  if (!limit.allowed) {
+    return interaction.update(buildPrismLimitNoticePayload('outfit', limit.current, limit.max));
+  }
+
   const rewardInfo = await processGameEndRewards(player, rawTotal, 'outfit', client);
 
   return interaction.update(
@@ -583,6 +673,12 @@ export async function handlePrismOutfitSubmit(interaction, client, args) {
  * Mini-game 3: Bấm nút "Nhập Tin Nhắn" -> Mở Modal chữ thuần
  */
 export async function handlePrismCrushOpenModal(interaction, args) {
+  const player = await getPrismPlayer(interaction.user.id);
+  const limit = checkDailyLimit(player?.daily_limits, 'chat');
+  if (!limit.allowed) {
+    return interaction.reply(buildPrismLimitNoticePayload('chat', limit.current, limit.max));
+  }
+
   const messageIdx = parseInt(args?.[0], 10) || 0;
   const modal = buildPrismCrushModal(messageIdx);
   return interaction.showModal(modal);
@@ -592,6 +688,12 @@ export async function handlePrismCrushOpenModal(interaction, args) {
  * Mini-game 3: Xử lý Submit Modal
  */
 export async function handlePrismCrushModalSubmit(interaction, client, args) {
+  const player = await getPrismPlayer(interaction.user.id);
+  const limit = checkDailyLimit(player?.daily_limits, 'chat');
+  if (!limit.allowed) {
+    return interaction.reply(buildPrismLimitNoticePayload('chat', limit.current, limit.max));
+  }
+
   const userMsg = interaction.fields.getTextInputValue('prism_crush_input') || '';
   const lowerMsg = userMsg.toLowerCase();
 
@@ -606,7 +708,6 @@ export async function handlePrismCrushModalSubmit(interaction, client, args) {
   }
 
   const rawPoints = calculatePointChanges(branch.points);
-  const player = await getPrismPlayer(interaction.user.id);
   const rewardInfo = await processGameEndRewards(player, rawPoints, 'chat', client);
 
   return interaction.update(
@@ -618,11 +719,16 @@ export async function handlePrismCrushModalSubmit(interaction, client, args) {
  * Mini-game 4: Bấm "Quay Ngay!" hoặc "Quay Lần Nữa"
  */
 export async function handlePrismSpinRoll(interaction, client) {
+  const player = await getPrismPlayer(interaction.user.id);
+  const limit = checkDailyLimit(player?.daily_limits, 'spin');
+  if (!limit.allowed) {
+    return interaction.update(buildPrismLimitNoticePayload('spin', limit.current, limit.max));
+  }
+
   const eventIdx = Math.floor(Math.random() * RAINBOW_STREET_EVENTS.length);
   const eventItem = RAINBOW_STREET_EVENTS[eventIdx];
 
   const rawPoints = calculatePointChanges(eventItem.points);
-  const player = await getPrismPlayer(interaction.user.id);
   const rewardInfo = await processGameEndRewards(player, rawPoints, 'spin', client);
 
   return interaction.update(

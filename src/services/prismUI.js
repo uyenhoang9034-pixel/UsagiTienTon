@@ -20,6 +20,8 @@ import {
   PRISM_EMOJIS,
   IDENTITY_PROFILES,
   PRISM_ITEMS,
+  PRISM_DAILY_LIMITS,
+  PRISM_GAME_NAMES,
   STORY_SCENARIOS,
   OUTFIT_THEMES,
   OUTFIT_TOPS,
@@ -732,12 +734,14 @@ export function buildPrismSpinPayload(playerRecord) {
  * Kết quả Vòng Quay Định Mệnh (Ephemeral update)
  */
 export function buildPrismSpinResultPayload(eventDesc, pointChanges, playerRecord, rewardInfo) {
+  const canSpinAgain = rewardInfo?.canSpinAgain ?? false;
   const actionRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('prism_spin_roll')
-      .setLabel('Quay Lần Nữa')
+      .setLabel(canSpinAgain ? 'Quay Lần Nữa' : 'Đã Hết Lượt Quay Hôm Nay')
       .setStyle(ButtonStyle.Secondary)
-      .setEmoji(PRISM_EMOJIS.trangtrig20),
+      .setEmoji(PRISM_EMOJIS.trangtrig20)
+      .setDisabled(!canSpinAgain),
   );
 
   const containerComponents = [
@@ -873,18 +877,18 @@ export function buildPrismShopPayload(playerRecord, noticeText = '') {
 
   const group1Lines = [
     '**1. Vật Phẩm Kỷ Niệm & Bùa Hỗ Trợ:**',
-    `${PRISM_EMOJIS.lcbluelollipop} **Kẹo Mút Lục Sắc** (\`40\` ${PRISM_EMOJIS.xucauvong})`,
-    `${PRISM_EMOJIS.remdance} **Quạt Xếp Ánh Kim** (\`85\` ${PRISM_EMOJIS.xucauvong})`,
-    `${PRISM_EMOJIS.bua_ho_menh_discord} **Bùa Hộ Mệnh** (\`90\` ${PRISM_EMOJIS.xucauvong})`,
-    `${PRISM_EMOJIS.xuc_xac_may_man_discord} **Xúc Xắc May Mắn** (\`120\` ${PRISM_EMOJIS.xucauvong})`,
-    `${PRISM_EMOJIS.giftg1} **Hộp Mù Bí Ẩn** (\`100\` ${PRISM_EMOJIS.xucauvong}) — Mở ngay: 2% Vương Miện, 18% Quạt Xếp, 50% Kẹo Mút, 30% hoàn 30~60 Xu!`,
+    `${PRISM_EMOJIS.lcbluelollipop} **Kẹo Mút Lục Sắc** (\`100\` ${PRISM_EMOJIS.xucauvong})`,
+    `${PRISM_EMOJIS.remdance} **Quạt Xếp Ánh Kim** (\`200\` ${PRISM_EMOJIS.xucauvong})`,
+    `${PRISM_EMOJIS.bua_ho_menh_discord} **Bùa Hộ Mệnh** (\`300\` ${PRISM_EMOJIS.xucauvong})`,
+    `${PRISM_EMOJIS.xuc_xac_may_man_discord} **Xúc Xắc May Mắn** (\`320\` ${PRISM_EMOJIS.xucauvong})`,
+    `${PRISM_EMOJIS.giftg1} **Hộp Mù Bí Ẩn** (\`1000\` ${PRISM_EMOJIS.xucauvong}) — Mở ngay: 2% Vương Miện, 18% Quạt Xếp, 50% Kẹo Mút, 30% hoàn 30~60 Xu!`,
   ];
 
   const group2Lines = [
     '**2. Quà Tặng Crush (Chỉ mua được ở Shop):**',
-    `${PRISM_EMOJIS.boba} **Trà Sữa Trân Châu Đường Đen** (\`50\` ${PRISM_EMOJIS.xucauvong})`,
-    `${PRISM_EMOJIS.flowerswhite} **Bó Hoa Tươi Thắm** (\`80\` ${PRISM_EMOJIS.xucauvong})`,
-    `${PRISM_EMOJIS.trangtrig19} **Cặp Vé Xem Phim Đôi** (\`150\` ${PRISM_EMOJIS.xucauvong})`,
+    `${PRISM_EMOJIS.boba} **Trà Sữa Trân Châu Đường Đen** (\`200\` ${PRISM_EMOJIS.xucauvong})`,
+    `${PRISM_EMOJIS.flowerswhite} **Bó Hoa Tươi Thắm** (\`300\` ${PRISM_EMOJIS.xucauvong})`,
+    `${PRISM_EMOJIS.trangtrig19} **Cặp Vé Xem Phim Đôi** (\`900\` ${PRISM_EMOJIS.xucauvong})`,
   ];
 
   const buyItemSelect = new ActionRowBuilder().addComponents(
@@ -892,11 +896,11 @@ export function buildPrismShopPayload(playerRecord, noticeText = '') {
       .setCustomId('prism_shop_buy_item')
       .setPlaceholder('Chọn mua Vật Phẩm Kỷ Niệm & Bùa...')
       .addOptions([
-        { label: 'Kẹo Mút Lục Sắc (40 Xu)', value: 'lollipop', description: 'Vật phẩm kỷ niệm bậc Thường (+8~15 Chân thành)' },
-        { label: 'Quạt Xếp Ánh Kim (85 Xu)', value: 'fan', description: 'Vật phẩm kỷ niệm bậc Hiếm (+15~25 Thần thái)' },
-        { label: 'Bùa Hộ Mệnh (90 Xu)', value: 'amulet', description: 'Kích hoạt 1 lần chặn trừ điểm mini-game' },
-        { label: 'Xúc Xắc May Mắn (120 Xu)', value: 'dice', description: 'Kích hoạt buff x2 hoặc x3 điểm ở lượt kế' },
-        { label: 'Hộp Mù Bí Ẩn (100 Xu)', value: 'mystery_box', description: 'Mở ngay nhận thưởng ngẫu nhiên siêu hấp dẫn!' },
+        { label: 'Kẹo Mút Lục Sắc (100 Xu)', value: 'lollipop', description: 'Vật phẩm kỷ niệm bậc Thường (+8~15 Chân thành)' },
+        { label: 'Quạt Xếp Ánh Kim (200 Xu)', value: 'fan', description: 'Vật phẩm kỷ niệm bậc Hiếm (+15~25 Thần thái)' },
+        { label: 'Bùa Hộ Mệnh (300 Xu)', value: 'amulet', description: 'Kích hoạt 1 lần chặn trừ điểm mini-game' },
+        { label: 'Xúc Xắc May Mắn (320 Xu)', value: 'dice', description: 'Kích hoạt buff x2 hoặc x3 điểm ở lượt kế' },
+        { label: 'Hộp Mù Bí Ẩn (1000 Xu)', value: 'mystery_box', description: 'Mở ngay nhận thưởng ngẫu nhiên siêu hấp dẫn!' },
       ]),
   );
 
@@ -905,9 +909,9 @@ export function buildPrismShopPayload(playerRecord, noticeText = '') {
       .setCustomId('prism_shop_buy_gift')
       .setPlaceholder('Chọn mua Quà Tặng Crush...')
       .addOptions([
-        { label: 'Trà Sữa Trân Châu Đường Đen (50 Xu)', value: 'boba', description: 'Tặng Crush nhận phản ứng ngọt ngào & điểm thưởng' },
-        { label: 'Bó Hoa Tươi Thắm (80 Xu)', value: 'flowers', description: 'Món quà tinh tế khiến người ấy xao xuyến' },
-        { label: 'Cặp Vé Xem Phim Đôi (150 Xu)', value: 'movie_tickets', description: 'Hẹn hò lãng mạn tại rạp chiếu phim' },
+        { label: 'Trà Sữa Trân Châu Đường Đen (200 Xu)', value: 'boba', description: 'Tặng Crush nhận phản ứng ngọt ngào & điểm thưởng' },
+        { label: 'Bó Hoa Tươi Thắm (300 Xu)', value: 'flowers', description: 'Món quà tinh tế khiến người ấy xao xuyến' },
+        { label: 'Cặp Vé Xem Phim Đôi (900 Xu)', value: 'movie_tickets', description: 'Hẹn hò lãng mạn tại rạp chiếu phim' },
       ]),
   );
 
@@ -1016,29 +1020,61 @@ export function buildPrismQuestsPayload(playerRecord, questsData, noticeText = '
 }
 
 /**
- * 12. Xem Điểm & BXH Top 10 (Ephemeral)
+ * Format danh sách người chơi cho BXH đơn lẻ (Thần thái / Chân thành / Nổi loạn)
  */
-export function buildPrismLeaderboardPayload(userRecord, topPlayers, userRank) {
+function formatSingleStatRanking(players = [], statKey, statEmoji, statName) {
+  if (!players || players.length === 0) {
+    return ['-# Chưa có người chơi nào trên bảng này.'];
+  }
+  return players.map((p, index) => {
+    const idProfile = IDENTITY_PROFILES[p.identity_key] || IDENTITY_PROFILES.pansexual;
+    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `**#${index + 1}**`;
+    const pts = p[statKey] || 0;
+    return `${medal} <@${p.user_id}> • ${statEmoji} **${pts}** ${statName} *(${idProfile.name})*`;
+  });
+}
+
+/**
+ * Format danh sách người chơi cho BXH Tổng:
+ * Lấy 5 người có tổng điểm cao nhất nhưng hiển thị 3 loại điểm riêng biệt chứ không hiển thị số tổng
+ */
+function formatTotalRanking(players = []) {
+  if (!players || players.length === 0) {
+    return ['-# Chưa có người chơi nào trên bảng này.'];
+  }
+  return players.map((p, index) => {
+    const idProfile = IDENTITY_PROFILES[p.identity_key] || IDENTITY_PROFILES.pansexual;
+    const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `**#${index + 1}**`;
+    const slay = p.slay_points || 0;
+    const heart = p.heart_points || 0;
+    const rebel = p.rebel_points || 0;
+    return `${medal} <@${p.user_id}> • ${PRISM_EMOJIS.trangtrig41} **${slay}** | ${PRISM_EMOJIS.heartg3} **${heart}** | ${PRISM_EMOJIS.trangtrig29} **${rebel}** *(${idProfile.name})*`;
+  });
+}
+
+/**
+ * 12. Xem Điểm & BXH (4 Bảng: Thần thái, Chân thành, Nổi loạn & BXH Tổng) (Ephemeral)
+ */
+export function buildPrismLeaderboardPayload(userRecord, leaderboardData = {}, userRank = null) {
   const profile = IDENTITY_PROFILES[userRecord?.identity_key] || IDENTITY_PROFILES.pansexual;
-  const userTotal =
-    (userRecord?.slay_points || 0) +
-    (userRecord?.heart_points || 0) +
-    (userRecord?.rebel_points || 0);
+
+  // Hỗ trợ cả object phân nhánh và mảng cũ (backward compatibility)
+  const isLegacyArray = Array.isArray(leaderboardData);
+  const topSlay = isLegacyArray ? [] : leaderboardData?.topSlay || [];
+  const topHeart = isLegacyArray ? [] : leaderboardData?.topHeart || [];
+  const topRebel = isLegacyArray ? [] : leaderboardData?.topRebel || [];
+  const topTotal = isLegacyArray ? leaderboardData : leaderboardData?.topTotal || [];
 
   const userLines = [
     `**Bản dạng của bạn:** ${profile.emoji} **${profile.name}**`,
     `${PRISM_EMOJIS.trangtrig41} Thần thái: **${userRecord?.slay_points || 0}** | ${PRISM_EMOJIS.heartg3} Chân thành: **${userRecord?.heart_points || 0}** | ${PRISM_EMOJIS.trangtrig29} Nổi loạn: **${userRecord?.rebel_points || 0}**`,
-    `=> **Tổng điểm:** **${userTotal}** (Hạng: **#${userRank || 'N/A'}**) | ${PRISM_EMOJIS.xucauvong} **${userRecord?.rainbow_coins || 0} Xu**`,
+    `=> **Hạng tổng:** **#${userRank || 'N/A'}** | ${PRISM_EMOJIS.xucauvong} **${userRecord?.rainbow_coins || 0} Xu Cầu Vồng**`,
   ];
 
-  const topLines =
-    topPlayers.length === 0
-      ? ['Chưa có người chơi nào trên bảng xếp hạng. Hãy là người đầu tiên bứt phá nhé!']
-      : topPlayers.map((p, index) => {
-          const idProfile = IDENTITY_PROFILES[p.identity_key] || IDENTITY_PROFILES.pansexual;
-          const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `**#${index + 1}**`;
-          return `${medal} <@${p.user_id}> • ${idProfile.emoji} **${p.total_points}** điểm *(${idProfile.name})*`;
-        });
+  const slayLines = formatSingleStatRanking(topSlay, 'slay_points', PRISM_EMOJIS.trangtrig41, 'Thần thái');
+  const heartLines = formatSingleStatRanking(topHeart, 'heart_points', PRISM_EMOJIS.heartg3, 'Chân thành');
+  const rebelLines = formatSingleStatRanking(topRebel, 'rebel_points', PRISM_EMOJIS.trangtrig29, 'Nổi loạn');
+  const totalLines = formatTotalRanking(topTotal);
 
   const container = new ContainerBuilder().setComponents(
     new TextDisplayBuilder(
@@ -1046,9 +1082,37 @@ export function buildPrismLeaderboardPayload(userRecord, topPlayers, userRank) {
     ),
     new TextDisplayBuilder(userLines),
     new SeparatorBuilder(true, 1),
-    new TextDisplayBuilder(['**TOP 10 NGƯỜI CHƠI XUẤT SẮC NHẤT:**', ...topLines]),
+    new TextDisplayBuilder(['# 1. BXH THẦN THÁI', ...slayLines]),
+    new SeparatorBuilder(true, 1),
+    new TextDisplayBuilder(['# 2. BXH CHÂN THÀNH', ...heartLines]),
+    new SeparatorBuilder(true, 1),
+    new TextDisplayBuilder(['# 3. BXH NỔI LOẠN', ...rebelLines]),
+    new SeparatorBuilder(true, 1),
+    new TextDisplayBuilder(['# 4. BXH TỔNG', ...totalLines]),
     new SeparatorBuilder(true, 1),
     new TextDisplayBuilder('-# Điểm tích lũy được tự động cập nhật qua các mini-game của Sắc Màu Định Mệnh.'),
+  );
+
+  return {
+    flags: IS_COMPONENTS_V2 | MessageFlags.Ephemeral,
+    components: [container.toJSON()],
+    allowedMentions: { parse: [] },
+  };
+}
+
+/**
+ * 13. Thông báo đạt giới hạn tham gia mini-game trong ngày (Ephemeral)
+ */
+export function buildPrismLimitNoticePayload(gameType, current = 0, max = 0) {
+  const gameName = PRISM_GAME_NAMES[gameType] || gameType;
+  const container = new ContainerBuilder().setComponents(
+    new TextDisplayBuilder(
+      `# ${PRISM_EMOJIS.trangtrig50} **GIỚI HẠN TRONG NGÀY** ${PRISM_EMOJIS.trangtrig51}`,
+    ),
+    new SeparatorBuilder(true, 1),
+    new TextDisplayBuilder(
+      `❌ Hôm nay bạn đã tham gia tối đa **${max}/${max}** lượt **${gameName}** rồi!\n\n-# Hãy quay lại vào ngày mai (sau 00:00) để tiếp tục hành trình và gom thêm điểm nhé!`,
+    ),
   );
 
   return {
