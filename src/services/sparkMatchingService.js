@@ -228,6 +228,7 @@ export async function createSparkMatch(guild, userAId, userBId, options = {}) {
     profileSnapshots: options.test ? { userA: null, userB: null } : { userA: a ? clone(a) : null, userB: b ? clone(b) : null },
     matchType: options.matchType || (options.requested ? 'specific_request' : 'admin'),
     status: 'invited',
+    inviteReady: false,
     createdAt: now,
     anonymousExpiresAt: now + SPARK_MATCHING_CONFIG.anonymousChatDurationMs,
     threadExpiresAt: null,
@@ -270,6 +271,12 @@ export async function createSparkMatch(guild, userAId, userBId, options = {}) {
     ));
     return { ok: false, code: 'DM_UNAVAILABLE' };
   }
+
+  match.inviteReady = true;
+  const latestMatches = await getSparkMatches(guild.id);
+  const matchIndex = latestMatches.findIndex((item) => item.matchId === match.matchId);
+  if (matchIndex >= 0) latestMatches[matchIndex] = match;
+  await write(SPARK_STORAGE_KEYS.matches(guild.id), latestMatches);
 
   return { ok: true, match };
 }
@@ -492,6 +499,7 @@ export async function respondSparkInvite(guild, matchId, userId, accepted) {
   const matches = await getSparkMatches(guild.id);
   const match = matches.find((item) => item.matchId === String(matchId));
   if (!match || match.status !== 'invited') return { ok: false, code: 'INVITE_EXPIRED' };
+  if (match.inviteReady === false) return { ok: false, code: 'INVITE_NOT_READY' };
   if (![match.userAId, match.userBId].includes(String(userId))) return { ok: false, code: 'NOT_PARTICIPANT' };
 
   match.inviteVotes = match.inviteVotes || {};
