@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, ChannelType, MessageFlags, PermissionFlagsBits } from 'discord.js';
 import {
   getSparkConfig, updateSparkConfig, getSparkProfiles, getSparkMatches,
-  createSparkMatch, isSparkAdmin, cancelSparkMatchByAdmin,
+  createSparkMatch, isSparkAdmin, cancelSparkMatchByAdmin, getSparkHistory,
 } from '../../services/sparkMatchingService.js';
 
 export default {
@@ -112,19 +112,17 @@ export default {
     }
     if (subcommand === 'details') {
       const matchId = interaction.options.getString('match-id');
-      const [matches, profiles] = await Promise.all([
+      const [matches, profiles, history] = await Promise.all([
         getSparkMatches(interaction.guildId),
         getSparkProfiles(interaction.guildId),
+        getSparkHistory(interaction.guildId),
       ]);
-      const match = matches.find((item) => item.matchId === matchId) || (await (async () => {
-        const history = await (await import('../../services/sparkMatchingService.js')).getSparkHistory(interaction.guildId);
-        return history.find((item) => item.matchId === matchId);
-      })());
+      const match = matches.find((item) => item.matchId === matchId) || history.find((item) => item.matchId === matchId);
       if (!match) return interaction.reply({ content: 'Không tìm thấy lượt ghép đôi này.', flags: MessageFlags.Ephemeral });
       const a = profiles.find((item) => item.userId === match.userAId);
       const b = profiles.find((item) => item.userId === match.userBId);
       const profileSummary = (profile) => profile
-        ? '**' + profile.usernameAtSubmission + '** · ' + (profile.data?.age || '?') + ' tuổi · ' + (profile.data?.gender || 'Chưa rõ') + ' · ' + (profile.data?.area || 'Chưa rõ khu vực') + '\\n' + (profile.data?.about || 'Không có phần giới thiệu')
+        ? '**' + profile.usernameAtSubmission + '** · ' + (profile.data?.age || '?') + ' tuổi · ' + (profile.data?.gender || 'Chưa rõ') + ' · ' + (profile.data?.area || 'Chưa rõ khu vực') + '\n' + (profile.data?.about || 'Không có phần giới thiệu')
         : 'Không có hồ sơ (có thể là yêu cầu cụ thể hoặc lượt test).';
       return interaction.reply({
         content: [
@@ -143,7 +141,7 @@ export default {
           profileSummary(b),
           '',
           '**GHI CHÚ ADMIN:** ' + (match.adminNotes || 'Chưa có ghi chú.'),
-        ].join('\\n'),
+        ].join('\n'),
         flags: MessageFlags.Ephemeral,
       });
     }
