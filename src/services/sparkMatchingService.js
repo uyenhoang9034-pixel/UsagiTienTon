@@ -559,14 +559,14 @@ export async function submitSparkRevealVote(guild, matchId, userId, agreed) {
     const result = await createSparkPublicThread(guild, match);
     if (!result.ok) return result;
     const { buildSparkThreadWelcomePayload } = await import('./sparkMatchingUI.js');
-    await result.thread.send(buildSparkThreadWelcomePayload(match, result.thread.url));
+    await result.thread.send(buildSparkThreadWelcomePayload(match, `https://discord.com/channels/${guild.id}/${result.thread.id}`));
     const [memberA, memberB] = await Promise.all([
       guild.members.fetch(match.userAId).catch(() => null),
       guild.members.fetch(match.userBId).catch(() => null),
     ]);
     const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = await import('discord.js');
     const threadLinkRow = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setLabel('Đến Thread').setStyle(ButtonStyle.Link).setURL(result.thread.url),
+      new ButtonBuilder().setLabel('Đến Thread').setStyle(ButtonStyle.Link).setURL(`https://discord.com/channels/${guild.id}/${result.thread.id}`),
     );
     await Promise.all([memberA, memberB].filter(Boolean).map((member) =>
       member.send({
