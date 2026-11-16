@@ -71,6 +71,7 @@ export default [
   {
     name: 'spark_profile_approve',
     async execute(interaction, client, args) {
+      if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền duyệt hồ sơ Spark Matching.');
       const profileId = args[0];
       const result = await reviewSparkProfile(interaction.guild, profileId, interaction.user.id, 'approve');
       if (!result.ok) return replyError(interaction, 'Hồ sơ này không còn ở trạng thái chờ duyệt.');
@@ -80,6 +81,7 @@ export default [
   {
     name: 'spark_profile_reject',
     async execute(interaction, client, args) {
+      if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền duyệt hồ sơ Spark Matching.');
       const modal = new ModalBuilder().setCustomId('spark_profile_reject:' + args[0]).setTitle('TỪ CHỐI HỒ SƠ SPARK')
         .addComponents(new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId('reason').setLabel('Lý do từ chối').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(500),
@@ -208,6 +210,7 @@ export default [
   {
     name: 'spark_request_approve',
     async execute(interaction, client, args) {
+      if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền duyệt hồ sơ Spark Matching.');
       const profileId = args[0];
       const { getSparkProfiles } = await import('../../services/sparkMatchingService.js');
       const profiles = await getSparkProfiles(interaction.guildId);
@@ -235,6 +238,7 @@ export default [
   {
     name: 'spark_profile_reject_retry',
     async execute(interaction, client, args) {
+      if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền duyệt hồ sơ Spark Matching.');
       const modal = new ModalBuilder().setCustomId('spark_profile_reject_retry:' + args[0]).setTitle('TỪ CHỐI HỒ SƠ')
         .addComponents(new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId('reason').setLabel('Lý do từ chối').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(500),
@@ -245,6 +249,7 @@ export default [
   {
     name: 'spark_profile_reject_final',
     async execute(interaction, client, args) {
+      if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền duyệt hồ sơ Spark Matching.');
       const modal = new ModalBuilder().setCustomId('spark_profile_reject_final:' + args[0]).setTitle('TỪ CHỐI HỒ SƠ')
         .addComponents(new ActionRowBuilder().addComponents(
           new TextInputBuilder().setCustomId('reason').setLabel('Lý do từ chối').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(500),
