@@ -5,7 +5,7 @@ import {
 import {
   beginSparkRegistration, reviewSparkProfile, closeSparkMatchAfterFeedback,
   respondSparkInvite, submitSparkRevealVote, submitSparkConnectionVote,
-  endSparkAnonymousChat, getSparkMatches,
+  endSparkAnonymousChat, getSparkMatches, submitSparkProfile, createSparkMatch,
 } from '../../services/sparkMatchingService.js';
 
 
@@ -179,6 +179,51 @@ export default [
       const result = await endSparkAnonymousChat(guild, matchId, interaction.user.id);
       if (!result.ok) return replyError(interaction, 'Cuộc trò chuyện này đã kết thúc hoặc không còn hợp lệ.');
       return interaction.reply({ content: 'Cupid đã kết thúc cuộc trò chuyện ẩn danh.', flags: MessageFlags.Ephemeral });
+    },
+  },
+
+
+  {
+    name: 'spark_register_submit',
+    async execute(interaction) {
+      const result = await submitSparkProfile(interaction.guild, interaction.user);
+      if (!result.ok) return replyError(interaction, 'Cupid chưa thể gửi hồ sơ: ' + result.code);
+      return interaction.update({ content: 'Cupid đã gửi hồ sơ của bạn đến khu vực xét duyệt riêng tư. Hãy kiên nhẫn chờ thông báo qua DM nhé! Bạn không thể tạo hồ sơ mới khi hồ sơ hiện tại còn hiệu lực.', components: [] });
+    },
+  },
+  {
+    name: 'spark_request_specific',
+    async execute(interaction) {
+      const modal = new ModalBuilder().setCustomId('spark_request_specific').setTitle('YÊU CẦU GHÉP ĐÔI CỤ THỂ')
+        .addComponents(new ActionRowBuilder().addComponents(
+          new TextInputBuilder().setCustomId('requestedUserId').setLabel('Discord User ID của người đó?').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(25),
+        ));
+      return interaction.showModal(modal);
+    },
+  },
+  {
+    name: 'spark_request_approve',
+    async execute(interaction, client, args) {
+      const profileId = args[0];
+      const { getSparkProfiles } = await import('../../services/sparkMatchingService.js');
+      const profiles = await getSparkProfiles(interaction.guildId);
+      const profile = profiles.find((item) => item.profileId === profileId && item.status === 'pending');
+      if (!profile || !profile.data?.requestedUserId) return replyError(interaction, 'Yêu cầu ghép đôi không còn hợp lệ.');
+      const approved = await reviewSparkProfile(interaction.guild, profileId, interaction.user.id, 'approve');
+      if (!approved.ok) return replyError(interaction, 'Không thể duyệt hồ sơ này.');
+      const result = await createSparkMatch(interaction.guild, profile.userId, profile.data.requestedUserId, {
+        requested: true,
+        matchType: 'specific_request',
+      });
+      if (!result.ok) {
+        const messages = {
+          USER_BUSY: 'Hồ sơ đã được duyệt, nhưng người được yêu cầu hiện đang có một lượt Spark Matching khác.',
+          MEMBER_NOT_FOUND: 'Hồ sơ đã được duyệt, nhưng không tìm thấy người được yêu cầu trong máy chủ.',
+          DM_UNAVAILABLE: 'Hồ sơ đã được duyệt, nhưng Cupid không thể gửi lời mời qua DM. Người được yêu cầu có thể đã tắt DM.',
+        };
+        return replyError(interaction, messages[result.code] || 'Hồ sơ đã duyệt nhưng chưa thể gửi lời mời.');
+      }
+      return interaction.reply({ content: 'Đã duyệt yêu cầu cụ thể và gửi lời mời DM đến thành viên được chỉ định. Thành viên đó vẫn cần tự đồng ý.', flags: MessageFlags.Ephemeral });
     },
   },
 
