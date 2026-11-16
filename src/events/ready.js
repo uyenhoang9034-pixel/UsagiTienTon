@@ -38,6 +38,11 @@ export default {
       logger.warn('Could not initialize Forum Store sync:', error);
     }
 
+    const sparkSweep = setInterval(() => {
+      expireSparkMatches(client).catch((error) => logger.warn('Spark Matching expiry sweep failed:', error));
+    }, 60 * 1000);
+    sparkSweep.unref?.();
+
     logger.info(
       isTTSEnabledByEnv()
         ? 'Usagi ready: Kết Hôn + Voice TTS + AI.'
