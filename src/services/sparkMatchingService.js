@@ -69,6 +69,9 @@ export async function beginSparkRegistration(guild, member) {
   if (existingProfile && ['pending', 'approved', 'matched'].includes(existingProfile.status)) {
     return { ok: false, code: 'PROFILE_EXISTS' };
   }
+  if (existingProfile?.status === 'rejected' && existingProfile.reapplyAllowed === false) {
+    return { ok: false, code: 'REAPPLY_BLOCKED' };
+  }
   if (activeMatch) return { ok: false, code: 'ACTIVE_MATCH' };
 
   const sessions = await read(SPARK_STORAGE_KEYS.sessions(guild.id), {});
@@ -158,7 +161,7 @@ export async function submitSparkProfile(guild, user) {
   return { ok: true, profile };
 }
 
-export async function reviewSparkProfile(guild, profileId, adminId, decision, reason = '') {
+export async function reviewSparkProfile(guild, profileId, adminId, decision, reason = '', options = {}) {
   const profiles = await getSparkProfiles(guild.id);
   const profile = profiles.find((item) => item.profileId === String(profileId));
   if (!profile || profile.status !== 'pending') return { ok: false, code: 'PROFILE_NOT_PENDING' };
@@ -167,6 +170,7 @@ export async function reviewSparkProfile(guild, profileId, adminId, decision, re
   profile.reviewedAt = Date.now();
   profile.reviewedBy = String(adminId);
   profile.rejectionReason = decision === 'reject' ? String(reason).slice(0, 500) : null;
+  profile.reapplyAllowed = decision === 'reject' ? options.reapplyAllowed !== false : null;
   await write(SPARK_STORAGE_KEYS.profiles(guild.id), profiles);
 
   const member = await guild.members.fetch(profile.userId).catch(() => null);
