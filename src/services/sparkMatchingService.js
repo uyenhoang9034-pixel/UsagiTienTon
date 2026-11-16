@@ -576,8 +576,8 @@ export async function handleSparkAnonymousMessage(message, client) {
 
     const attachmentLines = [...message.attachments.values()].map((attachment) => attachment.url);
     const safeText = String(message.content || '')
-      .replace(/<@!?\\d+>/g, '[mention]')
-      .replace(/<@&\\d+>/g, '[role mention]')
+      .replace(/<@!?\d+>/g, '[mention]')
+      .replace(/<@&\d+>/g, '[role mention]')
       .replace(/@everyone|@here/gi, '[everyone]');
     const content = [safeText.trim(), ...attachmentLines].filter(Boolean).join('\n');
     const { buildSparkIncomingMessagePayload } = await import('./sparkMatchingUI.js');
