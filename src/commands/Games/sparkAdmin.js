@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, ChannelType, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder, ChannelType, MessageFlags, PermissionFlagsBits } from 'discord.js';
 import {
   getSparkConfig, updateSparkConfig, getSparkProfiles, getSparkMatches,
   createSparkMatch, isSparkAdmin, cancelSparkMatchByAdmin,
@@ -43,6 +43,9 @@ export default {
       const female = interaction.options.getChannel('ho-so-nu');
       const feedback = interaction.options.getChannel('feedback');
       const thread = interaction.options.getChannel('thread');
+      const publicVisible = [male, female].filter((channel) =>
+        channel.permissionsFor(interaction.guild.roles.everyone)?.has(PermissionFlagsBits.ViewChannel)
+      );
       const config = await updateSparkConfig(interaction.guildId, {
         maleReviewChannelId: male.id,
         femaleReviewChannelId: female.id,
@@ -57,6 +60,7 @@ export default {
           '• Feedback: <#' + config.feedbackChannelId + '>',
           '• Thread riêng: <#' + config.threadParentChannelId + '>',
           'Tính năng vẫn đang tắt cho đến khi bạn dùng /spark-admin enable.',
+          ...(publicVisible.length ? ['⚠️ Cảnh báo: ' + publicVisible.map((channel) => '#' + channel.name).join(', ') + ' vẫn cho @everyone xem được. Hãy khóa quyền xem hai kênh hồ sơ để bảo vệ thông tin riêng tư.'] : ['Đã kiểm tra: @everyone không có quyền xem hai kênh hồ sơ.']),
         ].join('\n'),
         flags: MessageFlags.Ephemeral,
       });
