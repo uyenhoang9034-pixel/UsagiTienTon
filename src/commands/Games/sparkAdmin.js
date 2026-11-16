@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, ChannelType, MessageFlags, PermissionFlagsBits } from 'discord.js';
 import {
   getSparkConfig, updateSparkConfig, getSparkProfiles, getSparkMatches,
-  createSparkMatch, isSparkAdmin, cancelSparkMatchByAdmin, getSparkHistory,
+  createSparkMatch, isSparkAdmin, cancelSparkMatchByAdmin, getSparkHistory, setSparkAdminNote,
 } from '../../services/sparkMatchingService.js';
 
 export default {
@@ -19,6 +19,11 @@ export default {
     .addSubcommand((sub) => sub.setName('disable').setDescription('Tạm dừng đăng ký và ghép đôi'))
     .addSubcommand((sub) => sub.setName('status').setDescription('Xem trạng thái và thống kê SPARK MATCHING'))
     .addSubcommand((sub) => sub.setName('dashboard').setDescription('Mở bảng quản trị SPARK MATCHING'))
+    .addSubcommand((sub) => sub
+      .setName('note')
+      .setDescription('Thêm hoặc cập nhật ghi chú nội bộ cho một lượt ghép đôi')
+      .addStringOption((o) => o.setName('match-id').setDescription('Mã lượt ghép đôi').setRequired(true))
+      .addStringOption((o) => o.setName('ghi-chu').setDescription('Ghi chú chỉ admin xem được').setRequired(true)))
     .addSubcommand((sub) => sub
       .setName('details')
       .setDescription('Xem chi tiết một lượt ghép đôi và hai hồ sơ')
@@ -110,6 +115,16 @@ export default {
         flags: MessageFlags.Ephemeral,
       });
     }
+    if (subcommand === 'note') {
+      const matchId = interaction.options.getString('match-id');
+      const note = interaction.options.getString('ghi-chu');
+      const result = await setSparkAdminNote(interaction.guildId, matchId, interaction.user.id, note);
+      return interaction.reply({
+        content: result.ok ? 'Đã lưu ghi chú nội bộ cho ' + matchId + '.' : 'Không tìm thấy lượt ghép đôi này.',
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
     if (subcommand === 'details') {
       const matchId = interaction.options.getString('match-id');
       const [matches, profiles, history] = await Promise.all([
