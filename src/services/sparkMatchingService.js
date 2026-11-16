@@ -259,6 +259,7 @@ export async function createSparkMatch(guild, userAId, userBId, options = {}) {
   try {
     if (options.requested) {
       await memberB.send(buildSparkMatchInvitePayload(match, memberA.user));
+      await memberA.send('Cupid đã gửi lời mời đến người bạn yêu cầu. Bây giờ mình sẽ chờ phản hồi của bạn ấy nhé!').catch(() => {});
     } else {
       await Promise.all([
         memberA.send(buildSparkMatchInvitePayload(match, memberB.user)),
