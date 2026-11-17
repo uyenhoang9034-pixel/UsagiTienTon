@@ -4,6 +4,7 @@ import {
   createSparkMatch, isSparkAdmin, cancelSparkMatchByAdmin, getSparkHistory, setSparkAdminNote,
   deleteSparkHistory,
 } from '../../services/sparkMatchingService.js';
+import { SPARK_MATCHING_CONFIG } from '../../config/sparkMatchingConfig.js';
 
 export default {
   data: new SlashCommandBuilder()
@@ -57,7 +58,11 @@ export default {
       .addStringOption((o) => o
         .setName('match-id')
         .setDescription('Nhập mã match cụ thể muốn xóa (ví dụ: SM-0F1BE36D)')
-        .setRequired(false))),
+        .setRequired(false)))
+    .addSubcommand((sub) => sub
+      .setName('board-setup')
+      .setDescription('Đăng bài ghim SPARK BOARD lên diễn đàn (Forum)')
+      .addChannelOption((o) => o.setName('kenh-forum').setDescription('Kênh diễn đàn Forum').addChannelTypes(ChannelType.GuildForum).setRequired(false))),
   category: 'Games',
   async execute(interaction) {
     if (!isSparkAdmin(interaction.member)) {
@@ -88,6 +93,31 @@ export default {
           'Tính năng vẫn đang tắt cho đến khi bạn dùng /spark-admin enable.',
           ...(publicVisible.length ? ['⚠️ Cảnh báo: ' + publicVisible.map((channel) => '#' + channel.name).join(', ') + ' vẫn cho @everyone xem được. Hãy khóa quyền xem hai kênh hồ sơ để bảo vệ thông tin riêng tư.'] : ['Đã kiểm tra: @everyone không có quyền xem hai kênh hồ sơ.']),
         ].join('\n'),
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+    if (subcommand === 'board-setup') {
+      const channelOption = interaction.options.getChannel('kenh-forum');
+      const config = await getSparkConfig(interaction.guildId);
+      const targetChannelId = channelOption?.id || config.boardForumChannelId || SPARK_MATCHING_CONFIG.boardForumChannelId;
+      const forumChannel = await interaction.guild.channels.fetch(targetChannelId).catch(() => null);
+      if (!forumChannel || forumChannel.type !== ChannelType.GuildForum) {
+        return interaction.reply({
+          content: `<a:bang2:1546891483250954290> Không tìm thấy kênh diễn đàn Forum hợp lệ (ID: \`${targetChannelId}\`). Hãy kiểm tra quyền hoặc chọn đúng kênh diễn đàn nhé!`,
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      const { buildSparkBoardMainIntroPayload } = await import('../../services/sparkBoardUI.js');
+      const thread = await forumChannel.threads.create({
+        name: 'SPARK BOARD · BẢNG TIN TÌM SPARKMATE',
+        autoArchiveDuration: 10080,
+        message: buildSparkBoardMainIntroPayload(),
+        reason: `Đăng bài ghim Spark Board bởi ${interaction.user.tag}`,
+      });
+
+      return interaction.reply({
+        content: `✅ Đã đăng bài ghim SPARK BOARD lên diễn đàn thành công: <#${thread.id}>! Bạn có thể ghim bài viết này trên diễn đàn nhé.`,
         flags: MessageFlags.Ephemeral,
       });
     }

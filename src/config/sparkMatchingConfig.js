@@ -4,6 +4,9 @@ export const SPARK_MATCHING_CONFIG = Object.freeze({
   memberRoleId: '1571930353919328276',
   anonymousChatDurationMs: 24 * 60 * 60 * 1000,
   publicThreadDurationMs: 48 * 60 * 60 * 1000,
+  boardThreadDurationMs: 72 * 60 * 60 * 1000,
+  boardForumChannelId: '1572122687545802792',
+  boardReviewChannelId: '1572133653625053315',
   feedbackTimeoutMs: 24 * 60 * 60 * 1000,
   threadInfoUrl: 'https://discord.com/channels/1541279801183178754/1571931107002417386/1572122362214613096',
   profileIntroMaxLength: 1000,
@@ -11,6 +14,12 @@ export const SPARK_MATCHING_CONFIG = Object.freeze({
   adminRoleIds: ['1541303749916754001', '1545305594712432640'],
   title: '<a:trangtrig50:1567818385306165301> **SPARK MATCHING** <a:trangtrig51:1567818549794439229>',
   emojis: {
+    trangtrig50: '<a:trangtrig50:1567818385306165301>',
+    trangtrig51: '<a:trangtrig51:1567818549794439229>',
+    heartg8: '<a:heartg8:1567818755793358928>',
+    trangtrig30: '<a:trangtrig30:1546905942476464178>',
+    trangtrig49: '<a:trangtrig49:1567818140375851018>',
+    trangtrig33: '<a:trangtrig33:1546908181060526130>',
     bang2: '<a:bang2:1546891483250954290>',
   },
 });
@@ -23,6 +32,11 @@ export const SPARK_STORAGE_KEYS = Object.freeze({
   sessions: (guildId) => `spark:sessions:${guildId}`,
   feedbackCounter: (guildId) => `spark:feedback_counter:${guildId}`,
   feedbackSticky: (guildId) => `spark:feedback_sticky:${guildId}`,
+  boardCounter: (guildId) => `spark:board_counter:${guildId}`,
+  boardSubmissions: (guildId) => `spark:board_submissions:${guildId}`,
+  boardPosts: (guildId) => `spark:board_posts:${guildId}`,
+  boardDraft: (guildId, userId) => `spark:board_draft:${guildId}:${userId}`,
+  boardConnections: (guildId) => `spark:board_connections:${guildId}`,
 });
 
 export function getDefaultSparkGuildConfig() {
@@ -37,6 +51,9 @@ export function getDefaultSparkGuildConfig() {
     memberRoleId: SPARK_MATCHING_CONFIG.memberRoleId,
     anonymousChatDurationMs: SPARK_MATCHING_CONFIG.anonymousChatDurationMs,
     publicThreadDurationMs: SPARK_MATCHING_CONFIG.publicThreadDurationMs,
+    boardThreadDurationMs: SPARK_MATCHING_CONFIG.boardThreadDurationMs,
+    boardForumChannelId: SPARK_MATCHING_CONFIG.boardForumChannelId,
+    boardReviewChannelId: SPARK_MATCHING_CONFIG.boardReviewChannelId,
     feedbackTimeoutMs: SPARK_MATCHING_CONFIG.feedbackTimeoutMs,
     threadInfoUrl: SPARK_MATCHING_CONFIG.threadInfoUrl,
   };

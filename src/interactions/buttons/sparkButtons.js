@@ -9,6 +9,15 @@ import {
   getSparkProfiles, getSparkHistory, getSparkConfig, isSparkAdmin,
   getSparkAdminMatchSelection, updateSparkAdminMatchSelection,
 } from '../../services/sparkMatchingService.js';
+import {
+  getSparkBoardPosts,
+  getSparkBoardSubmissions,
+  getSparkBoardDraft,
+  approveSparkBoardSubmission,
+  requestSparkBoardConnection,
+  respondSparkBoardConnection,
+  deleteSparkBoardPost,
+} from '../../services/sparkBoardService.js';
 
 
 async function resolveGuildForMatch(client, matchId) {
@@ -45,6 +54,98 @@ function aboutRegistrationModal() {
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('relationshipHappy').setLabel('Điều gì khiến bạn vui trong một mối quan hệ?').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(600)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('traits').setLabel('Tính cách Sparkmate bạn mong muốn?').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(600)),
       new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('ageRange').setLabel('Độ tuổi Sparkmate mong muốn?').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100)),
+    );
+}
+
+function sparkBoardStep1Modal() {
+  return new ModalBuilder()
+    .setCustomId('spark_board_modal_step1')
+    .setTitle('HỒ SƠ SPARKMATE (BƯỚC 1/2)')
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('alias')
+          .setLabel('Biệt danh ẩn danh')
+          .setPlaceholder('Ví dụ: Mây Trắng, Gió Thu, Cà Phê Sữa...')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setMaxLength(50),
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('age')
+          .setLabel('Tuổi / Năm sinh cụ thể (điền chính xác)')
+          .setPlaceholder('Ví dụ: 22 tuổi (2004) - Vui lòng nhập số chính xác')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setMaxLength(50),
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('gender')
+          .setLabel('Giới tính của bạn')
+          .setPlaceholder('Ví dụ: Nam / Nữ / Phi nhị nguyên...')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setMaxLength(50),
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('seeking')
+          .setLabel('Đối tượng đang tìm kiếm')
+          .setPlaceholder('Ví dụ: Tìm Nam / Tìm Nữ / Không phân biệt...')
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setMaxLength(50),
+      ),
+    );
+}
+
+function sparkBoardStep2Modal(draft = {}) {
+  return new ModalBuilder()
+    .setCustomId('spark_board_modal_step2')
+    .setTitle('HỒ SƠ SPARKMATE (BƯỚC 2/2)')
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('about')
+          .setLabel('Đôi nét về bản thân')
+          .setPlaceholder('Tính cách, sở thích, công việc/học tập hoặc thói quen thường ngày...')
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+          .setMaxLength(1000)
+          .setValue(draft.about || ''),
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('relationship')
+          .setLabel('Điều trân trọng trong một mối quan hệ')
+          .setPlaceholder('Ví dụ: Sự chân thành, biết lắng nghe, tôn trọng không gian riêng...')
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+          .setMaxLength(1000)
+          .setValue(draft.relationship || ''),
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('ideal')
+          .setLabel('Hình mẫu Sparkmate lý tưởng của bạn')
+          .setPlaceholder('Một người có tính cách hay năng lượng như thế nào sẽ khiến bạn muốn mở lòng?')
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+          .setMaxLength(1000)
+          .setValue(draft.ideal || ''),
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('message')
+          .setLabel('Lời nhắn gửi / Câu hỏi mở (Tùy chọn)')
+          .setPlaceholder('Ví dụ: "Bài hát nào đang lặp lại trong playlist của bạn dạo này?"')
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(false)
+          .setMaxLength(500)
+          .setValue(draft.message || ''),
+      ),
     );
 }
 
@@ -443,6 +544,315 @@ export default [
 
       await updateSparkAdminMatchSelection(interaction.guildId, interaction.user.id, { maleId: null, femaleId: null });
       return interaction.editReply(buildSparkAdminMatchSuccessPayload(result.match.matchId)).catch(() => {});
+    },
+  },
+
+  // --- SPARK BOARD BUTTONS ---
+  {
+    name: 'spark_board_register',
+    async execute(interaction) {
+      const guildId = interaction.guildId;
+      const posts = await getSparkBoardPosts(guildId);
+      const activePost = posts.find((p) => String(p.userId) === String(interaction.user.id) && p.status === 'active');
+      if (activePost) {
+        return interaction.reply({
+          content: '<a:bang2:1546891483250954290> Bạn đã có một hồ sơ đang hiển thị trên Spark Board rồi nè! Bạn có thể quản lý hoặc gỡ bài cũ trước khi tạo hồ sơ mới nhé.',
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      const submissions = await getSparkBoardSubmissions(guildId);
+      const pending = submissions.find((s) => String(s.userId) === String(interaction.user.id) && s.status === 'pending');
+      if (pending) {
+        return interaction.reply({
+          content: '<a:bang2:1546891483250954290> Bạn đang có một hồ sơ đang chờ Cupid xét duyệt rồi nha! Hãy theo dõi thông báo qua DM nhé.',
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      return interaction.showModal(sparkBoardStep1Modal());
+    },
+  },
+  {
+    name: 'spark_board_step2',
+    async execute(interaction) {
+      const draft = await getSparkBoardDraft(interaction.guildId, interaction.user.id);
+      return interaction.showModal(sparkBoardStep2Modal(draft || {}));
+    },
+  },
+  {
+    name: 'spark_board_approve',
+    async execute(interaction, client, args) {
+      if (!isSparkAdmin(interaction.member)) {
+        return replyError(interaction, 'Bạn không có quyền duyệt hồ sơ Spark Board.');
+      }
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
+      const submissionId = args?.[0];
+      const result = await approveSparkBoardSubmission(interaction.guild, submissionId, interaction.user);
+      if (!result.ok) {
+        return interaction.editReply({ content: `Không thể duyệt hồ sơ: ${result.code}` }).catch(() => {});
+      }
+
+      try {
+        const originalEmbed = interaction.message.embeds?.[0];
+        if (originalEmbed) {
+          const { EmbedBuilder } = await import('discord.js');
+          const updatedEmbed = EmbedBuilder.from(originalEmbed)
+            .setColor('#2ecc71')
+            .setFooter({ text: `Đã duyệt bởi Cupid • ${interaction.user.tag}` });
+          await interaction.message.edit({ embeds: [updatedEmbed], components: [] }).catch(() => {});
+        }
+      } catch (err) {}
+
+      return interaction.editReply({
+        content: `✅ Đã duyệt và đăng tải hồ sơ #${result.post.code} lên Spark Board thành công: <#${result.thread.id}>!`,
+      }).catch(() => {});
+    },
+  },
+  {
+    name: 'spark_board_reject',
+    async execute(interaction, client, args) {
+      if (!isSparkAdmin(interaction.member)) {
+        return replyError(interaction, 'Bạn không có quyền từ chối hồ sơ Spark Board.');
+      }
+      const submissionId = args?.[0];
+      const modal = new ModalBuilder()
+        .setCustomId(`spark_board_modal_reject:${submissionId}`)
+        .setTitle('TỪ CHỐI HỒ SƠ SPARKMATE')
+        .addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('reason')
+              .setLabel('Lý do từ chối hồ sơ')
+              .setPlaceholder('Ví dụ: Thông tin năm sinh chưa rõ ràng / Nội dung giới thiệu quá ngắn...')
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(true)
+              .setMaxLength(500),
+          ),
+        );
+      return interaction.showModal(modal);
+    },
+  },
+  {
+    name: 'spark_board_comment',
+    async execute(interaction, client, args) {
+      const postId = args?.[0];
+      const modal = new ModalBuilder()
+        .setCustomId(`spark_board_modal_comment:${postId}`)
+        .setTitle('GỬI BÌNH LUẬN ẨN DANH')
+        .addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('alias')
+              .setLabel('Biệt danh hiển thị của bạn (Tùy chọn)')
+              .setPlaceholder('Ví dụ: Mèo Lười, Người qua đường, Cà Phê Đá...')
+              .setStyle(TextInputStyle.Short)
+              .setRequired(false)
+              .setMaxLength(50),
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('content')
+              .setLabel('Nội dung lời nhắn / bình luận')
+              .setPlaceholder('Nhập đôi dòng chia sẻ hoặc cảm nghĩ gửi tới chủ nhân hồ sơ...')
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(true)
+              .setMaxLength(1000),
+          ),
+        );
+      return interaction.showModal(modal);
+    },
+  },
+  {
+    name: 'spark_board_connect',
+    async execute(interaction, client, args) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
+      const postId = args?.[0];
+      const result = await requestSparkBoardConnection(interaction.guild, postId, interaction.member);
+      if (!result.ok) {
+        const errorMessages = {
+          CANNOT_CONNECT_SELF: 'Bạn không thể tự kết nối với chính hồ sơ của mình nha!',
+          ALREADY_REQUESTED: 'Bạn đã gửi tín hiệu kết nối đến hồ sơ này rồi, hãy kiên nhẫn chờ phản hồi qua DM nhé!',
+          POST_NOT_FOUND: 'Không tìm thấy hồ sơ Spark Board này.',
+          OWNER_NOT_FOUND: 'Cupid không tìm thấy chủ nhân của hồ sơ.',
+        };
+        return interaction.editReply({ content: errorMessages[result.code] || 'Không thể gửi yêu cầu kết nối.' }).catch(() => {});
+      }
+      return interaction.editReply({
+        content: 'Cupid đã gửi tín hiệu kết nối đến chủ nhân hồ sơ qua DM! Vui lòng kiên nhẫn chờ phản hồi nhé.',
+      }).catch(() => {});
+    },
+  },
+  {
+    name: 'spark_board_conn_yes',
+    async execute(interaction, client, args) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
+      const connectionId = args?.[0];
+      const guild = await resolveGuildForMatch(client, connectionId) || client.guilds.cache.get('1541279801183178754') || client.guilds.cache.first();
+      if (!guild) return interaction.editReply({ content: 'Không tìm thấy máy chủ.' }).catch(() => {});
+
+      const result = await respondSparkBoardConnection(guild, connectionId, interaction.user.id, true);
+      if (!result.ok) {
+        return interaction.editReply({ content: 'Yêu cầu kết nối này không còn hiệu lực hoặc đã được xử lý.' }).catch(() => {});
+      }
+
+      await interaction.editReply({
+        content: `Cupid đã tạo thread riêng tư (72 giờ) cho hai bạn: <#${result.thread.id}>! Chúc hai bạn có những cuộc trò chuyện thật vui vẻ và đồng điệu nhé.`,
+      }).catch(() => {});
+
+      try {
+        await interaction.message.edit({ components: [] }).catch(() => {});
+      } catch {}
+    },
+  },
+  {
+    name: 'spark_board_conn_no',
+    async execute(interaction, client, args) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
+      const connectionId = args?.[0];
+      const guild = await resolveGuildForMatch(client, connectionId) || client.guilds.cache.get('1541279801183178754') || client.guilds.cache.first();
+      if (!guild) return interaction.editReply({ content: 'Không tìm thấy máy chủ.' }).catch(() => {});
+
+      const result = await respondSparkBoardConnection(guild, connectionId, interaction.user.id, false);
+      if (!result.ok) {
+        return interaction.editReply({ content: 'Yêu cầu kết nối này không còn hiệu lực hoặc đã được xử lý.' }).catch(() => {});
+      }
+
+      await interaction.editReply({
+        content: 'Cupid đã ghi nhận lựa chọn của bạn và gửi lời từ chối nhẹ nhàng đến đối phương.',
+      }).catch(() => {});
+
+      try {
+        await interaction.message.edit({ components: [] }).catch(() => {});
+      } catch {}
+    },
+  },
+  {
+    name: 'spark_board_edit',
+    async execute(interaction, client, args) {
+      const postId = args?.[0];
+      const posts = await getSparkBoardPosts(interaction.guildId);
+      const post = posts.find((p) => p.id === String(postId));
+      if (!post) {
+        return interaction.reply({ content: 'Không tìm thấy hồ sơ Spark Board.', flags: MessageFlags.Ephemeral });
+      }
+
+      const isAdmin = isSparkAdmin(interaction.member);
+      if (String(post.userId) !== String(interaction.user.id) && !isAdmin) {
+        return interaction.reply({
+          content: '<a:bang2:1546891483250954290> Bạn không phải chủ nhân của bài viết này nên không thể chỉnh sửa nha!',
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      const modal = new ModalBuilder()
+        .setCustomId(`spark_board_modal_edit:${postId}`)
+        .setTitle('CHỈNH SỬA HỒ SƠ SPARKMATE')
+        .addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('alias')
+              .setLabel('Biệt danh ẩn danh')
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+              .setMaxLength(50)
+              .setValue(post.alias || ''),
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('about')
+              .setLabel('Đôi nét về bản thân')
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(true)
+              .setMaxLength(1000)
+              .setValue(post.about || ''),
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('relationship')
+              .setLabel('Điều trân trọng trong một mối quan hệ')
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(true)
+              .setMaxLength(1000)
+              .setValue(post.relationship || ''),
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('ideal')
+              .setLabel('Hình mẫu Sparkmate lý tưởng')
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(true)
+              .setMaxLength(1000)
+              .setValue(post.ideal || ''),
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId('message')
+              .setLabel('Lời nhắn gửi / Câu hỏi mở')
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(false)
+              .setMaxLength(500)
+              .setValue(post.message || ''),
+          ),
+        );
+      return interaction.showModal(modal);
+    },
+  },
+  {
+    name: 'spark_board_delete',
+    async execute(interaction, client, args) {
+      const postId = args?.[0];
+      const posts = await getSparkBoardPosts(interaction.guildId);
+      const post = posts.find((p) => p.id === String(postId));
+      if (!post) {
+        return interaction.reply({ content: 'Không tìm thấy hồ sơ Spark Board.', flags: MessageFlags.Ephemeral });
+      }
+
+      const isAdmin = isSparkAdmin(interaction.member);
+      if (String(post.userId) !== String(interaction.user.id) && !isAdmin) {
+        return interaction.reply({
+          content: '<a:bang2:1546891483250954290> Chỉ chủ nhân của bài đăng mới có thể gỡ bài viết này nha!',
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`spark_board_confirm_del:${postId}`)
+          .setLabel('Xác Nhận Gỡ Bài')
+          .setStyle(ButtonStyle.Danger),
+        new ButtonBuilder()
+          .setCustomId('spark_board_cancel_del')
+          .setLabel('Hủy')
+          .setStyle(ButtonStyle.Secondary),
+      );
+
+      return interaction.reply({
+        content: '<a:bang2:1546891483250954290> Bạn có chắc chắn muốn gỡ bài viết này khỏi Spark Board không? Thao tác này sẽ đóng và gỡ bài viết trên diễn đàn.',
+        components: [row],
+        flags: MessageFlags.Ephemeral,
+      });
+    },
+  },
+  {
+    name: 'spark_board_confirm_del',
+    async execute(interaction, client, args) {
+      await interaction.deferUpdate().catch(() => {});
+      const postId = args?.[0];
+      const result = await deleteSparkBoardPost(interaction.guild, postId, interaction.user.id);
+      if (!result.ok) {
+        return interaction.editReply({ content: 'Không thể gỡ bài viết.', components: [] }).catch(() => {});
+      }
+      return interaction.editReply({
+        content: '✅ Cupid đã gỡ bài đăng khỏi Spark Board thành công!',
+        components: [],
+      }).catch(() => {});
+    },
+  },
+  {
+    name: 'spark_board_cancel_del',
+    async execute(interaction) {
+      return interaction.update({ content: 'Đã hủy thao tác gỡ bài.', components: [] });
     },
   },
 
