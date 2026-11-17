@@ -95,9 +95,14 @@ export default [
   {
     name: 'spark_thread_close',
     async execute(interaction, client, args) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
       const matchId = args?.[0] || null;
+      const guild = interaction.guild || (interaction.guildId ? await client.guilds.fetch(interaction.guildId).catch(() => null) : null);
+      if (!guild) {
+        return interaction.editReply({ content: 'Không tìm thấy thông tin máy chủ.' }).catch(() => {});
+      }
       const result = await closeSparkMatchAfterFeedback(
-        interaction.guild,
+        guild,
         matchId,
         interaction.user.id,
         interaction.channelId,
@@ -110,76 +115,87 @@ export default [
         MATCH_NOT_FOUND: 'Không tìm thấy dữ liệu lượt ghép đôi của thread này.',
       };
       if (!result.ok && result.code === 'FEEDBACK_REQUIRED') {
-        return interaction.reply({ content: SPARK_FEEDBACK_REQUIRED, flags: MessageFlags.Ephemeral });
+        return interaction.editReply({ content: SPARK_FEEDBACK_REQUIRED }).catch(() => {});
       }
-      if (!result.ok) return replyError(interaction, messages[result.code] || 'Không thể đóng thread.');
-      return interaction.reply({
+      if (!result.ok) {
+        return interaction.editReply({ content: messages[result.code] || 'Không thể đóng thread.' }).catch(() => {});
+      }
+      return interaction.editReply({
         content: result.alreadyClosed
           ? 'Thread này đã được đóng và lưu trữ hoàn tất rồi nhé!'
           : 'Cupid đã đóng thread. Cảm ơn hai bạn đã tham gia Spark Matching!',
-        flags: MessageFlags.Ephemeral,
-      });
+      }).catch(() => {});
     },
   },
 
   {
     name: 'spark_invite_accept',
     async execute(interaction, client) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
       const matchId = interaction.customId.split(':')[1];
       const guild = await resolveGuildForMatch(client, matchId);
-      if (!guild) return replyError(interaction, 'Không tìm thấy lượt ghép đôi này.');
+      if (!guild) return interaction.editReply({ content: 'Không tìm thấy lượt ghép đôi này.' }).catch(() => {});
       const result = await respondSparkInvite(guild, matchId, interaction.user.id, true);
-      if (!result.ok) return replyError(interaction, result.code === 'INVITE_NOT_READY' ? 'Cupid vẫn đang chuẩn bị lời mời. Bạn thử nhấn lại sau một chút nhé!' : 'Lời mời này đã hết hạn hoặc không còn hợp lệ.');
-      return interaction.reply({ content: result.started ? 'Cả hai đã đồng ý! Cupid đã mở cuộc trò chuyện ẩn danh qua DM.' : 'Cupid đã ghi nhận câu trả lời. Đang chờ Sparkmate phản hồi nhé!', flags: MessageFlags.Ephemeral });
+      if (!result.ok) {
+        return interaction.editReply({ content: result.code === 'INVITE_NOT_READY' ? 'Cupid vẫn đang chuẩn bị lời mời. Bạn thử nhấn lại sau một chút nhé!' : 'Lời mời này đã hết hạn hoặc không còn hợp lệ.' }).catch(() => {});
+      }
+      return interaction.editReply({ content: result.started ? 'Cả hai đã đồng ý! Cupid đã mở cuộc trò chuyện ẩn danh qua DM.' : 'Cupid đã ghi nhận câu trả lời. Đang chờ Sparkmate phản hồi nhé!' }).catch(() => {});
     },
   },
   {
     name: 'spark_invite_decline',
     async execute(interaction, client) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
       const matchId = interaction.customId.split(':')[1];
       const guild = await resolveGuildForMatch(client, matchId);
-      if (!guild) return replyError(interaction, 'Không tìm thấy lượt ghép đôi này.');
+      if (!guild) return interaction.editReply({ content: 'Không tìm thấy lượt ghép đôi này.' }).catch(() => {});
       const result = await respondSparkInvite(guild, matchId, interaction.user.id, false);
-      if (!result.ok) return replyError(interaction, result.code === 'INVITE_NOT_READY' ? 'Cupid vẫn đang chuẩn bị lời mời. Bạn thử nhấn lại sau một chút nhé!' : 'Lời mời này đã hết hạn hoặc không còn hợp lệ.');
-      return interaction.reply({ content: 'Cupid đã ghi nhận lời từ chối. Cảm ơn bạn đã phản hồi nhé!', flags: MessageFlags.Ephemeral });
+      if (!result.ok) {
+        return interaction.editReply({ content: result.code === 'INVITE_NOT_READY' ? 'Cupid vẫn đang chuẩn bị lời mời. Bạn thử nhấn lại sau một chút nhé!' : 'Lời mời này đã hết hạn hoặc không còn hợp lệ.' }).catch(() => {});
+      }
+      return interaction.editReply({ content: 'Cupid đã ghi nhận lời từ chối. Cảm ơn bạn đã phản hồi nhé!' }).catch(() => {});
     },
   },
   {
     name: 'spark_reveal_yes',
     async execute(interaction, client) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
       const matchId = interaction.customId.split(':')[1];
       const guild = await resolveGuildForMatch(client, matchId);
-      if (!guild) return replyError(interaction, 'Không tìm thấy lượt ghép đôi này.');
+      if (!guild) return interaction.editReply({ content: 'Không tìm thấy lượt ghép đôi này.' }).catch(() => {});
       const result = await submitSparkRevealVote(guild, matchId, interaction.user.id, true);
-      if (!result.ok) return replyError(interaction, 'Yêu cầu công khai danh tính không còn hợp lệ.');
-      return interaction.reply({ content: result.thread ? 'Cả hai đã đồng ý! Cupid đã tạo thread riêng cho hai bạn.' : 'Cupid đã ghi nhận lựa chọn của bạn và đang chờ Sparkmate.', flags: MessageFlags.Ephemeral });
+      if (!result.ok) return interaction.editReply({ content: 'Yêu cầu công khai danh tính không còn hợp lệ.' }).catch(() => {});
+      return interaction.editReply({ content: result.thread ? 'Cả hai đã đồng ý! Cupid đã tạo thread riêng cho hai bạn.' : 'Cupid đã ghi nhận lựa chọn của bạn và đang chờ Sparkmate.' }).catch(() => {});
     },
   },
   {
     name: 'spark_reveal_no',
     async execute(interaction, client) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
       const matchId = interaction.customId.split(':')[1];
       const guild = await resolveGuildForMatch(client, matchId);
-      if (!guild) return replyError(interaction, 'Không tìm thấy lượt ghép đôi này.');
+      if (!guild) return interaction.editReply({ content: 'Không tìm thấy lượt ghép đôi này.' }).catch(() => {});
       const result = await submitSparkRevealVote(guild, matchId, interaction.user.id, false);
-      if (!result.ok) return replyError(interaction, 'Yêu cầu này không còn hợp lệ.');
-      return interaction.reply({ content: 'Cupid đã ghi nhận lựa chọn của bạn.', flags: MessageFlags.Ephemeral });
+      if (!result.ok) return interaction.editReply({ content: 'Yêu cầu này không còn hợp lệ.' }).catch(() => {});
+      return interaction.editReply({ content: 'Cupid đã ghi nhận lựa chọn của bạn.' }).catch(() => {});
     },
   },
   {
     name: 'spark_connection_yes',
     async execute(interaction) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
       const result = await submitSparkConnectionVote(interaction.guild, interaction.customId.split(':')[1], interaction.user.id, true);
-      if (!result.ok) return replyError(interaction, 'Lượt xác nhận kết nối không còn hợp lệ.');
-      return interaction.reply({ content: result.connected ? 'Cả hai đã đồng ý kết nối! Cupid đã gửi thông báo cuối cùng.' : 'Cupid đã ghi nhận lựa chọn của bạn và đang chờ Sparkmate.', flags: MessageFlags.Ephemeral });
+      if (!result.ok) return interaction.editReply({ content: 'Lượt xác nhận kết nối không còn hợp lệ.' }).catch(() => {});
+      return interaction.editReply({ content: result.connected ? 'Cả hai đã đồng ý kết nối! Cupid đã gửi thông báo cuối cùng.' : 'Cupid đã ghi nhận lựa chọn của bạn và đang chờ Sparkmate.' }).catch(() => {});
     },
   },
   {
     name: 'spark_connection_no',
     async execute(interaction) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
       const result = await submitSparkConnectionVote(interaction.guild, interaction.customId.split(':')[1], interaction.user.id, false);
-      if (!result.ok) return replyError(interaction, 'Lượt xác nhận kết nối không còn hợp lệ.');
-      return interaction.reply({ content: 'Cupid đã ghi nhận lựa chọn của bạn và gửi thông báo kết thúc.', flags: MessageFlags.Ephemeral });
+      if (!result.ok) return interaction.editReply({ content: 'Lượt xác nhận kết nối không còn hợp lệ.' }).catch(() => {});
+      return interaction.editReply({ content: 'Cupid đã ghi nhận lựa chọn của bạn và gửi thông báo kết thúc.' }).catch(() => {});
     },
   },
   {
