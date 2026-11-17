@@ -2,6 +2,7 @@ import { SlashCommandBuilder, ChannelType, MessageFlags, PermissionFlagsBits } f
 import {
   getSparkConfig, updateSparkConfig, getSparkProfiles, getSparkMatches,
   createSparkMatch, isSparkAdmin, cancelSparkMatchByAdmin, getSparkHistory, setSparkAdminNote,
+  deleteSparkHistory,
 } from '../../services/sparkMatchingService.js';
 
 export default {
@@ -40,7 +41,23 @@ export default {
       .setName('match')
       .setDescription('Ghép đôi hai hồ sơ đã được duyệt')
       .addUserOption((o) => o.setName('nguoi-thu-nhat').setDescription('Thành viên thứ nhất').setRequired(true))
-      .addUserOption((o) => o.setName('nguoi-thu-hai').setDescription('Thành viên thứ hai').setRequired(true))),
+      .addUserOption((o) => o.setName('nguoi-thu-hai').setDescription('Thành viên thứ hai').setRequired(true)))
+    .addSubcommand((sub) => sub
+      .setName('clear-history')
+      .setDescription('Xóa thủ công lịch sử các cặp test hoặc không thành công để dọn bộ nhớ')
+      .addStringOption((o) => o
+        .setName('loai')
+        .setDescription('Chọn phân loại lịch sử muốn xóa')
+        .setRequired(false)
+        .addChoices(
+          { name: 'Chỉ xóa các lượt TEST của admin', value: 'test_only' },
+          { name: 'Chỉ xóa các lượt KHÔNG THÀNH CÔNG / đã ngừng', value: 'failed_only' },
+          { name: 'Xóa TOÀN BỘ lịch sử đã đóng', value: 'all_closed' },
+        ))
+      .addStringOption((o) => o
+        .setName('match-id')
+        .setDescription('Nhập mã match cụ thể muốn xóa (ví dụ: SM-0F1BE36D)')
+        .setRequired(false))),
   category: 'Games',
   async execute(interaction) {
     if (!isSparkAdmin(interaction.member)) {
@@ -209,6 +226,41 @@ export default {
         return interaction.editReply(messages[result.code] || 'Không thể tạo lượt ghép đôi.');
       }
       return interaction.editReply('Cupid đã gửi lời mời ghép đôi ' + result.match.matchId + ' đến cả hai thành viên.');
+    }
+
+    if (subcommand === 'clear-history') {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const scope = interaction.options.getString('loai');
+      const matchId = interaction.options.getString('match-id');
+
+      if (!scope && !matchId) {
+        return interaction.editReply('Bạn vui lòng chọn phân loại lịch sử (`loai`) hoặc nhập mã match cụ thể (`match-id`) để xóa nhé.');
+      }
+
+      const result = await deleteSparkHistory(interaction.guildId, { scope, matchId });
+      if (!result.ok) {
+        if (result.code === 'MATCH_STILL_ACTIVE') {
+          return interaction.editReply('Lượt ghép đôi này đang hoạt động và chưa kết thúc. Nếu muốn hủy, bạn hãy dùng `/spark-admin cancel` trước nhé.');
+        }
+        if (result.code === 'MATCH_NOT_FOUND') {
+          return interaction.editReply('Không tìm thấy lượt ghép đôi với mã này trong lịch sử hoặc các lượt đã đóng.');
+        }
+        return interaction.editReply('Không thể xóa lịch sử: ' + (result.code || 'Lỗi không xác định'));
+      }
+
+      if (result.deletedCount === 0) {
+        return interaction.editReply('Không có lượt ghép đôi nào phù hợp với điều kiện để xóa.');
+      }
+
+      const label = matchId
+        ? `mã **${matchId.toUpperCase()}**`
+        : scope === 'test_only'
+          ? 'các lượt **TEST của admin**'
+          : scope === 'failed_only'
+            ? 'các lượt **không thành công / đã ngừng**'
+            : 'toàn bộ lịch sử đã đóng';
+
+      return interaction.editReply(`Đã dọn dẹp và xóa thành công **${result.deletedCount}** lượt ghép đôi (${label}) khỏi lịch sử và bộ nhớ Spark Matching!`);
     }
   },
 };

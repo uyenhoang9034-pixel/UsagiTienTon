@@ -720,3 +720,71 @@ export async function setSparkAdminNote(guildId, matchId, adminId, note) {
   }
   return { ok: false, code: 'MATCH_NOT_FOUND' };
 }
+
+export async function deleteSparkHistory(guildId, options = {}) {
+  const { matchId, scope } = options;
+  const history = await getSparkHistory(guildId);
+  const matches = await getSparkMatches(guildId);
+
+  const targetIds = new Set();
+
+  if (matchId) {
+    const cleanId = String(matchId).trim().toUpperCase();
+    const foundInHistory = history.some((item) => String(item.matchId).toUpperCase() === cleanId);
+    const foundInClosedMatches = matches.some((item) => String(item.matchId).toUpperCase() === cleanId && item.status === 'closed');
+    const isActive = matches.some((item) => String(item.matchId).toUpperCase() === cleanId && item.status !== 'closed');
+
+    if (isActive) {
+      return { ok: false, code: 'MATCH_STILL_ACTIVE' };
+    }
+    if (!foundInHistory && !foundInClosedMatches) {
+      return { ok: false, code: 'MATCH_NOT_FOUND' };
+    }
+    targetIds.add(cleanId);
+  } else if (scope === 'test_only') {
+    for (const item of history) {
+      if (item.test === true || item.matchType === 'admin_test') {
+        if (item.matchId) targetIds.add(String(item.matchId).toUpperCase());
+      }
+    }
+    for (const item of matches) {
+      if ((item.test === true || item.matchType === 'admin_test') && item.status === 'closed') {
+        if (item.matchId) targetIds.add(String(item.matchId).toUpperCase());
+      }
+    }
+  } else if (scope === 'failed_only') {
+    for (const item of history) {
+      if (item.endedReason !== 'connection_accepted') {
+        if (item.matchId) targetIds.add(String(item.matchId).toUpperCase());
+      }
+    }
+    for (const item of matches) {
+      if (item.status === 'closed' && item.endedReason !== 'connection_accepted') {
+        if (item.matchId) targetIds.add(String(item.matchId).toUpperCase());
+      }
+    }
+  } else if (scope === 'all_closed') {
+    for (const item of history) {
+      if (item.matchId) targetIds.add(String(item.matchId).toUpperCase());
+    }
+    for (const item of matches) {
+      if (item.status === 'closed') {
+        if (item.matchId) targetIds.add(String(item.matchId).toUpperCase());
+      }
+    }
+  } else {
+    return { ok: false, code: 'INVALID_OPTIONS' };
+  }
+
+  if (targetIds.size === 0) {
+    return { ok: true, deletedCount: 0, deletedIds: [] };
+  }
+
+  const newHistory = history.filter((item) => !targetIds.has(String(item.matchId).toUpperCase()));
+  const newMatches = matches.filter((item) => !(targetIds.has(String(item.matchId).toUpperCase()) && item.status === 'closed'));
+
+  await write(SPARK_STORAGE_KEYS.history(guildId), newHistory);
+  await write(SPARK_STORAGE_KEYS.matches(guildId), newMatches);
+
+  return { ok: true, deletedCount: targetIds.size, deletedIds: Array.from(targetIds) };
+}

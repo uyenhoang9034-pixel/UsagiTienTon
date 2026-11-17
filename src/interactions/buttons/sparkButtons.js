@@ -310,7 +310,31 @@ export default [
       const body = history.length
         ? history.map((match) => '• **' + match.matchId + '** · <@' + match.userAId + '> × <@' + match.userBId + '> · ' + (match.matchType || 'admin') + ' · ' + (match.endedReason || 'closed')).join('\n')
         : 'Chưa có lịch sử ghép đôi.';
-      return interaction.reply({ content: '**LỊCH SỬ SPARK MATCHING**\n' + body, flags: MessageFlags.Ephemeral });
+      const components = [];
+      const hasTests = history.some((item) => item.test === true || item.matchType === 'admin_test');
+      if (hasTests) {
+        components.push(new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId('spark_admin_clear_test_history').setLabel('Dọn Lịch Sử Test').setStyle(ButtonStyle.Danger)
+        ));
+      }
+      return interaction.reply({
+        content: '**LỊCH SỬ SPARK MATCHING**\n' + body + '\n\n💡 *Dùng lệnh `/spark-admin clear-history` để xóa thủ công theo mã hoặc dọn các lượt không thành công.*',
+        components,
+        flags: MessageFlags.Ephemeral,
+      });
+    },
+  },
+  {
+    name: 'spark_admin_clear_test_history',
+    async execute(interaction) {
+      if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền quản trị Spark Matching.');
+      await interaction.deferUpdate().catch(() => {});
+      const { deleteSparkHistory } = await import('../../services/sparkMatchingService.js');
+      const result = await deleteSparkHistory(interaction.guildId, { scope: 'test_only' });
+      return interaction.editReply({
+        content: `Đã dọn dẹp thành công **${result.deletedCount || 0}** lượt test khỏi lịch sử và bộ nhớ Spark Matching!\n\n💡 *Dùng lệnh `/spark-admin clear-history` để lọc xóa thêm các lượt thất bại khác.*`,
+        components: [],
+      });
     },
   },
   {
