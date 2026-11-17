@@ -190,8 +190,8 @@ export function buildSparkBoardApprovedDm(post, threadId, threadUrl = null) {
     text(`${emojis.trangtrig50} **HỒ SƠ SPARKMATE CỦA BẠN ĐÃ LÊN SÓNG!** ${emojis.trangtrig51}`),
     divider(),
     text(
-      `Chúc mừng "${post.alias}", Cupid đã duyệt và đăng tải hồ sơ ẩn danh của bạn lên Spark Board với mã số #${post.code}, đồng thời cấp role <@&${SPARK_MATCHING_CONFIG.memberRoleId}>.\n\n` +
-      `${emojis.heartg8} Xem bài đăng của bạn tại: <#${threadId}>\n\n` +
+      `Chúc mừng "${post.alias}", Cupid đã duyệt và đăng tải hồ sơ ẩn danh của bạn lên Spark Board với mã số #${post.code}, đồng thời cấp role **Sparked**.\n\n` +
+      `${emojis.heartg8} Xem bài đăng của bạn tại: Spark Board (nhấn nút Xem Bài Đăng bên dưới nhé!)\n\n` +
       `${emojis.trangtrig49} Lưu ý nhỏ: Khi có người bình luận ẩn danh hoặc bấm nút Kết Nối trên bài viết của bạn, Cupid sẽ nhắn tin thông báo ngay tại đây. Chúc bạn sớm tìm được tần số đồng điệu của riêng mình!`
     ),
   ];
@@ -228,8 +228,7 @@ export function buildSparkBoardCommentNotificationDm(post, threadId, threadUrl) 
     divider(),
     text(
       `Một thành viên vừa ghé thăm và để lại bình luận ẩn danh vào bài đăng hồ sơ #${post.code} của bạn trên Spark Board.\n\n` +
-      `${emojis.heartg8} Xem bài đăng của bạn tại: <#${threadId}>\n` +
-      `${emojis.trangtrig49} Bạn có thể bấm nút bên dưới để chuyển thẳng đến bài viết và gửi lời phản hồi nhé!`
+      `${emojis.heartg8} Bạn có thể nhấn nút **Xem Bài Đăng** bên dưới để chuyển thẳng đến bài viết và gửi lời phản hồi nhé!`
     ),
     row.toJSON(),
   );

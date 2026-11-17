@@ -370,18 +370,50 @@ export async function closeSparkMatchAfterFeedback(guild, matchId, userId, chann
     return { ok: false, code: 'NOT_WAITING_FEEDBACK' };
   }
 
+  const targetThreadId = match.threadId || channelId;
+  const thread = targetThreadId ? await guild.channels.fetch(targetThreadId).catch(() => null) : null;
+
   const isAdmin = member ? isSparkAdmin(member) : false;
-  const isParticipant = [match.userAId, match.userBId].map(String).includes(String(userId));
+  let isParticipant = [match.userAId, match.userBId].map(String).includes(String(userId));
+  if (!isParticipant && thread?.isThread?.()) {
+    isParticipant =
+      Boolean(thread.members?.cache?.has?.(String(userId))) ||
+      Boolean(await thread.members?.fetch?.(String(userId)).catch(() => null));
+  }
   if (!isParticipant && !isAdmin) {
     return { ok: false, code: 'NOT_PARTICIPANT' };
+  }
+
+  // Nếu record chưa có feedback, kiểm tra live tại kênh showroom feedback
+  if ((!match.feedbackBy || match.feedbackBy.length === 0) && !isAdmin) {
+    const config = await getSparkConfig(guild.id);
+    const feedbackChannelId = config.feedbackChannelId || SPARK_MATCHING_CONFIG.feedbackChannelId;
+    if (feedbackChannelId) {
+      const feedbackChannel = await guild.channels.fetch(feedbackChannelId).catch(() => null);
+      if (feedbackChannel?.isTextBased?.()) {
+        const recentMessages = await feedbackChannel.messages.fetch({ limit: 50 }).catch(() => null);
+        if (recentMessages?.values) {
+          const participantIds = [match.userAId, match.userBId, userId].filter(Boolean).map(String);
+          for (const msg of recentMessages.values()) {
+            if (participantIds.includes(String(msg.author?.id))) {
+              if (classifySparkFeedbackMessage(msg.content) === 'valid') {
+                if (!Array.isArray(match.feedbackBy)) match.feedbackBy = [];
+                if (!match.feedbackBy.includes(String(msg.author.id))) {
+                  match.feedbackBy.push(String(msg.author.id));
+                }
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   if (!match.feedbackBy?.length && !isAdmin) {
     return { ok: false, code: 'FEEDBACK_REQUIRED' };
   }
 
-  const targetThreadId = match.threadId || channelId;
-  const thread = targetThreadId ? await guild.channels.fetch(targetThreadId).catch(() => null) : null;
   if (thread?.isThread?.()) {
     setTimeout(async () => {
       await thread.delete('Đã nhận feedback Spark Matching và xóa thread.').catch(() => {});
@@ -797,14 +829,14 @@ export async function handleSparkFeedbackMessage(message, client) {
   }
 
   const matches = await getSparkMatches(message.guild.id);
-  const pendingMatches = matches.filter((item) =>
-    item.status === 'feedback_pending' &&
+  const activeUserMatches = matches.filter((item) =>
+    ['feedback_pending', 'thread', 'connection_pending'].includes(item.status) &&
     [item.userAId, item.userBId].map(String).includes(String(message.author.id))
   );
 
   const isAdmin = isSparkAdmin(message.member);
 
-  if (pendingMatches.length === 0 && !isAdmin) {
+  if (activeUserMatches.length === 0 && !isAdmin) {
     await replyAndAutoDeleteSparkMessage(
       message,
       '<a:bang2:1546891483250954290> Xin lỗi, bạn hiện không có lượt ghép đôi nào đang chờ feedback. Mình sẽ tự động xóa tin nhắn sau 5 giây!',
@@ -833,15 +865,15 @@ export async function handleSparkFeedbackMessage(message, client) {
     logger.warn('[SparkMatching] Không thể làm mới sticky feedback:', err?.message || err);
   });
 
-  // 3. Ghi nhận feedback vào tất cả các match đang chờ feedback của thành viên này
-  for (const activeMatch of pendingMatches) {
+  // 3. Ghi nhận feedback vào tất cả các match đang hoạt động / chờ feedback của thành viên này
+  for (const activeMatch of activeUserMatches) {
     if (!Array.isArray(activeMatch.feedbackBy)) activeMatch.feedbackBy = [];
     if (!activeMatch.feedbackBy.includes(String(message.author.id))) {
       activeMatch.feedbackBy.push(String(message.author.id));
       activeMatch.feedbackMessageIds = [...(activeMatch.feedbackMessageIds || []), message.id];
     }
   }
-  if (pendingMatches.length > 0) {
+  if (activeUserMatches.length > 0) {
     await write(SPARK_STORAGE_KEYS.matches(message.guild.id), matches);
   }
 
