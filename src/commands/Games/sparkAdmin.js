@@ -191,7 +191,7 @@ export default {
         };
         return interaction.editReply(messages[result.code] || 'Không thể tạo lượt test.');
       }
-      return interaction.editReply('Đã tạo lượt test ' + result.match.matchId + '. Người được chọn vẫn phải tự đồng ý lời mời; dữ liệu test được đánh dấu riêng và không yêu cầu hồ sơ đã duyệt.');
+      return interaction.editReply('Đã tạo lượt test ' + result.match.matchId + '. Chế độ test tự động rút ngắn: chat ẩn danh 1 phút và thread 2 phút để test nhanh luồng!');
     }
 
     if (subcommand === 'match') {

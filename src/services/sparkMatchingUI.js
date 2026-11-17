@@ -56,8 +56,8 @@ export function buildSparkStartPayload() {
       '3. Chờ Cupid xét duyệt hồ sơ. Sau khi được duyệt, Cupid mở khung trò chuyện ẩn danh để hai bên nhẹ nhàng tìm hiểu về nhau. Thời gian tìm hiểu tối đa 24 giờ. Sau đó các bạn sẽ đưa ra quyết định công khai danh tính hoặc kết thúc ghép đôi.\n' +
       '4. Nếu hợp ý muốn tiếp tục và đã thông qua sự xác nhận của cả hai bên, Cupid sẽ tạo thread riêng tư cho hai bạn thoải mái trò chuyện - tâm tình - chia sẻ -  tỉ tê thật nhiều điều.\n' +
       '5. Thời gian trò chuyện ở thread riêng tư của cặp đôi tối đa 48 giờ. Sau đó Cupid sẽ gửi khung xác nhận kết nối.\n' +
-      '- Nếu đồng ý, Cupid sẽ chờ feedback, đóng thread và các bạn có thể trực tiếp addfriend discord của nhau để tiếp tục câu chuyện của riêng mình.\n' +
-      '- Nếu từ chối, Cupid sẽ chờ feedback, đóng thread, kết thúc ghép đôi và gửi lời chúc đến cả hai, mong các bạn tìm được bến đỗ riêng phù hợp, làm tròn nghĩa vụ của một Cupid thực thụ!'
+      '> - Nếu đồng ý, Cupid sẽ chờ feedback, đóng thread và các bạn có thể trực tiếp addfriend discord của nhau để tiếp tục câu chuyện của riêng mình.\n' +
+      '> - Nếu từ chối, Cupid sẽ chờ feedback, đóng thread, kết thúc ghép đôi và gửi lời chúc đến cả hai, mong các bạn tìm được bến đỗ riêng phù hợp, làm tròn nghĩa vụ của một Cupid thực thụ!'
     ),
     text(
       '<a:trangtrig49:1567818140375851018> Nếu bạn gửi yêu cầu ghép đôi với một Sparkmate cụ thể, đối phương vẫn có quyền từ chối lời mời. Hãy đảm bảo rằng bạn đã bật nhận tin nhắn riêng từ bot để không bỏ lỡ thông báo nhé!'
@@ -168,7 +168,7 @@ export function buildSparkAnonymousChatPayload(match) {
     text(SPARK_MATCHING_CONFIG.title),
     divider(),
     text('Hai bạn đã đồng ý bắt đầu trò chuyện ẩn danh! Hãy nhắn tin trực tiếp cho Cupid qua DM; Cupid sẽ chuyển tiếp tin nhắn mà không tiết lộ danh tính người gửi.'),
-    text('Thời gian trò chuyện ẩn danh tối đa là 24 giờ.'),
+    text(match?.test ? 'Thời gian trò chuyện ẩn danh (Chế độ TEST) tối đa là 1 phút.' : 'Thời gian trò chuyện ẩn danh tối đa là 24 giờ.'),
     row.toJSON(),
   );
 }

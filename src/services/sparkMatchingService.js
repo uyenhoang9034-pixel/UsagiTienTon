@@ -231,7 +231,7 @@ export async function createSparkMatch(guild, userAId, userBId, options = {}) {
     status: 'invited',
     inviteReady: false,
     createdAt: now,
-    anonymousExpiresAt: now + SPARK_MATCHING_CONFIG.anonymousChatDurationMs,
+    anonymousExpiresAt: now + (options.test ? 60 * 1000 : SPARK_MATCHING_CONFIG.anonymousChatDurationMs),
     threadExpiresAt: null,
     inviteVotes: options.requested ? { [String(userAId)]: true } : {},
     revealVotes: {},
@@ -368,7 +368,7 @@ export async function createSparkPublicThread(guild, match) {
   }
   match.threadId = thread.id;
   match.status = 'thread';
-  match.threadExpiresAt = Date.now() + config.publicThreadDurationMs;
+  match.threadExpiresAt = Date.now() + (match.test ? 2 * 60 * 1000 : config.publicThreadDurationMs);
   const matches = await getSparkMatches(guild.id);
   const index = matches.findIndex((item) => item.matchId === match.matchId);
   if (index >= 0) matches[index] = match;
@@ -519,7 +519,7 @@ export async function respondSparkInvite(guild, matchId, userId, accepted) {
     match.status = 'anonymous';
     match.anonymousStartedAt = Date.now();
     const config = await getSparkConfig(guild.id);
-    match.anonymousExpiresAt = Date.now() + config.anonymousChatDurationMs;
+    match.anonymousExpiresAt = Date.now() + (match.test ? 60 * 1000 : config.anonymousChatDurationMs);
     const all = await getSparkMatches(guild.id);
     const index = all.findIndex((item) => item.matchId === match.matchId);
     if (index >= 0) all[index] = match;
