@@ -19,6 +19,17 @@ export default {
         flags: MessageFlags.Ephemeral,
       });
     }
-    return interaction.reply(buildSparkStartPayload(interaction.client));
+    if (!interaction.channel?.isTextBased?.() || typeof interaction.channel.send !== 'function') {
+      return interaction.reply({
+        content: '<a:bang2:1546891483250954290> Không thể gửi tin nhắn vào kênh này.',
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
+    await interaction.channel.send(buildSparkStartPayload());
+    return interaction.reply({
+      content: '✅ Đã gửi bảng đăng ký SPARK MATCHING tách lẻ vào kênh thành công!',
+      flags: MessageFlags.Ephemeral,
+    });
   },
 };
