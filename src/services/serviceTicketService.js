@@ -1804,7 +1804,7 @@ const DIGIT_SOURCE_ID_TO_CHAR = Object.freeze({
 const GUILD_DIGIT_EMOJI_CACHE_TTL_MS = 5 * 60 * 1000;
 const guildDigitEmojiCache = new Map();
 
-function extractCustomEmojiId(emojiValue) {
+export function extractCustomEmojiId(emojiValue) {
   const match = String(emojiValue || '').match(/^<a?:[^:>]+:(\d+)>$/);
   return match ? match[1] : String(emojiValue || '');
 }
@@ -1989,7 +1989,7 @@ export async function nextFeedbackLegitNumber(client, guildId) {
   return task;
 }
 
-function damerauLevenshtein(a, b) {
+export function damerauLevenshtein(a, b) {
   const s = String(a || '');
   const t = String(b || '');
   const m = s.length;

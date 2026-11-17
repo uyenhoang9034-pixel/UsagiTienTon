@@ -154,7 +154,7 @@ export async function buildSparkFinalPayload(match) {
     text(endingText),
     text('**Trước khi khép lại hành trình, đừng quên gửi feedback cho bé Cupid nhé!** Những chia sẻ của hai bạn sẽ giúp Cupid cải thiện Spark Matching tốt hơn.'),
     divider(),
-    text('Chỉ cần một trong hai người gửi feedback tại kênh được liên kết, cả hai sẽ có thể đóng thread.'),
+    text('Chỉ cần một trong hai người gửi feedback theo cú pháp `+1 sparked` tại kênh được liên kết, cả hai sẽ có thể đóng thread.'),
     row.toJSON(),
   );
 }
@@ -336,4 +336,17 @@ export function buildSparkThreadWelcomePayload(match, threadUrl) {
     ).toJSON());
   }
   return container(...components);
+}
+
+export const SPARK_FEEDBACK_STICKY_MARKER = 'Cảm ơn bạn đã feedback cho showroom Spark Matching!';
+
+export function buildSparkFeedbackStickyPayloadV2() {
+  return container(
+    text(
+      [
+        '<a:heartg7:1567818322718761100> Cảm ơn bạn đã feedback cho showroom Spark Matching!',
+        '<a:heartg7:1567818322718761100> Xin vui lòng gửi tin nhắn feedback theo cú pháp: +1 sparked',
+      ].join('\n'),
+    ),
+  );
 }

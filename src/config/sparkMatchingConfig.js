@@ -19,6 +19,8 @@ export const SPARK_STORAGE_KEYS = Object.freeze({
   matches: (guildId) => `spark:matches:${guildId}`,
   history: (guildId) => `spark:history:${guildId}`,
   sessions: (guildId) => `spark:sessions:${guildId}`,
+  feedbackCounter: (guildId) => `spark:feedback_counter:${guildId}`,
+  feedbackSticky: (guildId) => `spark:feedback_sticky:${guildId}`,
 });
 
 export function getDefaultSparkGuildConfig() {

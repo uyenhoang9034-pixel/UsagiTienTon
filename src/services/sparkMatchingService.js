@@ -1,11 +1,23 @@
 import { db } from '../utils/database/wrapper.js';
 import { PermissionFlagsBits } from 'discord.js';
 import { randomUUID } from 'node:crypto';
+import { logger } from '../utils/logger.js';
 import {
   SPARK_MATCHING_CONFIG,
   SPARK_STORAGE_KEYS,
   getDefaultSparkGuildConfig,
 } from '../config/sparkMatchingConfig.js';
+import {
+  FEEDBACK_DIGIT_EMOJIS,
+  FEEDBACK_DIGIT_EMOJIS_ALT,
+  extractCustomEmojiId,
+  resolveGuildDigitEmojiMap,
+  damerauLevenshtein,
+} from './serviceTicketService.js';
+import {
+  SPARK_FEEDBACK_STICKY_MARKER,
+  buildSparkFeedbackStickyPayloadV2,
+} from './sparkMatchingUI.js';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
@@ -445,27 +457,311 @@ export async function endSparkMatchFromThread(guild, threadId, userId) {
   return finishSparkMatch(guild, match.matchId, 'early', userId);
 }
 
-export async function handleSparkFeedbackMessage(message) {
-  if (!message.guild || message.author?.bot) return false;
-  if (!String(message.content || '').trim() && !message.attachments?.size) return false;
+const sparkFeedbackCounterQueues = new Map();
+const sparkStickyQueues = new Map();
+const sparkStickyMessageIds = new Map();
+
+export async function nextSparkFeedbackNumber(guildId) {
+  const gid = String(guildId || 'unknown');
+  const prev = sparkFeedbackCounterQueues.get(gid) || Promise.resolve();
+
+  const task = prev.then(async () => {
+    const key = SPARK_STORAGE_KEYS.feedbackCounter(gid);
+    const current = Number(await read(key, 0)) || 0;
+    const next = current + 1;
+    await write(key, next);
+    return next;
+  });
+
+  sparkFeedbackCounterQueues.set(
+    gid,
+    task.catch(() => {}).finally(() => {
+      if (sparkFeedbackCounterQueues.get(gid) === task) {
+        sparkFeedbackCounterQueues.delete(gid);
+      }
+    }),
+  );
+
+  return task;
+}
+
+export function buildSparkFeedbackReactionSequence(feedbackNumber, digitEmojiMap = null) {
+  const SPARK_FEEDBACK_REACT = '<a:heartg8:1567818755793358928>';
+  const sequence = [SPARK_FEEDBACK_REACT];
+  const usedIds = new Set(sequence.map(extractCustomEmojiId));
+  const digits = String(Math.max(1, Number(feedbackNumber) || 1));
+
+  for (const ch of digits) {
+    const candidates = [];
+    const pushCandidate = (emoji) => {
+      if (!emoji) return;
+      const candidateId = extractCustomEmojiId(emoji);
+      if (!candidates.some((item) => extractCustomEmojiId(item) === candidateId)) {
+        candidates.push(emoji);
+      }
+    };
+
+    pushCandidate(FEEDBACK_DIGIT_EMOJIS[ch]);
+    pushCandidate(FEEDBACK_DIGIT_EMOJIS_ALT[ch]);
+
+    const extra = Array.isArray(digitEmojiMap?.[ch])
+      ? digitEmojiMap[ch]
+      : digitEmojiMap?.[ch]
+        ? [digitEmojiMap[ch]]
+        : [];
+    for (const item of extra) {
+      pushCandidate(item);
+    }
+
+    const picked = candidates.find((emoji) => emoji && !usedIds.has(extractCustomEmojiId(emoji)));
+    if (picked) {
+      sequence.push(picked);
+      usedIds.add(extractCustomEmojiId(picked));
+    }
+  }
+
+  return sequence;
+}
+
+export function isSparkedWordTypoOrPartial(rawToken) {
+  const token = String(rawToken || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+  if (!token || token === 'sparked') return false;
+  if (token.length < 2 || token.length > 12) return false;
+
+  if ('sparked'.startsWith(token) || ['spk', 'sprk', 'spraked', 'sparck'].includes(token)) {
+    return true;
+  }
+
+  if (token.length >= 4 && damerauLevenshtein(token, 'sparked') <= 2) {
+    return true;
+  }
+
+  return false;
+}
+
+export function classifySparkFeedbackMessage(rawContent) {
+  const content = String(rawContent || '')
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  if (!content) return 'ignore';
+
+  if (/(?:^|\s)\+1\s*sparked(?=$|[\s\W])/i.test(content)) {
+    return 'valid';
+  }
+
+  const candidateRegex = /(?:^|\s)(\++\s*1?|[=-]\s*1|1)\s*([a-z0-9]+)(?=$|[\s\W])/gi;
+  let match;
+  while ((match = candidateRegex.exec(content)) !== null) {
+    const exactPlusOne = match[1] === '+1';
+    const token = match[2];
+
+    if (exactPlusOne) {
+      if (isSparkedWordTypoOrPartial(token)) {
+        return 'invalid_syntax';
+      }
+      continue;
+    }
+
+    if (token === 'sparked' || token === 'spark' || (token.length >= 4 && damerauLevenshtein(token, 'sparked') <= 2)) {
+      return 'invalid_syntax';
+    }
+  }
+
+  return 'ignore';
+}
+
+export async function refreshSparkFeedbackStickyMessage(channel, client) {
+  if (!channel || !channel.guild || typeof channel.send !== 'function') {
+    return null;
+  }
+
+  const guildId = channel.guild.id;
+  const queueKey = `${guildId}:${channel.id}`;
+  const prev = sparkStickyQueues.get(queueKey) || Promise.resolve();
+
+  const task = prev.then(async () => {
+    const oldMessageIds = new Set();
+
+    const cachedId = sparkStickyMessageIds.get(channel.id);
+    if (cachedId) {
+      oldMessageIds.add(String(cachedId));
+    }
+
+    const storageKey = SPARK_STORAGE_KEYS.feedbackSticky(guildId);
+    const dbSavedId = await read(storageKey, null);
+    if (dbSavedId) {
+      oldMessageIds.add(String(dbSavedId));
+    }
+
+    if (typeof channel.messages?.fetch === 'function') {
+      const recent = await channel.messages.fetch({ limit: 20 }).catch(() => null);
+      if (recent?.values) {
+        const botId = client?.user?.id || channel.client?.user?.id;
+        for (const msg of recent.values()) {
+          if (botId && String(msg.author?.id) !== String(botId)) {
+            continue;
+          }
+          let serialized = '';
+          try {
+            serialized = `${msg.content || ''}\n${JSON.stringify(msg.components ?? [])}`;
+          } catch {
+            serialized = String(msg.content || '');
+          }
+          if (serialized.includes(SPARK_FEEDBACK_STICKY_MARKER)) {
+            oldMessageIds.add(String(msg.id));
+          }
+        }
+      }
+    }
+
+    const sentMsg = await channel.send(buildSparkFeedbackStickyPayloadV2()).catch((err) => {
+      logger.warn('[SparkMatching] Không thể gửi sticky feedback:', err?.message || err);
+      return null;
+    });
+
+    if (sentMsg?.id) {
+      sparkStickyMessageIds.set(channel.id, sentMsg.id);
+      await write(storageKey, sentMsg.id).catch(() => {});
+    }
+
+    for (const oldId of oldMessageIds) {
+      if (sentMsg?.id && String(oldId) === String(sentMsg.id)) {
+        continue;
+      }
+      if (typeof channel.messages?.delete === 'function') {
+        await channel.messages.delete(oldId).catch(() => {});
+      }
+    }
+
+    return sentMsg;
+  });
+
+  sparkStickyQueues.set(
+    queueKey,
+    task.catch(() => {}).finally(() => {
+      if (sparkStickyQueues.get(queueKey) === task) {
+        sparkStickyQueues.delete(queueKey);
+      }
+    }),
+  );
+
+  return task;
+}
+
+async function replyAndAutoDeleteSparkMessage(message, replyText, delayMs = 5000) {
+  let replyMsg = null;
+  try {
+    if (typeof message.reply === 'function') {
+      replyMsg = await message.reply({
+        content: replyText,
+        allowedMentions: { repliedUser: true },
+      });
+    } else if (typeof message.channel?.send === 'function') {
+      replyMsg = await message.channel.send({
+        content: replyText,
+        ...(message.id ? { reply: { messageReference: message.id } } : {}),
+        allowedMentions: { repliedUser: true },
+      });
+    }
+  } catch (replyErr) {
+    logger.warn('[SparkMatching] Không thể reply cảnh báo feedback:', replyErr?.message || replyErr);
+  }
+
+  const targetMessage = message;
+  const targetReply = replyMsg;
+
+  const cleanupTimer = setTimeout(async () => {
+    if (typeof targetMessage?.delete === 'function') {
+      await targetMessage.delete().catch(() => {});
+    } else if (targetMessage?.id && typeof targetMessage.channel?.messages?.delete === 'function') {
+      await targetMessage.channel.messages.delete(targetMessage.id).catch(() => {});
+    }
+
+    if (typeof targetReply?.delete === 'function') {
+      await targetReply.delete().catch(() => {});
+    } else if (targetReply?.id && typeof targetMessage?.channel?.messages?.delete === 'function') {
+      await targetMessage.channel.messages.delete(targetReply.id).catch(() => {});
+    }
+  }, delayMs);
+
+  cleanupTimer.unref?.();
+}
+
+export async function handleSparkFeedbackMessage(message, client) {
+  if (!message?.guild || message.author?.bot) return false;
+  const content = String(message.content || '').trim();
+  if (!content) return false;
+
   const config = await getSparkConfig(message.guild.id);
   if (String(message.channelId) !== String(config.feedbackChannelId)) return false;
 
+  const classification = classifySparkFeedbackMessage(content);
+  if (classification === 'ignore') {
+    return false;
+  }
+
+  if (classification === 'invalid_syntax') {
+    await replyAndAutoDeleteSparkMessage(
+      message,
+      '<a:bang2:1546891483250954290> Bạn ơi chưa đúng cú pháp nè, bạn vui lòng nhắn theo mẫu `+1 sparked` để bot dễ xử lý nhé!',
+      5000,
+    );
+    return true;
+  }
+
   const matches = await getSparkMatches(message.guild.id);
-  const match = matches.find((item) =>
+  const activeMatch = matches.find((item) =>
     item.status === 'feedback_pending' &&
     [item.userAId, item.userBId].includes(String(message.author.id))
   );
-  if (!match) return false;
 
-  if (!Array.isArray(match.feedbackBy)) match.feedbackBy = [];
-  if (!match.feedbackBy.includes(String(message.author.id))) {
-    match.feedbackBy.push(String(message.author.id));
-    match.feedbackMessageIds = [...(match.feedbackMessageIds || []), message.id];
-    await write(SPARK_STORAGE_KEYS.matches(message.guild.id), matches);
+  const isAdmin = isSparkAdmin(message.member);
+
+  if (!activeMatch && !isAdmin) {
+    await replyAndAutoDeleteSparkMessage(
+      message,
+      '<a:bang2:1546891483250954290> Xin lỗi, bạn hiện không có lượt ghép đôi nào đang chờ feedback. Mình sẽ tự động xóa tin nhắn sau 5 giây!',
+      5000,
+    );
+    return true;
   }
 
-  await message.reply('Cupid đã nhận feedback của bạn rồi nè! Bây giờ một trong hai bạn có thể quay lại thread và nhấn **Đóng Thread** nhé.').catch(() => {});
+  // 1. Tăng bộ đếm và thả emoji react
+  const sparkNumber = await nextSparkFeedbackNumber(message.guild.id);
+  const botClient = client || message.client;
+  const digitEmojiMap = await resolveGuildDigitEmojiMap(message.guild, botClient).catch(() => null);
+  const reactionSequence = buildSparkFeedbackReactionSequence(sparkNumber, digitEmojiMap);
+
+  for (const emoji of reactionSequence) {
+    await message.react(emoji).catch((err) => {
+      logger.warn('[SparkMatching] Không thể auto react feedback:', {
+        emoji,
+        error: err?.message || err,
+      });
+    });
+  }
+
+  // 2. Làm mới sticky message Components V2
+  await refreshSparkFeedbackStickyMessage(message.channel, botClient).catch((err) => {
+    logger.warn('[SparkMatching] Không thể làm mới sticky feedback:', err?.message || err);
+  });
+
+  // 3. Ghi nhận feedback vào match nếu có (không gửi thêm tin nhắn xác nhận vào thread)
+  if (activeMatch) {
+    if (!Array.isArray(activeMatch.feedbackBy)) activeMatch.feedbackBy = [];
+    if (!activeMatch.feedbackBy.includes(String(message.author.id))) {
+      activeMatch.feedbackBy.push(String(message.author.id));
+      activeMatch.feedbackMessageIds = [...(activeMatch.feedbackMessageIds || []), message.id];
+      await write(SPARK_STORAGE_KEYS.matches(message.guild.id), matches);
+    }
+  }
+
   return true;
 }
 
