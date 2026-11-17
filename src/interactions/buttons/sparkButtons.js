@@ -110,20 +110,20 @@ export default [
       );
       const messages = {
         FEEDBACK_REQUIRED: SPARK_FEEDBACK_REQUIRED,
-        NOT_PARTICIPANT: 'Chỉ hai thành viên trong cặp đôi hoặc Admin mới có thể đóng thread này.',
-        NOT_WAITING_FEEDBACK: 'Lượt ghép đôi này hiện không ở trạng thái chờ đóng feedback.',
+        NOT_PARTICIPANT: 'Chỉ hai thành viên trong cặp đôi hoặc Admin mới có thể xóa thread này.',
+        NOT_WAITING_FEEDBACK: 'Lượt ghép đôi này hiện không ở trạng thái chờ xóa.',
         MATCH_NOT_FOUND: 'Không tìm thấy dữ liệu lượt ghép đôi của thread này.',
       };
       if (!result.ok && result.code === 'FEEDBACK_REQUIRED') {
         return interaction.editReply({ content: SPARK_FEEDBACK_REQUIRED }).catch(() => {});
       }
       if (!result.ok) {
-        return interaction.editReply({ content: messages[result.code] || 'Không thể đóng thread.' }).catch(() => {});
+        return interaction.editReply({ content: messages[result.code] || 'Không thể xóa thread.' }).catch(() => {});
       }
       return interaction.editReply({
         content: result.alreadyClosed
-          ? 'Thread này đã được đóng và lưu trữ hoàn tất rồi nhé!'
-          : 'Cupid đã đóng thread. Cảm ơn hai bạn đã tham gia Spark Matching!',
+          ? 'Thread này đã được xóa hoàn tất rồi nhé!'
+          : 'Cupid đã tiếp nhận yêu cầu và đang xóa thread. Cảm ơn hai bạn đã tham gia Spark Matching!',
       }).catch(() => {});
     },
   },
@@ -448,4 +448,4 @@ export default [
 
 ];
 
-const SPARK_FEEDBACK_REQUIRED = '<a:bang2:1546891483250954290> Bạn ơi quên feedback cho bé Cupid rồi kìaaa huhu... Feedback giùm bé nha rồi mới đóng thread được nè!!!!';
+const SPARK_FEEDBACK_REQUIRED = '<a:bang2:1546891483250954290> Bạn ơi quên feedback cho bé Cupid rồi kìaaa huhu... Feedback giùm bé nha rồi mới xóa thread được nè!!!!';

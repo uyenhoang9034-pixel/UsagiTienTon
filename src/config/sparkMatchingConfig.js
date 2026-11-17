@@ -4,6 +4,7 @@ export const SPARK_MATCHING_CONFIG = Object.freeze({
   memberRoleId: '1571930353919328276',
   anonymousChatDurationMs: 24 * 60 * 60 * 1000,
   publicThreadDurationMs: 48 * 60 * 60 * 1000,
+  feedbackTimeoutMs: 24 * 60 * 60 * 1000,
   profileIntroMaxLength: 1000,
   shortAnswerMaxLength: 600,
   adminRoleIds: ['1541303749916754001', '1545305594712432640'],
@@ -35,5 +36,6 @@ export function getDefaultSparkGuildConfig() {
     memberRoleId: SPARK_MATCHING_CONFIG.memberRoleId,
     anonymousChatDurationMs: SPARK_MATCHING_CONFIG.anonymousChatDurationMs,
     publicThreadDurationMs: SPARK_MATCHING_CONFIG.publicThreadDurationMs,
+    feedbackTimeoutMs: SPARK_MATCHING_CONFIG.feedbackTimeoutMs,
   };
 }

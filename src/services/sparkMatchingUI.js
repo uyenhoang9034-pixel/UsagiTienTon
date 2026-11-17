@@ -138,7 +138,7 @@ export async function buildSparkFinalPayload(match) {
   const feedbackUrl = `https://discord.com/channels/${match.guildId}/${config.feedbackChannelId || SPARK_MATCHING_CONFIG.feedbackChannelId}`;
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setLabel('Gửi Feedback').setStyle(ButtonStyle.Link).setURL(feedbackUrl),
-    button(`spark_thread_close:${match.matchId}`, 'Đóng Thread'),
+    button(`spark_thread_close:${match.matchId}`, 'Xóa Thread', ButtonStyle.Danger),
   );
   const isEarly = match.endedReason === 'early';
   const endingText = isEarly
@@ -154,7 +154,7 @@ export async function buildSparkFinalPayload(match) {
     text(endingText),
     text('**Trước khi khép lại hành trình, đừng quên gửi feedback cho bé Cupid nhé!** Những chia sẻ của hai bạn sẽ giúp Cupid cải thiện Spark Matching tốt hơn.'),
     divider(),
-    text('Chỉ cần một trong hai người gửi feedback theo cú pháp `+1 sparked` tại kênh được liên kết, cả hai sẽ có thể đóng thread.'),
+    text('Chỉ cần một trong hai người gửi feedback theo cú pháp `+1 sparked` tại kênh được liên kết, cả hai sẽ có thể xóa thread.'),
     row.toJSON(),
   );
 }

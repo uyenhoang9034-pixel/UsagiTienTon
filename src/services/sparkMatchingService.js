@@ -311,10 +311,14 @@ export async function finishSparkMatch(guild, matchId, reason, endedBy = null) {
   const match = matches.find((item) => item.matchId === String(matchId));
   if (!match || match.status === 'closed') return { ok: false, code: 'MATCH_NOT_FOUND' };
 
+  const config = await getSparkConfig(guild.id);
+  const feedbackTimeoutMs = config.feedbackTimeoutMs || SPARK_MATCHING_CONFIG.feedbackTimeoutMs;
+
   match.status = 'feedback_pending';
   match.endedReason = reason;
   match.endedBy = endedBy ? String(endedBy) : null;
   match.endedAt = Date.now();
+  match.feedbackExpiresAt = Date.now() + (match.test ? 60 * 1000 : feedbackTimeoutMs);
   const lockThread = ['early', 'admin_cancel'].includes(reason);
   match.chatLocked = lockThread;
   await write(SPARK_STORAGE_KEYS.matches(guild.id), matches);
@@ -323,7 +327,7 @@ export async function finishSparkMatch(guild, matchId, reason, endedBy = null) {
   const thread = match.threadId ? await guild.channels.fetch(match.threadId).catch(() => null) : null;
   if (thread?.isTextBased()) await thread.send(await buildSparkFinalPayload(match));
   if (lockThread && thread?.isThread?.()) {
-    await thread.setLocked(true, 'Spark Matching kết thúc sớm; chờ feedback và thao tác đóng thread.');
+    await thread.setLocked(true, 'Spark Matching kết thúc sớm; chờ feedback và thao tác xóa thread.');
   }
   return { ok: true, match };
 }
@@ -348,13 +352,14 @@ export async function closeSparkMatchAfterFeedback(guild, matchId, userId, chann
       : (channelId ? history.find((item) => String(item.threadId) === String(channelId)) : null);
   }
 
-  // Nếu match đã được đóng trước đó hoặc đã nằm trong history, vẫn đảm bảo khóa và lưu trữ thread cho người dùng
+  // Nếu match đã được đóng trước đó hoặc đã nằm trong history, vẫn đảm bảo xóa thread cho người dùng
   if (match?.status === 'closed' || histMatch) {
     const targetThreadId = match?.threadId || histMatch?.threadId || channelId;
     const thread = targetThreadId ? await guild.channels.fetch(targetThreadId).catch(() => null) : null;
     if (thread?.isThread?.()) {
-      await thread.setLocked(true, 'Đã đóng thread Spark Matching.').catch(() => {});
-      await thread.setArchived(true, 'Đã đóng thread Spark Matching.').catch(() => {});
+      setTimeout(async () => {
+        await thread.delete('Đã xóa thread Spark Matching.').catch(() => {});
+      }, 1200);
     }
     return { ok: true, alreadyClosed: true };
   }
@@ -378,8 +383,9 @@ export async function closeSparkMatchAfterFeedback(guild, matchId, userId, chann
   const targetThreadId = match.threadId || channelId;
   const thread = targetThreadId ? await guild.channels.fetch(targetThreadId).catch(() => null) : null;
   if (thread?.isThread?.()) {
-    await thread.setLocked(true, 'Đã nhận feedback Spark Matching và đóng thread.').catch(() => {});
-    await thread.setArchived(true, 'Đã nhận feedback Spark Matching và đóng thread.').catch(() => {});
+    setTimeout(async () => {
+      await thread.delete('Đã nhận feedback Spark Matching và xóa thread.').catch(() => {});
+    }, 1200);
   }
 
   match.status = 'closed';
@@ -432,7 +438,43 @@ export async function expireSparkMatches(client) {
   for (const guild of client.guilds.cache.values()) {
     const matches = await getSparkMatches(guild.id);
     for (const match of matches) {
-      if (['closed', 'feedback_pending', 'connection_pending', 'reveal_pending'].includes(match.status)) continue;
+      if (['closed', 'connection_pending', 'reveal_pending'].includes(match.status)) continue;
+
+      if (match.status === 'feedback_pending') {
+        const config = await getSparkConfig(guild.id);
+        const timeoutMs = config.feedbackTimeoutMs || SPARK_MATCHING_CONFIG.feedbackTimeoutMs;
+        const expiry = match.feedbackExpiresAt || ((match.endedAt || 0) + timeoutMs);
+        if (!expiry || expiry > Date.now()) continue;
+
+        const guildFresh = await client.guilds.fetch(guild.id).catch(() => null);
+        if (!guildFresh) continue;
+
+        if (match.threadId) {
+          const thread = await guildFresh.channels.fetch(match.threadId).catch(() => null);
+          if (thread?.isThread?.()) {
+            await thread.delete('Quá thời hạn gửi feedback (24h), tự động xóa thread Spark Matching.').catch(() => {});
+          }
+        }
+
+        match.status = 'closed';
+        match.closedAt = Date.now();
+        match.endedReason = 'feedback_timeout';
+
+        await unlockSparkProfiles(guild.id, match.matchId);
+
+        const all = await getSparkMatches(guild.id);
+        const idx = all.findIndex((item) => item.matchId === match.matchId);
+        if (idx >= 0) all[idx] = match;
+        await write(SPARK_STORAGE_KEYS.matches(guild.id), all);
+
+        const history = await getSparkHistory(guild.id);
+        if (!history.some((item) => item.matchId === match.matchId)) {
+          history.push(clone(match));
+          await write(SPARK_STORAGE_KEYS.history(guild.id), history);
+        }
+        continue;
+      }
+
       const expiry = match.status === 'thread' ? match.threadExpiresAt : match.anonymousExpiresAt;
       if (!expiry || expiry > Date.now()) continue;
       const guildFresh = await client.guilds.fetch(guild.id).catch(() => null);
