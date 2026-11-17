@@ -11,8 +11,10 @@ import {
 } from '../../services/sparkMatchingService.js';
 import {
   getSparkBoardPosts,
+  saveSparkBoardPosts,
   getSparkBoardSubmissions,
   getSparkBoardDraft,
+  clearSparkBoardDraft,
   approveSparkBoardSubmission,
   requestSparkBoardConnection,
   respondSparkBoardConnection,
@@ -555,10 +557,21 @@ export default [
       const posts = await getSparkBoardPosts(guildId);
       const activePost = posts.find((p) => String(p.userId) === String(interaction.user.id) && p.status === 'active');
       if (activePost) {
-        return interaction.reply({
-          content: '<a:bang2:1546891483250954290> Bạn đã có một hồ sơ đang hiển thị trên Spark Board rồi nè! Bạn có thể quản lý hoặc gỡ bài cũ trước khi tạo hồ sơ mới nhé.',
-          flags: MessageFlags.Ephemeral,
-        });
+        // Kiểm tra xem thread diễn đàn của bài viết có thực sự còn tồn tại trên server không
+        const forumThread = activePost.threadId
+          ? await interaction.guild.channels.fetch(activePost.threadId).catch(() => null)
+          : null;
+        if (!forumThread) {
+          activePost.status = 'deleted';
+          activePost.deletedAt = Date.now();
+          activePost.deletedReason = 'thread_not_found';
+          await saveSparkBoardPosts(guildId, posts);
+        } else {
+          return interaction.reply({
+            content: '<a:bang2:1546891483250954290> Bạn đã có một hồ sơ đang hiển thị trên Spark Board rồi nè! Bạn có thể quản lý hoặc gỡ bài cũ trước khi tạo hồ sơ mới nhé.',
+            flags: MessageFlags.Ephemeral,
+          });
+        }
       }
 
       const submissions = await getSparkBoardSubmissions(guildId);
@@ -569,6 +582,9 @@ export default [
           flags: MessageFlags.Ephemeral,
         });
       }
+
+      // Xóa draft cũ nếu có để người dùng nhập mới
+      await clearSparkBoardDraft(guildId, interaction.user.id).catch(() => {});
 
       return interaction.showModal(sparkBoardStep1Modal());
     },
@@ -669,6 +685,7 @@ export default [
         const errorMessages = {
           CANNOT_CONNECT_SELF: 'Bạn không thể tự kết nối với chính hồ sơ của mình nha!',
           ALREADY_REQUESTED: 'Bạn đã gửi tín hiệu kết nối đến hồ sơ này rồi, hãy kiên nhẫn chờ phản hồi qua DM nhé!',
+          ALREADY_ACTIVE_MATCH: 'Bạn và chủ nhân hồ sơ hiện đang có một không gian trò chuyện riêng tư đang mở rồi nhé!',
           POST_NOT_FOUND: 'Không tìm thấy hồ sơ Spark Board này.',
           OWNER_NOT_FOUND: 'Cupid không tìm thấy chủ nhân của hồ sơ.',
         };
@@ -692,8 +709,14 @@ export default [
         return interaction.editReply({ content: 'Yêu cầu kết nối này không còn hiệu lực hoặc đã được xử lý.' }).catch(() => {});
       }
 
+      const threadUrl = `https://discord.com/channels/${guild.id}/${result.thread.id}`;
+      const linkRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setLabel('Đến Thread').setStyle(ButtonStyle.Link).setURL(threadUrl),
+      );
+
       await interaction.editReply({
-        content: `Cupid đã tạo thread riêng tư (72 giờ) cho hai bạn: <#${result.thread.id}>! Chúc hai bạn có những cuộc trò chuyện thật vui vẻ và đồng điệu nhé.`,
+        content: `Cupid đã tạo thread riêng tư (72 giờ) cho hai bạn! Hãy bấm nút bên dưới để tham gia trò chuyện nhé.`,
+        components: [linkRow],
       }).catch(() => {});
 
       try {
@@ -840,7 +863,7 @@ export default [
         return interaction.editReply({ content: 'Không thể gỡ bài viết.', components: [] }).catch(() => {});
       }
       return interaction.editReply({
-        content: '✅ Cupid đã gỡ bài đăng khỏi Spark Board thành công!',
+        content: '✅ Cupid đã gỡ bài đăng khỏi Spark Board thành công! Bạn có thể bấm nút **Gửi Hồ Sơ Ẩn Danh** trên bảng tin để đăng hồ sơ mới bất cứ lúc nào nhé.',
         components: [],
       }).catch(() => {});
     },

@@ -94,7 +94,17 @@ export async function submitSparkBoardProfile(guild, member, fullData) {
     (p) => String(p.userId) === String(member.id) && p.status === 'active'
   );
   if (existingActivePost) {
-    return { ok: false, code: 'ALREADY_HAS_ACTIVE_POST', post: existingActivePost };
+    const forumThread = existingActivePost.threadId
+      ? await guild.channels.fetch(existingActivePost.threadId).catch(() => null)
+      : null;
+    if (!forumThread) {
+      existingActivePost.status = 'deleted';
+      existingActivePost.deletedAt = Date.now();
+      existingActivePost.deletedReason = 'thread_not_found';
+      await saveSparkBoardPosts(guildId, posts);
+    } else {
+      return { ok: false, code: 'ALREADY_HAS_ACTIVE_POST', post: existingActivePost };
+    }
   }
 
   const submissions = await getSparkBoardSubmissions(guildId);
@@ -311,6 +321,18 @@ export async function requestSparkBoardConnection(guild, postId, requesterMember
     return { ok: false, code: 'ALREADY_REQUESTED' };
   }
 
+  // Kiểm tra xem requester và chủ bài đăng có đang trong một thread trò chuyện nào chưa kết thúc không
+  const matches = await getSparkMatches(guild.id);
+  const activeMatch = matches.find(
+    (m) =>
+      m.status !== 'closed' &&
+      [m.userAId, m.userBId].includes(String(requesterMember.id)) &&
+      [m.userAId, m.userBId].includes(String(post.userId))
+  );
+  if (activeMatch) {
+    return { ok: false, code: 'ALREADY_ACTIVE_MATCH' };
+  }
+
   const connectionId = `SBC-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
   const connection = {
     id: connectionId,
@@ -486,9 +508,26 @@ export async function deleteSparkBoardPost(guild, postId, userId) {
   post.deletedBy = String(userId);
   await saveSparkBoardPosts(guild.id, posts);
 
+  // Dọn dẹp draft và giải phóng các submission cũ nếu có để người dùng có thể đăng ký mới ngay
+  await clearSparkBoardDraft(guild.id, post.userId).catch(() => {});
+  const submissions = await getSparkBoardSubmissions(guild.id);
+  let subChanged = false;
+  for (const s of submissions) {
+    if (String(s.userId) === String(post.userId) && s.status === 'pending') {
+      s.status = 'cancelled';
+      s.cancelledAt = Date.now();
+      subChanged = true;
+    }
+  }
+  if (subChanged) {
+    await saveSparkBoardSubmissions(guild.id, submissions);
+  }
+
   const thread = await guild.channels.fetch(post.threadId).catch(() => null);
   if (thread?.isThread?.()) {
-    await thread.delete('Chủ bài đăng đã yêu cầu gỡ bài khỏi Spark Board.').catch(() => {});
+    setTimeout(async () => {
+      await thread.delete('Chủ bài đăng đã yêu cầu gỡ bài khỏi Spark Board.').catch(() => {});
+    }, 1200);
   }
 
   return { ok: true, post };
