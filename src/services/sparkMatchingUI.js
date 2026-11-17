@@ -60,7 +60,7 @@ export function buildSparkStartPayload() {
       '> - Nếu từ chối, Cupid sẽ chờ feedback, đóng thread, kết thúc ghép đôi và gửi lời chúc đến cả hai, mong các bạn tìm được bến đỗ riêng phù hợp, làm tròn nghĩa vụ của một Cupid thực thụ!'
     ),
     text(
-      '<a:trangtrig49:1567818140375851018> Nếu bạn gửi yêu cầu ghép đôi với một Sparkmate cụ thể, đối phương vẫn có quyền từ chối lời mời. Hãy đảm bảo rằng bạn đã bật nhận tin nhắn riêng từ bot để không bỏ lỡ thông báo nhé!'
+      '<a:trangtrig49:1567818140375851018> Hãy đảm bảo rằng bạn đã **bật nhận tin nhắn riêng từ bot** trước khi tham gia để không bỏ lỡ thông báo nhé!'
     ),
     row.toJSON(),
   );
