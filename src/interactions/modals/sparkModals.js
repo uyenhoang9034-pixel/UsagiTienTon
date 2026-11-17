@@ -221,14 +221,10 @@ export default [
       }
 
       try {
-        const originalEmbed = interaction.message?.embeds?.[0];
-        if (originalEmbed) {
-          const { EmbedBuilder } = await import('discord.js');
-          const updatedEmbed = EmbedBuilder.from(originalEmbed)
-            .setColor('#e74c3c')
-            .setFooter({ text: `Đã từ chối bởi Cupid • Lý do: ${reason}` });
-          await interaction.message.edit({ embeds: [updatedEmbed], components: [] }).catch(() => {});
-        }
+        const { buildSparkBoardReviewPayload } = await import('../../services/sparkBoardUI.js');
+        const member = await interaction.guild.members.fetch(result.submission.userId).catch(() => null);
+        const updatedPayload = buildSparkBoardReviewPayload(result.submission, member, `Đã từ chối bởi Cupid • Lý do: ${reason}`);
+        await interaction.message.edit(updatedPayload).catch(() => {});
       } catch (err) {}
 
       return interaction.editReply({

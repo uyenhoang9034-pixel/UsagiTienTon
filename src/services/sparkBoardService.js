@@ -226,7 +226,7 @@ export async function approveSparkBoardSubmission(guild, submissionId, adminUser
     await member.send(buildSparkBoardApprovedDm(post, thread.id, threadUrl)).catch(() => {});
   }
 
-  return { ok: true, post, thread };
+  return { ok: true, post, thread, submission };
 }
 
 export async function rejectSparkBoardSubmission(guild, submissionId, adminUser, reason) {

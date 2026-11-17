@@ -594,14 +594,10 @@ export default [
       }
 
       try {
-        const originalEmbed = interaction.message.embeds?.[0];
-        if (originalEmbed) {
-          const { EmbedBuilder } = await import('discord.js');
-          const updatedEmbed = EmbedBuilder.from(originalEmbed)
-            .setColor('#2ecc71')
-            .setFooter({ text: `Đã duyệt bởi Cupid • ${interaction.user.tag}` });
-          await interaction.message.edit({ embeds: [updatedEmbed], components: [] }).catch(() => {});
-        }
+        const { buildSparkBoardReviewPayload } = await import('../../services/sparkBoardUI.js');
+        const member = await interaction.guild.members.fetch(result.submission.userId).catch(() => null);
+        const updatedPayload = buildSparkBoardReviewPayload(result.submission, member, `Đã duyệt bởi Cupid • ${interaction.user.tag}`);
+        await interaction.message.edit(updatedPayload).catch(() => {});
       } catch (err) {}
 
       return interaction.editReply({
