@@ -19,6 +19,6 @@ export default {
     if (!result.ok) {
       return interaction.reply({ content: messages[result.code] || 'Không thể kết thúc lượt ghép đôi.', flags: MessageFlags.Ephemeral });
     }
-    return interaction.reply({ content: 'Cupid đã ghi nhận yêu cầu. Thread đã được khóa; hai bạn hãy gửi feedback rồi nhấn nút **Đóng Thread** trong thông báo cuối nhé!', flags: MessageFlags.Ephemeral });
+    return interaction.reply({ content: 'Cupid đã ghi nhận yêu cầu. Cuộc trò chuyện đã được tạm khóa; hai bạn hãy gửi feedback theo cú pháp `+1 sparked` tại kênh được liên kết nhé!', flags: MessageFlags.Ephemeral });
   },
 };

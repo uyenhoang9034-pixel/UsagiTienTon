@@ -154,7 +154,7 @@ export async function buildSparkFinalPayload(match) {
     text(endingText),
     text('**Trước khi khép lại hành trình, đừng quên gửi feedback cho bé Cupid nhé!** Những chia sẻ của hai bạn sẽ giúp Cupid cải thiện Spark Matching tốt hơn.'),
     divider(),
-    text('Chỉ cần một trong hai người gửi feedback theo cú pháp `+1 sparked` tại kênh được liên kết, cả hai sẽ có thể xóa thread.'),
+    text('Chỉ cần một trong hai người gửi feedback theo cú pháp `+1 sparked` tại kênh được liên kết, thread sẽ tự động được xóa trong 24 giờ và **không lưu lại lịch sử chat**.'),
     row.toJSON(),
   );
 }
