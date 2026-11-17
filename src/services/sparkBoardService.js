@@ -4,8 +4,8 @@ import {
   ButtonStyle,
   ChannelType,
 } from 'discord.js';
-import { read, write } from '../utils/database/index.js';
-import logger from '../utils/logger.js';
+import { db } from '../utils/database/wrapper.js';
+import { logger } from '../utils/logger.js';
 import {
   SPARK_MATCHING_CONFIG,
   SPARK_STORAGE_KEYS,
@@ -24,6 +24,16 @@ import {
   buildSparkBoardConnectionPromptDm,
 } from './sparkBoardUI.js';
 import { buildSparkThreadWelcomePayload } from './sparkMatchingUI.js';
+
+async function read(key, fallback) {
+  const value = await db.get(key, fallback);
+  return value ?? fallback;
+}
+
+async function write(key, value) {
+  await db.set(key, value);
+  return value;
+}
 
 function padCode(num, length = 3) {
   return String(num).padStart(length, '0');
