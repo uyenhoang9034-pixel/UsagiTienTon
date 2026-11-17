@@ -6,7 +6,7 @@ import {
   beginSparkRegistration, reviewSparkProfile, closeSparkMatchAfterFeedback,
   respondSparkInvite, submitSparkRevealVote, submitSparkConnectionVote,
   endSparkAnonymousChat, getSparkMatches, submitSparkProfile, createSparkMatch,
-  getSparkProfiles, getSparkHistory, getSparkConfig, isSparkAdmin,
+  getSparkProfiles, getSparkProfile, getSparkRegistrationSession, getSparkHistory, getSparkConfig, isSparkAdmin,
   getSparkAdminMatchSelection, updateSparkAdminMatchSelection,
 } from '../../services/sparkMatchingService.js';
 import {
@@ -37,25 +37,27 @@ function replyError(interaction, content) {
   return interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => {});
 }
 
-function basicRegistrationModal() {
+function basicRegistrationModal(existingData = null) {
+  const d = existingData || {};
   return new ModalBuilder().setCustomId('spark_register_basic').setTitle('SPARK MATCHING · HỒ SƠ 1/2')
     .addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('age').setLabel('Bạn hiện bao nhiêu tuổi?').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(3)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('gender').setLabel('Giới tính của bạn?').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(80)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('matchGender').setLabel('Bạn muốn tìm Sparkmate giới tính nào?').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('area').setLabel('Khu vực bạn đang sinh sống?').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('intention').setLabel('Bạn mong muốn điều gì ở kết nối này?').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(500)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('age').setLabel('Bạn hiện bao nhiêu tuổi?').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(3).setValue(d.age ? String(d.age).slice(0, 3) : '')),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('gender').setLabel('Giới tính của bạn?').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(80).setValue(d.gender ? String(d.gender).slice(0, 80) : '')),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('matchGender').setLabel('Bạn muốn tìm Sparkmate giới tính nào?').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setValue(d.matchGender ? String(d.matchGender).slice(0, 100) : '')),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('area').setLabel('Khu vực bạn đang sinh sống?').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setValue(d.area ? String(d.area).slice(0, 100) : '')),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('intention').setLabel('Bạn mong muốn điều gì ở kết nối này?').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(500).setValue(d.intention ? String(d.intention).slice(0, 500) : '')),
     );
 }
 
-function aboutRegistrationModal() {
+function aboutRegistrationModal(existingData = null) {
+  const d = existingData || {};
   return new ModalBuilder().setCustomId('spark_register_about').setTitle('SPARK MATCHING · HỒ SƠ 2/2')
     .addComponents(
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('about').setLabel('Giới thiệu về bản thân (tối đa 150 từ)').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1000)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('hobbies').setLabel('Bạn thích làm gì khi rảnh?').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(600)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('relationshipHappy').setLabel('Điều gì khiến bạn vui trong một mối quan hệ?').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(600)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('traits').setLabel('Tính cách Sparkmate bạn mong muốn?').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(600)),
-      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('ageRange').setLabel('Độ tuổi Sparkmate mong muốn?').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100)),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('about').setLabel('Giới thiệu về bản thân (tối đa 150 từ)').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1000).setValue(d.about ? String(d.about).slice(0, 1000) : '')),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('hobbies').setLabel('Bạn thích làm gì khi rảnh?').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(600).setValue(d.hobbies ? String(d.hobbies).slice(0, 600) : '')),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('relationshipHappy').setLabel('Điều gì khiến bạn vui trong một mối quan hệ?').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(600).setValue(d.relationshipHappy ? String(d.relationshipHappy).slice(0, 600) : '')),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('traits').setLabel('Tính cách Sparkmate bạn mong muốn?').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(600).setValue(d.traits ? String(d.traits).slice(0, 600) : '')),
+      new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('ageRange').setLabel('Độ tuổi Sparkmate mong muốn?').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(100).setValue(d.ageRange ? String(d.ageRange).slice(0, 100) : '')),
     );
 }
 
@@ -159,19 +161,24 @@ export default [
       if (!result.ok) {
         const messages = {
           REGISTRATION_DISABLED: 'Cupid hiện chưa mở đăng ký Spark Matching.',
-          PROFILE_EXISTS: 'Bạn đã có hồ sơ đang chờ duyệt hoặc đã được duyệt rồi.',
+          PROFILE_PENDING: 'Bạn đang có một hồ sơ đang chờ Cupid xét duyệt rồi nha! Hãy theo dõi thông báo qua DM nhé.',
           ACTIVE_MATCH: 'Bạn đang có một lượt ghép đôi chưa kết thúc.',
+          REAPPLY_BLOCKED: 'Theo quyết định của đội ngũ quản trị, bạn tạm thời không thể đăng ký lại Spark Matching.',
           ROLE_NOT_FOUND: 'Không tìm thấy role Spark Matching. Cupid vui lòng báo admin kiểm tra cấu hình role nhé.',
         };
         return replyError(interaction, messages[result.code] || 'Không thể bắt đầu đăng ký.');
       }
-      return interaction.showModal(basicRegistrationModal());
+      const existingProfile = await getSparkProfile(interaction.guildId, interaction.user.id);
+      return interaction.showModal(basicRegistrationModal(existingProfile?.data));
     },
   },
   {
     name: 'spark_register_continue',
     async execute(interaction) {
-      return interaction.showModal(aboutRegistrationModal());
+      const session = await getSparkRegistrationSession(interaction.guildId, interaction.user.id);
+      const existingProfile = await getSparkProfile(interaction.guildId, interaction.user.id);
+      const initialData = { ...(existingProfile?.data || {}), ...(session?.data || {}) };
+      return interaction.showModal(aboutRegistrationModal(initialData));
     },
   },
   {

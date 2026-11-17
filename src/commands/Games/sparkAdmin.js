@@ -2,7 +2,7 @@ import { SlashCommandBuilder, ChannelType, MessageFlags, PermissionFlagsBits } f
 import {
   getSparkConfig, updateSparkConfig, getSparkProfiles, getSparkMatches,
   createSparkMatch, isSparkAdmin, cancelSparkMatchByAdmin, getSparkHistory, setSparkAdminNote,
-  deleteSparkHistory,
+  deleteSparkHistory, deleteSparkProfile,
 } from '../../services/sparkMatchingService.js';
 import { SPARK_MATCHING_CONFIG } from '../../config/sparkMatchingConfig.js';
 
@@ -63,7 +63,11 @@ export default {
     .addSubcommand((sub) => sub
       .setName('board-setup')
       .setDescription('Đăng bài ghim SPARK BOARD lên diễn đàn (Forum)')
-      .addChannelOption((o) => o.setName('kenh-forum').setDescription('Kênh diễn đàn Forum').addChannelTypes(ChannelType.GuildForum).setRequired(false))),
+      .addChannelOption((o) => o.setName('kenh-forum').setDescription('Kênh diễn đàn Forum').addChannelTypes(ChannelType.GuildForum).setRequired(false)))
+    .addSubcommand((sub) => sub
+      .setName('reset-profile')
+      .setDescription('Admin xóa hồ sơ cũ của một thành viên để họ có thể đăng ký lại từ đầu')
+      .addUserOption((o) => o.setName('thanh-vien').setDescription('Thành viên cần xóa hồ sơ').setRequired(true))),
   category: 'Games',
   async execute(interaction) {
     if (!isSparkAdmin(interaction.member)) {
@@ -292,6 +296,17 @@ export default {
             : 'toàn bộ lịch sử đã đóng';
 
       return interaction.editReply(`Đã dọn dẹp và xóa thành công **${result.deletedCount}** lượt ghép đôi (${label}) khỏi lịch sử và bộ nhớ Spark Matching!`);
+    }
+
+    if (subcommand === 'reset-profile') {
+      const targetUser = interaction.options.getUser('thanh-vien', true);
+      const result = await deleteSparkProfile(interaction.guildId, targetUser.id);
+      return interaction.reply({
+        content: result.deleted
+          ? `✅ Đã xóa hồ sơ Spark Matching của <@${targetUser.id}> thành công! Thành viên này có thể bấm đăng ký hồ sơ mới rồi nhé.`
+          : `Thành viên <@${targetUser.id}> hiện chưa có hồ sơ nào trong hệ thống hoặc đã được dọn sạch trước đó rồi nhé.`,
+        flags: MessageFlags.Ephemeral,
+      });
     }
   },
 };

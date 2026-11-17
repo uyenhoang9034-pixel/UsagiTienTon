@@ -84,13 +84,19 @@ export async function beginSparkRegistration(guild, member) {
 
   const existingProfile = await getSparkProfile(guild.id, userId);
   const activeMatch = await getSparkActiveMatchForUser(guild.id, userId);
-  if (existingProfile && ['pending', 'approved', 'matched'].includes(existingProfile.status)) {
-    return { ok: false, code: 'PROFILE_EXISTS' };
+
+  // Nếu đang có một cuộc trò chuyện/lượt ghép đôi đang diễn ra chưa đóng
+  if (activeMatch) return { ok: false, code: 'ACTIVE_MATCH' };
+
+  // Nếu đang có hồ sơ pending chờ Cupid duyệt
+  if (existingProfile?.status === 'pending') {
+    return { ok: false, code: 'PROFILE_PENDING' };
   }
+
+  // Nếu bị từ chối và bị khóa quyền đăng ký lại
   if (existingProfile?.status === 'rejected' && existingProfile.reapplyAllowed === false) {
     return { ok: false, code: 'REAPPLY_BLOCKED' };
   }
-  if (activeMatch) return { ok: false, code: 'ACTIVE_MATCH' };
 
   const role = await guild.roles.fetch(config.memberRoleId).catch(() => null);
   if (!role) return { ok: false, code: 'ROLE_NOT_FOUND' };
@@ -1199,5 +1205,27 @@ export async function deleteSparkHistory(guildId, options = {}) {
   await write(SPARK_STORAGE_KEYS.history(guildId), newHistory);
   await write(SPARK_STORAGE_KEYS.matches(guildId), newMatches);
 
+  // Mở khóa hoặc giải phóng các profile liên quan đến các lượt match đã bị xóa
+  const profiles = await getSparkProfiles(guildId);
+  let profilesChanged = false;
+  for (const profile of profiles) {
+    if (profile.matchId && targetIds.has(String(profile.matchId).toUpperCase())) {
+      profile.status = 'approved';
+      profile.matchId = null;
+      profilesChanged = true;
+    }
+  }
+  if (profilesChanged) {
+    await write(SPARK_STORAGE_KEYS.profiles(guildId), profiles);
+  }
+
   return { ok: true, deletedCount: targetIds.size, deletedIds: Array.from(targetIds) };
+}
+
+export async function deleteSparkProfile(guildId, userId) {
+  const profiles = await getSparkProfiles(guildId);
+  const filtered = profiles.filter((p) => String(p.userId) !== String(userId));
+  await write(SPARK_STORAGE_KEYS.profiles(guildId), filtered);
+  await cancelSparkRegistration(guildId, userId).catch(() => {});
+  return { ok: true, deleted: profiles.length > filtered.length };
 }
