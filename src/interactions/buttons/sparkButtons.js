@@ -332,7 +332,7 @@ export default [
       const { deleteSparkHistory } = await import('../../services/sparkMatchingService.js');
       const result = await deleteSparkHistory(interaction.guildId, { scope: 'test_only' });
       return interaction.editReply({
-        content: `Đã dọn dẹp thành công **${result.deletedCount || 0}** lượt test khỏi lịch sử và bộ nhớ Spark Matching!\n\n💡 *Dùng lệnh `/spark-admin clear-history` để lọc xóa thêm các lượt thất bại khác.*`,
+        content: `Đã dọn dẹp thành công **${result.deletedCount || 0}** lượt test khỏi lịch sử và bộ nhớ Spark Matching!\n\n💡 *Dùng lệnh \`/spark-admin clear-history\` để lọc xóa thêm các lượt thất bại khác.*`,
         components: [],
       });
     },
