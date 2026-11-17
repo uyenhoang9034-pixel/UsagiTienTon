@@ -1,11 +1,12 @@
-import { SlashCommandBuilder, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder, MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { getSparkConfig } from '../../services/sparkMatchingService.js';
 import { buildSparkStartPayload } from '../../services/sparkMatchingUI.js';
 
 export default {
   data: new SlashCommandBuilder()
     .setName('spark')
-    .setDescription('Mở bảng đăng ký SPARK MATCHING'),
+    .setDescription('Mở bảng đăng ký SPARK MATCHING')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
   category: 'Games',
   async execute(interaction) {
     if (!interaction.guildId) {

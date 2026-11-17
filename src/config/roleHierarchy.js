@@ -28,6 +28,8 @@ export const COMMAND_TIERS = Object.freeze({
   'prism-admin': 1,
   'doantu-admin': 1,
   'hsk-admin': 1,
+  'spark': 1,
+  'spark-admin': 1,
 
   // BẬC 2: Admin cấp cao (1545305594712432640) + Owner
   'xoatinnhan': 2,

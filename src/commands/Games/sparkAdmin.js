@@ -10,6 +10,7 @@ export default {
   data: new SlashCommandBuilder()
     .setName('spark-admin')
     .setDescription('Quản trị hệ thống SPARK MATCHING')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand((sub) => sub
       .setName('setup')
       .setDescription('Cấu hình khu vực quản lý hồ sơ và kênh Spark Matching')

@@ -11,7 +11,7 @@ export const SPARK_MATCHING_CONFIG = Object.freeze({
   threadInfoUrl: 'https://discord.com/channels/1541279801183178754/1571931107002417386/1572122362214613096',
   profileIntroMaxLength: 1000,
   shortAnswerMaxLength: 600,
-  adminRoleIds: ['1541303749916754001', '1545305594712432640'],
+  adminRoleIds: ['1541303749916754001'],
   title: '<a:trangtrig50:1567818385306165301> **SPARK MATCHING** <a:trangtrig51:1567818549794439229>',
   emojis: {
     trangtrig50: '<a:trangtrig50:1567818385306165301>',
