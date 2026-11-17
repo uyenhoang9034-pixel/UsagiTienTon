@@ -322,7 +322,8 @@ export function buildSparkAdminMatchErrorPayload(errorMessage) {
   };
 }
 
-export function buildSparkThreadWelcomePayload(match, threadUrl) {
+export function buildSparkThreadWelcomePayload(match, infoUrl) {
+  const targetUrl = infoUrl || 'https://discord.com/channels/1541279801183178754/1571931107002417386/1572122362214613096';
   const components = [
     text('<a:trangtrig50:1567818385306165301> **SPARK MATCHING · PRIVATE THREAD** <a:trangtrig51:1567818549794439229>'),
     divider(),
@@ -330,9 +331,9 @@ export function buildSparkThreadWelcomePayload(match, threadUrl) {
     divider(),
     text('<a:bang2:1546891483250954290> Nếu một trong hai cảm thấy không ổn muốn dừng lại ngay, bạn có thể dùng lệnh `/ketthuc` để bot lập tức đóng thread và kết thúc ghép đôi nhé! Tuy nhiên, hãy cẩn thận và suy nghĩ kĩ trước khi thực sự dùng lệnh để kết thúc trò chuyện, vì khi kết thúc rồi sẽ không mở lại được đâu ạ!'),
   ];
-  if (threadUrl) {
+  if (targetUrl) {
     components.push(new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setLabel('Đến Thread').setStyle(ButtonStyle.Link).setURL(threadUrl),
+      new ButtonBuilder().setLabel('Thông Tin Thread').setStyle(ButtonStyle.Link).setURL(targetUrl),
     ).toJSON());
   }
   return container(...components);

@@ -5,6 +5,7 @@ export const SPARK_MATCHING_CONFIG = Object.freeze({
   anonymousChatDurationMs: 24 * 60 * 60 * 1000,
   publicThreadDurationMs: 48 * 60 * 60 * 1000,
   feedbackTimeoutMs: 24 * 60 * 60 * 1000,
+  threadInfoUrl: 'https://discord.com/channels/1541279801183178754/1571931107002417386/1572122362214613096',
   profileIntroMaxLength: 1000,
   shortAnswerMaxLength: 600,
   adminRoleIds: ['1541303749916754001', '1545305594712432640'],
@@ -37,5 +38,6 @@ export function getDefaultSparkGuildConfig() {
     anonymousChatDurationMs: SPARK_MATCHING_CONFIG.anonymousChatDurationMs,
     publicThreadDurationMs: SPARK_MATCHING_CONFIG.publicThreadDurationMs,
     feedbackTimeoutMs: SPARK_MATCHING_CONFIG.feedbackTimeoutMs,
+    threadInfoUrl: SPARK_MATCHING_CONFIG.threadInfoUrl,
   };
 }

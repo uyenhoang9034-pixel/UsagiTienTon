@@ -937,8 +937,10 @@ export async function submitSparkRevealVote(guild, matchId, userId, agreed) {
   if (match.revealVotes[match.userAId] && match.revealVotes[match.userBId]) {
     const result = await createSparkPublicThread(guild, match);
     if (!result.ok) return result;
+    const config = await getSparkConfig(guild.id);
+    const infoUrl = config.threadInfoUrl || SPARK_MATCHING_CONFIG.threadInfoUrl || 'https://discord.com/channels/1541279801183178754/1571931107002417386/1572122362214613096';
     const { buildSparkThreadWelcomePayload } = await import('./sparkMatchingUI.js');
-    await result.thread.send(buildSparkThreadWelcomePayload(match, `https://discord.com/channels/${guild.id}/${result.thread.id}`));
+    await result.thread.send(buildSparkThreadWelcomePayload(match, infoUrl));
     const [memberA, memberB] = await Promise.all([
       guild.members.fetch(match.userAId).catch(() => null),
       guild.members.fetch(match.userBId).catch(() => null),
