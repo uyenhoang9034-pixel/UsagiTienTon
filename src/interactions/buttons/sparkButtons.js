@@ -95,17 +95,30 @@ export default [
   {
     name: 'spark_thread_close',
     async execute(interaction, client, args) {
-      const result = await closeSparkMatchAfterFeedback(interaction.guild, args[0], interaction.user.id);
+      const matchId = args?.[0] || null;
+      const result = await closeSparkMatchAfterFeedback(
+        interaction.guild,
+        matchId,
+        interaction.user.id,
+        interaction.channelId,
+        interaction.member,
+      );
       const messages = {
         FEEDBACK_REQUIRED: SPARK_FEEDBACK_REQUIRED,
-        NOT_PARTICIPANT: 'Chỉ hai thành viên trong cặp đôi mới có thể đóng thread này.',
-        NOT_WAITING_FEEDBACK: 'Thread này hiện không ở trạng thái chờ đóng.',
+        NOT_PARTICIPANT: 'Chỉ hai thành viên trong cặp đôi hoặc Admin mới có thể đóng thread này.',
+        NOT_WAITING_FEEDBACK: 'Lượt ghép đôi này hiện không ở trạng thái chờ đóng feedback.',
+        MATCH_NOT_FOUND: 'Không tìm thấy dữ liệu lượt ghép đôi của thread này.',
       };
       if (!result.ok && result.code === 'FEEDBACK_REQUIRED') {
-        return interaction.reply({ content: SPARK_FEEDBACK_REQUIRED });
+        return interaction.reply({ content: SPARK_FEEDBACK_REQUIRED, flags: MessageFlags.Ephemeral });
       }
       if (!result.ok) return replyError(interaction, messages[result.code] || 'Không thể đóng thread.');
-      return interaction.reply({ content: 'Cupid đã đóng thread. Cảm ơn hai bạn đã tham gia Spark Matching!', flags: MessageFlags.Ephemeral });
+      return interaction.reply({
+        content: result.alreadyClosed
+          ? 'Thread này đã được đóng và lưu trữ hoàn tất rồi nhé!'
+          : 'Cupid đã đóng thread. Cảm ơn hai bạn đã tham gia Spark Matching!',
+        flags: MessageFlags.Ephemeral,
+      });
     },
   },
 

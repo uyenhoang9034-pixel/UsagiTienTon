@@ -328,33 +328,72 @@ export async function finishSparkMatch(guild, matchId, reason, endedBy = null) {
   return { ok: true, match };
 }
 
-export async function closeSparkMatchAfterFeedback(guild, matchId, userId) {
+export async function closeSparkMatchAfterFeedback(guild, matchId, userId, channelId = null, member = null) {
   const matches = await getSparkMatches(guild.id);
-  const match = matches.find((item) => item.matchId === String(matchId));
-  if (!match || match.status !== 'feedback_pending') return { ok: false, code: 'NOT_WAITING_FEEDBACK' };
-  if (!match.feedbackBy?.length) return { ok: false, code: 'FEEDBACK_REQUIRED' };
-  if (![match.userAId, match.userBId].includes(String(userId))) return { ok: false, code: 'NOT_PARTICIPANT' };
+  const cleanId = String(matchId || '').trim().toUpperCase();
 
-  const thread = match.threadId ? await guild.channels.fetch(match.threadId).catch(() => null) : null;
-  if (thread?.isThread?.()) await thread.setArchived(true, 'Đã nhận feedback Spark Matching.');
+  let match = cleanId
+    ? matches.find((item) => String(item.matchId || '').toUpperCase() === cleanId)
+    : null;
+
+  if (!match && channelId) {
+    match = matches.find((item) => String(item.threadId) === String(channelId));
+  }
+
+  const history = await getSparkHistory(guild.id);
+  let histMatch = null;
+  if (!match) {
+    histMatch = cleanId
+      ? history.find((item) => String(item.matchId || '').toUpperCase() === cleanId)
+      : (channelId ? history.find((item) => String(item.threadId) === String(channelId)) : null);
+  }
+
+  // Nếu match đã được đóng trước đó hoặc đã nằm trong history, vẫn đảm bảo khóa và lưu trữ thread cho người dùng
+  if (match?.status === 'closed' || histMatch) {
+    const targetThreadId = match?.threadId || histMatch?.threadId || channelId;
+    const thread = targetThreadId ? await guild.channels.fetch(targetThreadId).catch(() => null) : null;
+    if (thread?.isThread?.()) {
+      await thread.setLocked(true, 'Đã đóng thread Spark Matching.').catch(() => {});
+      await thread.setArchived(true, 'Đã đóng thread Spark Matching.').catch(() => {});
+    }
+    return { ok: true, alreadyClosed: true };
+  }
+
+  if (!match) return { ok: false, code: 'MATCH_NOT_FOUND' };
+
+  if (match.status !== 'feedback_pending') {
+    return { ok: false, code: 'NOT_WAITING_FEEDBACK' };
+  }
+
+  const isAdmin = member ? isSparkAdmin(member) : false;
+  const isParticipant = [match.userAId, match.userBId].map(String).includes(String(userId));
+  if (!isParticipant && !isAdmin) {
+    return { ok: false, code: 'NOT_PARTICIPANT' };
+  }
+
+  if (!match.feedbackBy?.length && !isAdmin) {
+    return { ok: false, code: 'FEEDBACK_REQUIRED' };
+  }
+
+  const targetThreadId = match.threadId || channelId;
+  const thread = targetThreadId ? await guild.channels.fetch(targetThreadId).catch(() => null) : null;
+  if (thread?.isThread?.()) {
+    await thread.setLocked(true, 'Đã nhận feedback Spark Matching và đóng thread.').catch(() => {});
+    await thread.setArchived(true, 'Đã nhận feedback Spark Matching và đóng thread.').catch(() => {});
+  }
 
   match.status = 'closed';
   match.closedAt = Date.now();
+  match.closedBy = String(userId);
   await write(SPARK_STORAGE_KEYS.matches(guild.id), matches);
 
-  const profiles = await getSparkProfiles(guild.id);
-  for (const profile of profiles) {
-    if (profile.matchId === match.matchId) {
-      profile.status = 'rejected';
-      profile.matchId = null;
-    }
-  }
-  await write(SPARK_STORAGE_KEYS.profiles(guild.id), profiles);
+  await unlockSparkProfiles(guild.id, match.matchId);
 
-  const history = await getSparkHistory(guild.id);
-  history.push(clone(match));
-  await write(SPARK_STORAGE_KEYS.history(guild.id), history);
-  return { ok: true };
+  if (!history.some((item) => item.matchId === match.matchId)) {
+    history.push(clone(match));
+    await write(SPARK_STORAGE_KEYS.history(guild.id), history);
+  }
+  return { ok: true, match };
 }
 
 export async function createSparkPublicThread(guild, match) {
@@ -716,14 +755,14 @@ export async function handleSparkFeedbackMessage(message, client) {
   }
 
   const matches = await getSparkMatches(message.guild.id);
-  const activeMatch = matches.find((item) =>
+  const pendingMatches = matches.filter((item) =>
     item.status === 'feedback_pending' &&
-    [item.userAId, item.userBId].includes(String(message.author.id))
+    [item.userAId, item.userBId].map(String).includes(String(message.author.id))
   );
 
   const isAdmin = isSparkAdmin(message.member);
 
-  if (!activeMatch && !isAdmin) {
+  if (pendingMatches.length === 0 && !isAdmin) {
     await replyAndAutoDeleteSparkMessage(
       message,
       '<a:bang2:1546891483250954290> Xin lỗi, bạn hiện không có lượt ghép đôi nào đang chờ feedback. Mình sẽ tự động xóa tin nhắn sau 5 giây!',
@@ -752,14 +791,16 @@ export async function handleSparkFeedbackMessage(message, client) {
     logger.warn('[SparkMatching] Không thể làm mới sticky feedback:', err?.message || err);
   });
 
-  // 3. Ghi nhận feedback vào match nếu có (không gửi thêm tin nhắn xác nhận vào thread)
-  if (activeMatch) {
+  // 3. Ghi nhận feedback vào tất cả các match đang chờ feedback của thành viên này
+  for (const activeMatch of pendingMatches) {
     if (!Array.isArray(activeMatch.feedbackBy)) activeMatch.feedbackBy = [];
     if (!activeMatch.feedbackBy.includes(String(message.author.id))) {
       activeMatch.feedbackBy.push(String(message.author.id));
       activeMatch.feedbackMessageIds = [...(activeMatch.feedbackMessageIds || []), message.id];
-      await write(SPARK_STORAGE_KEYS.matches(message.guild.id), matches);
     }
+  }
+  if (pendingMatches.length > 0) {
+    await write(SPARK_STORAGE_KEYS.matches(message.guild.id), matches);
   }
 
   return true;
