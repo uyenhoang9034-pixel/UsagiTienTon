@@ -20,6 +20,9 @@ async function resolveGuildForMatch(client, matchId) {
 }
 
 function replyError(interaction, content) {
+  if (interaction.deferred || interaction.replied) {
+    return interaction.followUp({ content, flags: MessageFlags.Ephemeral }).catch(() => {});
+  }
   return interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => {});
 }
 
@@ -183,9 +186,10 @@ export default [
       const matchId = interaction.customId.split(':')[1];
       const guild = await resolveGuildForMatch(client, matchId);
       if (!guild) return replyError(interaction, 'Cupid không tìm thấy máy chủ của lượt ghép đôi.');
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
       const result = await endSparkAnonymousChat(guild, matchId, interaction.user.id);
-      if (!result.ok) return replyError(interaction, 'Cuộc trò chuyện này đã kết thúc hoặc không còn hợp lệ.');
-      return interaction.reply({ content: 'Cupid đã kết thúc cuộc trò chuyện ẩn danh.', flags: MessageFlags.Ephemeral });
+      if (!result.ok) return interaction.editReply({ content: 'Cuộc trò chuyện này đã kết thúc hoặc không còn hợp lệ.' });
+      return interaction.editReply({ content: 'Cupid đã kết thúc cuộc trò chuyện ẩn danh.' });
     },
   },
 
@@ -219,8 +223,9 @@ export default [
       const profiles = await getSparkProfiles(interaction.guildId);
       const profile = profiles.find((item) => item.profileId === profileId && item.status === 'pending');
       if (!profile || !profile.data?.requestedUserId) return replyError(interaction, 'Yêu cầu ghép đôi không còn hợp lệ.');
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
       const approved = await reviewSparkProfile(interaction.guild, profileId, interaction.user.id, 'approve');
-      if (!approved.ok) return replyError(interaction, 'Không thể duyệt hồ sơ này.');
+      if (!approved.ok) return interaction.editReply({ content: 'Không thể duyệt hồ sơ này.' });
       const result = await createSparkMatch(interaction.guild, profile.userId, profile.data.requestedUserId, {
         requested: true,
         matchType: 'specific_request',
@@ -231,9 +236,9 @@ export default [
           MEMBER_NOT_FOUND: 'Hồ sơ đã được duyệt, nhưng không tìm thấy người được yêu cầu trong máy chủ.',
           DM_UNAVAILABLE: 'Hồ sơ đã được duyệt, nhưng Cupid không thể gửi lời mời qua DM. Người được yêu cầu có thể đã tắt DM.',
         };
-        return replyError(interaction, messages[result.code] || 'Hồ sơ đã duyệt nhưng chưa thể gửi lời mời.');
+        return interaction.editReply({ content: messages[result.code] || 'Hồ sơ đã duyệt nhưng chưa thể gửi lời mời.' });
       }
-      return interaction.reply({ content: 'Đã duyệt yêu cầu cụ thể và gửi lời mời DM đến thành viên được chỉ định. Thành viên đó vẫn cần tự đồng ý.', flags: MessageFlags.Ephemeral });
+      return interaction.editReply({ content: 'Đã duyệt yêu cầu cụ thể và gửi lời mời DM đến thành viên được chỉ định. Thành viên đó vẫn cần tự đồng ý.' });
     },
   },
 
@@ -368,13 +373,26 @@ export default [
       if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền ghép đôi.');
       const selection = await getSparkAdminMatchSelection(interaction.guildId, interaction.user.id);
       if (!selection.maleId || !selection.femaleId) return replyError(interaction, 'Bạn cần chọn đủ hồ sơ nam và nữ.');
+
+      await interaction.deferUpdate().catch(() => {});
+
       const result = await createSparkMatch(interaction.guild, selection.maleId, selection.femaleId);
-      if (!result.ok) return replyError(interaction, result.code === 'USER_BUSY' ? 'Một trong hai thành viên đang có lượt ghép đôi khác.' : 'Không thể tạo lượt ghép đôi từ hai hồ sơ này.');
+      const { buildSparkAdminMatchSuccessPayload, buildSparkAdminMatchErrorPayload } = await import('../../services/sparkMatchingUI.js');
+
+      if (!result.ok) {
+        const errorMsg = result.code === 'USER_BUSY'
+          ? 'Một trong hai thành viên đang có lượt ghép đôi khác.'
+          : result.code === 'DM_UNAVAILABLE'
+            ? 'Cupid chưa thể gửi lời mời qua DM vì có thành viên khóa tin nhắn riêng.'
+            : 'Không thể tạo lượt ghép đôi từ hai hồ sơ này.';
+        return interaction.editReply(buildSparkAdminMatchErrorPayload(errorMsg)).catch(() => {});
+      }
+
       await updateSparkAdminMatchSelection(interaction.guildId, interaction.user.id, { maleId: null, femaleId: null });
-      return interaction.update({ content: 'Cupid đã gửi lời mời ghép đôi **' + result.match.matchId + '** đến cả hai thành viên.', components: [] });
+      return interaction.editReply(buildSparkAdminMatchSuccessPayload(result.match.matchId)).catch(() => {});
     },
   },
 
 ];
 
-const SPARK_FEEDBACK_REQUIRED = '<:bang2:1546891483250954290> Bạn ơi quên feedback cho bé Cupid rồi kìaaa huhu... Feedback giùm bé nha rồi mới đóng thread được nè!!!!';
+const SPARK_FEEDBACK_REQUIRED = '<a:bang2:1546891483250954290> Bạn ơi quên feedback cho bé Cupid rồi kìaaa huhu... Feedback giùm bé nha rồi mới đóng thread được nè!!!!';

@@ -7,7 +7,7 @@ export const SPARK_COMPONENTS_V2 = MessageFlags.IsComponentsV2 ?? (1 << 15);
 const EMOJI = {
   heartg1: { id: '1545307544808071258', name: 'heartg1' },
   heartg8: { id: '1567818755793358928', name: 'heartg8' },
-  bang2: '⚠️',
+  bang2: { id: '1546891483250954290', name: 'bang2', animated: true },
   trangtrig30: { id: '1546905942476464178', name: 'trangtrig30', animated: true },
 };
 const button = (customId, label, style = ButtonStyle.Secondary, emoji = null) => {
@@ -94,7 +94,7 @@ export function buildSparkAdminProfilePayload(profile) {
 export function buildSparkMatchInvitePayload(match, otherUser) {
   const row = new ActionRowBuilder().addComponents(
     button(`spark_invite_accept:${match.matchId}`, 'Bắt Đầu Trò Chuyện', ButtonStyle.Secondary, EMOJI.trangtrig30),
-    button(`spark_invite_decline:${match.matchId}`, 'Từ Chối'),
+    button(`spark_invite_decline:${match.matchId}`, 'Từ Chối', ButtonStyle.Secondary, EMOJI.bang2),
   );
   return container(
     text(SPARK_MATCHING_CONFIG.title),
@@ -294,13 +294,41 @@ export function buildSparkAdminMatchPickerPayload(profiles, selection = {}) {
   return { flags: SPARK_COMPONENTS_V2 | MessageFlags.Ephemeral, components: [{ type: 17, components }] };
 }
 
+export function buildSparkAdminMatchSuccessPayload(matchId) {
+  return {
+    flags: SPARK_COMPONENTS_V2 | MessageFlags.Ephemeral,
+    components: [{
+      type: 17,
+      components: [
+        text('<a:trangtrig50:1567818385306165301> **SPARK MATCHING · GHÉP ĐÔI THÀNH CÔNG** <a:trangtrig51:1567818549794439229>'),
+        divider(),
+        text('Cupid đã gửi lời mời ghép đôi **' + matchId + '** đến cả hai thành viên qua tin nhắn riêng (DM) rồi nhé!'),
+      ],
+    }],
+  };
+}
+
+export function buildSparkAdminMatchErrorPayload(errorMessage) {
+  return {
+    flags: SPARK_COMPONENTS_V2 | MessageFlags.Ephemeral,
+    components: [{
+      type: 17,
+      components: [
+        text('<a:trangtrig50:1567818385306165301> **SPARK MATCHING · THÔNG BÁO** <a:trangtrig51:1567818549794439229>'),
+        divider(),
+        text('<a:bang2:1546891483250954290> ' + errorMessage),
+      ],
+    }],
+  };
+}
+
 export function buildSparkThreadWelcomePayload(match, threadUrl) {
   const components = [
     text('<a:trangtrig50:1567818385306165301> **SPARK MATCHING · PRIVATE THREAD** <a:trangtrig51:1567818549794439229>'),
     divider(),
     text('Chúc mừng <@' + match.userAId + '> và <@' + match.userBId + '>! Cả hai đã đồng ý công khai danh tính. Đây sẽ là không gian riêng để hai bạn tiếp tục tìm hiểu nhau.'),
     divider(),
-    text('⚠️ Nếu một trong hai cảm thấy không ổn muốn dừng lại ngay, bạn có thể dùng lệnh `/ketthuc` để bot lập tức đóng thread và kết thúc ghép đôi nhé! Tuy nhiên, hãy cẩn thận và suy nghĩ kĩ trước khi thực sự dùng lệnh để kết thúc trò chuyện, vì khi kết thúc rồi sẽ không mở lại được đâu ạ!'),
+    text('<a:bang2:1546891483250954290> Nếu một trong hai cảm thấy không ổn muốn dừng lại ngay, bạn có thể dùng lệnh `/ketthuc` để bot lập tức đóng thread và kết thúc ghép đôi nhé! Tuy nhiên, hãy cẩn thận và suy nghĩ kĩ trước khi thực sự dùng lệnh để kết thúc trò chuyện, vì khi kết thúc rồi sẽ không mở lại được đâu ạ!'),
   ];
   if (threadUrl) {
     components.push(new ActionRowBuilder().addComponents(

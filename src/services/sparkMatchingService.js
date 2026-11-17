@@ -661,7 +661,7 @@ export async function endSparkAnonymousChat(guild, matchId, userId) {
     guild.members.fetch(match.userAId).catch(() => null),
     guild.members.fetch(match.userBId).catch(() => null),
   ]);
-  await Promise.all([a, b].filter(Boolean).map((member) => member.send('Cuộc trò chuyện ẩn danh đã kết thúc. Cảm ơn bạn đã tham gia Spark Matching nhé!').catch(() => {})));
+  await Promise.all([a, b].filter(Boolean).map((member) => member.send('Cuộc trò chuyện ẩn danh đã kết thúc vì một trong hai bên đã ấn nút "Kết Thúc". Cảm ơn hai bạn đã tham gia Spark Matching, chúc hai bạn tìm được Sparkmate phù hợp hơn cho riêng mình nhé!').catch(() => {})));
   await archiveSparkMatch(guild, match, 'anonymous_ended');
   return { ok: true };
 }
