@@ -916,17 +916,9 @@ export async function handleSparkFeedbackMessage(message, client) {
     logger.warn('[SparkMatching] Không thể làm mới sticky feedback:', err?.message || err);
   });
 
-  // Feedback trong private thread chỉ được gắn với đúng match của thread đó.
-  // Ở kênh feedback chung, chỉ tự động gắn khi thành viên có đúng một match cần feedback.
+  // Feedback trong thread chỉ được ghi nhận cho match gắn với chính thread đó.
+  // Ở kênh feedback chung, chỉ gắn khi thành viên có duy nhất một match để tránh ghi nhầm.
   const matchesToUpdate = threadMatch ? activeUserMatches : (activeUserMatches.length === 1 ? activeUserMatches : []);
-  if (!threadMatch && activeUserMatches.length > 1 && !isAdmin) {
-    await replyAndAutoDeleteSparkMessage(
-      message,
-      '<a:bang2:1546891483250954290> Bạn đang có nhiều lượt ghép đôi. Hãy gửi feedback ngay trong thread tương ứng để Cupid ghi nhận đúng cặp nhé!',
-      7000,
-    );
-    return true;
-  }
   for (const activeMatch of matchesToUpdate) {
     if (!Array.isArray(activeMatch.feedbackBy)) activeMatch.feedbackBy = [];
     if (!activeMatch.feedbackBy.includes(String(message.author.id))) {
