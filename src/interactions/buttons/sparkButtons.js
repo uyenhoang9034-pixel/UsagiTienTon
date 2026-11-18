@@ -697,6 +697,61 @@ export default [
 
 
   {
+    name: 'spark_admin_mode',
+    async execute(interaction, client, args) {
+      if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền ghép đôi.');
+      const mode = args[0] || 'hetero';
+      const { syncSparkProfileStatuses } = await import('../../services/sparkMatchingService.js');
+      const selection = await updateSparkAdminMatchSelection(interaction.guildId, interaction.user.id, {
+        mode,
+        userAId: null,
+        userBId: null,
+        maleId: null,
+        femaleId: null,
+        pageA: 0,
+        pageB: 0,
+        malePage: 0,
+        femalePage: 0,
+      });
+      const [profiles, matches] = await Promise.all([
+        syncSparkProfileStatuses(interaction.guildId),
+        getSparkMatches(interaction.guildId),
+      ]);
+      const { buildSparkAdminMatchPickerPayload } = await import('../../services/sparkMatchingUI.js');
+      return interaction.update(buildSparkAdminMatchPickerPayload(profiles, selection, matches));
+    },
+  },
+  {
+    name: 'spark_admin_page_a',
+    async execute(interaction, client, args) {
+      if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền ghép đôi.');
+      const page = Math.max(0, Number(args[0]) || 0);
+      const { syncSparkProfileStatuses } = await import('../../services/sparkMatchingService.js');
+      const [profiles, matches, selection] = await Promise.all([
+        syncSparkProfileStatuses(interaction.guildId),
+        getSparkMatches(interaction.guildId),
+        updateSparkAdminMatchSelection(interaction.guildId, interaction.user.id, { pageA: page, malePage: page }),
+      ]);
+      const { buildSparkAdminMatchPickerPayload } = await import('../../services/sparkMatchingUI.js');
+      return interaction.update(buildSparkAdminMatchPickerPayload(profiles, selection, matches));
+    },
+  },
+  {
+    name: 'spark_admin_page_b',
+    async execute(interaction, client, args) {
+      if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền ghép đôi.');
+      const page = Math.max(0, Number(args[0]) || 0);
+      const { syncSparkProfileStatuses } = await import('../../services/sparkMatchingService.js');
+      const [profiles, matches, selection] = await Promise.all([
+        syncSparkProfileStatuses(interaction.guildId),
+        getSparkMatches(interaction.guildId),
+        updateSparkAdminMatchSelection(interaction.guildId, interaction.user.id, { pageB: page, femalePage: page }),
+      ]);
+      const { buildSparkAdminMatchPickerPayload } = await import('../../services/sparkMatchingUI.js');
+      return interaction.update(buildSparkAdminMatchPickerPayload(profiles, selection, matches));
+    },
+  },
+  {
     name: 'spark_admin_male_page',
     async execute(interaction, client, args) {
       if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền ghép đôi.');
@@ -705,7 +760,7 @@ export default [
       const [profiles, matches, selection] = await Promise.all([
         syncSparkProfileStatuses(interaction.guildId),
         getSparkMatches(interaction.guildId),
-        updateSparkAdminMatchSelection(interaction.guildId, interaction.user.id, { malePage: page }),
+        updateSparkAdminMatchSelection(interaction.guildId, interaction.user.id, { pageA: page, malePage: page }),
       ]);
       const { buildSparkAdminMatchPickerPayload } = await import('../../services/sparkMatchingUI.js');
       return interaction.update(buildSparkAdminMatchPickerPayload(profiles, selection, matches));
@@ -720,7 +775,7 @@ export default [
       const [profiles, matches, selection] = await Promise.all([
         syncSparkProfileStatuses(interaction.guildId),
         getSparkMatches(interaction.guildId),
-        updateSparkAdminMatchSelection(interaction.guildId, interaction.user.id, { femalePage: page }),
+        updateSparkAdminMatchSelection(interaction.guildId, interaction.user.id, { pageB: page, femalePage: page }),
       ]);
       const { buildSparkAdminMatchPickerPayload } = await import('../../services/sparkMatchingUI.js');
       return interaction.update(buildSparkAdminMatchPickerPayload(profiles, selection, matches));
@@ -731,11 +786,16 @@ export default [
     async execute(interaction) {
       if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền ghép đôi.');
       const selection = await getSparkAdminMatchSelection(interaction.guildId, interaction.user.id);
-      if (!selection.maleId || !selection.femaleId) return replyError(interaction, 'Bạn cần chọn đủ hồ sơ nam và nữ.');
+      const userAId = selection.mode === 'hetero' ? (selection.userAId || selection.maleId) : selection.userAId;
+      const userBId = selection.mode === 'hetero' ? (selection.userBId || selection.femaleId) : selection.userBId;
+
+      if (!userAId || !userBId || String(userAId) === String(userBId)) {
+        return replyError(interaction, 'Bạn cần chọn đủ hai thành viên khác nhau để ghép đôi.');
+      }
 
       await interaction.deferUpdate().catch(() => {});
 
-      const result = await createSparkMatch(interaction.guild, selection.maleId, selection.femaleId);
+      const result = await createSparkMatch(interaction.guild, userAId, userBId);
       const { buildSparkAdminMatchSuccessPayload, buildSparkAdminMatchErrorPayload } = await import('../../services/sparkMatchingUI.js');
 
       if (!result.ok) {
@@ -747,7 +807,12 @@ export default [
         return interaction.editReply(buildSparkAdminMatchErrorPayload(errorMsg)).catch(() => {});
       }
 
-      await updateSparkAdminMatchSelection(interaction.guildId, interaction.user.id, { maleId: null, femaleId: null });
+      await updateSparkAdminMatchSelection(interaction.guildId, interaction.user.id, {
+        userAId: null,
+        userBId: null,
+        maleId: null,
+        femaleId: null,
+      });
       return interaction.editReply(buildSparkAdminMatchSuccessPayload(result.match.matchId)).catch(() => {});
     },
   },

@@ -19,7 +19,27 @@ async function handlePick(interaction, field) {
   if (!profile) {
     return interaction.reply({ content: 'Hồ sơ này không còn đủ điều kiện ghép đôi. Hãy mở lại dashboard để tải danh sách mới.', flags: MessageFlags.Ephemeral });
   }
-  const selection = await updateSparkAdminMatchSelection(interaction.guildId, interaction.user.id, { [field]: userId });
+
+  const current = await getSparkAdminMatchSelection(interaction.guildId, interaction.user.id);
+  const patch = { [field]: userId };
+
+  if (field === 'userAId' || field === 'maleId') {
+    patch.userAId = userId;
+    patch.maleId = userId;
+    if (current.userBId === userId || current.femaleId === userId) {
+      patch.userBId = null;
+      patch.femaleId = null;
+    }
+  } else if (field === 'userBId' || field === 'femaleId') {
+    patch.userBId = userId;
+    patch.femaleId = userId;
+    if (current.userAId === userId || current.maleId === userId) {
+      patch.userAId = null;
+      patch.maleId = null;
+    }
+  }
+
+  const selection = await updateSparkAdminMatchSelection(interaction.guildId, interaction.user.id, patch);
   const latestProfiles = await syncSparkProfileStatuses(interaction.guildId);
   return interaction.update(buildSparkAdminMatchPickerPayload(latestProfiles, selection, matches));
 }
@@ -35,6 +55,18 @@ export default [
     name: 'spark_admin_pick_female',
     async execute(interaction) {
       return handlePick(interaction, 'femaleId');
+    },
+  },
+  {
+    name: 'spark_admin_pick_user_a',
+    async execute(interaction) {
+      return handlePick(interaction, 'userAId');
+    },
+  },
+  {
+    name: 'spark_admin_pick_user_b',
+    async execute(interaction) {
+      return handlePick(interaction, 'userBId');
     },
   },
   {

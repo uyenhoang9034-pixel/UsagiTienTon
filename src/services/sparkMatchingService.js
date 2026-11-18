@@ -1151,7 +1151,7 @@ export async function endSparkAnonymousChat(guild, matchId, userId) {
 
 export async function getSparkAdminMatchSelection(guildId, adminId) {
   return read(`spark:admin-match-select:${guildId}:${adminId}`, {
-    maleId: null, femaleId: null, malePage: 0, femalePage: 0,
+    mode: 'hetero', userAId: null, userBId: null, maleId: null, femaleId: null, malePage: 0, femalePage: 0, pageA: 0, pageB: 0,
   });
 }
 

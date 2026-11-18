@@ -261,79 +261,162 @@ export function buildSparkAdminMatchPickerPayload(profiles, selection = {}, matc
     if (m.requestedUserId) activeUserIds.add(String(m.requestedUserId));
   }
 
+  const mode = selection.mode || 'hetero'; // 'hetero', 'female_female', 'male_male'
+
   const allMale = profiles.filter((profile) => profile.status !== 'rejected' && isMaleGender(profile.data?.gender || profile.gender));
   const allFemale = profiles.filter((profile) => profile.status !== 'rejected' && isFemaleGender(profile.data?.gender || profile.gender));
 
   const maleProfiles = allMale.filter((profile) => profile.status === 'approved' && !activeUserIds.has(String(profile.userId)));
   const femaleProfiles = allFemale.filter((profile) => profile.status === 'approved' && !activeUserIds.has(String(profile.userId)));
+
   const pageSize = 25;
-  const malePage = Math.max(0, Math.min(selection.malePage || 0, Math.max(0, Math.ceil(maleProfiles.length / pageSize) - 1)));
-  const femalePage = Math.max(0, Math.min(selection.femalePage || 0, Math.max(0, Math.ceil(femaleProfiles.length / pageSize) - 1)));
-  const maleOptions = maleProfiles.slice(malePage * pageSize, (malePage + 1) * pageSize).map((profile) => ({
+
+  let poolA = [];
+  let poolB = [];
+  let labelA = '';
+  let labelB = '';
+  let placeholderA = '';
+  let placeholderB = '';
+  let emptyMsgA = '';
+  let emptyMsgB = '';
+
+  const selectedA = mode === 'hetero' ? (selection.maleId || selection.userAId) : selection.userAId;
+  const selectedB = mode === 'hetero' ? (selection.femaleId || selection.userBId) : selection.userBId;
+
+  if (mode === 'hetero') {
+    poolA = maleProfiles;
+    poolB = femaleProfiles;
+    labelA = 'CHỌN HỒ SƠ NAM';
+    labelB = 'CHỌN HỒ SƠ NỮ';
+    placeholderA = 'Chọn thành viên nam';
+    placeholderB = 'Chọn thành viên nữ';
+    emptyMsgA = allMale.length > 0
+      ? `**HỒ SƠ NAM:** Có **${allMale.length}** hồ sơ nam nhưng đang bận trong lượt ghép đôi chưa kết thúc.`
+      : '**HỒ SƠ NAM:** Chưa có hồ sơ nam nào được duyệt phù hợp.';
+    emptyMsgB = allFemale.length > 0
+      ? `**HỒ SƠ NỮ:** Có **${allFemale.length}** hồ sơ nữ nhưng đang bận trong lượt ghép đôi chưa kết thúc.`
+      : '**HỒ SƠ NỮ:** Chưa có hồ sơ nữ nào được duyệt phù hợp.';
+  } else if (mode === 'female_female') {
+    poolA = femaleProfiles;
+    poolB = femaleProfiles.filter((p) => p.userId !== selectedA);
+    labelA = 'CHỌN BẠN NỮ THỨ NHẤT';
+    labelB = 'CHỌN BẠN NỮ THỨ HAI';
+    placeholderA = 'Chọn bạn nữ thứ nhất';
+    placeholderB = 'Chọn bạn nữ thứ hai';
+    emptyMsgA = femaleProfiles.length < 2
+      ? `**HỒ SƠ NỮ × NỮ:** Cần ít nhất 2 hồ sơ nữ sẵn sàng để ghép đôi (Hiện có: **${femaleProfiles.length}** bạn).`
+      : '**HỒ SƠ NỮ:** Chưa có hồ sơ nữ nào sẵn sàng.';
+    emptyMsgB = selectedA && poolB.length === 0
+      ? '**HỒ SƠ NỮ (BẠN THỨ HAI):** Không còn bạn nữ nào khác sẵn sàng để ghép đôi.'
+      : 'Vui lòng chọn bạn nữ thứ nhất trước.';
+  } else if (mode === 'male_male') {
+    poolA = maleProfiles;
+    poolB = maleProfiles.filter((p) => p.userId !== selectedA);
+    labelA = 'CHỌN BẠN NAM THỨ NHẤT';
+    labelB = 'CHỌN BẠN NAM THỨ HAI';
+    placeholderA = 'Chọn bạn nam thứ nhất';
+    placeholderB = 'Chọn bạn nam thứ hai';
+    emptyMsgA = maleProfiles.length < 2
+      ? `**HỒ SƠ NAM × NAM:** Cần ít nhất 2 hồ sơ nam sẵn sàng để ghép đôi (Hiện có: **${maleProfiles.length}** bạn).`
+      : '**HỒ SƠ NAM:** Chưa có hồ sơ nam nào sẵn sàng.';
+    emptyMsgB = selectedA && poolB.length === 0
+      ? '**HỒ SƠ NAM (BẠN THỨ HAI):** Không còn bạn nam nào khác sẵn sàng để ghép đôi.'
+      : 'Vui lòng chọn bạn nam thứ nhất trước.';
+  }
+
+  const pageA = Math.max(0, Math.min(selection.pageA || selection.malePage || 0, Math.max(0, Math.ceil(poolA.length / pageSize) - 1)));
+  const pageB = Math.max(0, Math.min(selection.pageB || selection.femalePage || 0, Math.max(0, Math.ceil(poolB.length / pageSize) - 1)));
+
+  const optionsA = poolA.slice(pageA * pageSize, (pageA + 1) * pageSize).map((profile) => ({
     label: (profile.usernameAtSubmission || profile.userId).slice(0, 80),
     value: profile.userId,
     description: ((profile.data?.age || '?') + ' tuổi · ' + (profile.data?.area || 'Chưa rõ khu vực')).slice(0, 100),
-    default: selection.maleId === profile.userId,
+    default: selectedA === profile.userId,
   }));
-  const femaleOptions = femaleProfiles.slice(femalePage * pageSize, (femalePage + 1) * pageSize).map((profile) => ({
+
+  const optionsB = poolB.slice(pageB * pageSize, (pageB + 1) * pageSize).map((profile) => ({
     label: (profile.usernameAtSubmission || profile.userId).slice(0, 80),
     value: profile.userId,
     description: ((profile.data?.age || '?') + ' tuổi · ' + (profile.data?.area || 'Chưa rõ khu vực')).slice(0, 100),
-    default: selection.femaleId === profile.userId,
+    default: selectedB === profile.userId,
   }));
+
+  const modeRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('spark_admin_mode:hetero')
+      .setLabel(mode === 'hetero' ? '● 🚻 Nam × Nữ' : '🚻 Nam × Nữ')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('spark_admin_mode:female_female')
+      .setLabel(mode === 'female_female' ? '● 👭 Nữ × Nữ' : '👭 Nữ × Nữ')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('spark_admin_mode:male_male')
+      .setLabel(mode === 'male_male' ? '● 👬 Nam × Nam' : '👬 Nam × Nam')
+      .setStyle(ButtonStyle.Secondary),
+  );
 
   const components = [
     text('<a:trangtrig50:1567818385306165301> **SPARK MATCHING · GHÉP ĐÔI THỦ CÔNG** <a:trangtrig51:1567818549794439229>'),
     divider(),
-    text('Chỉ những hồ sơ đã được admin duyệt và chưa có lượt ghép đôi đang hoạt động mới xuất hiện trong danh sách.'),
+    text('Chọn chế độ ghép đôi (Nam × Nữ, Nữ × Nữ hoặc Nam × Nam):'),
+    modeRow.toJSON(),
+    divider(),
   ];
 
-  if (maleOptions.length) {
-    components.push(text('**CHỌN HỒ SƠ NAM** · Trang ' + (malePage + 1) + '/' + Math.max(1, Math.ceil(maleProfiles.length / pageSize))));
+  if (optionsA.length) {
+    components.push(text(`**${labelA}** · Trang ${pageA + 1}/${Math.max(1, Math.ceil(poolA.length / pageSize))}`));
     components.push(new ActionRowBuilder().addComponents(
-      new StringSelectMenuBuilder().setCustomId('spark_admin_pick_male').setPlaceholder('Chọn thành viên nam').addOptions(maleOptions),
+      new StringSelectMenuBuilder().setCustomId(mode === 'hetero' ? 'spark_admin_pick_male' : 'spark_admin_pick_user_a').setPlaceholder(placeholderA).addOptions(optionsA),
     ).toJSON());
-  } else if (allMale.length > 0) {
-    components.push(text('**HỒ SƠ NAM:** Hiện có **' + allMale.length + '** hồ sơ nam nhưng đang bận trong lượt ghép đôi chưa kết thúc. (Hãy kiểm tra mục "Cặp Đôi Đang Hoạt Động" để kết thúc lượt cũ trước).'));
   } else {
-    components.push(text('**HỒ SƠ NAM:** Chưa có hồ sơ nam nào được duyệt phù hợp.'));
+    components.push(text(emptyMsgA));
   }
 
-  if (maleProfiles.length > pageSize) {
+  if (poolA.length > pageSize) {
     components.push(new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('spark_admin_male_page:' + Math.max(0, malePage - 1)).setLabel('Nam · Trang trước').setStyle(ButtonStyle.Secondary).setDisabled(malePage === 0),
-      new ButtonBuilder().setCustomId('spark_admin_male_page:' + Math.min(Math.ceil(maleProfiles.length / pageSize) - 1, malePage + 1)).setLabel('Nam · Trang sau').setStyle(ButtonStyle.Secondary).setDisabled(malePage >= Math.ceil(maleProfiles.length / pageSize) - 1),
+      new ButtonBuilder().setCustomId('spark_admin_page_a:' + Math.max(0, pageA - 1)).setLabel('Trang trước (1)').setStyle(ButtonStyle.Secondary).setDisabled(pageA === 0),
+      new ButtonBuilder().setCustomId('spark_admin_page_a:' + Math.min(Math.ceil(poolA.length / pageSize) - 1, pageA + 1)).setLabel('Trang sau (1)').setStyle(ButtonStyle.Secondary).setDisabled(pageA >= Math.ceil(poolA.length / pageSize) - 1),
     ).toJSON());
   }
 
-  if (femaleOptions.length) {
-    components.push(text('**CHỌN HỒ SƠ NỮ** · Trang ' + (femalePage + 1) + '/' + Math.max(1, Math.ceil(femaleProfiles.length / pageSize))));
+  if (optionsB.length) {
+    components.push(text(`**${labelB}** · Trang ${pageB + 1}/${Math.max(1, Math.ceil(poolB.length / pageSize))}`));
     components.push(new ActionRowBuilder().addComponents(
-      new StringSelectMenuBuilder().setCustomId('spark_admin_pick_female').setPlaceholder('Chọn thành viên nữ').addOptions(femaleOptions),
+      new StringSelectMenuBuilder().setCustomId(mode === 'hetero' ? 'spark_admin_pick_female' : 'spark_admin_pick_user_b').setPlaceholder(placeholderB).addOptions(optionsB),
     ).toJSON());
-  } else if (allFemale.length > 0) {
-    components.push(text('**HỒ SƠ NỮ:** Hiện có **' + allFemale.length + '** hồ sơ nữ nhưng đang bận trong lượt ghép đôi chưa kết thúc. (Hãy kiểm tra mục "Cặp Đôi Đang Hoạt Động" để kết thúc lượt cũ trước).'));
   } else {
-    components.push(text('**HỒ SƠ NỮ:** Chưa có hồ sơ nữ nào được duyệt phù hợp.'));
+    components.push(text(emptyMsgB));
   }
 
-  if (femaleProfiles.length > pageSize) {
+  if (poolB.length > pageSize) {
     components.push(new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('spark_admin_female_page:' + Math.max(0, femalePage - 1)).setLabel('Nữ · Trang trước').setStyle(ButtonStyle.Secondary).setDisabled(femalePage === 0),
-      new ButtonBuilder().setCustomId('spark_admin_female_page:' + Math.min(Math.ceil(femaleProfiles.length / pageSize) - 1, femalePage + 1)).setLabel('Nữ · Trang sau').setStyle(ButtonStyle.Secondary).setDisabled(femalePage >= Math.ceil(femaleProfiles.length / pageSize) - 1),
+      new ButtonBuilder().setCustomId('spark_admin_page_b:' + Math.max(0, pageB - 1)).setLabel('Trang trước (2)').setStyle(ButtonStyle.Secondary).setDisabled(pageB === 0),
+      new ButtonBuilder().setCustomId('spark_admin_page_b:' + Math.min(Math.ceil(poolB.length / pageSize) - 1, pageB + 1)).setLabel('Trang sau (2)').setStyle(ButtonStyle.Secondary).setDisabled(pageB >= Math.ceil(poolB.length / pageSize) - 1),
     ).toJSON());
   }
 
+  const canConfirm = selectedA && selectedB && String(selectedA) !== String(selectedB);
   const confirmRow = new ActionRowBuilder();
-  if (activeMatches.length > 0 && (!maleProfiles.length || !femaleProfiles.length)) {
+  if (activeMatches.length > 0) {
     confirmRow.addComponents(
       new ButtonBuilder().setCustomId('spark_admin_active').setLabel('Cặp Đôi Đang Hoạt Động').setStyle(ButtonStyle.Secondary),
     );
   }
   confirmRow.addComponents(
-    new ButtonBuilder().setCustomId('spark_admin_match_confirm').setLabel('Xác Nhận Ghép Đôi').setStyle(ButtonStyle.Secondary).setDisabled(!selection.maleId || !selection.femaleId),
+    new ButtonBuilder().setCustomId('spark_admin_match_confirm').setLabel('Xác Nhận Ghép Đôi').setStyle(ButtonStyle.Secondary).setDisabled(!canConfirm),
   );
-  components.push(divider(), text('**Đã chọn:** ' + (selection.maleId ? '<@' + selection.maleId + '>' : 'Chưa chọn nam') + ' × ' + (selection.femaleId ? '<@' + selection.femaleId + '>' : 'Chưa chọn nữ')), confirmRow.toJSON());
+
+  let descA = selectedA ? '<@' + selectedA + '>' : 'Chưa chọn nam';
+  let descB = selectedB ? '<@' + selectedB + '>' : 'Chưa chọn nữ';
+  if (mode === 'female_female') {
+    descA = selectedA ? '<@' + selectedA + '>' : 'Chưa chọn bạn nữ 1';
+    descB = selectedB ? '<@' + selectedB + '>' : 'Chưa chọn bạn nữ 2';
+  } else if (mode === 'male_male') {
+    descA = selectedA ? '<@' + selectedA + '>' : 'Chưa chọn bạn nam 1';
+    descB = selectedB ? '<@' + selectedB + '>' : 'Chưa chọn bạn nam 2';
+  }
+  components.push(divider(), text('**Đã chọn:** ' + descA + ' × ' + descB), confirmRow.toJSON());
 
   return { flags: SPARK_COMPONENTS_V2 | MessageFlags.Ephemeral, components: [{ type: 17, components }] };
 }
