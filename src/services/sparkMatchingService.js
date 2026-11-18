@@ -537,12 +537,11 @@ export async function expireSparkMatches(client) {
         match.closedAt = Date.now();
         match.endedReason = 'feedback_timeout';
 
-        await unlockSparkProfiles(guild.id, match.matchId);
-
         const all = await getSparkMatches(guild.id);
         const idx = all.findIndex((item) => item.matchId === match.matchId);
         if (idx >= 0) all[idx] = match;
         await write(SPARK_STORAGE_KEYS.matches(guild.id), all);
+        await unlockSparkProfiles(guild.id, match.matchId);
 
         const history = await getSparkHistory(guild.id);
         if (!history.some((item) => item.matchId === match.matchId)) {
