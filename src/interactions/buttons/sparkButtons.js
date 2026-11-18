@@ -153,6 +153,67 @@ function sparkBoardStep2Modal(draft = {}) {
     );
 }
 
+function parseProfileFromMessage(message, profileIdFallback) {
+  const texts = [];
+  if (message?.content) texts.push(message.content);
+  function collect(components) {
+    if (!Array.isArray(components)) return;
+    for (const c of components) {
+      if (c.content) texts.push(c.content);
+      if (Array.isArray(c.components)) collect(c.components);
+    }
+  }
+  collect(message?.components);
+  const fullText = texts.join('\n');
+
+  const userId = fullText.match(/\*\*Discord ID:\*\*\s*(\d+)/i)?.[1];
+  if (!userId) return null;
+
+  const profileId = fullText.match(/\*\*Mã hồ sơ:\*\*\s*([A-Za-z0-9_-]+)/i)?.[1] || profileIdFallback || `SP-${Date.now().toString(36).toUpperCase()}`;
+  const username = fullText.match(/\*\*Tên lúc đăng ký:\*\*\s*([^\n]+)/i)?.[1]?.trim() || '';
+  const age = fullText.match(/\*\*Tuổi:\*\*\s*([^\n]+)/i)?.[1]?.trim() || '';
+  const gender = fullText.match(/\*\*Giới tính:\*\*\s*([^\n]+)/i)?.[1]?.trim() || '';
+  const orientation = fullText.match(/\*\*Xu hướng tính dục[^\n:]*:\*\*\s*([^\n]+)/i)?.[1]?.trim() || '';
+  const matchGender = fullText.match(/\*\*Mong muốn ghép đôi:\*\*\s*([^\n]+)/i)?.[1]?.trim() || '';
+  const area = fullText.match(/\*\*Khu vực:\*\*\s*([^\n]+)/i)?.[1]?.trim() || '';
+  const intention = fullText.match(/\*\*Mục đích:\*\*\s*([^\n]+)/i)?.[1]?.trim() || '';
+
+  const about = fullText.match(/\*\*Giới thiệu:\*\*\s*\n([\s\S]*?)(?=\n\n\*\*Sở thích:\*\*)/i)?.[1]?.trim() || '';
+  const hobbies = fullText.match(/\*\*Sở thích:\*\*\s*\n([\s\S]*?)(?=\n\n\*\*Điều khiến bạn vui)/i)?.[1]?.trim() || '';
+  const relationshipHappy = fullText.match(/\*\*Điều khiến bạn vui[^\n:]*:\*\*\s*\n([\s\S]*?)(?=\n\n\*\*Tính cách Sparkmate)/i)?.[1]?.trim() || '';
+  const traits = fullText.match(/\*\*Tính cách Sparkmate[^\n:]*:\*\*\s*\n([\s\S]*?)(?=\n\n\*\*Độ tuổi mong muốn)/i)?.[1]?.trim() || '';
+  const ageRange = fullText.match(/\*\*Độ tuổi mong muốn:\*\*\s*([^\n]+)/i)?.[1]?.trim() || '';
+  const otherRequirements = fullText.match(/\*\*Yêu cầu khác:\*\*\s*([^\n]+)/i)?.[1]?.trim() || '';
+  const requestedUserId = fullText.match(/\*\*Người muốn ghép đôi cụ thể:\*\*\s*([^\n]+)/i)?.[1]?.trim() || '';
+
+  return {
+    profileId,
+    userId,
+    usernameAtSubmission: username,
+    data: {
+      age,
+      gender,
+      orientation,
+      matchGender,
+      area,
+      intention,
+      about,
+      hobbies,
+      relationshipHappy,
+      traits,
+      ageRange,
+      otherRequirements: otherRequirements === 'Không có' ? '' : otherRequirements,
+      requestedUserId: requestedUserId === 'Không có' ? '' : requestedUserId,
+    },
+    status: 'pending',
+    submittedAt: Date.now(),
+    reviewedAt: null,
+    reviewedBy: null,
+    rejectionReason: null,
+    matchId: null,
+  };
+}
+
 export default [
   {
     name: 'spark_register_start',
@@ -186,9 +247,21 @@ export default [
     async execute(interaction, client, args) {
       if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền duyệt hồ sơ Spark Matching.');
       const profileId = args[0];
-      const result = await reviewSparkProfile(interaction.guild, profileId, interaction.user.id, 'approve');
+      const recoveredProfile = parseProfileFromMessage(interaction.message, profileId);
+      const result = await reviewSparkProfile(interaction.guild, profileId, interaction.user.id, 'approve', '', { recoveredProfile });
       if (!result.ok) return replyError(interaction, 'Hồ sơ này không còn ở trạng thái chờ duyệt.');
-      return interaction.reply({ content: 'Đã duyệt hồ sơ ' + profileId + '.', flags: MessageFlags.Ephemeral });
+
+      const targetMention = result.profile?.userId ? `<@${result.profile.userId}>` : profileId;
+      if (result.alreadyApproved) {
+        return interaction.reply({
+          content: `✅ Hồ sơ của ${targetMention} đã được duyệt và đang sẵn sàng ghép đôi trong hệ thống rồi nhé!`,
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+      return interaction.reply({
+        content: `✅ Đã duyệt ${result.recovered ? '(và khôi phục thành công) ' : ''}hồ sơ ${profileId} của ${targetMention}!`,
+        flags: MessageFlags.Ephemeral,
+      });
     },
   },
   {

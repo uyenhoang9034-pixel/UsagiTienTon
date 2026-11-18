@@ -67,7 +67,11 @@ export default {
     .addSubcommand((sub) => sub
       .setName('reset-profile')
       .setDescription('Admin xóa hồ sơ cũ của một thành viên để họ có thể đăng ký lại từ đầu')
-      .addUserOption((o) => o.setName('thanh-vien').setDescription('Thành viên cần xóa hồ sơ').setRequired(true))),
+      .addUserOption((o) => o.setName('thanh-vien').setDescription('Thành viên cần xóa hồ sơ').setRequired(true)))
+    .addSubcommand((sub) => sub
+      .setName('approve-user')
+      .setDescription('Admin duyệt trực tiếp hồ sơ cho một thành viên')
+      .addUserOption((o) => o.setName('thanh-vien').setDescription('Thành viên muốn duyệt hồ sơ').setRequired(true))),
   category: 'Games',
   async execute(interaction) {
     if (!isSparkAdmin(interaction.member)) {
@@ -305,6 +309,29 @@ export default {
         content: result.deleted
           ? `✅ Đã xóa hồ sơ Spark Matching của <@${targetUser.id}> thành công! Thành viên này có thể bấm đăng ký hồ sơ mới rồi nhé.`
           : `Thành viên <@${targetUser.id}> hiện chưa có hồ sơ nào trong hệ thống hoặc đã được dọn sạch trước đó rồi nhé.`,
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
+    if (subcommand === 'approve-user') {
+      const targetUser = interaction.options.getUser('thanh-vien', true);
+      const profiles = await getSparkProfiles(interaction.guildId);
+      const profile = profiles.find((p) => String(p.userId) === String(targetUser.id));
+      if (!profile) {
+        return interaction.reply({
+          content: `<a:bang2:1546891483250954290> Không tìm thấy dữ liệu hồ sơ của <@${targetUser.id}> trong bộ nhớ. Bạn hãy nhờ thành viên bấm đăng ký lại trên bảng /spark nhé!`,
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      const { reviewSparkProfile } = await import('../../services/sparkMatchingService.js');
+      const result = await reviewSparkProfile(interaction.guild, profile.profileId, interaction.user.id, 'approve');
+      if (!result.ok) {
+        return interaction.reply({ content: `Không thể duyệt hồ sơ: ${result.code}`, flags: MessageFlags.Ephemeral });
+      }
+
+      return interaction.reply({
+        content: `✅ Đã duyệt thành công hồ sơ Spark Matching của <@${targetUser.id}> (Mã: ${profile.profileId})!`,
         flags: MessageFlags.Ephemeral,
       });
     }

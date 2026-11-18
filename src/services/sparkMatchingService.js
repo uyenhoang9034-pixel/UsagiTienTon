@@ -198,8 +198,29 @@ export async function submitSparkProfile(guild, user) {
 
 export async function reviewSparkProfile(guild, profileId, adminId, decision, reason = '', options = {}) {
   const profiles = await getSparkProfiles(guild.id);
-  const profile = profiles.find((item) => item.profileId === String(profileId));
-  if (!profile || profile.status !== 'pending') return { ok: false, code: 'PROFILE_NOT_PENDING' };
+  let profile = profiles.find((item) => item.profileId === String(profileId));
+
+  // Nếu không tìm thấy bằng profileId, thử tìm theo userId từ recoveredProfile
+  if (!profile && options.recoveredProfile?.userId) {
+    profile = profiles.find((item) => String(item.userId) === String(options.recoveredProfile.userId));
+  }
+
+  // Nếu profile đã được duyệt trước đó rồi
+  if (profile?.status === 'approved' && decision === 'approve') {
+    return { ok: true, profile, alreadyApproved: true };
+  }
+
+  let recovered = false;
+  // Nếu vẫn không có profile trong database, tự động khôi phục từ dữ liệu card duyệt
+  if (!profile && options.recoveredProfile) {
+    profile = { ...options.recoveredProfile, guildId: guild.id };
+    profiles.push(profile);
+    recovered = true;
+  }
+
+  if (!profile || (profile.status !== 'pending' && profile.status !== 'approved')) {
+    return { ok: false, code: 'PROFILE_NOT_PENDING' };
+  }
 
   profile.status = decision === 'approve' ? 'approved' : 'rejected';
   profile.reviewedAt = Date.now();
@@ -210,12 +231,18 @@ export async function reviewSparkProfile(guild, profileId, adminId, decision, re
 
   const member = await guild.members.fetch(profile.userId).catch(() => null);
   if (member) {
+    if (decision === 'approve') {
+      const config = await getSparkConfig(guild.id);
+      const roleId = config.memberRoleId || SPARK_MATCHING_CONFIG.memberRoleId;
+      if (roleId) await member.roles.add(roleId).catch(() => {});
+    }
+
     const payload = decision === 'approve'
       ? { content: 'Cupid đã duyệt hồ sơ Spark Matching của bạn rồi nè! Hãy kiên nhẫn chờ Cupid tìm Sparkmate phù hợp nhé.' }
       : { content: `Cupid rất tiếc phải thông báo hồ sơ chưa được duyệt.\nLý do: ${profile.rejectionReason || 'Chưa có ghi chú.'}\n${profile.reapplyAllowed ? 'Bạn có thể chỉnh sửa thông tin và đăng ký lại.' : 'Theo quyết định của đội ngũ quản trị, bạn sẽ không thể đăng ký lại Spark Matching.'}` };
     await member.send(payload).catch(() => {});
   }
-  return { ok: true, profile };
+  return { ok: true, profile, recovered };
 }
 
 export async function createSparkMatch(guild, userAId, userBId, options = {}) {
