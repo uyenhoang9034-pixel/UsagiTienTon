@@ -198,8 +198,8 @@ export function buildSparkAdminDashboardPayload({ config, profiles, matches }) {
     if (m.requestedUserId) activeUserIds.add(String(m.requestedUserId));
   }
 
-  const allMale = profiles.filter((profile) => profile.status !== 'rejected' && isMaleGender(profile.data?.gender));
-  const allFemale = profiles.filter((profile) => profile.status !== 'rejected' && isFemaleGender(profile.data?.gender));
+  const allMale = profiles.filter((profile) => profile.status !== 'rejected' && isMaleGender(profile.data?.gender || profile.gender));
+  const allFemale = profiles.filter((profile) => profile.status !== 'rejected' && isFemaleGender(profile.data?.gender || profile.gender));
 
   const availableMale = allMale.filter((p) => p.status === 'approved' && !activeUserIds.has(String(p.userId))).length;
   const availableFemale = allFemale.filter((p) => p.status === 'approved' && !activeUserIds.has(String(p.userId))).length;
@@ -261,8 +261,8 @@ export function buildSparkAdminMatchPickerPayload(profiles, selection = {}, matc
     if (m.requestedUserId) activeUserIds.add(String(m.requestedUserId));
   }
 
-  const allMale = profiles.filter((profile) => profile.status !== 'rejected' && isMaleGender(profile.data?.gender));
-  const allFemale = profiles.filter((profile) => profile.status !== 'rejected' && isFemaleGender(profile.data?.gender));
+  const allMale = profiles.filter((profile) => profile.status !== 'rejected' && isMaleGender(profile.data?.gender || profile.gender));
+  const allFemale = profiles.filter((profile) => profile.status !== 'rejected' && isFemaleGender(profile.data?.gender || profile.gender));
 
   const maleProfiles = allMale.filter((profile) => profile.status === 'approved' && !activeUserIds.has(String(profile.userId)));
   const femaleProfiles = allFemale.filter((profile) => profile.status === 'approved' && !activeUserIds.has(String(profile.userId)));

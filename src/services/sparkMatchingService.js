@@ -33,12 +33,12 @@ async function write(key, value) {
 
 export function isMaleGender(gender = '') {
   const g = String(gender || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  return /nam|male|man|trai|boy|duc/.test(g);
+  return /^(m|nam|male|man|trai|boy|duc)$|nam|male|man|trai|boy|duc/.test(g);
 }
 
 export function isFemaleGender(gender = '') {
   const g = String(gender || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  return /nu|female|woman|gai|girl/.test(g);
+  return /^(f|nu|female|woman|gai|girl)$|nu|female|woman|gai|girl/.test(g);
 }
 
 export async function getSparkConfig(guildId) {
@@ -1320,4 +1320,57 @@ export async function deleteSparkProfile(guildId, userId) {
   await write(SPARK_STORAGE_KEYS.profiles(guildId), filtered);
   await cancelSparkRegistration(guildId, userId).catch(() => {});
   return { ok: true, deleted: profiles.length > filtered.length };
+}
+
+export async function adminForceApproveProfile(guildId, targetUser, options = {}) {
+  const gender = options.gender || 'Nam';
+  const age = options.age || 20;
+  const adminId = options.adminId || null;
+  const profiles = await getSparkProfiles(guildId);
+  const existingIndex = profiles.findIndex((p) => String(p.userId) === String(targetUser.id));
+
+  let profile;
+  if (existingIndex >= 0) {
+    profile = profiles[existingIndex];
+    profile.data = profile.data || {};
+    profile.data.gender = gender;
+    profile.data.matchGender = gender === 'Nam' ? 'Nữ' : 'Nam';
+    profile.data.age = String(age);
+    profile.status = 'approved';
+    profile.matchId = null;
+    profile.reviewedAt = Date.now();
+    profile.reviewedBy = adminId ? String(adminId) : null;
+    profile.rejectionReason = null;
+    profiles[existingIndex] = profile;
+  } else {
+    profile = {
+      profileId: `SP-${Date.now().toString(36).toUpperCase()}`,
+      guildId,
+      userId: targetUser.id,
+      usernameAtSubmission: targetUser.username || targetUser.tag || targetUser.id,
+      data: {
+        age: String(age),
+        gender,
+        matchGender: gender === 'Nam' ? 'Nữ' : 'Nam',
+        area: 'Toàn quốc',
+        intention: 'Tìm hiểu / Kết bạn',
+        about: 'Hồ sơ được Admin duyệt và bổ sung trực tiếp.',
+        hobbies: 'Trò chuyện, kết bạn',
+        relationshipHappy: 'Sự chân thành',
+        traits: 'Vui vẻ, hòa đồng',
+        ageRange: '18-30',
+        otherRequirements: '',
+      },
+      status: 'approved',
+      submittedAt: Date.now(),
+      reviewedAt: Date.now(),
+      reviewedBy: adminId ? String(adminId) : null,
+      rejectionReason: null,
+      matchId: null,
+    };
+    profiles.push(profile);
+  }
+
+  await write(SPARK_STORAGE_KEYS.profiles(guildId), profiles);
+  return { ok: true, profile };
 }

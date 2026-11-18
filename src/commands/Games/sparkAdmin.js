@@ -338,64 +338,15 @@ export default {
       const targetUser = interaction.options.getUser('thanh-vien', true);
       const genderChoice = interaction.options.getString('gioi-tinh') || 'Nam';
       const ageChoice = interaction.options.getInteger('tuoi') || 20;
-      const profiles = await getSparkProfiles(interaction.guildId);
-      let profile = profiles.find((p) => String(p.userId) === String(targetUser.id));
-
-      if (!profile) {
-        profile = {
-          profileId: `SP-${Date.now().toString(36).toUpperCase()}`,
-          guildId: interaction.guildId,
-          userId: targetUser.id,
-          usernameAtSubmission: targetUser.username,
-          data: {
-            age: String(ageChoice),
-            gender: genderChoice,
-            matchGender: genderChoice === 'Nam' ? 'Nữ' : 'Nam',
-            area: 'Toàn quốc',
-            intention: 'Tìm hiểu / Kết bạn',
-            about: 'Hồ sơ được Admin duyệt và bổ sung trực tiếp.',
-            hobbies: 'Trò chuyện, kết bạn',
-            relationshipHappy: 'Sự chân thành',
-            traits: 'Vui vẻ, hòa đồng',
-            ageRange: '18-30',
-            otherRequirements: '',
-          },
-          status: 'approved',
-          submittedAt: Date.now(),
-          reviewedAt: Date.now(),
-          reviewedBy: String(interaction.user.id),
-          rejectionReason: null,
-          matchId: null,
-        };
-        profiles.push(profile);
-        const { SPARK_STORAGE_KEYS } = await import('../../config/sparkMatchingConfig.js');
-        const { db } = await import('../../utils/database/wrapper.js');
-        await db.set(SPARK_STORAGE_KEYS.profiles(interaction.guildId), profiles);
-        return interaction.reply({
-          content: `✅ Đã khôi phục và duyệt hồ sơ Spark Matching cho <@${targetUser.id}> với giới tính **${genderChoice}** (${ageChoice} tuổi)!\nHồ sơ này hiện đã xuất hiện trong danh sách sẵn sàng ghép đôi.`,
-          flags: MessageFlags.Ephemeral,
-        });
-      }
-
-      if (interaction.options.getString('gioi-tinh')) {
-        profile.data = profile.data || {};
-        profile.data.gender = genderChoice;
-        profile.data.matchGender = genderChoice === 'Nam' ? 'Nữ' : 'Nam';
-      }
-      if (interaction.options.getInteger('tuoi')) {
-        profile.data = profile.data || {};
-        profile.data.age = String(ageChoice);
-      }
-      profile.status = 'approved';
-      profile.reviewedAt = Date.now();
-      profile.reviewedBy = String(interaction.user.id);
-      profile.rejectionReason = null;
-      const { SPARK_STORAGE_KEYS } = await import('../../config/sparkMatchingConfig.js');
-      const { db } = await import('../../utils/database/wrapper.js');
-      await db.set(SPARK_STORAGE_KEYS.profiles(interaction.guildId), profiles);
+      const { adminForceApproveProfile } = await import('../../services/sparkMatchingService.js');
+      const result = await adminForceApproveProfile(interaction.guildId, targetUser, {
+        gender: genderChoice,
+        age: ageChoice,
+        adminId: interaction.user.id,
+      });
 
       return interaction.reply({
-        content: `✅ Đã duyệt và cập nhật hồ sơ Spark Matching của <@${targetUser.id}>!\n• **Giới tính:** **${profile.data?.gender || 'Chưa rõ'}**\n• **Trạng thái:** 🟢 Sẵn sàng ghép đôi`,
+        content: `✅ Đã duyệt và đưa hồ sơ Spark Matching của <@${targetUser.id}> vào hệ thống!\n• **Giới tính:** **${result.profile.data.gender}** (${result.profile.data.age} tuổi)\n• **Trạng thái:** 🟢 Sẵn sàng ghép đôi (Mã: \`${result.profile.profileId}\`)\n\n👉 Bạn này đã sẵn sàng để chọn trong menu **Ghép Đôi Thủ Công** rồi nhé!`,
         flags: MessageFlags.Ephemeral,
       });
     }
