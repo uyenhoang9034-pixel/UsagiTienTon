@@ -31,6 +31,16 @@ async function write(key, value) {
   return value;
 }
 
+export function isMaleGender(gender = '') {
+  const g = String(gender || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return /nam|male|man|trai|boy|duc/.test(g);
+}
+
+export function isFemaleGender(gender = '') {
+  const g = String(gender || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return /nu|female|woman|gai|girl/.test(g);
+}
+
 export async function getSparkConfig(guildId) {
   const defaults = getDefaultSparkGuildConfig();
   const stored = await read(SPARK_STORAGE_KEYS.config(guildId), {});
@@ -151,7 +161,7 @@ export async function submitSparkProfile(guild, user) {
   if (missing.length) return { ok: false, code: 'INCOMPLETE_PROFILE', missing };
 
   const config = await getSparkConfig(guild.id);
-  const channelId = /nữ|nu|female|woman/i.test(data.gender)
+  const channelId = isFemaleGender(data.gender)
     ? config.femaleReviewChannelId
     : config.maleReviewChannelId;
   const reviewChannel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;

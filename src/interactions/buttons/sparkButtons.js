@@ -160,28 +160,70 @@ function parseProfileFromMessage(message, profileIdFallback) {
     if (!Array.isArray(components)) return;
     for (const c of components) {
       if (c.content) texts.push(c.content);
+      if (c.data?.content) texts.push(c.data.content);
+      if (c.text) texts.push(c.text);
+      if (c.data?.text) texts.push(c.data.text);
       if (Array.isArray(c.components)) collect(c.components);
     }
   }
   collect(message?.components);
+
+  if (Array.isArray(message?.embeds)) {
+    for (const e of message.embeds) {
+      if (e.title) texts.push(e.title);
+      if (e.description) texts.push(e.description);
+      if (Array.isArray(e.fields)) {
+        for (const f of e.fields) {
+          texts.push(`${f.name}: ${f.value}`);
+        }
+      }
+    }
+  }
+
   const fullText = texts.join('\n');
 
-  const userId = fullText.match(/\*\*Discord ID:\*\*\s*(\d+)/i)?.[1];
+  const userId = fullText.match(/\*\*Discord ID:\*\*\s*(\d+)/i)?.[1]
+    || fullText.match(/Discord ID:\s*(\d+)/i)?.[1]
+    || fullText.match(/ID:\s*(\d{17,20})/i)?.[1]
+    || fullText.match(/<@!?(\d+)>/)?.[1];
   if (!userId) return null;
 
-  const profileId = fullText.match(/\*\*Mã hồ sơ:\*\*\s*([A-Za-z0-9_-]+)/i)?.[1] || profileIdFallback || `SP-${Date.now().toString(36).toUpperCase()}`;
-  const username = fullText.match(/\*\*Tên lúc đăng ký:\*\*\s*([^\n]+)/i)?.[1]?.trim() || '';
-  const age = fullText.match(/\*\*Tuổi:\*\*\s*([^\n]+)/i)?.[1]?.trim() || '';
-  const gender = fullText.match(/\*\*Giới tính:\*\*\s*([^\n]+)/i)?.[1]?.trim() || '';
+  const profileId = fullText.match(/\*\*Mã hồ sơ:\*\*\s*([A-Za-z0-9_#-]+)/i)?.[1]
+    || fullText.match(/Mã\s*(?:hồ sơ)?:\s*([A-Za-z0-9_#-]+)/i)?.[1]
+    || profileIdFallback
+    || `SP-${Date.now().toString(36).toUpperCase()}`;
+
+  const username = fullText.match(/\*\*Tên lúc đăng ký:\*\*\s*([^\n]+)/i)?.[1]?.trim()
+    || fullText.match(/Tên lúc đăng ký:\s*([^\n]+)/i)?.[1]?.trim()
+    || fullText.match(/Người gửi:\s*([^\n]+)/i)?.[1]?.trim()
+    || '';
+
+  const age = fullText.match(/\*\*Tuổi:\*\*\s*([^\n]+)/i)?.[1]?.trim()
+    || fullText.match(/Tuổi(?:\s*\/\s*Năm sinh)?:\s*([^\n]+)/i)?.[1]?.trim()
+    || '';
+
+  const gender = fullText.match(/\*\*Giới tính:\*\*\s*([^\n]+)/i)?.[1]?.trim()
+    || fullText.match(/Giới tính:\s*([^\n]+)/i)?.[1]?.trim()
+    || '';
+
   const orientation = fullText.match(/\*\*Xu hướng tính dục[^\n:]*:\*\*\s*([^\n]+)/i)?.[1]?.trim() || '';
-  const matchGender = fullText.match(/\*\*Mong muốn ghép đôi:\*\*\s*([^\n]+)/i)?.[1]?.trim() || '';
+  const matchGender = fullText.match(/\*\*Mong muốn ghép đôi:\*\*\s*([^\n]+)/i)?.[1]?.trim()
+    || fullText.match(/Tìm kiếm:\s*([^\n]+)/i)?.[1]?.trim()
+    || '';
+
   const area = fullText.match(/\*\*Khu vực:\*\*\s*([^\n]+)/i)?.[1]?.trim() || '';
   const intention = fullText.match(/\*\*Mục đích:\*\*\s*([^\n]+)/i)?.[1]?.trim() || '';
 
-  const about = fullText.match(/\*\*Giới thiệu:\*\*\s*\n([\s\S]*?)(?=\n\n\*\*Sở thích:\*\*)/i)?.[1]?.trim() || '';
+  const about = fullText.match(/\*\*Giới thiệu:\*\*\s*\n([\s\S]*?)(?=\n\n\*\*Sở thích:\*\*)/i)?.[1]?.trim()
+    || fullText.match(/Đôi nét về bản thân:\s*\n([\s\S]*?)(?=\n\n|\n[•\*\!])/i)?.[1]?.trim()
+    || '';
   const hobbies = fullText.match(/\*\*Sở thích:\*\*\s*\n([\s\S]*?)(?=\n\n\*\*Điều khiến bạn vui)/i)?.[1]?.trim() || '';
-  const relationshipHappy = fullText.match(/\*\*Điều khiến bạn vui[^\n:]*:\*\*\s*\n([\s\S]*?)(?=\n\n\*\*Tính cách Sparkmate)/i)?.[1]?.trim() || '';
-  const traits = fullText.match(/\*\*Tính cách Sparkmate[^\n:]*:\*\*\s*\n([\s\S]*?)(?=\n\n\*\*Độ tuổi mong muốn)/i)?.[1]?.trim() || '';
+  const relationshipHappy = fullText.match(/\*\*Điều khiến bạn vui[^\n:]*:\*\*\s*\n([\s\S]*?)(?=\n\n\*\*Tính cách Sparkmate)/i)?.[1]?.trim()
+    || fullText.match(/Điều trân trọng trong một mối quan hệ:\s*\n([\s\S]*?)(?=\n\n|\n[•\*\!])/i)?.[1]?.trim()
+    || '';
+  const traits = fullText.match(/\*\*Tính cách Sparkmate[^\n:]*:\*\*\s*\n([\s\S]*?)(?=\n\n\*\*Độ tuổi mong muốn)/i)?.[1]?.trim()
+    || fullText.match(/Hình mẫu Sparkmate lý tưởng:\s*\n([\s\S]*?)(?=\n\n|\n[•\*\!])/i)?.[1]?.trim()
+    || '';
   const ageRange = fullText.match(/\*\*Độ tuổi mong muốn:\*\*\s*([^\n]+)/i)?.[1]?.trim() || '';
   const otherRequirements = fullText.match(/\*\*Yêu cầu khác:\*\*\s*([^\n]+)/i)?.[1]?.trim() || '';
   const requestedUserId = fullText.match(/\*\*Người muốn ghép đôi cụ thể:\*\*\s*([^\n]+)/i)?.[1]?.trim() || '';

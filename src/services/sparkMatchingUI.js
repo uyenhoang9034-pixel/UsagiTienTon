@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, StringSelectMenuBuilder } from 'discord.js';
 import { SPARK_MATCHING_CONFIG } from '../config/sparkMatchingConfig.js';
-import { getSparkConfig } from './sparkMatchingService.js';
+import { getSparkConfig, isMaleGender, isFemaleGender } from './sparkMatchingService.js';
 
 export const SPARK_COMPONENTS_V2 = MessageFlags.IsComponentsV2 ?? (1 << 15);
 
@@ -198,8 +198,8 @@ export function buildSparkAdminDashboardPayload({ config, profiles, matches }) {
     if (m.requestedUserId) activeUserIds.add(String(m.requestedUserId));
   }
 
-  const allMale = profiles.filter((profile) => profile.status !== 'rejected' && /nam|male|man/i.test(profile.data?.gender || ''));
-  const allFemale = profiles.filter((profile) => profile.status !== 'rejected' && /nữ|nu|female|woman/i.test(profile.data?.gender || ''));
+  const allMale = profiles.filter((profile) => profile.status !== 'rejected' && isMaleGender(profile.data?.gender));
+  const allFemale = profiles.filter((profile) => profile.status !== 'rejected' && isFemaleGender(profile.data?.gender));
 
   const availableMale = allMale.filter((p) => p.status === 'approved' && !activeUserIds.has(String(p.userId))).length;
   const availableFemale = allFemale.filter((p) => p.status === 'approved' && !activeUserIds.has(String(p.userId))).length;
@@ -257,8 +257,8 @@ export function buildSparkAdminMatchPickerPayload(profiles, selection = {}, matc
     if (m.requestedUserId) activeUserIds.add(String(m.requestedUserId));
   }
 
-  const allMale = profiles.filter((profile) => profile.status !== 'rejected' && /nam|male|man/i.test(profile.data?.gender || ''));
-  const allFemale = profiles.filter((profile) => profile.status !== 'rejected' && /nữ|nu|female|woman/i.test(profile.data?.gender || ''));
+  const allMale = profiles.filter((profile) => profile.status !== 'rejected' && isMaleGender(profile.data?.gender));
+  const allFemale = profiles.filter((profile) => profile.status !== 'rejected' && isFemaleGender(profile.data?.gender));
 
   const maleProfiles = allMale.filter((profile) => profile.status === 'approved' && !activeUserIds.has(String(profile.userId)));
   const femaleProfiles = allFemale.filter((profile) => profile.status === 'approved' && !activeUserIds.has(String(profile.userId)));

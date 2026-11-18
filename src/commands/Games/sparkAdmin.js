@@ -71,8 +71,21 @@ export default {
       .addUserOption((o) => o.setName('thanh-vien').setDescription('Thành viên cần xóa hồ sơ').setRequired(true)))
     .addSubcommand((sub) => sub
       .setName('approve-user')
-      .setDescription('Admin duyệt trực tiếp hồ sơ cho một thành viên')
-      .addUserOption((o) => o.setName('thanh-vien').setDescription('Thành viên muốn duyệt hồ sơ').setRequired(true))),
+      .setDescription('Admin duyệt hoặc bổ sung trực tiếp hồ sơ cho một thành viên')
+      .addUserOption((o) => o.setName('thanh-vien').setDescription('Thành viên muốn duyệt hồ sơ').setRequired(true))
+      .addStringOption((o) => o.setName('gioi-tinh').setDescription('Giới tính (nếu hồ sơ bị thất lạc bộ nhớ)').setRequired(false).addChoices(
+        { name: 'Nam', value: 'Nam' },
+        { name: 'Nữ', value: 'Nữ' },
+      ))
+      .addIntegerOption((o) => o.setName('tuoi').setDescription('Tuổi (nếu hồ sơ bị thất lạc)').setRequired(false)))
+    .addSubcommand((sub) => sub
+      .setName('list-profiles')
+      .setDescription('Xem toàn bộ danh sách hồ sơ trong hệ thống (đã duyệt, đang bận, chờ duyệt)')
+      .addStringOption((o) => o.setName('loc').setDescription('Lọc theo giới tính').setRequired(false).addChoices(
+        { name: 'Tất cả hồ sơ', value: 'all' },
+        { name: 'Chỉ hồ sơ Nam', value: 'male' },
+        { name: 'Chỉ hồ sơ Nữ', value: 'female' },
+      ))),
   category: 'Games',
   async execute(interaction) {
     if (!isSparkAdmin(interaction.member)) {
@@ -315,23 +328,100 @@ export default {
 
     if (subcommand === 'approve-user') {
       const targetUser = interaction.options.getUser('thanh-vien', true);
+      const genderChoice = interaction.options.getString('gioi-tinh') || 'Nam';
+      const ageChoice = interaction.options.getInteger('tuoi') || 20;
       const profiles = await getSparkProfiles(interaction.guildId);
-      const profile = profiles.find((p) => String(p.userId) === String(targetUser.id));
+      let profile = profiles.find((p) => String(p.userId) === String(targetUser.id));
+
       if (!profile) {
+        profile = {
+          profileId: `SP-${Date.now().toString(36).toUpperCase()}`,
+          guildId: interaction.guildId,
+          userId: targetUser.id,
+          usernameAtSubmission: targetUser.username,
+          data: {
+            age: String(ageChoice),
+            gender: genderChoice,
+            matchGender: genderChoice === 'Nam' ? 'Nữ' : 'Nam',
+            area: 'Toàn quốc',
+            intention: 'Tìm hiểu / Kết bạn',
+            about: 'Hồ sơ được Admin duyệt và bổ sung trực tiếp.',
+            hobbies: 'Trò chuyện, kết bạn',
+            relationshipHappy: 'Sự chân thành',
+            traits: 'Vui vẻ, hòa đồng',
+            ageRange: '18-30',
+            otherRequirements: '',
+          },
+          status: 'approved',
+          submittedAt: Date.now(),
+          reviewedAt: Date.now(),
+          reviewedBy: String(interaction.user.id),
+          rejectionReason: null,
+          matchId: null,
+        };
+        profiles.push(profile);
+        const { SPARK_STORAGE_KEYS } = await import('../../config/sparkMatchingConfig.js');
+        const { db } = await import('../../utils/database/wrapper.js');
+        await db.set(SPARK_STORAGE_KEYS.profiles(interaction.guildId), profiles);
         return interaction.reply({
-          content: `<a:bang2:1546891483250954290> Không tìm thấy dữ liệu hồ sơ của <@${targetUser.id}> trong bộ nhớ. Bạn hãy nhờ thành viên bấm đăng ký lại trên bảng /spark nhé!`,
+          content: `✅ Đã khôi phục và duyệt hồ sơ Spark Matching cho <@${targetUser.id}> với giới tính **${genderChoice}** (${ageChoice} tuổi)!\nHồ sơ này hiện đã xuất hiện trong danh sách sẵn sàng ghép đôi.`,
           flags: MessageFlags.Ephemeral,
         });
       }
 
       const { reviewSparkProfile } = await import('../../services/sparkMatchingService.js');
       const result = await reviewSparkProfile(interaction.guild, profile.profileId, interaction.user.id, 'approve');
-      if (!result.ok) {
+      if (!result.ok && !result.alreadyApproved) {
         return interaction.reply({ content: `Không thể duyệt hồ sơ: ${result.code}`, flags: MessageFlags.Ephemeral });
       }
 
       return interaction.reply({
         content: `✅ Đã duyệt thành công hồ sơ Spark Matching của <@${targetUser.id}> (Mã: ${profile.profileId})!`,
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
+    if (subcommand === 'list-profiles') {
+      const filter = interaction.options.getString('loc') || 'all';
+      const { isMaleGender, isFemaleGender } = await import('../../services/sparkMatchingService.js');
+      const [profiles, matches] = await Promise.all([
+        getSparkProfiles(interaction.guildId),
+        getSparkMatches(interaction.guildId),
+      ]);
+      const activeMatches = matches.filter((m) => m.status !== 'closed');
+      const activeUserMap = new Map();
+      for (const m of activeMatches) {
+        if (m.userAId) activeUserMap.set(String(m.userAId), m.matchId);
+        if (m.userBId) activeUserMap.set(String(m.userBId), m.matchId);
+      }
+
+      let filtered = profiles;
+      if (filter === 'male') filtered = profiles.filter((p) => isMaleGender(p.data?.gender));
+      if (filter === 'female') filtered = profiles.filter((p) => isFemaleGender(p.data?.gender));
+
+      if (filtered.length === 0) {
+        return interaction.reply({
+          content: 'Hiện không có hồ sơ nào phù hợp với bộ lọc trong hệ thống.',
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      const lines = filtered.slice(0, 25).map((p) => {
+        const isMale = isMaleGender(p.data?.gender);
+        const genderLabel = isMale ? 'Nam' : (isFemaleGender(p.data?.gender) ? 'Nữ' : (p.data?.gender || 'Chưa rõ'));
+        const busyMatchId = activeUserMap.get(String(p.userId));
+        const statusLabel = busyMatchId
+          ? `🔴 Đang ghép (${busyMatchId})`
+          : p.status === 'approved'
+            ? '🟢 Sẵn sàng'
+            : p.status === 'pending'
+              ? '🟡 Chờ duyệt'
+              : '⚪ Đã từ chối';
+        return `• <@${p.userId}> (\`${p.usernameAtSubmission || p.userId}\`) · **${genderLabel}** (${p.data?.age || '?'}t) · ${statusLabel}`;
+      });
+
+      return interaction.reply({
+        content: `**DANH SÁCH HỒ SƠ SPARK MATCHING (${filtered.length} hồ sơ)**\n\n${lines.join('\n')}`,
         flags: MessageFlags.Ephemeral,
       });
     }
