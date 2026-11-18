@@ -384,9 +384,11 @@ export default {
       ]);
       const activeMatches = matches.filter((m) => m.status !== 'closed');
       const activeUserMap = new Map();
-      for (const m of activeMatches) {
-        if (m.userAId) activeUserMap.set(String(m.userAId), m.matchId);
-        if (m.userBId) activeUserMap.set(String(m.userBId), m.matchId);
+      for (const match of activeMatches) {
+        for (const userId of [match.userAId, match.userBId].filter(Boolean).map(String)) {
+          if (!activeUserMap.has(userId)) activeUserMap.set(userId, []);
+          activeUserMap.get(userId).push(match.matchId);
+        }
       }
 
       let filtered = profiles;
@@ -403,11 +405,11 @@ export default {
       const lines = filtered.slice(0, 25).map((p) => {
         const isMale = isMaleGender(p.data?.gender);
         const genderLabel = isMale ? 'Nam' : (isFemaleGender(p.data?.gender) ? 'Nữ' : (p.data?.gender || 'Chưa rõ'));
-        const busyMatchId = activeUserMap.get(String(p.userId));
-        const statusLabel = busyMatchId
-          ? `🔴 Đang ghép (${busyMatchId})`
+        const profileMatchIds = activeUserMap.get(String(p.userId)) || [];
+        const statusLabel = profileMatchIds.length
+          ? `🔵 Đang tham gia ${profileMatchIds.length} lượt ghép (${profileMatchIds.join(', ')})`
           : p.status === 'approved'
-            ? '🟢 Sẵn sàng'
+            ? '🟢 Đã duyệt'
             : p.status === 'pending'
               ? '🟡 Chờ duyệt'
               : '⚪ Đã từ chối';
