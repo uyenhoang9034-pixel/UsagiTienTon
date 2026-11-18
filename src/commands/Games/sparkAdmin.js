@@ -34,7 +34,8 @@ export default {
     .addSubcommand((sub) => sub
       .setName('cancel')
       .setDescription('Admin kết thúc một lượt ghép đôi')
-      .addStringOption((o) => o.setName('match-id').setDescription('Mã lượt ghép đôi').setRequired(true)))
+      .addStringOption((o) => o.setName('match-id').setDescription('Mã lượt ghép đôi').setRequired(true))
+      .addBooleanOption((o) => o.setName('dong-ngay').setDescription('Đóng vĩnh viễn và giải phóng hồ sơ ngay lập tức (không chờ feedback)').setRequired(false)))
     .addSubcommand((sub) => sub
       .setName('test')
       .setDescription('Admin tự test ghép đôi với một thành viên cụ thể')
@@ -220,15 +221,14 @@ export default {
     if (subcommand === 'cancel') {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const matchId = interaction.options.getString('match-id');
-      const result = await cancelSparkMatchByAdmin(interaction.guild, matchId, interaction.user.id);
+      const force = interaction.options.getBoolean('dong-ngay') || false;
+      const result = await cancelSparkMatchByAdmin(interaction.guild, matchId, interaction.user.id, { force });
       if (!result.ok) {
-        return interaction.editReply(result.code === 'ALREADY_FEEDBACK_PENDING'
-          ? 'Lượt này đã ở trạng thái chờ feedback và không thể hủy theo cách này.'
-          : 'Không tìm thấy lượt ghép đôi đang hoạt động.');
+        return interaction.editReply('Không tìm thấy lượt ghép đôi đang hoạt động.');
       }
       return interaction.editReply(result.feedbackPending
         ? 'Đã kết thúc lượt ghép đôi. Thread được khóa và đang chờ ít nhất một người gửi feedback.'
-        : 'Đã kết thúc lượt ghép đôi và thông báo cho hai thành viên.');
+        : 'Đã kết thúc lượt ghép đôi, giải phóng hồ sơ cho hai thành viên và gửi thông báo.');
     }
 
     if (subcommand === 'test') {

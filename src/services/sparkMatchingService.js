@@ -928,6 +928,33 @@ async function unlockSparkProfiles(guildId, matchId) {
   await write(SPARK_STORAGE_KEYS.profiles(guildId), profiles);
 }
 
+export async function syncSparkProfileStatuses(guildId) {
+  const [profiles, matches] = await Promise.all([
+    getSparkProfiles(guildId),
+    getSparkMatches(guildId),
+  ]);
+  const activeMatches = matches.filter((m) => m.status !== 'closed');
+  const activeUserIds = new Set();
+  for (const m of activeMatches) {
+    if (m.userAId) activeUserIds.add(String(m.userAId));
+    if (m.userBId) activeUserIds.add(String(m.userBId));
+    if (m.requestedUserId) activeUserIds.add(String(m.requestedUserId));
+  }
+
+  let changed = false;
+  for (const p of profiles) {
+    if (p.status === 'matched' && !activeUserIds.has(String(p.userId))) {
+      p.status = 'approved';
+      p.matchId = null;
+      changed = true;
+    }
+  }
+  if (changed) {
+    await write(SPARK_STORAGE_KEYS.profiles(guildId), profiles);
+  }
+  return profiles;
+}
+
 async function archiveSparkMatch(guild, match, reason) {
   match.status = 'closed';
   match.endedAt = Date.now();
@@ -1125,11 +1152,39 @@ export async function updateSparkAdminMatchSelection(guildId, adminId, patch) {
   return next;
 }
 
-export async function cancelSparkMatchByAdmin(guild, matchId, adminId) {
+export async function cancelSparkMatchByAdmin(guild, matchId, adminId, options = {}) {
   const matches = await getSparkMatches(guild.id);
   const match = matches.find((item) => item.matchId === String(matchId));
   if (!match || match.status === 'closed') return { ok: false, code: 'MATCH_NOT_FOUND' };
-  if (match.status === 'feedback_pending') return { ok: false, code: 'ALREADY_FEEDBACK_PENDING' };
+
+  if (match.status === 'feedback_pending') {
+    if (match.threadId) {
+      const thread = await guild.channels.fetch(match.threadId).catch(() => null);
+      if (thread?.isThread?.()) {
+        await thread.delete('Admin hủy và đóng thread Spark Matching.').catch(() => {});
+      }
+    }
+    await archiveSparkMatch(guild, match, 'admin_force_close');
+    return { ok: true, feedbackPending: false, forceClosed: true };
+  }
+
+  if (options.force) {
+    if (match.threadId) {
+      const thread = await guild.channels.fetch(match.threadId).catch(() => null);
+      if (thread?.isThread?.()) {
+        await thread.delete('Admin hủy và đóng thread Spark Matching.').catch(() => {});
+      }
+    }
+    const [a, b] = await Promise.all([
+      guild.members.fetch(match.userAId).catch(() => null),
+      guild.members.fetch(match.userBId).catch(() => null),
+    ]);
+    await Promise.all([a, b].filter(Boolean).map((member) =>
+      member.send('Cupid xin thông báo lượt ghép đôi hiện đã được admin kết thúc. Cảm ơn bạn đã tham gia Spark Matching nhé!').catch(() => {})
+    ));
+    await archiveSparkMatch(guild, match, 'admin_force_close');
+    return { ok: true, feedbackPending: false, forceClosed: true };
+  }
 
   if (match.threadId && ['thread', 'connection_pending'].includes(match.status)) {
     await finishSparkMatch(guild, match.matchId, 'admin_cancel', adminId);

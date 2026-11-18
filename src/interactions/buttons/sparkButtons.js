@@ -1,6 +1,6 @@
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder,
-  TextInputStyle, MessageFlags,
+  TextInputStyle, MessageFlags, StringSelectMenuBuilder,
 } from 'discord.js';
 import {
   beginSparkRegistration, reviewSparkProfile, closeSparkMatchAfterFeedback,
@@ -517,7 +517,27 @@ export default [
       const body = matches.length
         ? matches.map((match) => '• **' + match.matchId + '** · <@' + match.userAId + '> × <@' + match.userBId + '> · ' + match.status + (match.test ? ' · TEST' : '') + (match.threadId ? ' · <#' + match.threadId + '>' : '')).join('\n')
         : 'Không có cặp đôi nào đang hoạt động.';
-      return interaction.reply({ content: '**CẶP ĐÔI ĐANG HOẠT ĐỘNG**\n' + body, flags: MessageFlags.Ephemeral });
+
+      const components = [];
+      if (matches.length > 0) {
+        const options = matches.slice(0, 25).map((m) => ({
+          label: `Hủy lượt ${m.matchId}`.slice(0, 100),
+          value: m.matchId,
+          description: `Trạng thái: ${m.status}${m.test ? ' · TEST' : ''}`.slice(0, 100),
+        }));
+        components.push(new ActionRowBuilder().addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId('spark_admin_cancel_match_select')
+            .setPlaceholder('Chọn một cặp đôi để hủy / kết thúc ngay')
+            .addOptions(options)
+        ));
+      }
+
+      return interaction.reply({
+        content: '**CẶP ĐÔI ĐANG HOẠT ĐỘNG**\n' + body + (matches.length ? '\n\n💡 *Bạn có thể chọn một cặp đôi trong menu bên dưới để hủy ngay và giải phóng hồ sơ cho hai thành viên:*' : ''),
+        components,
+        flags: MessageFlags.Ephemeral,
+      });
     },
   },
   {
@@ -579,10 +599,14 @@ export default [
     name: 'spark_admin_match',
     async execute(interaction) {
       if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền ghép đôi.');
-      const profiles = await getSparkProfiles(interaction.guildId);
+      const { syncSparkProfileStatuses } = await import('../../services/sparkMatchingService.js');
+      const [profiles, matches] = await Promise.all([
+        syncSparkProfileStatuses(interaction.guildId),
+        getSparkMatches(interaction.guildId),
+      ]);
       const selection = await getSparkAdminMatchSelection(interaction.guildId, interaction.user.id);
       const { buildSparkAdminMatchPickerPayload } = await import('../../services/sparkMatchingUI.js');
-      return interaction.reply(buildSparkAdminMatchPickerPayload(profiles, selection));
+      return interaction.reply(buildSparkAdminMatchPickerPayload(profiles, selection, matches));
     },
   },
 
@@ -592,10 +616,14 @@ export default [
     async execute(interaction, client, args) {
       if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền ghép đôi.');
       const page = Math.max(0, Number(args[0]) || 0);
-      const selection = await updateSparkAdminMatchSelection(interaction.guildId, interaction.user.id, { malePage: page });
-      const profiles = await getSparkProfiles(interaction.guildId);
+      const { syncSparkProfileStatuses } = await import('../../services/sparkMatchingService.js');
+      const [profiles, matches, selection] = await Promise.all([
+        syncSparkProfileStatuses(interaction.guildId),
+        getSparkMatches(interaction.guildId),
+        updateSparkAdminMatchSelection(interaction.guildId, interaction.user.id, { malePage: page }),
+      ]);
       const { buildSparkAdminMatchPickerPayload } = await import('../../services/sparkMatchingUI.js');
-      return interaction.update(buildSparkAdminMatchPickerPayload(profiles, selection));
+      return interaction.update(buildSparkAdminMatchPickerPayload(profiles, selection, matches));
     },
   },
   {
@@ -603,10 +631,14 @@ export default [
     async execute(interaction, client, args) {
       if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền ghép đôi.');
       const page = Math.max(0, Number(args[0]) || 0);
-      const selection = await updateSparkAdminMatchSelection(interaction.guildId, interaction.user.id, { femalePage: page });
-      const profiles = await getSparkProfiles(interaction.guildId);
+      const { syncSparkProfileStatuses } = await import('../../services/sparkMatchingService.js');
+      const [profiles, matches, selection] = await Promise.all([
+        syncSparkProfileStatuses(interaction.guildId),
+        getSparkMatches(interaction.guildId),
+        updateSparkAdminMatchSelection(interaction.guildId, interaction.user.id, { femalePage: page }),
+      ]);
       const { buildSparkAdminMatchPickerPayload } = await import('../../services/sparkMatchingUI.js');
-      return interaction.update(buildSparkAdminMatchPickerPayload(profiles, selection));
+      return interaction.update(buildSparkAdminMatchPickerPayload(profiles, selection, matches));
     },
   },
   {

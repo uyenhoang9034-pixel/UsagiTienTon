@@ -190,9 +190,29 @@ export function buildSparkIncomingMessagePayload(match, messageContent) {
 
 export function buildSparkAdminDashboardPayload({ config, profiles, matches }) {
   const pending = profiles.filter((profile) => profile.status === 'pending').length;
-  const male = profiles.filter((profile) => profile.status !== 'rejected' && /nam|male|man/i.test(profile.data?.gender || '')).length;
-  const female = profiles.filter((profile) => profile.status !== 'rejected' && /nữ|nu|female|woman/i.test(profile.data?.gender || '')).length;
-  const active = matches.filter((match) => match.status !== 'closed').length;
+  const activeMatches = (matches || []).filter((match) => match.status !== 'closed');
+  const activeUserIds = new Set();
+  for (const m of activeMatches) {
+    if (m.userAId) activeUserIds.add(String(m.userAId));
+    if (m.userBId) activeUserIds.add(String(m.userBId));
+    if (m.requestedUserId) activeUserIds.add(String(m.requestedUserId));
+  }
+
+  const allMale = profiles.filter((profile) => profile.status !== 'rejected' && /nam|male|man/i.test(profile.data?.gender || ''));
+  const allFemale = profiles.filter((profile) => profile.status !== 'rejected' && /nữ|nu|female|woman/i.test(profile.data?.gender || ''));
+
+  const availableMale = allMale.filter((p) => p.status === 'approved' && !activeUserIds.has(String(p.userId))).length;
+  const availableFemale = allFemale.filter((p) => p.status === 'approved' && !activeUserIds.has(String(p.userId))).length;
+
+  const maleDesc = allMale.length === availableMale
+    ? `**${allMale.length}**`
+    : `**${allMale.length}** (${availableMale} sẵn sàng · ${allMale.length - availableMale} đang bận)`;
+
+  const femaleDesc = allFemale.length === availableFemale
+    ? `**${allFemale.length}**`
+    : `**${allFemale.length}** (${availableFemale} sẵn sàng · ${allFemale.length - availableFemale} đang bận)`;
+
+  const active = activeMatches.length;
   const rowOne = new ActionRowBuilder().addComponents(
     button('spark_admin_pending', 'Hồ Sơ Chờ Duyệt'),
     button('spark_admin_match', 'Ghép Đôi Thủ Công'),
@@ -212,8 +232,8 @@ export function buildSparkAdminDashboardPayload({ config, profiles, matches }) {
         divider(),
         text(
           '**THỐNG KÊ HỒ SƠ**\n' +
-          '• Hồ sơ nam: **' + male + '**\n' +
-          '• Hồ sơ nữ: **' + female + '**\n' +
+          '• Hồ sơ nam: ' + maleDesc + '\n' +
+          '• Hồ sơ nữ: ' + femaleDesc + '\n' +
           '• Chờ duyệt: **' + pending + '**\n' +
           '• Cặp đôi chưa kết thúc: **' + active + '**\n\n' +
           '**TRẠNG THÁI**\n' +
@@ -228,10 +248,20 @@ export function buildSparkAdminDashboardPayload({ config, profiles, matches }) {
   };
 }
 
-export function buildSparkAdminMatchPickerPayload(profiles, selection = {}) {
-  const approved = profiles.filter((profile) => profile.status === 'approved');
-  const maleProfiles = approved.filter((profile) => /nam|male|man/i.test(profile.data?.gender || ''));
-  const femaleProfiles = approved.filter((profile) => /nữ|nu|female|woman/i.test(profile.data?.gender || ''));
+export function buildSparkAdminMatchPickerPayload(profiles, selection = {}, matches = []) {
+  const activeMatches = (matches || []).filter((match) => match.status !== 'closed');
+  const activeUserIds = new Set();
+  for (const m of activeMatches) {
+    if (m.userAId) activeUserIds.add(String(m.userAId));
+    if (m.userBId) activeUserIds.add(String(m.userBId));
+    if (m.requestedUserId) activeUserIds.add(String(m.requestedUserId));
+  }
+
+  const allMale = profiles.filter((profile) => profile.status !== 'rejected' && /nam|male|man/i.test(profile.data?.gender || ''));
+  const allFemale = profiles.filter((profile) => profile.status !== 'rejected' && /nữ|nu|female|woman/i.test(profile.data?.gender || ''));
+
+  const maleProfiles = allMale.filter((profile) => profile.status === 'approved' && !activeUserIds.has(String(profile.userId)));
+  const femaleProfiles = allFemale.filter((profile) => profile.status === 'approved' && !activeUserIds.has(String(profile.userId)));
   const pageSize = 25;
   const malePage = Math.max(0, Math.min(selection.malePage || 0, Math.max(0, Math.ceil(maleProfiles.length / pageSize) - 1)));
   const femalePage = Math.max(0, Math.min(selection.femalePage || 0, Math.max(0, Math.ceil(femaleProfiles.length / pageSize) - 1)));
@@ -259,8 +289,10 @@ export function buildSparkAdminMatchPickerPayload(profiles, selection = {}) {
     components.push(new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder().setCustomId('spark_admin_pick_male').setPlaceholder('Chọn thành viên nam').addOptions(maleOptions),
     ).toJSON());
+  } else if (allMale.length > 0) {
+    components.push(text('**HỒ SƠ NAM:** Hiện có **' + allMale.length + '** hồ sơ nam nhưng đang bận trong lượt ghép đôi chưa kết thúc. (Hãy kiểm tra mục "Cặp Đôi Đang Hoạt Động" để kết thúc lượt cũ trước).'));
   } else {
-    components.push(text('**HỒ SƠ NAM:** Chưa có hồ sơ đã duyệt phù hợp.'));
+    components.push(text('**HỒ SƠ NAM:** Chưa có hồ sơ nam nào được duyệt phù hợp.'));
   }
 
   if (maleProfiles.length > pageSize) {
@@ -275,8 +307,10 @@ export function buildSparkAdminMatchPickerPayload(profiles, selection = {}) {
     components.push(new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder().setCustomId('spark_admin_pick_female').setPlaceholder('Chọn thành viên nữ').addOptions(femaleOptions),
     ).toJSON());
+  } else if (allFemale.length > 0) {
+    components.push(text('**HỒ SƠ NỮ:** Hiện có **' + allFemale.length + '** hồ sơ nữ nhưng đang bận trong lượt ghép đôi chưa kết thúc. (Hãy kiểm tra mục "Cặp Đôi Đang Hoạt Động" để kết thúc lượt cũ trước).'));
   } else {
-    components.push(text('**HỒ SƠ NỮ:** Chưa có hồ sơ đã duyệt phù hợp.'));
+    components.push(text('**HỒ SƠ NỮ:** Chưa có hồ sơ nữ nào được duyệt phù hợp.'));
   }
 
   if (femaleProfiles.length > pageSize) {
@@ -286,7 +320,13 @@ export function buildSparkAdminMatchPickerPayload(profiles, selection = {}) {
     ).toJSON());
   }
 
-  const confirmRow = new ActionRowBuilder().addComponents(
+  const confirmRow = new ActionRowBuilder();
+  if (activeMatches.length > 0 && (!maleProfiles.length || !femaleProfiles.length)) {
+    confirmRow.addComponents(
+      new ButtonBuilder().setCustomId('spark_admin_active').setLabel('Cặp Đôi Đang Hoạt Động').setStyle(ButtonStyle.Secondary),
+    );
+  }
+  confirmRow.addComponents(
     new ButtonBuilder().setCustomId('spark_admin_match_confirm').setLabel('Xác Nhận Ghép Đôi').setStyle(ButtonStyle.Secondary).setDisabled(!selection.maleId || !selection.femaleId),
   );
   components.push(divider(), text('**Đã chọn:** ' + (selection.maleId ? '<@' + selection.maleId + '>' : 'Chưa chọn nam') + ' × ' + (selection.femaleId ? '<@' + selection.femaleId + '>' : 'Chưa chọn nữ')), confirmRow.toJSON());
