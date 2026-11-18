@@ -15,7 +15,7 @@ async function handlePick(interaction, field) {
     syncSparkProfileStatuses(interaction.guildId),
     getSparkMatches(interaction.guildId),
   ]);
-  const profile = profiles.find((item) => item.userId === userId && item.status === 'approved');
+  const profile = profiles.find((item) => item.userId === userId && ['approved', 'matched'].includes(item.status));
   if (!profile) {
     return interaction.reply({ content: 'Hồ sơ này không còn đủ điều kiện ghép đôi. Hãy mở lại dashboard để tải danh sách mới.', flags: MessageFlags.Ephemeral });
   }
