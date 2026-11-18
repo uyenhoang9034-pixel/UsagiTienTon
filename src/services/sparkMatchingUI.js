@@ -220,7 +220,10 @@ export function buildSparkAdminDashboardPayload({ config, profiles, matches }) {
   );
   const rowTwo = new ActionRowBuilder().addComponents(
     button('spark_admin_active', 'Cặp Đôi Đang Hoạt Động'),
+    button('spark_admin_all_profiles', 'Tất Cả Hồ Sơ'),
     button('spark_admin_history', 'Lịch Sử'),
+  );
+  const rowThree = new ActionRowBuilder().addComponents(
     button('spark_admin_settings', 'Cài Đặt'),
   );
   return {
@@ -243,6 +246,7 @@ export function buildSparkAdminDashboardPayload({ config, profiles, matches }) {
         divider(),
         rowOne.toJSON(),
         rowTwo.toJSON(),
+        rowThree.toJSON(),
       ],
     }],
   };

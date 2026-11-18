@@ -85,6 +85,14 @@ export default {
         { name: 'Tất cả hồ sơ', value: 'all' },
         { name: 'Chỉ hồ sơ Nam', value: 'male' },
         { name: 'Chỉ hồ sơ Nữ', value: 'female' },
+      )))
+    .addSubcommand((sub) => sub
+      .setName('set-gender')
+      .setDescription('Chỉnh sửa giới tính của một hồ sơ trong hệ thống (Nam hoặc Nữ)')
+      .addUserOption((o) => o.setName('thanh-vien').setDescription('Thành viên muốn đổi giới tính').setRequired(true))
+      .addStringOption((o) => o.setName('gioi-tinh').setDescription('Giới tính mới').setRequired(true).addChoices(
+        { name: 'Nam', value: 'Nam' },
+        { name: 'Nữ', value: 'Nữ' },
       ))),
   category: 'Games',
   async execute(interaction) {
@@ -369,14 +377,48 @@ export default {
         });
       }
 
-      const { reviewSparkProfile } = await import('../../services/sparkMatchingService.js');
-      const result = await reviewSparkProfile(interaction.guild, profile.profileId, interaction.user.id, 'approve');
-      if (!result.ok && !result.alreadyApproved) {
-        return interaction.reply({ content: `Không thể duyệt hồ sơ: ${result.code}`, flags: MessageFlags.Ephemeral });
+      if (interaction.options.getString('gioi-tinh')) {
+        profile.data = profile.data || {};
+        profile.data.gender = genderChoice;
+        profile.data.matchGender = genderChoice === 'Nam' ? 'Nữ' : 'Nam';
       }
+      if (interaction.options.getInteger('tuoi')) {
+        profile.data = profile.data || {};
+        profile.data.age = String(ageChoice);
+      }
+      profile.status = 'approved';
+      profile.reviewedAt = Date.now();
+      profile.reviewedBy = String(interaction.user.id);
+      profile.rejectionReason = null;
+      const { SPARK_STORAGE_KEYS } = await import('../../config/sparkMatchingConfig.js');
+      const { db } = await import('../../utils/database/wrapper.js');
+      await db.set(SPARK_STORAGE_KEYS.profiles(interaction.guildId), profiles);
 
       return interaction.reply({
-        content: `✅ Đã duyệt thành công hồ sơ Spark Matching của <@${targetUser.id}> (Mã: ${profile.profileId})!`,
+        content: `✅ Đã duyệt và cập nhật hồ sơ Spark Matching của <@${targetUser.id}>!\n• **Giới tính:** **${profile.data?.gender || 'Chưa rõ'}**\n• **Trạng thái:** 🟢 Sẵn sàng ghép đôi`,
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
+    if (subcommand === 'set-gender') {
+      const targetUser = interaction.options.getUser('thanh-vien', true);
+      const newGender = interaction.options.getString('gioi-tinh', true);
+      const profiles = await getSparkProfiles(interaction.guildId);
+      const profile = profiles.find((p) => String(p.userId) === String(targetUser.id));
+      if (!profile) {
+        return interaction.reply({
+          content: `Không tìm thấy hồ sơ của <@${targetUser.id}> trong hệ thống. Hãy dùng \`/spark-admin approve-user thanh-vien:@${targetUser.username} gioi-tinh:${newGender}\` để tạo mới và duyệt luôn nhé!`,
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+      profile.data = profile.data || {};
+      profile.data.gender = newGender;
+      profile.data.matchGender = newGender === 'Nam' ? 'Nữ' : 'Nam';
+      const { SPARK_STORAGE_KEYS } = await import('../../config/sparkMatchingConfig.js');
+      const { db } = await import('../../utils/database/wrapper.js');
+      await db.set(SPARK_STORAGE_KEYS.profiles(interaction.guildId), profiles);
+      return interaction.reply({
+        content: `✅ Đã đổi giới tính hồ sơ của <@${targetUser.id}> thành **${newGender}** thành công!`,
         flags: MessageFlags.Ephemeral,
       });
     }

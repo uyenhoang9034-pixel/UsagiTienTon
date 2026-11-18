@@ -583,6 +583,49 @@ export default [
     },
   },
   {
+    name: 'spark_admin_all_profiles',
+    async execute(interaction) {
+      if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền xem khu vực quản trị.');
+      const { isMaleGender, isFemaleGender } = await import('../../services/sparkMatchingService.js');
+      const [profiles, matches] = await Promise.all([
+        getSparkProfiles(interaction.guildId),
+        getSparkMatches(interaction.guildId),
+      ]);
+      const activeMatches = matches.filter((m) => m.status !== 'closed');
+      const activeUserMap = new Map();
+      for (const m of activeMatches) {
+        if (m.userAId) activeUserMap.set(String(m.userAId), m.matchId);
+        if (m.userBId) activeUserMap.set(String(m.userBId));
+      }
+
+      if (profiles.length === 0) {
+        return interaction.reply({
+          content: 'Hiện chưa có hồ sơ nào trong hệ thống.',
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+
+      const lines = profiles.map((p) => {
+        const isMale = isMaleGender(p.data?.gender);
+        const genderLabel = isMale ? 'Nam' : (isFemaleGender(p.data?.gender) ? 'Nữ' : (p.data?.gender || 'Chưa rõ'));
+        const busyMatchId = activeUserMap.get(String(p.userId));
+        const statusLabel = busyMatchId
+          ? `🔴 Đang ghép (${busyMatchId})`
+          : p.status === 'approved'
+            ? '🟢 Sẵn sàng'
+            : p.status === 'pending'
+              ? '🟡 Chờ duyệt'
+              : '⚪ Đã từ chối';
+        return `• <@${p.userId}> (\`${p.usernameAtSubmission || p.userId}\`) · **Giới tính: ${genderLabel}** (${p.data?.age || '?'}t) · ${statusLabel}`;
+      });
+
+      return interaction.reply({
+        content: `**DANH SÁCH TẤT CẢ HỒ SƠ (${profiles.length} hồ sơ)**\n\n${lines.join('\n')}\n\n💡 *Nếu bạn nào bị nhầm giới tính, chị có thể đổi lại bằng lệnh:*\n\`/spark-admin set-gender thanh-vien:@user gioi-tinh:Nam\``,
+        flags: MessageFlags.Ephemeral,
+      });
+    },
+  },
+  {
     name: 'spark_admin_history',
     async execute(interaction) {
       if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền xem khu vực quản trị.');
