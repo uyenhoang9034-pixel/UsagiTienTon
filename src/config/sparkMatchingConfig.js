@@ -1,5 +1,10 @@
 export const SPARK_MATCHING_CONFIG = Object.freeze({
   feedbackChannelId: '1571930215632867479',
+  feedChannelId: '1572179559535607948',
+  feedMatchLinks: [
+    'https://discord.com/channels/1541279801183178754/1572118073249370202/1572176016107901000',
+    'https://discord.com/channels/1541279801183178754/1572145567893815357/1572145567893815357',
+  ],
   threadParentChannelId: '1571931107002417386',
   memberRoleId: '1571930353919328276',
   anonymousChatDurationMs: 24 * 60 * 60 * 1000,
@@ -47,6 +52,7 @@ export function getDefaultSparkGuildConfig() {
     maleReviewChannelId: null,
     femaleReviewChannelId: null,
     feedbackChannelId: SPARK_MATCHING_CONFIG.feedbackChannelId,
+    feedChannelId: SPARK_MATCHING_CONFIG.feedChannelId,
     threadParentChannelId: SPARK_MATCHING_CONFIG.threadParentChannelId,
     memberRoleId: SPARK_MATCHING_CONFIG.memberRoleId,
     anonymousChatDurationMs: SPARK_MATCHING_CONFIG.anonymousChatDurationMs,

@@ -14,6 +14,7 @@ import {
   getSparkConfig,
   getSparkMatches,
   isSparkAdmin,
+  postSparkFeedDone,
 } from './sparkMatchingService.js';
 import {
   buildSparkBoardPostPayload,
@@ -452,6 +453,8 @@ export async function respondSparkBoardConnection(guild, connectionId, userId, a
     ownerMember?.send({ content: noticeContent, components: [row] }).catch(() => {}),
     requesterMember?.send({ content: noticeContent, components: [row] }).catch(() => {}),
   ]);
+
+  await postSparkFeedDone(guild).catch(() => {});
 
   return { ok: true, accepted: true, thread };
 }

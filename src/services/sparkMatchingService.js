@@ -252,6 +252,11 @@ export async function reviewSparkProfile(guild, profileId, adminId, decision, re
       : { content: `Cupid rất tiếc phải thông báo hồ sơ chưa được duyệt.\nLý do: ${profile.rejectionReason || 'Chưa có ghi chú.'}\n${profile.reapplyAllowed ? 'Bạn có thể chỉnh sửa thông tin và đăng ký lại.' : 'Theo quyết định của đội ngũ quản trị, bạn sẽ không thể đăng ký lại Spark Matching.'}` };
     await member.send(payload).catch(() => {});
   }
+
+  if (decision === 'approve' && !options.skipFeed) {
+    await postSparkFeedForProfile(guild, profile, profiles).catch(() => {});
+  }
+
   return { ok: true, profile, recovered };
 }
 
@@ -334,6 +339,10 @@ export async function createSparkMatch(guild, userAId, userBId, options = {}) {
   const matchIndex = latestMatches.findIndex((item) => item.matchId === match.matchId);
   if (matchIndex >= 0) latestMatches[matchIndex] = match;
   await write(SPARK_STORAGE_KEYS.matches(guild.id), latestMatches);
+
+  if (!options.test) {
+    await postSparkFeedDone(guild).catch(() => {});
+  }
 
   return { ok: true, match };
 }
@@ -1372,5 +1381,95 @@ export async function adminForceApproveProfile(guildId, targetUser, options = {}
   }
 
   await write(SPARK_STORAGE_KEYS.profiles(guildId), profiles);
+
+  if (options.guild) {
+    await postSparkFeedForProfile(options.guild, profile, profiles).catch(() => {});
+  }
+
   return { ok: true, profile };
+}
+
+async function resolveSparkFeedChannel(guild) {
+  if (!guild) return null;
+  const config = await getSparkConfig(guild.id);
+  const feedChannelId = config.feedChannelId || SPARK_MATCHING_CONFIG.feedChannelId;
+  if (!feedChannelId) return null;
+  const channel = await guild.channels.fetch(feedChannelId).catch(() => null);
+  return channel?.isTextBased?.() ? channel : null;
+}
+
+export async function postSparkFeedSignal(guild, genderType) {
+  const channel = await resolveSparkFeedChannel(guild);
+  if (!channel) return null;
+  const { buildSparkFeedMalePayload, buildSparkFeedFemalePayload } = await import('./sparkMatchingUI.js');
+  const payload = genderType === 'male' ? buildSparkFeedMalePayload() : buildSparkFeedFemalePayload();
+  return channel.send(payload).catch(() => null);
+}
+
+export async function postSparkFeedDone(guild) {
+  const channel = await resolveSparkFeedChannel(guild);
+  if (!channel) return null;
+  const { buildSparkFeedDonePayload } = await import('./sparkMatchingUI.js');
+  return channel.send(buildSparkFeedDonePayload()).catch(() => null);
+}
+
+export async function postSparkFeedForProfile(guild, profile, profilesList = null) {
+  if (!guild || !profile) return null;
+  const rawGender = profile.data?.gender || profile.gender || '';
+  let genderType = null;
+  if (isMaleGender(rawGender)) genderType = 'male';
+  else if (isFemaleGender(rawGender)) genderType = 'female';
+  if (!genderType) return null;
+
+  // Nếu hồ sơ này đã từng gửi tin lên #spark-feed thì xóa tin cũ đi trước để tránh trùng lặp
+  if (profile.feedMessageId) {
+    const oldChannelId = profile.feedChannelId || SPARK_MATCHING_CONFIG.feedChannelId;
+    const oldChannel = await guild.channels.fetch(oldChannelId).catch(() => null);
+    if (oldChannel?.messages?.delete) {
+      await oldChannel.messages.delete(profile.feedMessageId).catch(() => {});
+    }
+    profile.feedMessageId = null;
+    profile.feedChannelId = null;
+  }
+
+  const sent = await postSparkFeedSignal(guild, genderType);
+  if (sent) {
+    profile.feedMessageId = sent.id;
+    profile.feedChannelId = sent.channelId;
+    if (Array.isArray(profilesList)) {
+      await write(SPARK_STORAGE_KEYS.profiles(guild.id), profilesList);
+    } else {
+      const latestProfiles = await getSparkProfiles(guild.id);
+      const idx = latestProfiles.findIndex((p) => String(p.userId) === String(profile.userId));
+      if (idx >= 0) {
+        latestProfiles[idx].feedMessageId = sent.id;
+        latestProfiles[idx].feedChannelId = sent.channelId;
+        await write(SPARK_STORAGE_KEYS.profiles(guild.id), latestProfiles);
+      }
+    }
+  }
+  return sent;
+}
+
+export async function handleSparkFeedTriggerMessage(message) {
+  if (!message?.guild || message.author?.bot) return false;
+  const trigger = String(message.content || '').trim().toLowerCase();
+  if (trigger !== '&sf' && trigger !== '&sfnam' && trigger !== '&sfdone') {
+    return false;
+  }
+  if (!isSparkAdmin(message.member)) {
+    return false;
+  }
+
+  // Auto-delete trigger
+  await message.delete().catch(() => {});
+
+  if (trigger === '&sf') {
+    await postSparkFeedSignal(message.guild, 'female');
+  } else if (trigger === '&sfnam') {
+    await postSparkFeedSignal(message.guild, 'male');
+  } else if (trigger === '&sfdone') {
+    await postSparkFeedDone(message.guild);
+  }
+  return true;
 }

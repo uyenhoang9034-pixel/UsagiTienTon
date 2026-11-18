@@ -335,20 +335,21 @@ export default {
     }
 
     if (subcommand === 'approve-user') {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
       const targetUser = interaction.options.getUser('thanh-vien', true);
       const genderChoice = interaction.options.getString('gioi-tinh') || 'Nam';
       const ageChoice = interaction.options.getInteger('tuoi') || 20;
       const { adminForceApproveProfile } = await import('../../services/sparkMatchingService.js');
       const result = await adminForceApproveProfile(interaction.guildId, targetUser, {
+        guild: interaction.guild,
         gender: genderChoice,
         age: ageChoice,
         adminId: interaction.user.id,
       });
 
-      return interaction.reply({
+      return interaction.editReply({
         content: `✅ Đã duyệt và đưa hồ sơ Spark Matching của <@${targetUser.id}> vào hệ thống!\n• **Giới tính:** **${result.profile.data.gender}** (${result.profile.data.age} tuổi)\n• **Trạng thái:** 🟢 Sẵn sàng ghép đôi (Mã: \`${result.profile.profileId}\`)\n\n👉 Bạn này đã sẵn sàng để chọn trong menu **Ghép Đôi Thủ Công** rồi nhé!`,
-        flags: MessageFlags.Ephemeral,
-      });
+      }).catch(() => {});
     }
 
     if (subcommand === 'set-gender') {

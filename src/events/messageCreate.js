@@ -18,7 +18,11 @@ import { handleForumStoreMessage } from '../services/forumStoreService.js';
 import { handleServiceTicketMessage } from '../services/serviceTicketService.js';
 import { handleCustomerSpendingMessage } from '../services/customerSpendingService.js';
 import { handleWordGuessMessage } from '../services/wordGuessService.js';
-import { handleSparkFeedbackMessage, handleSparkAnonymousMessage } from '../services/sparkMatchingService.js';
+import {
+  handleSparkFeedbackMessage,
+  handleSparkAnonymousMessage,
+  handleSparkFeedTriggerMessage,
+} from '../services/sparkMatchingService.js';
 
 let cachedHandleTTSMessage = null;
 
@@ -42,6 +46,13 @@ export default {
       if (sparkFeedbackProcessed) return;
     } catch (sparkFeedbackError) {
       logger.error('Error handling Spark Matching feedback:', sparkFeedbackError);
+    }
+
+    try {
+      const sparkFeedProcessed = await handleSparkFeedTriggerMessage(message);
+      if (sparkFeedProcessed) return;
+    } catch (sparkFeedError) {
+      logger.error('Error handling Spark Feed trigger:', sparkFeedError);
     }
 
     try {

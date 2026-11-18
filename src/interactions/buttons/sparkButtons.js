@@ -288,22 +288,21 @@ export default [
     name: 'spark_profile_approve',
     async execute(interaction, client, args) {
       if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền duyệt hồ sơ Spark Matching.');
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
       const profileId = args[0];
       const recoveredProfile = parseProfileFromMessage(interaction.message, profileId);
       const result = await reviewSparkProfile(interaction.guild, profileId, interaction.user.id, 'approve', '', { recoveredProfile });
-      if (!result.ok) return replyError(interaction, 'Hồ sơ này không còn ở trạng thái chờ duyệt.');
+      if (!result.ok) return interaction.editReply({ content: 'Hồ sơ này không còn ở trạng thái chờ duyệt.' }).catch(() => {});
 
       const targetMention = result.profile?.userId ? `<@${result.profile.userId}>` : profileId;
       if (result.alreadyApproved) {
-        return interaction.reply({
+        return interaction.editReply({
           content: `✅ Hồ sơ của ${targetMention} đã được duyệt và đang sẵn sàng ghép đôi trong hệ thống rồi nhé!`,
-          flags: MessageFlags.Ephemeral,
-        });
+        }).catch(() => {});
       }
-      return interaction.reply({
+      return interaction.editReply({
         content: `✅ Đã duyệt ${result.recovered ? '(và khôi phục thành công) ' : ''}hồ sơ ${profileId} của ${targetMention}!`,
-        flags: MessageFlags.Ephemeral,
-      });
+      }).catch(() => {});
     },
   },
   {
@@ -484,7 +483,7 @@ export default [
       const profile = profiles.find((item) => item.profileId === profileId && item.status === 'pending');
       if (!profile || !profile.data?.requestedUserId) return replyError(interaction, 'Yêu cầu ghép đôi không còn hợp lệ.');
       await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
-      const approved = await reviewSparkProfile(interaction.guild, profileId, interaction.user.id, 'approve');
+      const approved = await reviewSparkProfile(interaction.guild, profileId, interaction.user.id, 'approve', '', { skipFeed: true });
       if (!approved.ok) return interaction.editReply({ content: 'Không thể duyệt hồ sơ này.' });
       const result = await createSparkMatch(interaction.guild, profile.userId, profile.data.requestedUserId, {
         requested: true,

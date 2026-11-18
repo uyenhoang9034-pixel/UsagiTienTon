@@ -485,3 +485,62 @@ export function buildSparkFeedbackStickyPayloadV2() {
     ),
   );
 }
+
+function buildSparkFeedMatchRow() {
+  const [link1, link2] = SPARK_MATCHING_CONFIG.feedMatchLinks;
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setLabel('Match').setStyle(ButtonStyle.Link).setURL(link1),
+    new ButtonBuilder().setLabel('Match').setStyle(ButtonStyle.Link).setURL(link2),
+  ).toJSON();
+}
+
+export function buildSparkFeedFemalePayload() {
+  return container(
+    text('## <a:trangtrig50:1567818385306165301> **TÍN HIỆU SPARK MATCHING MỚI** <a:trangtrig51:1567818549794439229>'),
+    divider(),
+    text(
+      [
+        'Một Sparked đã gia nhập, +1 Sparkmate cho ai may mắn đâyyy!!!',
+        '',
+        '<a:linhtocg:1563399670351536310> Giới tính: Nữ',
+        '<a:linhtocg:1563399670351536310> Trạng thái: Đang chờ ghép đôi',
+        '',
+        'Tạo hồ sơ match ngay nào! <a:heartg1:1545307544808071258>',
+      ].join('\n'),
+    ),
+    buildSparkFeedMatchRow(),
+  );
+}
+
+export function buildSparkFeedMalePayload() {
+  return container(
+    text('## <a:trangtrig50:1567818385306165301> **TÍN HIỆU SPARK MATCHING MỚI** <a:trangtrig51:1567818549794439229>'),
+    divider(),
+    text(
+      [
+        'Một Sparked đã gia nhập, +1 Sparkmate cho ai may mắn đâyyy!!!',
+        '',
+        '<a:trangtrig15:1546047955696488489> Giới tính: Nam',
+        '<a:trangtrig15:1546047955696488489> Trạng thái: Đang chờ ghép đôi',
+        '',
+        'Tạo hồ sơ match ngay nào! <a:heartg1:1545307544808071258>',
+      ].join('\n'),
+    ),
+    buildSparkFeedMatchRow(),
+  );
+}
+
+export function buildSparkFeedDonePayload() {
+  return container(
+    text('## <a:trangtrig50:1567818385306165301> **SPARKED DONE** <a:trangtrig51:1567818549794439229>'),
+    divider(),
+    text(
+      [
+        '<a:heartg1:1545307544808071258> Xin thông báo, Cupid đã ghép đôi thành công một cặp đôi đồng điệu về tâm hồn!',
+        '',
+        '<a:heartg1:1545307544808071258> Còn bạn thì sao? Đừng ngồi tự hỏi "Hi, can I join?" nữa mà hãy mau mau tạo hồ sơ match ngay đi nhé!',
+      ].join('\n'),
+    ),
+    buildSparkFeedMatchRow(),
+  );
+}
