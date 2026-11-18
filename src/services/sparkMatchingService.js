@@ -93,10 +93,6 @@ export async function beginSparkRegistration(guild, member) {
   if (!userId) return { ok: false, code: 'MEMBER_NOT_FOUND' };
 
   const existingProfile = await getSparkProfile(guild.id, userId);
-  const activeMatch = await getSparkActiveMatchForUser(guild.id, userId);
-
-  // Nếu đang có một cuộc trò chuyện/lượt ghép đôi đang diễn ra chưa đóng
-  if (activeMatch) return { ok: false, code: 'ACTIVE_MATCH' };
 
   // Nếu đang có hồ sơ pending chờ Cupid duyệt
   if (existingProfile?.status === 'pending') {
@@ -263,16 +259,13 @@ export async function reviewSparkProfile(guild, profileId, adminId, decision, re
 export async function createSparkMatch(guild, userAId, userBId, options = {}) {
   if (String(userAId) === String(userBId)) return { ok: false, code: 'SAME_USER' };
   const profiles = await getSparkProfiles(guild.id);
-  const a = profiles.find((item) => item.userId === String(userAId) && item.status === 'approved');
-  const b = profiles.find((item) => item.userId === String(userBId) && item.status === 'approved');
+  const a = profiles.find((item) => item.userId === String(userAId) && ['approved', 'matched'].includes(item.status));
+  const b = profiles.find((item) => item.userId === String(userBId) && ['approved', 'matched'].includes(item.status));
   const targetProfile = profiles.find((item) => item.userId === String(userBId));
-  if (options.requested && targetProfile && !['approved', 'rejected'].includes(targetProfile.status)) {
-    return { ok: false, code: 'USER_BUSY' };
+  if (options.requested && targetProfile && !['approved', 'matched', 'rejected'].includes(targetProfile.status)) {
+    return { ok: false, code: 'PROFILE_NOT_APPROVED' };
   }
   if (!options.test && (!a || (!b && !options.requested))) return { ok: false, code: 'PROFILE_NOT_APPROVED' };
-
-  const busy = await Promise.all([userAId, userBId].map((id) => getSparkActiveMatchForUser(guild.id, id)));
-  if (busy.some(Boolean)) return { ok: false, code: 'USER_BUSY' };
 
   const [memberA, memberB] = await Promise.all([
     guild.members.fetch(userAId).catch(() => null),
@@ -864,7 +857,13 @@ export async function handleSparkFeedbackMessage(message, client) {
   if (!content) return false;
 
   const config = await getSparkConfig(message.guild.id);
-  if (String(message.channelId) !== String(config.feedbackChannelId)) return false;
+  const matches = await getSparkMatches(message.guild.id);
+  const threadMatch = matches.find((item) =>
+    String(item.threadId || '') === String(message.channelId) &&
+    ['feedback_pending', 'thread', 'connection_pending'].includes(item.status)
+  );
+  const isFeedbackChannel = String(message.channelId) === String(config.feedbackChannelId);
+  if (!isFeedbackChannel && !threadMatch) return false;
 
   const classification = classifySparkFeedbackMessage(content);
   if (classification === 'ignore') {
@@ -880,11 +879,12 @@ export async function handleSparkFeedbackMessage(message, client) {
     return true;
   }
 
-  const matches = await getSparkMatches(message.guild.id);
-  const activeUserMatches = matches.filter((item) =>
-    ['feedback_pending', 'thread', 'connection_pending'].includes(item.status) &&
-    [item.userAId, item.userBId].map(String).includes(String(message.author.id))
-  );
+  const activeUserMatches = threadMatch
+    ? ([threadMatch.userAId, threadMatch.userBId].map(String).includes(String(message.author.id)) ? [threadMatch] : [])
+    : matches.filter((item) =>
+        ['feedback_pending', 'thread', 'connection_pending'].includes(item.status) &&
+        [item.userAId, item.userBId].map(String).includes(String(message.author.id))
+      );
 
   const isAdmin = isSparkAdmin(message.member);
 
@@ -917,15 +917,25 @@ export async function handleSparkFeedbackMessage(message, client) {
     logger.warn('[SparkMatching] Không thể làm mới sticky feedback:', err?.message || err);
   });
 
-  // 3. Ghi nhận feedback vào tất cả các match đang hoạt động / chờ feedback của thành viên này
-  for (const activeMatch of activeUserMatches) {
+  // Feedback trong private thread chỉ được gắn với đúng match của thread đó.
+  // Ở kênh feedback chung, chỉ tự động gắn khi thành viên có đúng một match cần feedback.
+  const matchesToUpdate = threadMatch ? activeUserMatches : (activeUserMatches.length === 1 ? activeUserMatches : []);
+  if (!threadMatch && activeUserMatches.length > 1 && !isAdmin) {
+    await replyAndAutoDeleteSparkMessage(
+      message,
+      '<a:bang2:1546891483250954290> Bạn đang có nhiều lượt ghép đôi. Hãy gửi feedback ngay trong thread tương ứng để Cupid ghi nhận đúng cặp nhé!',
+      7000,
+    );
+    return true;
+  }
+  for (const activeMatch of matchesToUpdate) {
     if (!Array.isArray(activeMatch.feedbackBy)) activeMatch.feedbackBy = [];
     if (!activeMatch.feedbackBy.includes(String(message.author.id))) {
       activeMatch.feedbackBy.push(String(message.author.id));
       activeMatch.feedbackMessageIds = [...(activeMatch.feedbackMessageIds || []), message.id];
     }
   }
-  if (activeUserMatches.length > 0) {
+  if (matchesToUpdate.length > 0) {
     await write(SPARK_STORAGE_KEYS.matches(message.guild.id), matches);
   }
 
@@ -937,14 +947,8 @@ async function saveSparkMatchList(guildId, matches) {
 }
 
 async function unlockSparkProfiles(guildId, matchId) {
-  const profiles = await getSparkProfiles(guildId);
-  for (const profile of profiles) {
-    if (profile.matchId === matchId) {
-      profile.status = 'approved';
-      profile.matchId = null;
-    }
-  }
-  await write(SPARK_STORAGE_KEYS.profiles(guildId), profiles);
+  // Một hồ sơ có thể thuộc nhiều match; chỉ giải phóng khi không còn match nào hoạt động.
+  await syncSparkProfileStatuses(guildId);
 }
 
 export async function syncSparkProfileStatuses(guildId) {
@@ -952,25 +956,27 @@ export async function syncSparkProfileStatuses(guildId) {
     getSparkProfiles(guildId),
     getSparkMatches(guildId),
   ]);
-  const activeMatches = matches.filter((m) => m.status !== 'closed');
-  const activeUserIds = new Set();
-  for (const m of activeMatches) {
-    if (m.userAId) activeUserIds.add(String(m.userAId));
-    if (m.userBId) activeUserIds.add(String(m.userBId));
-    if (m.requestedUserId) activeUserIds.add(String(m.requestedUserId));
-  }
-
+  const activeMatches = matches.filter((match) =>
+    match.test !== true &&
+    ['invited', 'anonymous', 'reveal_pending', 'thread', 'connection_pending', 'feedback_pending'].includes(match.status)
+  );
   let changed = false;
-  for (const p of profiles) {
-    if (p.status === 'matched' && !activeUserIds.has(String(p.userId))) {
-      p.status = 'approved';
-      p.matchId = null;
+  for (const profile of profiles) {
+    const related = activeMatches.filter((match) =>
+      [match.userAId, match.userBId, match.requestedUserId]
+        .filter(Boolean)
+        .map(String)
+        .includes(String(profile.userId))
+    );
+    const nextStatus = related.length ? 'matched' : (profile.status === 'matched' ? 'approved' : profile.status);
+    const nextMatchId = related[0]?.matchId || null;
+    if (profile.status !== nextStatus || (related.length && profile.matchId !== nextMatchId) || (!related.length && profile.matchId)) {
+      profile.status = nextStatus;
+      profile.matchId = nextMatchId;
       changed = true;
     }
   }
-  if (changed) {
-    await write(SPARK_STORAGE_KEYS.profiles(guildId), profiles);
-  }
+  if (changed) await write(SPARK_STORAGE_KEYS.profiles(guildId), profiles);
   return profiles;
 }
 
