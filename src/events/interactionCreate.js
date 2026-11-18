@@ -4,6 +4,10 @@ import { logger } from '../utils/logger.js';
 import { checkCommandRoleHierarchy } from '../config/roleHierarchy.js';
 
 async function sendInteractionError(interaction, error) {
+  if (error?.code === 40060 || error?.code === 10062) {
+    return;
+  }
+
   const message =
     process.env.NODE_ENV === 'production'
       ? 'Có lỗi xảy ra khi xử lý tương tác này.'
@@ -26,6 +30,9 @@ async function sendInteractionError(interaction, error) {
 
     await interaction.reply(payload);
   } catch (replyError) {
+    if (replyError?.code === 40060 || replyError?.code === 10062) {
+      return;
+    }
     logger.error('Failed to send interaction error response:', replyError);
   }
 }
@@ -98,6 +105,10 @@ export default {
 
       await handler.execute(interaction, client, args);
     } catch (error) {
+      if (error?.code === 40060) {
+        logger.warn(`Interaction ${interaction.id} (${interaction.customId || interaction.commandName || 'unknown'}) đã được phản hồi trước đó (40060).`);
+        return;
+      }
       logger.error('InteractionCreate error:', error);
       await sendInteractionError(interaction, error);
     }

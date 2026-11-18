@@ -280,8 +280,8 @@ export function buildSparkAdminMatchPickerPayload(profiles, selection = {}, matc
   let emptyMsgA = '';
   let emptyMsgB = '';
 
-  const selectedA = mode === 'hetero' ? (selection.maleId || selection.userAId) : selection.userAId;
-  const selectedB = mode === 'hetero' ? (selection.femaleId || selection.userBId) : selection.userBId;
+  const rawSelectedA = mode === 'hetero' ? (selection.maleId || selection.userAId) : selection.userAId;
+  const rawSelectedB = mode === 'hetero' ? (selection.femaleId || selection.userBId) : selection.userBId;
 
   if (mode === 'hetero') {
     poolA = maleProfiles;
@@ -297,8 +297,8 @@ export function buildSparkAdminMatchPickerPayload(profiles, selection = {}, matc
       ? `**HỒ SƠ NỮ:** Có **${allFemale.length}** hồ sơ nữ nhưng đang bận trong lượt ghép đôi chưa kết thúc.`
       : '**HỒ SƠ NỮ:** Chưa có hồ sơ nữ nào được duyệt phù hợp.';
   } else if (mode === 'female_female') {
-    poolA = femaleProfiles;
-    poolB = femaleProfiles.filter((p) => p.userId !== selectedA);
+    poolA = femaleProfiles.length >= 2 ? femaleProfiles : [];
+    poolB = femaleProfiles.length >= 2 ? femaleProfiles.filter((p) => String(p.userId) !== String(rawSelectedA)) : [];
     labelA = 'CHỌN BẠN NỮ THỨ NHẤT';
     labelB = 'CHỌN BẠN NỮ THỨ HAI';
     placeholderA = 'Chọn bạn nữ thứ nhất';
@@ -306,12 +306,14 @@ export function buildSparkAdminMatchPickerPayload(profiles, selection = {}, matc
     emptyMsgA = femaleProfiles.length < 2
       ? `**HỒ SƠ NỮ × NỮ:** Cần ít nhất 2 hồ sơ nữ sẵn sàng để ghép đôi (Hiện có: **${femaleProfiles.length}** bạn).`
       : '**HỒ SƠ NỮ:** Chưa có hồ sơ nữ nào sẵn sàng.';
-    emptyMsgB = selectedA && poolB.length === 0
-      ? '**HỒ SƠ NỮ (BẠN THỨ HAI):** Không còn bạn nữ nào khác sẵn sàng để ghép đôi.'
-      : 'Vui lòng chọn bạn nữ thứ nhất trước.';
+    emptyMsgB = femaleProfiles.length < 2
+      ? '**HỒ SƠ NỮ (BẠN THỨ HAI):** Đang chờ thêm hồ sơ nữ sẵn sàng.'
+      : rawSelectedA && poolB.length === 0
+        ? '**HỒ SƠ NỮ (BẠN THỨ HAI):** Không còn bạn nữ nào khác sẵn sàng để ghép đôi.'
+        : 'Vui lòng chọn bạn nữ thứ nhất trước.';
   } else if (mode === 'male_male') {
-    poolA = maleProfiles;
-    poolB = maleProfiles.filter((p) => p.userId !== selectedA);
+    poolA = maleProfiles.length >= 2 ? maleProfiles : [];
+    poolB = maleProfiles.length >= 2 ? maleProfiles.filter((p) => String(p.userId) !== String(rawSelectedA)) : [];
     labelA = 'CHỌN BẠN NAM THỨ NHẤT';
     labelB = 'CHỌN BẠN NAM THỨ HAI';
     placeholderA = 'Chọn bạn nam thứ nhất';
@@ -319,10 +321,15 @@ export function buildSparkAdminMatchPickerPayload(profiles, selection = {}, matc
     emptyMsgA = maleProfiles.length < 2
       ? `**HỒ SƠ NAM × NAM:** Cần ít nhất 2 hồ sơ nam sẵn sàng để ghép đôi (Hiện có: **${maleProfiles.length}** bạn).`
       : '**HỒ SƠ NAM:** Chưa có hồ sơ nam nào sẵn sàng.';
-    emptyMsgB = selectedA && poolB.length === 0
-      ? '**HỒ SƠ NAM (BẠN THỨ HAI):** Không còn bạn nam nào khác sẵn sàng để ghép đôi.'
-      : 'Vui lòng chọn bạn nam thứ nhất trước.';
+    emptyMsgB = maleProfiles.length < 2
+      ? '**HỒ SƠ NAM (BẠN THỨ HAI):** Đang chờ thêm hồ sơ nam sẵn sàng.'
+      : rawSelectedA && poolB.length === 0
+        ? '**HỒ SƠ NAM (BẠN THỨ HAI):** Không còn bạn nam nào khác sẵn sàng để ghép đôi.'
+        : 'Vui lòng chọn bạn nam thứ nhất trước.';
   }
+
+  const selectedA = poolA.some((p) => String(p.userId) === String(rawSelectedA)) ? rawSelectedA : null;
+  const selectedB = poolB.some((p) => String(p.userId) === String(rawSelectedB)) ? rawSelectedB : null;
 
   const pageA = Math.max(0, Math.min(selection.pageA || selection.malePage || 0, Math.max(0, Math.ceil(poolA.length / pageSize) - 1)));
   const pageB = Math.max(0, Math.min(selection.pageB || selection.femalePage || 0, Math.max(0, Math.ceil(poolB.length / pageSize) - 1)));
@@ -331,14 +338,14 @@ export function buildSparkAdminMatchPickerPayload(profiles, selection = {}, matc
     label: (profile.usernameAtSubmission || profile.userId).slice(0, 80),
     value: profile.userId,
     description: ((profile.data?.age || '?') + ' tuổi · ' + (profile.data?.area || 'Chưa rõ khu vực')).slice(0, 100),
-    default: selectedA === profile.userId,
+    default: String(selectedA) === String(profile.userId),
   }));
 
   const optionsB = poolB.slice(pageB * pageSize, (pageB + 1) * pageSize).map((profile) => ({
     label: (profile.usernameAtSubmission || profile.userId).slice(0, 80),
     value: profile.userId,
     description: ((profile.data?.age || '?') + ' tuổi · ' + (profile.data?.area || 'Chưa rõ khu vực')).slice(0, 100),
-    default: selectedB === profile.userId,
+    default: String(selectedB) === String(profile.userId),
   }));
 
   const modeRow = new ActionRowBuilder().addComponents(

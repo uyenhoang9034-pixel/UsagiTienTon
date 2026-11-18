@@ -786,8 +786,9 @@ export default [
     async execute(interaction) {
       if (!isSparkAdmin(interaction.member)) return replyError(interaction, 'Bạn không có quyền ghép đôi.');
       const selection = await getSparkAdminMatchSelection(interaction.guildId, interaction.user.id);
-      const userAId = selection.mode === 'hetero' ? (selection.userAId || selection.maleId) : selection.userAId;
-      const userBId = selection.mode === 'hetero' ? (selection.userBId || selection.femaleId) : selection.userBId;
+      const mode = selection.mode || 'hetero';
+      const userAId = mode === 'hetero' ? (selection.userAId || selection.maleId) : selection.userAId;
+      const userBId = mode === 'hetero' ? (selection.userBId || selection.femaleId) : selection.userBId;
 
       if (!userAId || !userBId || String(userAId) === String(userBId)) {
         return replyError(interaction, 'Bạn cần chọn đủ hai thành viên khác nhau để ghép đôi.');
