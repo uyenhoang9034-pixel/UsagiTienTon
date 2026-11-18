@@ -201,16 +201,17 @@ export function buildSparkAdminDashboardPayload({ config, profiles, matches }) {
   const allMale = profiles.filter((profile) => profile.status !== 'rejected' && isMaleGender(profile.data?.gender || profile.gender));
   const allFemale = profiles.filter((profile) => profile.status !== 'rejected' && isFemaleGender(profile.data?.gender || profile.gender));
 
-  const availableMale = allMale.filter((p) => p.status === 'approved' && !activeUserIds.has(String(p.userId))).length;
-  const availableFemale = allFemale.filter((p) => p.status === 'approved' && !activeUserIds.has(String(p.userId))).length;
+  const maleUserIds = new Set(allMale.map((profile) => String(profile.userId)));
+  const femaleUserIds = new Set(allFemale.map((profile) => String(profile.userId)));
+  const maleMatchCount = activeMatches.filter((match) =>
+    [match.userAId, match.userBId].some((id) => maleUserIds.has(String(id)))
+  ).length;
+  const femaleMatchCount = activeMatches.filter((match) =>
+    [match.userAId, match.userBId].some((id) => femaleUserIds.has(String(id)))
+  ).length;
 
-  const maleDesc = allMale.length === availableMale
-    ? `**${allMale.length}**`
-    : `**${allMale.length}** (${availableMale} sẵn sàng · ${allMale.length - availableMale} đang bận)`;
-
-  const femaleDesc = allFemale.length === availableFemale
-    ? `**${allFemale.length}**`
-    : `**${allFemale.length}** (${availableFemale} sẵn sàng · ${allFemale.length - availableFemale} đang bận)`;
+  const maleDesc = `**${allMale.length}** (${maleMatchCount} lượt ghép)`;
+  const femaleDesc = `**${allFemale.length}** (${femaleMatchCount} lượt ghép)`;
 
   const active = activeMatches.length;
   const rowOne = new ActionRowBuilder().addComponents(
@@ -266,8 +267,8 @@ export function buildSparkAdminMatchPickerPayload(profiles, selection = {}, matc
   const allMale = profiles.filter((profile) => profile.status !== 'rejected' && isMaleGender(profile.data?.gender || profile.gender));
   const allFemale = profiles.filter((profile) => profile.status !== 'rejected' && isFemaleGender(profile.data?.gender || profile.gender));
 
-  const maleProfiles = allMale.filter((profile) => profile.status === 'approved' && !activeUserIds.has(String(profile.userId)));
-  const femaleProfiles = allFemale.filter((profile) => profile.status === 'approved' && !activeUserIds.has(String(profile.userId)));
+  const maleProfiles = allMale.filter((profile) => ['approved', 'matched'].includes(profile.status));
+  const femaleProfiles = allFemale.filter((profile) => ['approved', 'matched'].includes(profile.status));
 
   const pageSize = 25;
 
@@ -291,10 +292,10 @@ export function buildSparkAdminMatchPickerPayload(profiles, selection = {}, matc
     placeholderA = 'Chọn thành viên nam';
     placeholderB = 'Chọn thành viên nữ';
     emptyMsgA = allMale.length > 0
-      ? `**HỒ SƠ NAM:** Có **${allMale.length}** hồ sơ nam nhưng đang bận trong lượt ghép đôi chưa kết thúc.`
+      ? `**HỒ SƠ NAM:** Có **${allMale.length}** hồ sơ nam đã được duyệt.`
       : '**HỒ SƠ NAM:** Chưa có hồ sơ nam nào được duyệt phù hợp.';
     emptyMsgB = allFemale.length > 0
-      ? `**HỒ SƠ NỮ:** Có **${allFemale.length}** hồ sơ nữ nhưng đang bận trong lượt ghép đôi chưa kết thúc.`
+      ? `**HỒ SƠ NỮ:** Có **${allFemale.length}** hồ sơ nữ đã được duyệt.`
       : '**HỒ SƠ NỮ:** Chưa có hồ sơ nữ nào được duyệt phù hợp.';
   } else if (mode === 'female_female') {
     poolA = femaleProfiles.length >= 2 ? femaleProfiles : [];
