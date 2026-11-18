@@ -795,13 +795,11 @@ export default [
 
       await interaction.deferUpdate().catch(() => {});
 
-      const result = await createSparkMatch(interaction.guild, userAId, userBId);
+      const result = await createSparkMatch(interaction.guild, userAId, userBId, { matchType: 'spark_guide' });
       const { buildSparkAdminMatchSuccessPayload, buildSparkAdminMatchErrorPayload } = await import('../../services/sparkMatchingUI.js');
 
       if (!result.ok) {
-        const errorMsg = result.code === 'USER_BUSY'
-          ? 'Một trong hai thành viên đang có lượt ghép đôi khác.'
-          : result.code === 'DM_UNAVAILABLE'
+        const errorMsg = result.code === 'DM_UNAVAILABLE'
             ? 'Cupid chưa thể gửi lời mời qua DM vì có thành viên khóa tin nhắn riêng.'
             : 'Không thể tạo lượt ghép đôi từ hai hồ sơ này.';
         return interaction.editReply(buildSparkAdminMatchErrorPayload(errorMsg)).catch(() => {});
