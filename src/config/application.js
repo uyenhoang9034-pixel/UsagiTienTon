@@ -52,7 +52,7 @@ const appConfig = {
       activities: [
         {
           name: 'Custom Status',
-          state: process.env.BOT_ACTIVITY || 'Hồng Sơn ngầu nhất!',
+          state: (process.env.BOT_ACTIVITY || 'Trời sinh bản tính dịu hiền,\nĐể che bớt vẻ thiếu tiền bên trong.').replace(/\\n/g, '\n'),
           type: 4,
         },
       ],
