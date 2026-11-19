@@ -13,6 +13,7 @@ import {
 import { logger } from '../../utils/logger.js';
 import { isTTSEnabledByEnv } from '../../config/ttsConfig.js';
 import {
+  buildTTSDisabledNoticePayload,
   getTTSDisabledNoticeMessage,
   getTTSGuildConfig,
   isTTSGuildEnabled,
@@ -230,12 +231,6 @@ export default {
             ),
         ),
     )
-    // Subcommand: trangthai
-    .addSubcommand((sub) =>
-      sub
-        .setName('trangthai')
-        .setDescription('Xem trạng thái phiên nói thay và bảng điều khiển nhanh 📊'),
-    )
     // Subcommand: noi
     .addSubcommand((sub) =>
       sub
@@ -273,16 +268,12 @@ export default {
     }
 
     if (!isTTSEnabledByEnv() || !(await isTTSGuildEnabled(botClient, guild.id))) {
-      const ttsConfig = await getTTSGuildConfig(botClient, guild.id);
       if (ttsManager.hasSession(guild.id)) {
         await ttsManager.disableGuildTTS(guild.id, 'Tính năng TTS đang tắt');
       }
-      const replyPayload = {
-        content: getTTSDisabledNoticeMessage(ttsConfig),
-      };
-      if (!interaction._isPrefixCommand) {
-        replyPayload.flags = MessageFlags.Ephemeral;
-      }
+      const replyPayload = buildTTSDisabledNoticePayload({
+        ephemeral: !interaction._isPrefixCommand,
+      });
       return interaction.reply(replyPayload);
     }
 
@@ -492,8 +483,21 @@ export default {
         });
       }
 
-      // 6. SUBCOMMAND: trangthai (Xem trạng thái)
+      // 6. SUBCOMMAND: trangthai (Xem trạng thái - chỉ Quản lý role 1545305594712432640 trở lên)
       if (subcommand === 'trangthai') {
+        const isManager = hasTTSManagePermission(
+          member,
+          member?.id || interaction.user?.id,
+          guild,
+          interaction.memberPermissions,
+        );
+        if (!isManager) {
+          return interaction.reply({
+            content: `❌ Dạ chỉ Quản lý (có role <@&${TTS_MANAGER_ROLE_ID}>), Quản trị viên hoặc Chủ máy chủ mới dùng được lệnh \`/ttstrangthai\` thôi nha vợ của Kim Nong ơi! 🐰💕`,
+            flags: MessageFlags.Ephemeral,
+          });
+        }
+
         const session = ttsManager.getSession(guild.id);
         if (!session) {
           const report = await ttsManager.getDependencyReport();

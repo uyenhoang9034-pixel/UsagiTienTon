@@ -2,7 +2,7 @@ import { MessageFlags } from 'discord.js';
 import { logger } from '../../utils/logger.js';
 import { isTTSEnabledByEnv } from '../../config/ttsConfig.js';
 import {
-  getTTSDisabledNoticeMessage,
+  buildTTSDisabledNoticePayload,
   getTTSGuildConfig,
   isTTSGuildEnabled,
 } from '../../services/tts/ttsStateService.js';
@@ -21,14 +21,10 @@ export default {
     const botClient = client || interaction.client;
 
     if (!isTTSEnabledByEnv() || (guildId && !(await isTTSGuildEnabled(botClient, guildId)))) {
-      const ttsConfig = await getTTSGuildConfig(botClient, guildId);
       if (guildId && ttsManager.hasSession(guildId)) {
         await ttsManager.disableGuildTTS(guildId, 'Tính năng TTS đang tắt');
       }
-      return interaction.reply({
-        content: getTTSDisabledNoticeMessage(ttsConfig),
-        flags: MessageFlags.Ephemeral,
-      });
+      return interaction.reply(buildTTSDisabledNoticePayload({ ephemeral: true }));
     }
 
     if (!selectedVoiceId) {

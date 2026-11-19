@@ -1,4 +1,4 @@
-import { PermissionFlagsBits } from 'discord.js';
+import { MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { isBotOwner } from '../../config/bot.js';
 import {
   TTS_DEFAULT_GUILD_CONFIG,
@@ -204,19 +204,36 @@ export async function setTTSGuildEnabled(
   });
 }
 
-export function getTTSDisabledNoticeMessage(guildConfig = null) {
-  if (!isTTSEnabledByEnv()) {
-    return (
-      '💤 Dạ vợ của Kim Nong ơi, tính năng nói thay (TTS) hiện đang **TẮT TRIỆT ĐỂ** ở cấp hệ thống (`ENABLE_TTS=false`) để tiết kiệm RAM ạ!\n' +
-      '• Khi nào cần dùng lại, chỉ cần đổi `ENABLE_TTS=true` rồi khởi động lại bot nha 💕'
-    );
-  }
+export const IS_COMPONENTS_V2 = 1 << 15;
 
-  const reasonLine = guildConfig?.reason ? `\n• **Lý do:** ${guildConfig.reason}` : '';
-  return (
-    `💤 Dạ vợ của Kim Nong ơi, tính năng nói thay (TTS) hiện đang được **TẮT** trong máy chủ này để tiết kiệm RAM ạ!${reasonLine}\n` +
-    '• Quản lý có thể gõ `/tts-admin bat` để bật lại bất cứ lúc nào nha 💕'
-  );
+export const TTS_DISABLED_NOTICE_TEXT =
+  'Xin chào bạn, tính năng nói thay (TTS) hiện đang **TẮT** để tiết kiệm RAM.\n' +
+  '<a:trangtrig49:1567818140375851018> Nếu bạn muốn sử dụng bot tương đương về chức năng, có thể sử dụng bot <@513423712582762502>.\n' +
+  '<a:trangtrig49:1567818140375851018> Nếu bot trên đang bận / off, có thể liên hệ <@872792190651334707> để mở lại bot này. Xin cảm ơn ạ!';
+
+export function getTTSDisabledNoticeMessage(_guildConfig = null) {
+  return TTS_DISABLED_NOTICE_TEXT;
+}
+
+export function buildTTSDisabledNoticePayload({ ephemeral = true } = {}) {
+  const flags = ephemeral
+    ? (MessageFlags.Ephemeral | IS_COMPONENTS_V2)
+    : IS_COMPONENTS_V2;
+
+  return {
+    flags,
+    components: [
+      {
+        type: 17, // Container màu mặc định (không có accent_color)
+        components: [
+          {
+            type: 10, // Text Display (không có title)
+            content: TTS_DISABLED_NOTICE_TEXT,
+          },
+        ],
+      },
+    ],
+  };
 }
 
 export function getProcessMemoryStats() {

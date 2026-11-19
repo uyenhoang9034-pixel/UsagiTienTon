@@ -35,7 +35,7 @@ const EXPECTED_BASE_COMMANDS = [
   'xoatinnhan',
 ];
 
-const EXPECTED_VOICE_COMMANDS = ['tts', 'tts-admin'];
+const EXPECTED_VOICE_COMMANDS = ['tts', 'tts-admin', 'ttstrangthai'];
 
 async function withTTSEnv(value, fn) {
   const prevEnable = process.env.ENABLE_TTS;
@@ -112,6 +112,7 @@ test('loads only active non-TTS commands by default, and includes Voice commands
     );
     assert.equal(client.commands.has('tts'), false);
     assert.equal(client.commands.has('tts-admin'), false);
+    assert.equal(client.commands.has('ttstrangthai'), false);
 
     const restCalls = [];
     client.rest = {
@@ -148,6 +149,7 @@ test('loads only active non-TTS commands by default, and includes Voice commands
     );
     assert.ok(client.commands.has('tts'));
     assert.ok(client.commands.has('tts-admin'));
+    assert.ok(client.commands.has('ttstrangthai'));
   });
 });
 

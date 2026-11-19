@@ -36,6 +36,8 @@ export const COMMAND_TIERS = Object.freeze({
   'phattu': 2,
   'thatu': 2,
   'hsk': 2, // Đã chuyển thành lệnh Admin
+  'tts-admin': 2,
+  'ttstrangthai': 2,
 
   // BẬC 3: SP Ticket (1545295139390619768) + Admin cấp cao + Owner
   'clear': 3,

@@ -11,6 +11,8 @@ export const commandAliases = {
   bxhhsk: 'hsk-bxh',
   'bxh-hsk': 'hsk-bxh',
   ttsadmin: 'tts-admin',
+  ttstrangthai: 'ttstrangthai',
+  'tts-trangthai': 'ttstrangthai',
 };
 
 export const subcommandAliases = {

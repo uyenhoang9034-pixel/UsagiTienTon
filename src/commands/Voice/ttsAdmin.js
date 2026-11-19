@@ -1,4 +1,4 @@
-import { EmbedBuilder, MessageFlags, SlashCommandBuilder } from 'discord.js';
+import { EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { isTTSEnabledByEnv } from '../../config/ttsConfig.js';
 import {
   TTS_MANAGER_ROLE_ID,
@@ -27,6 +27,7 @@ export default {
   data: new SlashCommandBuilder()
     .setName('tts-admin')
     .setDescription('Quản trị bật/tắt tính năng nói thay (TTS) để tiết kiệm RAM (Quản lý)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand((sub) =>
       sub
         .setName('tat')

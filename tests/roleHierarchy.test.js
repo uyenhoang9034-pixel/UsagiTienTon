@@ -25,6 +25,8 @@ test('Role Hierarchy: Config definitions match user specifications', () => {
   assert.equal(COMMAND_TIERS['phattu'], 2);
   assert.equal(COMMAND_TIERS['thatu'], 2);
   assert.equal(COMMAND_TIERS['hsk'], 2);
+  assert.equal(COMMAND_TIERS['tts-admin'], 2);
+  assert.equal(COMMAND_TIERS['ttstrangthai'], 2);
 
   // Tier 3 (SP Ticket + Admin cấp cao + Owner)
   assert.equal(COMMAND_TIERS['clear'], 3);
@@ -96,11 +98,21 @@ test('Role Hierarchy: checkCommandRoleHierarchy enforces inheritance and restric
   assert.equal(checkCommandRoleHierarchy(ticketInter, 'doantu-admin').allowed, false);
   assert.equal(checkCommandRoleHierarchy(everyoneInter, 'doantu-admin').allowed, false);
 
-  // 2. Tier 2 commands (e.g. /xoatinnhan, /phattu, /thatu, /hsk)
+  // 2. Tier 2 commands (e.g. /xoatinnhan, /phattu, /thatu, /hsk, /tts-admin, /ttstrangthai)
   assert.equal(checkCommandRoleHierarchy(ownerInter, 'xoatinnhan').allowed, true);
   assert.equal(checkCommandRoleHierarchy(adminInter, 'xoatinnhan').allowed, true);
   assert.equal(checkCommandRoleHierarchy(ticketInter, 'xoatinnhan').allowed, false);
   assert.equal(checkCommandRoleHierarchy(everyoneInter, 'xoatinnhan').allowed, false);
+
+  assert.equal(checkCommandRoleHierarchy(ownerInter, 'tts-admin').allowed, true);
+  assert.equal(checkCommandRoleHierarchy(adminInter, 'tts-admin').allowed, true);
+  assert.equal(checkCommandRoleHierarchy(ticketInter, 'tts-admin').allowed, false);
+  assert.equal(checkCommandRoleHierarchy(everyoneInter, 'tts-admin').allowed, false);
+
+  assert.equal(checkCommandRoleHierarchy(ownerInter, 'ttstrangthai').allowed, true);
+  assert.equal(checkCommandRoleHierarchy(adminInter, 'ttstrangthai').allowed, true);
+  assert.equal(checkCommandRoleHierarchy(ticketInter, 'ttstrangthai').allowed, false);
+  assert.equal(checkCommandRoleHierarchy(everyoneInter, 'ttstrangthai').allowed, false);
 
   // 3. Tier 3 commands (e.g. /clear, /close, /moticket, /ib1)
   assert.equal(checkCommandRoleHierarchy(ownerInter, 'clear').allowed, true);
@@ -131,6 +143,8 @@ test('Role Hierarchy: Command builders have Administrator default member permiss
     { name: 'ib1', path: '../src/commands/Moderation/ib1.js' },
     { name: 'ib2', path: '../src/commands/Moderation/ib2.js' },
     { name: 'ib3', path: '../src/commands/Moderation/ib3.js' },
+    { name: 'tts-admin', path: '../src/commands/Voice/ttsAdmin.js' },
+    { name: 'ttstrangthai', path: '../src/commands/Voice/ttsTrangThai.js' },
   ];
 
   for (const item of commandsToTest) {

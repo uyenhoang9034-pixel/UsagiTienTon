@@ -31,6 +31,8 @@ const {
 } = await import('../src/config/commands/commandAliases.js');
 const { getTTSGuildConfigKey } = await import('../src/utils/database/keys.js');
 const {
+  IS_COMPONENTS_V2,
+  buildTTSDisabledNoticePayload,
   clearTTSStateCache,
   getTTSDisabledNoticeMessage,
   getTTSGuildConfig,
@@ -40,6 +42,7 @@ const {
 } = await import('../src/services/tts/ttsStateService.js');
 const { ttsManager } = await import('../src/services/tts/ttsManager.js');
 const { default: ttsAdminCommand } = await import('../src/commands/Voice/ttsAdmin.js');
+const { default: ttsTrangThaiCommand } = await import('../src/commands/Voice/ttsTrangThai.js');
 const { default: ttsCommand } = await import('../src/commands/Voice/tts.js');
 const { default: ttsButtonHandler } = await import('../src/interactions/buttons/ttsButtons.js');
 const { default: ttsVoiceMenuHandler } = await import('../src/interactions/selectMenus/ttsVoiceMenu.js');
@@ -286,7 +289,14 @@ test('4. ttsStateService persists guild state cleanly in DB with per-client Weak
   await withTTSEnv(undefined, async () => {
     assert.equal(await isTTSGuildEnabled(clientA, guildId), false);
     const msg = getTTSDisabledNoticeMessage();
-    assert.ok(msg.includes('ENABLE_TTS=false'));
+    assert.ok(msg.includes('513423712582762502'));
+    assert.ok(msg.includes('872792190651334707'));
+
+    const v2Payload = buildTTSDisabledNoticePayload();
+    assert.equal(v2Payload.flags, MessageFlags.Ephemeral | IS_COMPONENTS_V2);
+    assert.equal(v2Payload.components[0].type, 17);
+    assert.equal(v2Payload.components[0].components[0].type, 10);
+    assert.ok(v2Payload.components[0].components[0].content.includes('513423712582762502'));
   });
 });
 
@@ -367,7 +377,7 @@ test('5. /tts-admin tat disables TTS, destroys active session resources/timers, 
       assert.equal(fakeStream.destroyed, true);
       assert.equal(fakeResourceStream.destroyed, true);
 
-      // While guild TTS is disabled, /tts, tts_button, and tts_select_voice are all blocked
+      // While guild TTS is disabled, /tts, tts_button, and tts_select_voice are all blocked with Components V2
       const blockedTts = createSlashInteraction({
         subcommand: 'vao',
         guildId,
@@ -376,13 +386,15 @@ test('5. /tts-admin tat disables TTS, destroys active session resources/timers, 
       });
       await ttsCommand.execute(blockedTts, null, client);
       assert.equal(blockedTts.replies.length, 1);
-      assert.equal(blockedTts.replies[0].flags, MessageFlags.Ephemeral);
-      assert.ok(blockedTts.replies[0].content.includes('/tts-admin bat'));
+      assert.equal(blockedTts.replies[0].flags, MessageFlags.Ephemeral | IS_COMPONENTS_V2);
+      assert.equal(blockedTts.replies[0].content, undefined, 'Components V2 must not have top-level content');
+      assert.ok(blockedTts.replies[0].components[0].components[0].content.includes('513423712582762502'));
 
       const blockedBtn = createSlashInteraction({ guildId, member: regularMember, client });
       await ttsButtonHandler.execute(blockedBtn, client, ['open_voices', guildId]);
       assert.equal(blockedBtn.replies.length, 1);
-      assert.ok(blockedBtn.replies[0].content.includes('Đang') || blockedBtn.replies[0].content.includes('TẮT'));
+      assert.equal(blockedBtn.replies[0].flags, MessageFlags.Ephemeral | IS_COMPONENTS_V2);
+      assert.ok(blockedBtn.replies[0].components[0].components[0].content.includes('TẮT'));
 
       const blockedMenu = createSlashInteraction({
         guildId,
@@ -392,7 +404,8 @@ test('5. /tts-admin tat disables TTS, destroys active session resources/timers, 
       });
       await ttsVoiceMenuHandler.execute(blockedMenu, client, [guildId]);
       assert.equal(blockedMenu.replies.length, 1);
-      assert.ok(blockedMenu.replies[0].content.includes('TẮT'));
+      assert.equal(blockedMenu.replies[0].flags, MessageFlags.Ephemeral | IS_COMPONENTS_V2);
+      assert.ok(blockedMenu.replies[0].components[0].components[0].content.includes('TẮT'));
 
       // Status reflects disabled state without importing heavy voice module
       const statusInteraction = createSlashInteraction({
@@ -522,4 +535,52 @@ test('7. messageCreate, voiceStateUpdate, and ready events behave cleanly with z
     assert.equal(ttsManager.isAudioEngineLoaded(), false);
     assert.match(await ttsManager.getDependencyReport(), /chưa nạp vào RAM/);
   });
+});
+
+test('8. /tts-admin and /ttstrangthai enforce Administrator default_member_permissions and role 1545305594712432640+', async () => {
+  assert.equal(
+    String(ttsAdminCommand.data.default_member_permissions),
+    String(PermissionFlagsBits.Administrator),
+  );
+  assert.equal(
+    String(ttsTrangThaiCommand.data.default_member_permissions),
+    String(PermissionFlagsBits.Administrator),
+  );
+
+  const { client } = createMockDbClient();
+  const guildId = 'guild_perm_test_1';
+  const regularMember = createMember({
+    id: 'reg_user',
+    guild: { id: guildId, ownerId: 'guild_owner_1' },
+  });
+  const adminMember = createMember({
+    id: 'admin_user',
+    guild: { id: guildId, ownerId: 'guild_owner_1' },
+    roleIds: [TTS_MANAGER_ROLE_ID],
+  });
+
+  // Regular member is rejected by /ttstrangthai
+  const deniedInter = createSlashInteraction({
+    guildId,
+    member: regularMember,
+    client,
+  });
+  await ttsTrangThaiCommand.execute(deniedInter, null, client);
+  assert.equal(deniedInter.replies.length, 1);
+  assert.equal(deniedInter.replies[0].flags, MessageFlags.Ephemeral);
+  assert.ok(deniedInter.replies[0].content.includes('1545305594712432640'));
+
+  // Admin member is accepted by /ttstrangthai and receives status embed
+  const allowedInter = createSlashInteraction({
+    guildId,
+    member: adminMember,
+    client,
+  });
+  await ttsTrangThaiCommand.execute(allowedInter, null, client);
+  assert.equal(allowedInter.replies.length, 1);
+  assert.equal(allowedInter.replies[0].flags, MessageFlags.Ephemeral);
+  assert.ok(Array.isArray(allowedInter.replies[0].embeds));
+
+  assert.equal(resolveCommandAlias('ttstrangthai'), 'ttstrangthai');
+  assert.equal(resolveCommandAlias('tts-trangthai'), 'ttstrangthai');
 });
