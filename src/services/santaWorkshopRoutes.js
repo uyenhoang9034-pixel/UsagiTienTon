@@ -13,6 +13,8 @@ import {
   handleSantaBuyItem,
   handleSantaEquipFrame,
   handleSantaSpinWheel,
+  handleSantaHireHelper,
+  handleSantaFeverBonus,
 } from './santaWorkshopService.js';
 import { logger } from '../utils/logger.js';
 
@@ -168,6 +170,8 @@ export function registerSantaWorkshopRoutes(app, client) {
     ['/api/santa/shop/buy', (req, id) => handleSantaBuyItem(client, id, req.body?.itemId)],
     ['/api/santa/equip-frame', (req, id) => handleSantaEquipFrame(client, id, req.body?.frameId)],
     ['/api/santa/wheel', (_req, id) => handleSantaSpinWheel(client, id)],
+    ['/api/santa/hire-helper', (req, id) => handleSantaHireHelper(client, id, req.body?.helperId)],
+    ['/api/santa/fever-claim', (req, id) => handleSantaFeverBonus(client, id, { hits: req.body?.hits })],
   ];
 
   for (const [routePath, handler] of actionRoutes) {

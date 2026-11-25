@@ -11,6 +11,8 @@ import {
   handleSantaUpgrade,
   handleSantaBuyItem,
   handleSantaSpinWheel,
+  handleSantaHireHelper,
+  handleSantaFeverBonus,
 } from '../src/services/santaWorkshopService.js';
 
 function createMemoryClient() {
@@ -89,4 +91,13 @@ test('Luồng chơi Xưởng Quà Ông Già Noel: Điểm danh -> Giải đố -
 
   const spinRes = await handleSantaSpinWheel(client, identity);
   assert.equal(spinRes.ok, true);
+  assert.equal(typeof spinRes.wheelIndex, 'number');
+
+  // 8. Thuê Yêu Tinh phụ việc & nhận thưởng Fever Mưa Quà
+  const hireRes = await handleSantaHireHelper(client, identity, 'lumberjack');
+  assert.equal(hireRes.ok, true);
+  assert.equal(hireRes.state.player.helpers.lumberjack, 1);
+
+  const feverRes = await handleSantaFeverBonus(client, identity, { hits: 10 });
+  assert.equal(feverRes.ok, true);
 });

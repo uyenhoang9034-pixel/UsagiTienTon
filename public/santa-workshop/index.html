@@ -25,32 +25,79 @@
           </div>
         </div>
 
-        <div class="currency-bar">
-          <div class="pill coin-pill" title="Xu Tuyết">
-            <span>❄️</span>
-            <strong id="snow-coins">0</strong>
+        <div class="header-right">
+          <div class="audio-controls">
+            <button id="btn-song" class="pill btn-pill" title="Đổi nhạc Giáng Sinh">
+              <span>🎵</span>
+              <span id="song-name" class="song-name">We Wish You...</span>
+            </button>
+            <button id="btn-mute" class="pill btn-pill" title="Bật / Tắt âm thanh">🔊</button>
           </div>
-          <div class="pill rep-pill" title="Điểm Danh Vọng">
-            <span>⭐</span>
-            <strong id="reputation">0</strong>
+
+          <div class="currency-bar">
+            <div class="pill coin-pill" title="Xu Tuyết">
+              <span>❄️</span>
+              <strong id="snow-coins">0</strong>
+            </div>
+            <div class="pill rep-pill" title="Điểm Danh Vọng">
+              <span>⭐</span>
+              <strong id="reputation">0</strong>
+            </div>
           </div>
         </div>
       </header>
 
-      <!-- Phaser 3 Canvas Area -->
-      <main class="stage-container">
-        <div id="phaser-root"></div>
+      <!-- Main Workspace (PC: 2 columns, Mobile: stacked) -->
+      <div class="workspace-layout">
+        <!-- Phaser 3 Canvas Area -->
+        <main class="stage-container">
+          <div id="phaser-root"></div>
 
-        <!-- Floating Toast -->
-        <div id="toast" class="toast hidden"></div>
+          <!-- Fever & Combo Bar -->
+          <div class="fever-hud">
+            <div class="fever-label">
+              <span>🔥 Mưa Quà Fever</span>
+              <span id="combo-badge" class="combo-badge hidden">Combo x1</span>
+            </div>
+            <div class="fever-track">
+              <div id="fever-fill" class="fever-fill" style="width: 0%"></div>
+            </div>
+          </div>
 
-        <!-- Active Panel Drawer -->
+          <!-- Floating Toast -->
+          <div id="toast" class="toast hidden"></div>
+
+          <!-- Mobile Collapse Toggle -->
+          <button id="btn-toggle-panel" class="toggle-panel-btn" title="Thu gọn / Mở rộng bảng">
+            ▾ Thu gọn
+          </button>
+        </main>
+
+        <!-- Control Panel -->
         <section id="panel-overlay" class="panel-overlay">
           <div id="panel-content" class="panel-content"></div>
         </section>
-      </main>
+      </div>
 
-      <!-- Bottom Navigation (PC & Mobile friendly) -->
+      <!-- Lucky Wheel Modal -->
+      <div id="wheel-modal" class="modal-backdrop hidden">
+        <div class="modal-card">
+          <div class="modal-header">
+            <strong>🎡 Vòng Quay May Mắn Giáng Sinh</strong>
+            <button id="btn-close-wheel" class="btn btn-outline btn-sm">✕</button>
+          </div>
+          <div class="wheel-stage">
+            <div class="wheel-pointer">▼</div>
+            <canvas id="wheel-canvas" width="280" height="280"></canvas>
+          </div>
+          <div id="wheel-result" class="wheel-result">Nhấn nút để thử vận may đêm Noel!</div>
+          <button id="btn-spin-now" class="btn btn-gold" style="width: 100%">
+            🎡 Quay Ngay (<span id="wheel-tickets-count">0</span> 🎟️)
+          </button>
+        </div>
+      </div>
+
+      <!-- Bottom Navigation -->
       <nav class="bottom-nav" aria-label="Menu trò chơi">
         <button class="nav-btn active" data-tab="workshop">
           <span class="nav-icon">🏠</span>
