@@ -36,18 +36,24 @@ function showToast(msg) {
 }
 
 async function apiRequest(path, method = 'GET', body = null) {
-  const headers = {
-    Authorization: `Bearer ${STATE.token}`,
-    'x-guild-id': STATE.guildId,
-    'x-guest-id': STATE.guestId,
-  };
-  if (body) headers['Content-Type'] = 'application/json';
-  const res = await fetch(path, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  return res.json();
+  try {
+    const headers = {
+      Authorization: `Bearer ${STATE.token}`,
+      'x-guild-id': STATE.guildId,
+      'x-guest-id': STATE.guestId,
+    };
+    if (body) headers['Content-Type'] = 'application/json';
+    const res = await fetch(path, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const text = await res.text();
+    return JSON.parse(text);
+  } catch (err) {
+    console.error('API error:', path, err);
+    return { ok: false, message: 'Không kết nối được máy chủ (/api). Kiểm tra URL Mapping /api trên Discord Portal!' };
+  }
 }
 
 async function initDiscordActivitySdk() {
@@ -59,7 +65,7 @@ async function initDiscordActivitySdk() {
     const cfg = await cfgRes.json();
     if (!cfg?.clientId) return;
 
-    const { DiscordSDK } = await import('https://esm.sh/@discord/embedded-app-sdk@1.9.0');
+    const { DiscordSDK } = await import('./vendor/discord-sdk.mjs');
     const discordSdk = new DiscordSDK(cfg.clientId);
     await discordSdk.ready();
 
@@ -953,7 +959,11 @@ async function bootstrap() {
   STATE.guestId = getOrCreateGuestId();
   document.getElementById('song-name').textContent = christmasAudio.getCurrentSong().title;
   bindEvents();
-  bootPhaser();
+  try {
+    bootPhaser();
+  } catch (err) {
+    console.error('Phaser boot error:', err);
+  }
   await initDiscordActivitySdk();
   await refreshState();
   setInterval(refreshState, 30000);
