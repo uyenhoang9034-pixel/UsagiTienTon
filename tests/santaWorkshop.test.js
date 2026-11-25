@@ -13,6 +13,10 @@ import {
   handleSantaSpinWheel,
   handleSantaHireHelper,
   handleSantaFeverBonus,
+  handleSantaContributeTree,
+  handleSantaVisitFriend,
+  handleSantaRepelGrinch,
+  handleSantaEquipCosmetic,
 } from '../src/services/santaWorkshopService.js';
 
 function createMemoryClient() {
@@ -100,4 +104,27 @@ test('Luồng chơi Xưởng Quà Ông Già Noel: Điểm danh -> Giải đố -
 
   const feverRes = await handleSantaFeverBonus(client, identity, { hits: 10 });
   assert.equal(feverRes.ok, true);
+  assert.equal(feverRes.state.player.feverCount, 1);
+
+  // 9. Đuổi Grinch & Đóng góp Cây Thông Server (mở khóa thành tựu tree_contrib)
+  const grinchRes = await handleSantaRepelGrinch(client, identity);
+  assert.equal(grinchRes.ok, true);
+
+  const treeRes = await handleSantaContributeTree(client, identity, { mode: 'coins' });
+  assert.equal(treeRes.ok, true);
+  assert.ok(treeRes.state.serverTree.points >= 35);
+  assert.ok(treeRes.state.player.unlockedAchievements.includes('tree_contrib'));
+
+  // 10. Mua & trang bị Thú Cưng + Skin + Ghé thăm bạn bè
+  const buyPet = await handleSantaBuyItem(client, identity, 'pet_usagi');
+  assert.equal(buyPet.ok, true);
+  assert.equal(buyPet.state.player.equippedPet, 'pet_usagi');
+
+  const equipSkin = await handleSantaEquipCosmetic(client, identity, { kind: 'skin', itemId: 'skin_classic' });
+  assert.equal(equipSkin.ok, true);
+
+  const friendId = { userId: 'elf_02', username: 'FriendElf', guildId: 'guild_noel' };
+  await buildSantaStatePayload(client, friendId);
+  const likeRes = await handleSantaVisitFriend(client, identity, { targetUserId: 'elf_02', action: 'like' });
+  assert.equal(likeRes.ok, true);
 });

@@ -1,4 +1,4 @@
-import { christmasAudio } from './audio.js?v=20261125c';
+import { christmasAudio } from './audio.js?v=20261125e';
 
 const STATE = {
   token: 'demo',
@@ -32,7 +32,7 @@ function showToast(msg) {
   el.textContent = msg;
   el.classList.remove('hidden');
   clearTimeout(showToast._timer);
-  showToast._timer = setTimeout(() => el.classList.add('hidden'), 2800);
+  showToast._timer = setTimeout(() => el.classList.add('hidden'), 3200);
 }
 
 async function apiRequest(path, method = 'GET', body = null) {
@@ -65,7 +65,7 @@ async function initDiscordActivitySdk() {
     const cfg = await cfgRes.json();
     if (!cfg?.clientId) return;
 
-    const { DiscordSDK } = await import('./vendor/discord-sdk.mjs?v=20261125d');
+    const { DiscordSDK } = await import('./vendor/discord-sdk.mjs?v=20261125e');
     const discordSdk = new DiscordSDK(cfg.clientId);
     await discordSdk.ready();
 
@@ -107,12 +107,15 @@ class SantaWorkshopScene extends Phaser.Scene {
     this.snowflakes = [];
     this.lightBulbs = [];
     this.helperSprites = [];
+    this.petSprite = null;
+    this.grinchContainer = null;
 
     this.drawBackground();
     this.createSnowParticles();
     this.createSantaSleighFlight();
     this.createElfCharacter();
-    this.syncHelpersInScene();
+    this.syncVisualCosmetics();
+    this.scheduleGrinchEvent();
 
     this.input.on('pointerdown', (pointer) => {
       christmasAudio.startMusic();
@@ -135,6 +138,7 @@ class SantaWorkshopScene extends Phaser.Scene {
     const w = this.scale.width;
     const h = this.scale.height;
     const floorY = h * 0.64;
+    const treeLevel = STATE.data?.serverTree?.level || 0;
 
     const g = this.add.graphics();
     g.fillGradientStyle(0x071224, 0x071224, 0x1a335c, 0x143d4d, 1);
@@ -175,16 +179,36 @@ class SantaWorkshopScene extends Phaser.Scene {
       g.fillCircle(beltX + i, floorY - 9, 5);
     }
 
-    // Cây thông Noel bên trái
+    // Cây Thông Chung Server bên trái (thay đổi theo treeLevel 0..4)
     const treeX = w * 0.16;
+    if (treeLevel >= 4) {
+      g.fillStyle(0xffd166, 0.15);
+      g.fillCircle(treeX, floorY - 95, 72);
+    }
     g.fillStyle(0x4a2c18, 1);
     g.fillRect(treeX - 8, floorY - 26, 16, 26);
     g.fillStyle(0x1b4332, 1);
     g.fillTriangle(treeX, floorY - 130, treeX - 48, floorY - 24, treeX + 48, floorY - 24);
     g.fillStyle(0x2d6a4f, 1);
     g.fillTriangle(treeX, floorY - 165, treeX - 36, floorY - 76, treeX + 36, floorY - 76);
+
+    // Lv.1+: Đèn trên cây
+    if (treeLevel >= 1) {
+      g.fillStyle(0xffd166, 0.95);
+      [-18, 0, 18].forEach((dx, i) => g.fillCircle(treeX + dx, floorY - 45 - i * 16, 4));
+    }
+    // Lv.2+: Quả châu đỏ & xanh
+    if (treeLevel >= 2) {
+      g.fillStyle(0xe63946, 1);
+      g.fillCircle(treeX - 20, floorY - 40, 5);
+      g.fillCircle(treeX + 14, floorY - 65, 5);
+      g.fillStyle(0x90e0ef, 1);
+      g.fillCircle(treeX + 20, floorY - 38, 5);
+      g.fillCircle(treeX - 10, floorY - 92, 5);
+    }
+    // Lv.3+: Ngôi sao đỉnh cây lớn tỏa sáng
     g.fillStyle(0xffd166, 1);
-    g.fillCircle(treeX, floorY - 169, 8);
+    g.fillCircle(treeX, floorY - 169, treeLevel >= 3 ? 11 : 7);
 
     // Dây đèn LED nhấp nháy
     const bulbColors = [0xe63946, 0xffd166, 0x2a9d8f, 0x90e0ef];
@@ -243,15 +267,36 @@ class SantaWorkshopScene extends Phaser.Scene {
   }
 
   createElfCharacter() {
+    if (this.elf) this.elf.destroy();
     const w = this.scale.width;
     const h = this.scale.height;
-    this.elf = this.add.container(w * 0.42, h * 0.52);
+    const skin = STATE.data?.player?.equippedSkin || 'skin_classic';
 
+    this.elf = this.add.container(w * 0.42, h * 0.52);
     const g = this.add.graphics();
-    g.fillStyle(0x2a9d8f, 1);
+
+    // Cánh tiên băng giá nếu đeo skin_fairy
+    if (skin === 'skin_fairy') {
+      g.fillStyle(0x90e0ef, 0.65);
+      g.fillEllipse(-26, 8, 28, 36);
+      g.fillEllipse(26, 8, 28, 36);
+      g.lineStyle(2, 0xffffff, 0.8);
+      g.strokeEllipse(-26, 8, 28, 36);
+      g.strokeEllipse(26, 8, 28, 36);
+    }
+
+    // Màu áo theo skin
+    const coatColor = skin === 'skin_santa' ? 0xd90429 : skin === 'skin_fairy' ? 0x00b4d8 : 0x2a9d8f;
+    g.fillStyle(coatColor, 1);
     g.fillRoundedRect(-22, 0, 44, 46, 10);
+    if (skin === 'skin_santa') {
+      g.fillStyle(0xffffff, 1);
+      g.fillRect(-5, 0, 10, 46);
+    }
     g.fillStyle(0xffd166, 1);
     g.fillRect(-22, 22, 44, 7);
+
+    // Mặt & mũ
     g.fillStyle(0xffd6ba, 1);
     g.fillCircle(0, -16, 20);
     g.fillStyle(0x1d1d1d, 1);
@@ -288,19 +333,19 @@ class SantaWorkshopScene extends Phaser.Scene {
     });
   }
 
-  syncHelpersInScene() {
+  syncVisualCosmetics() {
+    this.createElfCharacter();
+
+    // Helpers
     for (const spr of this.helperSprites) spr.destroy();
     this.helperSprites = [];
-    if (!STATE.data?.player?.helpers) return;
-
-    const helpers = STATE.data.player.helpers;
+    const helpers = STATE.data?.player?.helpers || {};
     const floorY = this.scale.height * 0.64;
     const spots = [
       { key: 'lumberjack', icon: '🪓🧝', xRatio: 0.25 },
       { key: 'tailor', icon: '✂️🧝', xRatio: 0.64 },
       { key: 'mage', icon: '🌟🧝', xRatio: 0.72 },
     ];
-
     for (const s of spots) {
       const lv = helpers[s.key] || 0;
       if (lv > 0) {
@@ -311,16 +356,88 @@ class SantaWorkshopScene extends Phaser.Scene {
             padding: { x: 5, y: 2 },
           })
           .setOrigin(0.5);
-        this.tweens.add({
-          targets: txt,
-          y: txt.y - 4,
-          duration: 700,
-          yoyo: true,
-          repeat: -1,
-        });
+        this.tweens.add({ targets: txt, y: txt.y - 4, duration: 700, yoyo: true, repeat: -1 });
         this.helperSprites.push(txt);
       }
     }
+
+    // Pet
+    if (this.petSprite) {
+      this.petSprite.destroy();
+      this.petSprite = null;
+    }
+    const petId = STATE.data?.player?.equippedPet;
+    if (petId) {
+      const petIcon = petId === 'pet_reindeer' ? '🦌' : '🐰';
+      this.petSprite = this.add.text(this.scale.width * 0.32, floorY + 14, petIcon, { fontSize: '28px' }).setOrigin(0.5);
+      this.tweens.add({
+        targets: this.petSprite,
+        x: this.scale.width * 0.6,
+        duration: 3800,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    }
+  }
+
+  scheduleGrinchEvent() {
+    this.time.addEvent({
+      delay: 42000,
+      loop: true,
+      callback: () => {
+        if (!STATE.feverActive && !this.grinchContainer) {
+          this.spawnGrinch();
+        }
+      },
+    });
+  }
+
+  spawnGrinch() {
+    const w = this.scale.width;
+    const floorY = this.scale.height * 0.64;
+    let hitsNeeded = 8;
+
+    const gx = Phaser.Math.Between(Math.floor(w * 0.2), Math.floor(w * 0.8));
+    this.grinchContainer = this.add.container(gx, floorY - 24);
+    const body = this.add.text(0, 0, '👺', { fontSize: '44px' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    const label = this.add
+      .text(0, -36, `Đuổi Grinch! (${hitsNeeded})`, {
+        fontSize: '12px',
+        fontStyle: 'bold',
+        color: '#fff',
+        backgroundColor: '#d90429',
+        padding: { x: 6, y: 3 },
+      })
+      .setOrigin(0.5);
+
+    this.grinchContainer.add([body, label]);
+    showToast('👺 Grinch đang lén trộm quà! Chạm liên tục 8 lần để đuổi đi!');
+
+    const expireTimer = this.time.delayedCall(10000, () => {
+      if (this.grinchContainer) {
+        this.grinchContainer.destroy();
+        this.grinchContainer = null;
+        showToast('👺 Grinch chạy thoát mất rồi!');
+      }
+    });
+
+    body.on('pointerdown', async (pointer) => {
+      pointer.event?.stopPropagation?.();
+      hitsNeeded -= 1;
+      christmasAudio.playTapSfx(10 - hitsNeeded);
+      this.tweens.add({ targets: body, scale: 1.25, duration: 70, yoyo: true });
+
+      if (hitsNeeded <= 0) {
+        expireTimer.remove(false);
+        this.grinchContainer.destroy();
+        this.grinchContainer = null;
+        christmasAudio.playJackpotSfx();
+        await runAction('/api/santa/grinch-repel');
+      } else {
+        label.setText(`Đuổi Grinch! (${hitsNeeded})`);
+      }
+    });
   }
 
   playConveyorCraftEffect(icon = '🎁') {
@@ -344,38 +461,105 @@ class SantaWorkshopScene extends Phaser.Scene {
     if (STATE.feverActive) return;
     STATE.feverActive = true;
     STATE.feverHits = 0;
-    showToast('🔥 GIỜ CAO ĐIỂM NOEL! Chạm nhanh vào các hộp quà rơi!');
 
+    // Cứ mỗi 10 cơn mưa có 1 cơn mưa Giỏ Hứng Quà (lần thứ 10, 20, 30...)
+    const currentFeverIndex = (STATE.data?.player?.feverCount || 0) + 1;
+    const isBasketMode = currentFeverIndex % 10 === 0;
+
+    showToast(
+      isBasketMode
+        ? '🧺 CƠN MƯA GIỎ HỨNG QUÀ ĐẶC BIỆT! Di chuyển giỏ hứng quà rơi!'
+        : '🔥 MƯA QUÀ FEVER! Chạm vào các hộp quà to để hốt Xu Tuyết!',
+    );
+
+    const w = this.scale.width;
+    const h = this.scale.height;
     const giftIcons = ['🎁', '🍬', '❄️', '🎀'];
+    const activeGifts = [];
+    let basket = null;
+    let pointerMoveHandler = null;
+
+    if (isBasketMode) {
+      basket = this.add.text(w * 0.5, h - 38, '🧺', { fontSize: '46px' }).setOrigin(0.5);
+      pointerMoveHandler = (pointer) => {
+        if (basket) {
+          basket.x = Phaser.Math.Clamp(pointer.x, 30, this.scale.width - 30);
+        }
+      };
+      this.input.on('pointermove', pointerMoveHandler);
+    }
+
     const spawnEvent = this.time.addEvent({
       delay: 420,
       repeat: 30,
       callback: () => {
         const icon = giftIcons[Math.floor(Math.random() * giftIcons.length)];
-        const x = Phaser.Math.Between(36, Math.max(80, this.scale.width - 36));
+        const x = Phaser.Math.Between(38, Math.max(80, this.scale.width - 38));
+        // Quà to 48px ở chế độ click thường, giữ nguyên 28px ở chế độ Giỏ hứng quà
+        const fontSize = isBasketMode ? '28px' : '48px';
         const gift = this.add
-          .text(x, -20, icon, { fontSize: '30px' })
-          .setOrigin(0.5)
-          .setInteractive({ useHandCursor: true });
+          .text(x, -24, icon, { fontSize, padding: isBasketMode ? undefined : { x: 8, y: 8 } })
+          .setOrigin(0.5);
 
-        gift.on('pointerdown', () => {
-          STATE.feverHits += 1;
-          christmasAudio.playCoinSfx();
-          this.playElfTapEffect(gift.x, gift.y, '+3 ❄️');
-          gift.destroy();
-        });
+        activeGifts.push(gift);
+
+        if (!isBasketMode) {
+          gift.setInteractive({ useHandCursor: true });
+          gift.on('pointerdown', () => {
+            if (!gift.active) return;
+            STATE.feverHits += 1;
+            christmasAudio.playCoinSfx();
+            this.playElfTapEffect(gift.x, gift.y, '+3 ❄️');
+            gift.destroy();
+          });
+        }
 
         this.tweens.add({
           targets: gift,
           y: this.scale.height + 30,
-          duration: 2800,
+          duration: 2900,
+          onUpdate: () => {
+            if (isBasketMode && basket && gift.active) {
+              const dx = Math.abs(gift.x - basket.x);
+              const dy = Math.abs(gift.y - basket.y);
+              if (dx < 36 && dy < 30) {
+                STATE.feverHits += 1;
+                christmasAudio.playCoinSfx();
+                this.playElfTapEffect(basket.x, basket.y - 24, '+3 ❄️');
+                gift.destroy();
+              }
+            }
+          },
           onComplete: () => gift.destroy(),
         });
       },
     });
 
+    // Thú cưng tự động nhặt hộ quà rơi trong lúc Fever!
+    let petTimer = null;
+    const petId = STATE.data?.player?.equippedPet;
+    if (petId) {
+      const petInterval = petId === 'pet_reindeer' ? 1100 : 1600;
+      petTimer = this.time.addEvent({
+        delay: petInterval,
+        loop: true,
+        callback: () => {
+          const target = activeGifts.find((g) => g && g.active && g.y > 20 && g.y < this.scale.height - 40);
+          if (target) {
+            STATE.feverHits += 1;
+            christmasAudio.playCoinSfx();
+            this.playElfTapEffect(target.x, target.y, `${petId === 'pet_reindeer' ? '🦌' : '🐰'} +3 ❄️`);
+            target.destroy();
+          }
+        },
+      });
+    }
+
     this.time.delayedCall(14500, async () => {
       spawnEvent.remove(false);
+      if (petTimer) petTimer.remove(false);
+      if (pointerMoveHandler) this.input.off('pointermove', pointerMoveHandler);
+      if (basket) basket.destroy();
       STATE.feverActive = false;
       STATE.feverProgress = 0;
       updateFeverHud();
@@ -385,10 +569,7 @@ class SantaWorkshopScene extends Phaser.Scene {
 
   redrawLayout() {
     this.drawBackground();
-    if (this.elf) {
-      this.elf.setPosition(this.scale.width * 0.42, this.scale.height * 0.52);
-    }
-    this.syncHelpersInScene();
+    this.syncVisualCosmetics();
   }
 
   playElfTapEffect(x, y, label = '✨') {
@@ -587,7 +768,10 @@ async function refreshState() {
   if (res?.ok && res.state) {
     STATE.data = res.state;
     renderAll();
-    if (STATE.scene) STATE.scene.syncHelpersInScene();
+    if (STATE.scene) {
+      STATE.scene.drawBackground();
+      STATE.scene.syncVisualCosmetics();
+    }
   }
 }
 
@@ -596,7 +780,10 @@ async function runAction(path, body = {}, tapCoords = null) {
   if (res?.state) {
     STATE.data = res.state;
     renderAll();
-    if (STATE.scene) STATE.scene.syncHelpersInScene();
+    if (STATE.scene) {
+      STATE.scene.drawBackground();
+      STATE.scene.syncVisualCosmetics();
+    }
   }
   if (res?.message) {
     if (tapCoords && res.ok && STATE.scene) {
@@ -674,6 +861,8 @@ function renderPanel() {
     recipes,
     materialsMeta,
     helpersMeta = [],
+    achievementsMeta = [],
+    serverTree = { level: 0, points: 0, nextThreshold: 150, buffActive: false },
     shopItems,
     leaderboard,
     riddle,
@@ -686,6 +875,7 @@ function renderPanel() {
     const pendingList = Object.entries(idle.pending)
       .map(([k, v]) => `${materialsMeta[k].icon} ${v}`)
       .join('  ');
+    const treePct = Math.min(100, Math.round(((serverTree.points || 0) / Math.max(1, serverTree.nextThreshold)) * 100));
 
     container.innerHTML = `
       <div class="section-title">
@@ -712,6 +902,19 @@ function renderPanel() {
         </div>
         <button class="btn btn-green" id="btn-collect">Thu hoạch</button>
       </div>
+
+      <div class="card">
+        <div class="section-title">
+          <span>🎄 Cây Thông Chung Server (Lv.${serverTree.level})</span>
+          ${serverTree.buffActive ? '<span class="tag tag-buff">BUFF x2 ACTIVE!</span>' : ''}
+        </div>
+        <div class="muted">Tiến độ: ${serverTree.points}/${serverTree.nextThreshold} điểm (Lên cấp = x2 Xu & Quà 1 giờ)</div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${treePct}%"></div></div>
+        <div style="display:flex;gap:8px;margin-top:4px;">
+          <button class="btn btn-green btn-sm" id="btn-tree-coins">Góp 40 ❄️ (+35đ)</button>
+        </div>
+      </div>
+
       <div class="section-title" style="margin-top:4px;"><span>🧝 Đội Ngũ Yêu Tinh Phụ Việc</span></div>
       ${helpersMeta
         .map(
@@ -736,6 +939,10 @@ function renderPanel() {
     document.getElementById('btn-upgrade').onclick = async () => {
       const r = await runAction('/api/santa/upgrade');
       if (r?.ok) christmasAudio.playCraftSfx();
+    };
+    document.getElementById('btn-tree-coins').onclick = async () => {
+      const r = await runAction('/api/santa/tree/contribute', { mode: 'coins' });
+      if (r?.ok) christmasAudio.playJackpotSfx();
     };
     container.querySelectorAll('[data-hire]').forEach((btn) => {
       btn.onclick = async () => {
@@ -808,7 +1015,7 @@ function renderPanel() {
     });
   } else if (STATE.activeTab === 'quests') {
     container.innerHTML = `
-      <div class="section-title"><span>🎁 Nhiệm Vụ Hàng Ngày</span></div>
+      <div class="section-title"><span>🎁 Nhiệm Vụ & Thành Tựu</span></div>
       <div class="card-row">
         <div>
           <div><strong>📅 Điểm danh Yêu Tinh (Chuỗi ${player.checkinStreak} ngày)</strong></div>
@@ -831,6 +1038,19 @@ function renderPanel() {
             .join('')}
         </div>
       </div>
+      <div class="section-title" style="margin-top:4px;"><span>🏆 Thành Tựu Xưởng Noel</span></div>
+      ${achievementsMeta
+        .map(
+          (a) => `
+        <div class="card-row">
+          <div>
+            <div><strong>${a.icon} ${a.name}</strong> ${a.unlocked ? '<span class="tag tag-buff">Đã đạt ✅</span>' : ''}</div>
+            <div class="muted">${a.description} • Thưởng: +${a.rewardCoins} ❄️, +${a.rewardTickets} 🎟️</div>
+          </div>
+        </div>
+      `,
+        )
+        .join('')}
     `;
     document.getElementById('btn-checkin').onclick = async () => {
       const r = await runAction('/api/santa/checkin');
@@ -845,20 +1065,29 @@ function renderPanel() {
   } else if (STATE.activeTab === 'shop') {
     container.innerHTML = `
       <div class="section-title">
-        <span>🛒 Shop Giáng Sinh</span>
+        <span>🛒 Shop, Thú Cưng & Tủ Đồ</span>
         <button class="btn btn-gold btn-sm" id="btn-open-wheel">🎡 Vòng Quay (${player.luckyTickets || 0} 🎟️)</button>
       </div>
       ${shopItems
         .map((item) => {
-          const ownedFrame = item.type === 'frame' && player.ownedFrames.includes(item.id);
-          const equipped = item.type === 'frame' && player.equippedFrame === item.id;
+          const isFrame = item.type === 'frame';
+          const isPet = item.type === 'pet';
+          const isSkin = item.type === 'skin';
+          const owned =
+            (isFrame && (player.ownedFrames || []).includes(item.id)) ||
+            (isPet && (player.ownedPets || []).includes(item.id)) ||
+            (isSkin && (player.ownedSkins || []).includes(item.id));
+          const equipped =
+            (isFrame && player.equippedFrame === item.id) ||
+            (isPet && player.equippedPet === item.id) ||
+            (isSkin && player.equippedSkin === item.id);
           const ownedRole = item.type === 'role' && player.hasEventRole;
 
           let actionHtml = `<button class="btn" data-buy="${item.id}">${item.price} ❄️</button>`;
-          if (ownedFrame) {
+          if (owned) {
             actionHtml = equipped
-              ? `<button class="btn btn-outline" data-equip="">Đang đeo</button>`
-              : `<button class="btn btn-green" data-equip="${item.id}">Trang bị</button>`;
+              ? `<button class="btn btn-outline" data-equip-kind="${item.type}" data-equip-id="">Đang dùng</button>`
+              : `<button class="btn btn-green" data-equip-kind="${item.type}" data-equip-id="${item.id}">Trang bị</button>`;
           } else if (ownedRole) {
             actionHtml = `<button class="btn btn-outline" disabled>Đã sở hữu</button>`;
           }
@@ -874,17 +1103,28 @@ function renderPanel() {
           `;
         })
         .join('')}
-      <div class="section-title" style="margin-top:6px;"><span>🏆 Bảng Xếp Hạng Yêu Tinh</span></div>
+      <div class="section-title" style="margin-top:6px;"><span>🏆 BXH & Ghé Thăm Bạn Bè</span></div>
       ${leaderboard
-        .slice(0, 5)
-        .map(
-          (entry, idx) => `
-        <div class="mat-chip">
-          <span>#${idx + 1} ${entry.username} (Lv.${entry.workshopLevel})</span>
-          <strong>⭐ ${entry.reputation} • ❄️ ${entry.snowCoins}</strong>
-        </div>
-      `,
-        )
+        .slice(0, 8)
+        .map((entry, idx) => {
+          const isMe = String(entry.userId) === String(player.userId);
+          return `
+            <div class="friend-row">
+              <div>
+                <div><strong>#${idx + 1} ${entry.username}</strong> (Lv.${entry.workshopLevel})</div>
+                <div class="muted">⭐ ${entry.reputation} • ❄️ ${entry.snowCoins}</div>
+              </div>
+              ${
+                isMe
+                  ? '<span class="tag">Bạn</span>'
+                  : `<div class="friend-actions">
+                      <button class="btn btn-sm btn-outline" data-visit="like" data-target="${entry.userId}" title="Thả tim giúp xưởng bạn">❤️</button>
+                      <button class="btn btn-sm btn-green" data-visit="gift" data-target="${entry.userId}" title="Tặng 1 đồ chơi trong kho">🎁</button>
+                    </div>`
+              }
+            </div>
+          `;
+        })
         .join('')}
     `;
     document.getElementById('btn-open-wheel').onclick = () => {
@@ -897,8 +1137,21 @@ function renderPanel() {
         if (r?.ok) christmasAudio.playCoinSfx();
       };
     });
-    container.querySelectorAll('[data-equip]').forEach((btn) => {
-      btn.onclick = () => runAction('/api/santa/equip-frame', { frameId: btn.dataset.equip || null });
+    container.querySelectorAll('[data-equip-kind]').forEach((btn) => {
+      btn.onclick = () =>
+        runAction('/api/santa/equip', {
+          kind: btn.dataset.equipKind,
+          itemId: btn.dataset.equipId || null,
+        });
+    });
+    container.querySelectorAll('[data-visit]').forEach((btn) => {
+      btn.onclick = async () => {
+        const r = await runAction('/api/santa/friend/visit', {
+          targetUserId: btn.dataset.target,
+          action: btn.dataset.visit,
+        });
+        if (r?.ok) christmasAudio.playCoinSfx();
+      };
     });
   }
 }
@@ -941,7 +1194,6 @@ function bindEvents() {
     document.getElementById('btn-mute').textContent = muted ? '🔇' : '🔊';
   });
 
-  // Tự động kích hoạt âm thanh ngay ở lần chạm/nhấn phím đầu tiên bất kỳ đâu
   const unlockAudio = () => {
     christmasAudio.startMusic();
   };

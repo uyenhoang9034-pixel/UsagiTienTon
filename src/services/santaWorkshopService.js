@@ -134,7 +134,80 @@ export const SHOP_ITEMS = [
     price: 500,
     description: 'Nhận ngay Role Giáng Sinh giới hạn trên server Discord (nếu server đã cấu hình).',
   },
+  {
+    id: 'pet_usagi',
+    type: 'pet',
+    name: 'Thỏ Tuyết Usagi',
+    icon: '🐰',
+    price: 280,
+    description: 'Chạy lon ton trong xưởng & tự động nhặt hộ quà rơi khi Fever!',
+  },
+  {
+    id: 'pet_reindeer',
+    type: 'pet',
+    name: 'Tuần Lộc Con',
+    icon: '🦌',
+    price: 380,
+    description: 'Nhanh nhẹn hơn, tự động nhặt hộ quà Fever siêu tốc!',
+  },
+  {
+    id: 'skin_santa',
+    type: 'skin',
+    name: 'Áo Choàng Ông Già Noel',
+    icon: '🎅',
+    price: 180,
+    description: 'Trang phục đỏ viền trắng sang trọng cho Yêu Tinh trong xưởng.',
+  },
+  {
+    id: 'skin_fairy',
+    type: 'skin',
+    name: 'Cánh Tiên Băng Giá',
+    icon: '🧚',
+    price: 320,
+    description: 'Đôi cánh băng phát sáng rực rỡ sau lưng Yêu Tinh.',
+  },
 ];
+
+export const ACHIEVEMENTS = [
+  {
+    id: 'craft_10',
+    name: 'Thợ Thủ Công Chăm Chỉ',
+    icon: '🔨',
+    description: 'Chế tạo đủ 10 món đồ chơi Noel',
+    rewardCoins: 60,
+    rewardTickets: 1,
+    check: (p) => (p.totalCrafted || 0) >= 10,
+  },
+  {
+    id: 'deliver_10',
+    name: 'Giao Hàng Thần Tốc',
+    icon: '🛷',
+    description: 'Giao thành công 10 đơn hàng Giáng Sinh',
+    rewardCoins: 100,
+    rewardTickets: 1,
+    check: (p) => (p.totalDelivered || 0) >= 10,
+  },
+  {
+    id: 'coins_1000',
+    name: 'Trùm Tuyết Bắc Cực',
+    icon: '❄️',
+    description: 'Sở hữu ít nhất 1.000 Xu Tuyết cùng lúc',
+    rewardCoins: 150,
+    rewardTickets: 2,
+    check: (p) => (p.snowCoins || 0) >= 1000,
+  },
+  {
+    id: 'tree_contrib',
+    name: 'Người Thắp Sáng Cây Thông',
+    icon: '🎄',
+    description: 'Đóng góp trang trí Cây Thông Chung của Server',
+    rewardCoins: 50,
+    rewardTickets: 1,
+    check: (p) => (p.treeContributed || 0) >= 1,
+  },
+];
+
+const TREE_THRESHOLDS = [0, 150, 400, 800, 1500];
 
 export const ELF_HELPERS = [
   {
@@ -254,6 +327,16 @@ function createDefaultPlayer({ userId, username, avatarUrl, guildId }) {
     orders: [createOrder(1), createOrder(1), createOrder(1)],
     ownedFrames: [],
     equippedFrame: null,
+    ownedPets: [],
+    equippedPet: null,
+    ownedSkins: ['skin_classic'],
+    equippedSkin: 'skin_classic',
+    unlockedAchievements: [],
+    totalCrafted: 0,
+    treeContributed: 0,
+    feverCount: 0,
+    likedToday: {},
+    lastGrinchAt: 0,
     luckyTickets: 1,
     hasEventRole: false,
     lastCheckinDate: null,
@@ -319,11 +402,12 @@ export function getDailyRiddle(dateKey = getTodayKey()) {
 
 export async function getSantaGuildConfig(client, guildId) {
   if (!guildId || guildId === 'global') {
-    return { eventRoleId: process.env.SANTA_EVENT_ROLE_ID || null };
+    return { eventRoleId: process.env.SANTA_EVENT_ROLE_ID || null, announceChannelId: null };
   }
   const saved = await getDatabaseValue(client, getGuildSettingsKey(guildId), null);
   return {
     eventRoleId: saved?.eventRoleId || process.env.SANTA_EVENT_ROLE_ID || null,
+    announceChannelId: saved?.announceChannelId || null,
   };
 }
 
@@ -334,6 +418,67 @@ export async function setSantaEventRole(client, guildId, roleId) {
     eventRoleId: roleId ? String(roleId) : null,
     updatedAt: Date.now(),
   });
+}
+
+export async function setSantaAnnounceChannel(client, guildId, channelId) {
+  const current = (await getDatabaseValue(client, getGuildSettingsKey(guildId), {})) || {};
+  await setDatabaseValue(client, getGuildSettingsKey(guildId), {
+    ...current,
+    announceChannelId: channelId ? String(channelId) : null,
+    updatedAt: Date.now(),
+  });
+}
+
+async function announceToDiscordChannel(client, guildId, content) {
+  if (!client || !guildId || guildId === 'global') return;
+  try {
+    const cfg = await getSantaGuildConfig(client, guildId);
+    if (!cfg.announceChannelId) return;
+    const ch =
+      client.channels?.cache?.get(cfg.announceChannelId) ||
+      (await client.channels?.fetch?.(cfg.announceChannelId).catch(() => null));
+    if (ch && typeof ch.send === 'function') {
+      await ch.send(content).catch(() => {});
+    }
+  } catch {}
+}
+
+function getTreeLevelFromPoints(points) {
+  let lv = 0;
+  for (let i = 1; i < TREE_THRESHOLDS.length; i += 1) {
+    if (points >= TREE_THRESHOLDS[i]) lv = i;
+  }
+  return lv;
+}
+
+export async function getServerTree(client, guildId) {
+  const key = `santa:tree:${guildId || 'global'}`;
+  const tree = (await getDatabaseValue(client, key, null)) || {
+    points: 0,
+    level: 0,
+    buffExpiresAt: 0,
+    recentContributors: [],
+  };
+  const nextThreshold = TREE_THRESHOLDS[Math.min(TREE_THRESHOLDS.length - 1, (tree.level || 0) + 1)];
+  return {
+    ...tree,
+    nextThreshold,
+    buffActive: (tree.buffExpiresAt || 0) > Date.now(),
+  };
+}
+
+function evaluateAchievements(player) {
+  player.unlockedAchievements = player.unlockedAchievements || [];
+  const newlyUnlocked = [];
+  for (const ach of ACHIEVEMENTS) {
+    if (!player.unlockedAchievements.includes(ach.id) && ach.check(player)) {
+      player.unlockedAchievements.push(ach.id);
+      player.snowCoins += ach.rewardCoins;
+      player.luckyTickets = (player.luckyTickets || 0) + ach.rewardTickets;
+      newlyUnlocked.push(ach);
+    }
+  }
+  return newlyUnlocked;
 }
 
 async function updateLeaderboard(client, guildId, player) {
@@ -402,8 +547,17 @@ export async function getOrCreateSantaPlayer(client, { userId, username, avatarU
 
 async function savePlayer(client, guildId, player) {
   player.updatedAt = Date.now();
+  const newlyUnlocked = evaluateAchievements(player);
   await setDatabaseValue(client, getPlayerKey(guildId, player.userId), player);
   await updateLeaderboard(client, guildId, player);
+  if (newlyUnlocked.length > 0) {
+    const names = newlyUnlocked.map((a) => `${a.icon} **${a.name}**`).join(', ');
+    announceToDiscordChannel(
+      client,
+      guildId,
+      `🏆 Chúc mừng <@${player.userId}> vừa mở khóa thành tựu Xưởng Quà Noel: ${names}!`,
+    );
+  }
   return player;
 }
 
@@ -415,6 +569,7 @@ export async function buildSantaStatePayload(client, identity) {
   const idle = computePendingIdleMaterials(player);
   const leaderboard = await getSantaLeaderboard(client, guildId);
   const guildConfig = await getSantaGuildConfig(client, guildId);
+  const serverTree = await getServerTree(client, guildId);
 
   return {
     player,
@@ -434,6 +589,16 @@ export async function buildSantaStatePayload(client, identity) {
       level: player.helpers?.[h.id] || 0,
       nextCost: getHelperUpgradeCost(h, player.helpers?.[h.id] || 0),
     })),
+    achievementsMeta: ACHIEVEMENTS.map((a) => ({
+      id: a.id,
+      name: a.name,
+      icon: a.icon,
+      description: a.description,
+      rewardCoins: a.rewardCoins,
+      rewardTickets: a.rewardTickets,
+      unlocked: (player.unlockedAchievements || []).includes(a.id),
+    })),
+    serverTree,
     wheelSegments: WHEEL_SEGMENTS,
     recipes: TOY_RECIPES,
     shopItems: SHOP_ITEMS,
@@ -578,6 +743,7 @@ export async function handleSantaCraft(client, identity, toyId) {
     player.materials[mat] -= req;
   }
   player.toys[recipe.id] = (player.toys[recipe.id] || 0) + 1;
+  player.totalCrafted = (player.totalCrafted || 0) + 1;
 
   await savePlayer(client, guildId, player);
   return {
@@ -606,8 +772,12 @@ export async function handleSantaDeliver(client, identity, orderId) {
     };
   }
 
+  const tree = await getServerTree(client, guildId);
+  const buffMult = tree.buffActive ? 2 : 1;
+
   player.toys[order.toyId] -= order.qty;
-  player.snowCoins += order.rewardCoins;
+  const gainedCoins = order.rewardCoins * buffMult;
+  player.snowCoins += gainedCoins;
   player.reputation += order.rewardRep;
   if (order.rewardTickets) {
     player.luckyTickets = (player.luckyTickets || 0) + order.rewardTickets;
@@ -617,9 +787,10 @@ export async function handleSantaDeliver(client, identity, orderId) {
 
   await savePlayer(client, guildId, player);
   const ticketNote = order.rewardTickets ? ` & +${order.rewardTickets} 🎟️` : '';
+  const buffNote = buffMult > 1 ? ' (x2 Cây Thông!)' : '';
   return {
     ok: true,
-    message: `Giao hàng cho ${order.customerIcon} ${order.customerName} thành công! Nhận +${order.rewardCoins} ❄️, +${order.rewardRep} ⭐${ticketNote}`,
+    message: `Giao hàng cho ${order.customerIcon} ${order.customerName} thành công! Nhận +${gainedCoins} ❄️, +${order.rewardRep} ⭐${ticketNote}${buffNote}`,
     state: await buildSantaStatePayload(client, identity),
   };
 }
@@ -668,11 +839,14 @@ export async function handleSantaFeverBonus(client, identity, { hits = 0 } = {})
     return { ok: false, message: 'Mưa quà đang hồi chiêu!', state: await buildSantaStatePayload(client, identity) };
   }
 
-  const safeHits = Math.max(1, Math.min(25, Number(hits) || 5));
-  const bonusCoins = safeHits * 3;
-  const bonusMat = Math.max(1, Math.floor(safeHits / 3));
+  const safeHits = Math.max(1, Math.min(35, Number(hits) || 5));
+  const tree = await getServerTree(client, guildId);
+  const buffMult = tree.buffActive ? 2 : 1;
+  const bonusCoins = safeHits * 3 * buffMult;
+  const bonusMat = Math.max(1, Math.floor(safeHits / 3)) * buffMult;
 
   player.lastFeverAt = now;
+  player.feverCount = (player.feverCount || 0) + 1;
   player.snowCoins += bonusCoins;
   player.materials.wood += bonusMat;
   player.materials.fabric += bonusMat;
@@ -682,7 +856,7 @@ export async function handleSantaFeverBonus(client, identity, { hits = 0 } = {})
   await savePlayer(client, guildId, player);
   return {
     ok: true,
-    message: `🎉 Tổng kết Mưa Quà Fever (${safeHits} quà): +${bonusCoins} ❄️ & nguyên liệu đầy kho!`,
+    message: `🎉 Tổng kết Mưa Quà Fever #${player.feverCount} (${safeHits} quà): +${bonusCoins} ❄️ & nguyên liệu đầy kho!`,
     state: await buildSantaStatePayload(client, identity),
   };
 }
@@ -758,8 +932,23 @@ export async function handleSantaBuyItem(client, identity, itemId) {
     }
     player.hasEventRole = true;
   } else if (item.type === 'frame') {
+    player.ownedFrames = player.ownedFrames || [];
     player.ownedFrames.push(item.id);
     player.equippedFrame = item.id;
+  } else if (item.type === 'pet') {
+    player.ownedPets = player.ownedPets || [];
+    if (player.ownedPets.includes(item.id)) {
+      return { ok: false, message: 'Bạn đã sở hữu thú cưng này rồi!', state: await buildSantaStatePayload(client, identity) };
+    }
+    player.ownedPets.push(item.id);
+    player.equippedPet = item.id;
+  } else if (item.type === 'skin') {
+    player.ownedSkins = player.ownedSkins || ['skin_classic'];
+    if (player.ownedSkins.includes(item.id)) {
+      return { ok: false, message: 'Bạn đã sở hữu trang phục này rồi!', state: await buildSantaStatePayload(client, identity) };
+    }
+    player.ownedSkins.push(item.id);
+    player.equippedSkin = item.id;
   } else if (item.type === 'ticket') {
     player.luckyTickets = (player.luckyTickets || 0) + 1;
   }
@@ -828,6 +1017,11 @@ export async function handleSantaSpinWheel(client, identity) {
     player.snowCoins += seg.amount;
     player.reputation += 40;
     prizeText = `JACKPOT! +${seg.amount} ❄️ Xu Tuyết & +40 ⭐ Danh Vọng!`;
+    announceToDiscordChannel(
+      client,
+      guildId,
+      `🎰 **JACKPOT ĐÊM NOEL!** Chúc mừng <@${player.userId}> vừa quay trúng **+${seg.amount} ❄️ Xu Tuyết** tại Vòng Quay Xưởng Quà Ông Già Noel!`,
+    );
   }
 
   await savePlayer(client, guildId, player);
@@ -836,6 +1030,175 @@ export async function handleSantaSpinWheel(client, identity) {
     wheelIndex,
     prizeText,
     message: `🎡 Trúng thưởng: ${prizeText}`,
+    state: await buildSantaStatePayload(client, identity),
+  };
+}
+
+export async function handleSantaEquipCosmetic(client, identity, { kind, itemId }) {
+  const guildId = identity.guildId || 'global';
+  const player = await getOrCreateSantaPlayer(client, identity);
+
+  if (kind === 'pet') {
+    if (itemId && !(player.ownedPets || []).includes(itemId)) {
+      return { ok: false, message: 'Bạn chưa nuôi thú cưng này!', state: await buildSantaStatePayload(client, identity) };
+    }
+    player.equippedPet = itemId || null;
+  } else if (kind === 'skin') {
+    const owned = player.ownedSkins || ['skin_classic'];
+    if (itemId && !owned.includes(itemId)) {
+      return { ok: false, message: 'Bạn chưa sở hữu trang phục này!', state: await buildSantaStatePayload(client, identity) };
+    }
+    player.equippedSkin = itemId || 'skin_classic';
+  } else {
+    if (itemId && !(player.ownedFrames || []).includes(itemId)) {
+      return { ok: false, message: 'Bạn chưa sở hữu khung avatar này!', state: await buildSantaStatePayload(client, identity) };
+    }
+    player.equippedFrame = itemId || null;
+  }
+
+  await savePlayer(client, guildId, player);
+  return {
+    ok: true,
+    message: 'Đã thay đổi trang bị thành công!',
+    state: await buildSantaStatePayload(client, identity),
+  };
+}
+
+export async function handleSantaContributeTree(client, identity, { mode = 'coins', toyId = null } = {}) {
+  const guildId = identity.guildId || 'global';
+  const player = await getOrCreateSantaPlayer(client, identity);
+  const key = `santa:tree:${guildId}`;
+  const tree = (await getDatabaseValue(client, key, null)) || {
+    points: 0,
+    level: 0,
+    buffExpiresAt: 0,
+    recentContributors: [],
+  };
+
+  let addedPoints = 0;
+  let repGain = 0;
+
+  if (mode === 'toy' && toyId) {
+    if ((player.toys[toyId] || 0) < 1) {
+      return { ok: false, message: 'Bạn không có món đồ chơi này trong kho!', state: await buildSantaStatePayload(client, identity) };
+    }
+    player.toys[toyId] -= 1;
+    addedPoints = 40;
+    repGain = 20;
+  } else {
+    if (player.snowCoins < 40) {
+      return { ok: false, message: 'Cần ít nhất 40 ❄️ Xu Tuyết để trang trí Cây Thông!', state: await buildSantaStatePayload(client, identity) };
+    }
+    player.snowCoins -= 40;
+    addedPoints = 35;
+    repGain = 15;
+  }
+
+  player.reputation += repGain;
+  player.treeContributed = (player.treeContributed || 0) + 1;
+
+  const oldLevel = tree.level || 0;
+  tree.points = (tree.points || 0) + addedPoints;
+  tree.level = getTreeLevelFromPoints(tree.points);
+  tree.recentContributors = [
+    { username: player.username, points: addedPoints, at: Date.now() },
+    ...(Array.isArray(tree.recentContributors) ? tree.recentContributors : []),
+  ].slice(0, 5);
+
+  let levelUpMsg = '';
+  if (tree.level > oldLevel) {
+    tree.buffExpiresAt = Date.now() + 60 * 60 * 1000;
+    levelUpMsg = ` 🌟 Cây Thông Server lên Cấp ${tree.level}! Toàn server được x2 Xu Tuyết & Quà trong 1 giờ!`;
+    announceToDiscordChannel(
+      client,
+      guildId,
+      `🎄 **CÂY THÔNG CHUNG LÊN CẤP ${tree.level}!** Nhờ đóng góp của <@${player.userId}>, toàn server được **x2 Xu Tuyết & Quà Fever** trong 1 giờ!`,
+    );
+  }
+
+  await setDatabaseValue(client, key, tree);
+  await savePlayer(client, guildId, player);
+
+  return {
+    ok: true,
+    message: `🎄 Đã góp +${addedPoints} điểm trang trí Cây Thông (+${repGain} ⭐)!${levelUpMsg}`,
+    state: await buildSantaStatePayload(client, identity),
+  };
+}
+
+export async function handleSantaVisitFriend(client, identity, { targetUserId, action = 'like', toyId = null } = {}) {
+  const guildId = identity.guildId || 'global';
+  if (!targetUserId || String(targetUserId) === String(identity.userId)) {
+    return { ok: false, message: 'Không thể tự tương tác với chính mình nha!', state: await buildSantaStatePayload(client, identity) };
+  }
+
+  const player = await getOrCreateSantaPlayer(client, identity);
+  const friendKey = getPlayerKey(guildId, targetUserId);
+  const friend = await getDatabaseValue(client, friendKey, null);
+  if (!friend) {
+    return { ok: false, message: 'Không tìm thấy xưởng của người chơi này!', state: await buildSantaStatePayload(client, identity) };
+  }
+
+  const today = getTodayKey();
+  player.likedToday = player.likedToday || {};
+
+  if (action === 'gift') {
+    const giftToy = toyId || Object.keys(player.toys || {}).find((k) => (player.toys[k] || 0) > 0);
+    if (!giftToy || (player.toys[giftToy] || 0) < 1) {
+      return { ok: false, message: 'Bạn cần có ít nhất 1 món đồ chơi trong kho để tặng bạn!', state: await buildSantaStatePayload(client, identity) };
+    }
+    player.toys[giftToy] -= 1;
+    player.reputation += 15;
+    friend.toys = friend.toys || {};
+    friend.toys[giftToy] = (friend.toys[giftToy] || 0) + 1;
+    friend.reputation = (friend.reputation || 0) + 15;
+
+    await savePlayer(client, guildId, friend);
+    await savePlayer(client, guildId, player);
+    const recipe = TOY_RECIPES.find((r) => r.id === giftToy);
+    return {
+      ok: true,
+      message: `🎁 Đã tặng ${recipe?.icon || ''} ${recipe?.name || 'đồ chơi'} cho ${friend.username}! Cả 2 nhận +15 ⭐!`,
+      state: await buildSantaStatePayload(client, identity),
+    };
+  }
+
+  if (player.likedToday[targetUserId] === today) {
+    return { ok: false, message: `Hôm nay bạn đã thả tim giúp xưởng ${friend.username} rồi!`, state: await buildSantaStatePayload(client, identity) };
+  }
+
+  player.likedToday[targetUserId] = today;
+  player.reputation += 10;
+  friend.reputation = (friend.reputation || 0) + 10;
+  friend.snowCoins = (friend.snowCoins || 0) + 15;
+
+  await savePlayer(client, guildId, friend);
+  await savePlayer(client, guildId, player);
+  return {
+    ok: true,
+    message: `❤️ Đã thả tim giúp xưởng ${friend.username}! Cả 2 nhận +10 ⭐ (bạn ấy được +15 ❄️)!`,
+    state: await buildSantaStatePayload(client, identity),
+  };
+}
+
+export async function handleSantaRepelGrinch(client, identity) {
+  const guildId = identity.guildId || 'global';
+  const player = await getOrCreateSantaPlayer(client, identity);
+  const now = Date.now();
+
+  if (now - (player.lastGrinchAt || 0) < 20000) {
+    return { ok: false, message: 'Grinch vừa chạy mất rồi!', state: await buildSantaStatePayload(client, identity) };
+  }
+
+  player.lastGrinchAt = now;
+  player.snowCoins += 50;
+  player.luckyTickets = (player.luckyTickets || 0) + 1;
+  player.reputation += 20;
+
+  await savePlayer(client, guildId, player);
+  return {
+    ok: true,
+    message: '👺 Đuổi Grinch thành công! Nhận +50 ❄️ Xu Tuyết, +1 🎟️ Vé Quay & +20 ⭐!',
     state: await buildSantaStatePayload(client, identity),
   };
 }

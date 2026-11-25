@@ -7,6 +7,7 @@ import {
   getOrCreateSantaPlayer,
   getSantaGuildConfig,
   setSantaEventRole,
+  setSantaAnnounceChannel,
 } from '../../services/santaWorkshopService.js';
 import { logger } from '../../utils/logger.js';
 
@@ -34,6 +35,17 @@ export default {
             .setDescription('Role sự kiện Giáng Sinh')
             .setRequired(true),
         ),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName('setkenh')
+        .setDescription('[Admin] Chọn kênh Discord để bot Usagi báo tin Jackpot & Cây Thông')
+        .addChannelOption((opt) =>
+          opt
+            .setName('kenh')
+            .setDescription('Kênh chat nhận thông báo vinh danh Xưởng Noel')
+            .setRequired(true),
+        ),
     ),
 
   category: 'Games',
@@ -56,6 +68,21 @@ export default {
         await setSantaEventRole(botClient, guildId, role.id);
         return interaction.reply({
           content: `🎄 Đã đặt Role sự kiện Xưởng Quà Noel thành <@&${role.id}>! Người chơi có thể dùng Xu Tuyết đổi trong Shop.`,
+          ephemeral: !interaction._isPrefixCommand,
+        });
+      }
+
+      if (sub === 'setkenh') {
+        if (!interaction.memberPermissions?.has?.(PermissionFlagsBits.Administrator)) {
+          return interaction.reply({
+            content: '❌ Chỉ Quản trị viên mới được cài đặt kênh thông báo Xưởng Noel!',
+            ephemeral: !interaction._isPrefixCommand,
+          });
+        }
+        const channel = interaction.options.getChannel('kenh');
+        await setSantaAnnounceChannel(botClient, guildId, channel.id);
+        return interaction.reply({
+          content: `📢 Đã chọn <#${channel.id}> làm kênh vinh danh Jackpot, Thành Tựu & Cây Thông Server!`,
           ephemeral: !interaction._isPrefixCommand,
         });
       }

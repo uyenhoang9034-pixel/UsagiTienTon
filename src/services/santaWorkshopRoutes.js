@@ -15,6 +15,10 @@ import {
   handleSantaSpinWheel,
   handleSantaHireHelper,
   handleSantaFeverBonus,
+  handleSantaEquipCosmetic,
+  handleSantaContributeTree,
+  handleSantaVisitFriend,
+  handleSantaRepelGrinch,
 } from './santaWorkshopService.js';
 import { logger } from '../utils/logger.js';
 
@@ -186,6 +190,10 @@ export function registerSantaWorkshopRoutes(app, client) {
     ['/api/santa/wheel', (_req, id) => handleSantaSpinWheel(client, id)],
     ['/api/santa/hire-helper', (req, id) => handleSantaHireHelper(client, id, req.body?.helperId)],
     ['/api/santa/fever-claim', (req, id) => handleSantaFeverBonus(client, id, { hits: req.body?.hits })],
+    ['/api/santa/equip', (req, id) => handleSantaEquipCosmetic(client, id, { kind: req.body?.kind, itemId: req.body?.itemId })],
+    ['/api/santa/tree/contribute', (req, id) => handleSantaContributeTree(client, id, { mode: req.body?.mode, toyId: req.body?.toyId })],
+    ['/api/santa/friend/visit', (req, id) => handleSantaVisitFriend(client, id, { targetUserId: req.body?.targetUserId, action: req.body?.action, toyId: req.body?.toyId })],
+    ['/api/santa/grinch-repel', (_req, id) => handleSantaRepelGrinch(client, id)],
   ];
 
   for (const [routePath, handler] of actionRoutes) {
