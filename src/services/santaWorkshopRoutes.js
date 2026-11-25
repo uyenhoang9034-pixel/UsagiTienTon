@@ -84,17 +84,20 @@ async function resolveIdentityFromRequest(req) {
 export function registerSantaWorkshopRoutes(app, client) {
   app.use('/api/santa', express.json());
 
-  // Cho phép nhúng vào iframe của Discord Activity
+  // Cho phép nhúng vào iframe của Discord Activity & tắt cache để luôn nhận bản mới nhất
   app.use('/activity', (_req, res, next) => {
     res.removeHeader('X-Frame-Options');
     res.setHeader(
       'Content-Security-Policy',
       "frame-ancestors 'self' https://discord.com https://*.discord.com https://*.discordsays.com;",
     );
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     next();
   });
 
-  app.use('/activity', express.static(PUBLIC_ACTIVITY_DIR));
+  app.use('/activity', express.static(PUBLIC_ACTIVITY_DIR, { etag: false, maxAge: 0 }));
 
   app.get('/api/santa/config', (_req, res) => {
     res.json({

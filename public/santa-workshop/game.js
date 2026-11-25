@@ -1,4 +1,4 @@
-import { christmasAudio } from './audio.js';
+import { christmasAudio } from './audio.js?v=20261125c';
 
 const STATE = {
   token: 'demo',
