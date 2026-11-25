@@ -148,7 +148,7 @@ export const ELF_HELPERS = [
   {
     id: 'tailor',
     name: 'Yêu Tinh Thợ May',
-    icon: '🪡',
+    icon: '✂️',
     description: 'Dệt vải nhung đỏ (+1.3 🧶 Vải đỏ / phút mỗi cấp)',
     baseCost: 95,
     bonuses: { fabric: 1.3 },
@@ -156,7 +156,7 @@ export const ELF_HELPERS = [
   {
     id: 'mage',
     name: 'Yêu Tinh Phù Thủy',
-    icon: '🪄',
+    icon: '🌟',
     description: 'Tinh chế phép thuật (+1.0 ✨ Bụi phép & +1.1 🎀 Ruy băng / phút mỗi cấp)',
     baseCost: 120,
     bonuses: { magicDust: 1.0, ribbon: 1.1 },

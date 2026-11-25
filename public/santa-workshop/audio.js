@@ -77,7 +77,7 @@ class ChristmasAudioEngine {
     this.timer = null;
   }
 
-  ensureContext() {
+  async ensureContext() {
     if (!this.ctx) {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
@@ -85,15 +85,24 @@ class ChristmasAudioEngine {
       }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume().catch(() => {});
+      try {
+        await this.ctx.resume();
+      } catch {}
     }
     return this.ctx;
   }
 
-  playTone(freq, durationSec, { type = 'triangle', volume = 0.08, delay = 0 } = {}) {
+  playTone(freq, durationSec, { type = 'triangle', volume = 0.16, delay = 0 } = {}) {
     if (this.muted || !freq) return;
-    const ctx = this.ensureContext();
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) this.ctx = new AudioCtx();
+    }
+    const ctx = this.ctx;
     if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
 
     const now = ctx.currentTime + delay;
     const osc = ctx.createOscillator();
@@ -103,18 +112,19 @@ class ChristmasAudioEngine {
     osc.frequency.setValueAtTime(freq, now);
 
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(volume, now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + Math.max(0.05, durationSec));
+    gain.gain.linearRampToValueAtTime(volume, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + Math.max(0.06, durationSec));
 
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.start(now);
-    osc.stop(now + durationSec + 0.03);
+    osc.stop(now + durationSec + 0.04);
   }
 
-  startMusic() {
-    if (this.musicPlaying || this.muted) return;
-    this.ensureContext();
+  async startMusic() {
+    if (this.muted) return;
+    await this.ensureContext();
+    if (this.musicPlaying) return;
     this.musicPlaying = true;
     this.scheduleNextNote();
   }
@@ -125,24 +135,24 @@ class ChristmasAudioEngine {
     this.timer = null;
   }
 
-  toggleMute() {
+  async toggleMute() {
     this.muted = !this.muted;
     if (this.muted) {
       this.stopMusic();
     } else {
-      this.startMusic();
+      await this.startMusic();
     }
     return this.muted;
   }
 
-  nextSong() {
+  async nextSong() {
     this.songIndex = (this.songIndex + 1) % CHRISTMAS_SONGS.length;
     this.noteIndex = 0;
-    if (!this.muted) {
-      clearTimeout(this.timer);
-      this.musicPlaying = true;
-      this.scheduleNextNote();
-    }
+    this.muted = false;
+    await this.ensureContext();
+    clearTimeout(this.timer);
+    this.musicPlaying = true;
+    this.scheduleNextNote();
     return CHRISTMAS_SONGS[this.songIndex];
   }
 
@@ -158,9 +168,9 @@ class ChristmasAudioEngine {
     const freq = NOTE_FREQ[noteName] || 0;
 
     if (freq > 0) {
-      // Tiếng chuông / celesta Giáng Sinh
-      this.playTone(freq, (durMs / 1000) * 0.92, { type: 'triangle', volume: 0.065 });
-      this.playTone(freq * 0.5, (durMs / 1000) * 0.85, { type: 'sine', volume: 0.03 });
+      // Tiếng chuông / celesta Giáng Sinh rõ & ấm áp
+      this.playTone(freq, (durMs / 1000) * 0.92, { type: 'triangle', volume: 0.16 });
+      this.playTone(freq * 0.5, (durMs / 1000) * 0.85, { type: 'sine', volume: 0.07 });
     }
 
     this.noteIndex += 1;

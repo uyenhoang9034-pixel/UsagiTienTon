@@ -289,8 +289,8 @@ class SantaWorkshopScene extends Phaser.Scene {
     const floorY = this.scale.height * 0.64;
     const spots = [
       { key: 'lumberjack', icon: '🪓🧝', xRatio: 0.25 },
-      { key: 'tailor', icon: '🪡🧝', xRatio: 0.64 },
-      { key: 'mage', icon: '🪄🧝', xRatio: 0.72 },
+      { key: 'tailor', icon: '✂️🧝', xRatio: 0.64 },
+      { key: 'mage', icon: '🌟🧝', xRatio: 0.72 },
     ];
 
     for (const s of spots) {
@@ -922,16 +922,23 @@ function bindEvents() {
     btn.textContent = STATE.panelCollapsed ? '▴ Mở bảng' : '▾ Thu gọn';
   });
 
-  document.getElementById('btn-song').addEventListener('click', () => {
-    const song = christmasAudio.nextSong();
+  document.getElementById('btn-song').addEventListener('click', async () => {
+    const song = await christmasAudio.nextSong();
     document.getElementById('song-name').textContent = song.title;
     showToast(`🎵 Đang phát: ${song.title}`);
   });
 
-  document.getElementById('btn-mute').addEventListener('click', () => {
-    const muted = christmasAudio.toggleMute();
+  document.getElementById('btn-mute').addEventListener('click', async () => {
+    const muted = await christmasAudio.toggleMute();
     document.getElementById('btn-mute').textContent = muted ? '🔇' : '🔊';
   });
+
+  // Tự động kích hoạt âm thanh ngay ở lần chạm/nhấn phím đầu tiên bất kỳ đâu
+  const unlockAudio = () => {
+    christmasAudio.startMusic();
+  };
+  window.addEventListener('pointerdown', unlockAudio, { passive: true });
+  window.addEventListener('keydown', unlockAudio, { passive: true });
 
   document.getElementById('btn-close-wheel').addEventListener('click', () => {
     if (!STATE.wheelSpinning) {
