@@ -7,8 +7,8 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <title>Xưởng Quà Của Ông Già Noel — Usagi Activity</title>
-    <link rel="stylesheet" href="./style.css?v=20261125h" />
-    <script src="./vendor/phaser.min.js?v=20261125h"></script>
+    <link rel="stylesheet" href="./style.css?v=20261125i" />
+    <script src="./vendor/phaser.min.js?v=20261125i"></script>
   </head>
   <body>
     <div id="app">
@@ -97,6 +97,21 @@
         </div>
       </div>
 
+      <!-- Upgrade Workshop Confirm Modal -->
+      <div id="upgrade-modal" class="modal-backdrop hidden">
+        <div class="modal-card" style="align-items: stretch;">
+          <div class="modal-header">
+            <strong id="upgrade-modal-title">🏠 Xác nhận Nâng Cấp Xưởng</strong>
+            <button id="btn-close-upgrade" class="btn btn-outline btn-sm">✕</button>
+          </div>
+          <div id="upgrade-modal-body" style="display:flex;flex-direction:column;gap:8px;font-size:13px;"></div>
+          <div style="display:flex;gap:8px;margin-top:4px;">
+            <button id="btn-cancel-upgrade" class="btn btn-outline" style="flex:1;">Hủy</button>
+            <button id="btn-confirm-upgrade" class="btn btn-gold" style="flex:1;">✅ Xác nhận nâng</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Bottom Navigation -->
       <nav class="bottom-nav" aria-label="Menu trò chơi">
         <button class="nav-btn active" data-tab="workshop">
@@ -122,6 +137,6 @@
       </nav>
     </div>
 
-    <script type="module" src="./game.js?v=20261125h"></script>
+    <script type="module" src="./game.js?v=20261125i"></script>
   </body>
 </html>

@@ -1,4 +1,4 @@
-import { christmasAudio } from './audio.js?v=20261125h';
+import { christmasAudio } from './audio.js?v=20261125i';
 
 const STATE = {
   token: 'demo',
@@ -969,9 +969,8 @@ function renderPanel() {
       const r = await runAction('/api/santa/collect', { isTap: false });
       if (r?.ok) christmasAudio.playCoinSfx();
     };
-    document.getElementById('btn-upgrade').onclick = async () => {
-      const r = await runAction('/api/santa/upgrade');
-      if (r?.ok) christmasAudio.playCraftSfx();
+    document.getElementById('btn-upgrade').onclick = () => {
+      openUpgradeConfirmModal();
     };
     document.getElementById('btn-tree-coins').onclick = async () => {
       const r = await runAction('/api/santa/tree/contribute', { mode: 'coins' });
@@ -1281,6 +1280,57 @@ function bindEvents() {
   });
 
   document.getElementById('btn-spin-now').addEventListener('click', spinLuckyWheel);
+
+  document.getElementById('btn-close-upgrade').addEventListener('click', () => {
+    document.getElementById('upgrade-modal').classList.add('hidden');
+  });
+  document.getElementById('btn-cancel-upgrade').addEventListener('click', () => {
+    document.getElementById('upgrade-modal').classList.add('hidden');
+  });
+  document.getElementById('btn-confirm-upgrade').addEventListener('click', async () => {
+    document.getElementById('upgrade-modal').classList.add('hidden');
+    const r = await runAction('/api/santa/upgrade');
+    if (r?.ok) christmasAudio.playCraftSfx();
+  });
+}
+
+function openUpgradeConfirmModal() {
+  if (!STATE.data) return;
+  const { player, upgradeCost } = STATE.data;
+  const curLv = player.workshopLevel || 1;
+  if (curLv >= 10) return;
+
+  const nextLv = curLv + 1;
+  const curMult = (1 + (curLv - 1) * 0.35).toFixed(2);
+  const nextMult = (1 + (nextLv - 1) * 0.35).toFixed(2);
+  const canAfford = (player.snowCoins || 0) >= upgradeCost;
+
+  document.getElementById('upgrade-modal-title').textContent = `🏠 Nâng Xưởng: Cấp ${curLv} → Cấp ${nextLv}`;
+
+  const perks = [
+    `<div class="mat-chip"><span>⚡ Tốc độ Idle tự động</span><strong>x${curMult} → x${nextMult}</strong></div>`,
+  ];
+  if (nextLv === 3) {
+    perks.push(`<div class="mat-chip"><span>📦 Mở khóa mới</span><strong>Đơn hàng 2 món (x2 Thưởng!)</strong></div>`);
+  } else if (nextLv < 3) {
+    perks.push(`<div class="mat-chip"><span>📦 Mốc Cấp 3</span><span class="muted">Mở khóa đơn hàng 2 món</span></div>`);
+  }
+  if (nextLv === 4) {
+    perks.push(`<div class="mat-chip"><span>🔨 Gõ búa chạm Xưởng</span><strong>+1 → +2 nguyên liệu/lần!</strong></div>`);
+  } else if (nextLv < 4) {
+    perks.push(`<div class="mat-chip"><span>🔨 Mốc Cấp 4</span><span class="muted">Gõ búa nhận x2 nguyên liệu</span></div>`);
+  }
+  perks.push(`<div class="mat-chip"><span>🏆 Bảng Xếp Hạng</span><strong>Hiển thị Lv.${nextLv}</strong></div>`);
+  perks.push(
+    `<div class="muted" style="text-align:center;margin-top:4px;">Chi phí: <strong>${upgradeCost} ❄️</strong> (Bạn đang có: <strong>${player.snowCoins} ❄️</strong>)</div>`,
+  );
+
+  document.getElementById('upgrade-modal-body').innerHTML = perks.join('');
+  const confirmBtn = document.getElementById('btn-confirm-upgrade');
+  confirmBtn.disabled = !canAfford;
+  confirmBtn.textContent = canAfford ? `✅ Xác nhận (${upgradeCost} ❄️)` : `Thiếu ${upgradeCost - player.snowCoins} ❄️`;
+
+  document.getElementById('upgrade-modal').classList.remove('hidden');
 }
 
 async function bootstrap() {
