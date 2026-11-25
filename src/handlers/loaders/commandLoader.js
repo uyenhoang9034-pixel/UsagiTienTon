@@ -219,14 +219,32 @@ async function registerGlobalCommands(client, clientId, commands, totalSubcomman
 
   const commandsToRegister = prepareCommandsForRegistration(commands);
 
-  if (botConfig.commands?.deleteCommands) {
-    logger.info('Clearing existing global commands before registration...');
-    await client.rest.put(`/applications/${clientId}/commands`, { body: [] });
+  // Giữ lại Entry Point command (type === 4) của Discord Activities nếu app đã bật Activities
+  // để tránh lỗi DiscordAPIError[50240] khi bulk update global commands.
+  let entryPointCommands = [];
+  try {
+    const existingCommands = await client.rest.get(`/applications/${clientId}/commands`);
+    if (Array.isArray(existingCommands)) {
+      entryPointCommands = existingCommands.filter((cmd) => cmd?.type === 4);
+    }
+  } catch (err) {
+    logger.warn('Could not fetch existing global commands to preserve Entry Point:', err?.message || err);
   }
 
-  logger.info(`Registering ${commandsToRegister.length} global commands...`);
-  await client.rest.put(`/applications/${clientId}/commands`, { body: commandsToRegister });
-  logger.info(`Successfully registered ${commandsToRegister.length} global commands`);
+  if (botConfig.commands?.deleteCommands) {
+    logger.info('Clearing existing global commands before registration...');
+    await client.rest.put(`/applications/${clientId}/commands`, { body: entryPointCommands });
+  }
+
+  const existingNames = new Set(commandsToRegister.map((c) => c.name));
+  const mergedCommands = [
+    ...commandsToRegister.slice(0, Math.max(0, MAX_COMMANDS - entryPointCommands.length)),
+    ...entryPointCommands.filter((ep) => !existingNames.has(ep.name)),
+  ];
+
+  logger.info(`Registering ${mergedCommands.length} global commands...`);
+  await client.rest.put(`/applications/${clientId}/commands`, { body: mergedCommands });
+  logger.info(`Successfully registered ${mergedCommands.length} global commands`);
 }
 
 export async function registerCommands(client, options = {}) {
