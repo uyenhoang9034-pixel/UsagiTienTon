@@ -1,4 +1,4 @@
-import { christmasAudio } from './audio.js?v=20261125e';
+import { christmasAudio } from './audio.js?v=20261125f';
 
 const STATE = {
   token: 'demo',
@@ -1108,11 +1108,18 @@ function renderPanel() {
         .slice(0, 8)
         .map((entry, idx) => {
           const isMe = String(entry.userId) === String(player.userId);
+          const frameCls = entry.equippedFrame ? entry.equippedFrame.replace('_', '-') : '';
+          const avaHtml = entry.avatarUrl
+            ? `<img src="${entry.avatarUrl}" class="avatar-img" alt="" />`
+            : `<div class="avatar-fallback" style="font-size:15px;">🧝</div>`;
           return `
             <div class="friend-row">
-              <div>
-                <div><strong>#${idx + 1} ${entry.username}</strong> (Lv.${entry.workshopLevel})</div>
-                <div class="muted">⭐ ${entry.reputation} • ❄️ ${entry.snowCoins}</div>
+              <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+                <div class="avatar-wrapper avatar-sm ${frameCls}">${avaHtml}</div>
+                <div style="min-width:0;">
+                  <div><strong>#${idx + 1} ${entry.username}</strong> (Lv.${entry.workshopLevel})</div>
+                  <div class="muted">⭐ ${entry.reputation} • ❄️ ${entry.snowCoins}</div>
+                </div>
               </div>
               ${
                 isMe

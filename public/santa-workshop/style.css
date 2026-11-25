@@ -59,29 +59,100 @@ body {
 
 .avatar-wrapper {
   position: relative;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   display: grid;
   place-items: center;
   background: #23395d;
   border: 2px solid var(--gold);
   flex-shrink: 0;
+  overflow: visible;
 }
 
+.avatar-wrapper.avatar-sm {
+  width: 34px;
+  height: 34px;
+}
+
+.avatar-wrapper::before,
+.avatar-wrapper::after {
+  pointer-events: none;
+}
+
+/* 1. Khung Vòng Nguyệt Quế: vòng lá xanh-đỏ đan xen + nơ đỏ gắn trên đỉnh */
 .avatar-wrapper.frame-wreath {
-  border: 3px solid #2ecc71;
-  box-shadow: 0 0 12px rgba(46, 204, 113, 0.75), inset 0 0 6px #e63946;
+  border: 3px solid transparent;
+  background:
+    linear-gradient(#23395d, #23395d) padding-box,
+    repeating-conic-gradient(#2ecc71 0deg 25deg, #1b4332 25deg 40deg, #e63946 40deg 50deg) border-box;
+  box-shadow: 0 0 14px rgba(46, 204, 113, 0.75);
+}
+.avatar-wrapper.frame-wreath::after {
+  content: '🎀';
+  position: absolute;
+  top: -9px;
+  right: -5px;
+  font-size: 16px;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.8));
+}
+
+/* 2. Khung Tuần Lộc Vàng: hào quang vàng kim xoay vòng + biểu tượng Tuần Lộc trên đỉnh */
+@keyframes santa-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes santa-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.95;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
 }
 
 .avatar-wrapper.frame-reindeer {
-  border: 3px solid #ffd166;
-  box-shadow: 0 0 14px rgba(255, 209, 102, 0.85);
+  border: 3px solid transparent;
+  background:
+    linear-gradient(#23395d, #23395d) padding-box,
+    conic-gradient(#ffd166, #ff9f1c, #fff3b0, #f77f00, #ffd166) border-box;
+  box-shadow: 0 0 16px rgba(255, 209, 102, 0.9), inset 0 0 8px rgba(255, 209, 102, 0.5);
+}
+.avatar-wrapper.frame-reindeer::after {
+  content: '🦌';
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 16px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.85));
 }
 
+/* 3. Khung Băng Giá Tuyết Rơi: vòng băng xoay phát sáng + bông tuyết nhấp nháy */
 .avatar-wrapper.frame-frost {
-  border: 3px solid #72efdd;
-  box-shadow: 0 0 16px rgba(144, 224, 239, 0.95);
+  border: 3px solid transparent;
+  box-shadow: 0 0 18px rgba(144, 224, 239, 0.95), 0 0 6px #ffffff;
+}
+.avatar-wrapper.frame-frost::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, #90e0ef, #ffffff, #00b4d8, #72efdd, #90e0ef);
+  z-index: -1;
+  animation: santa-spin 3.5s linear infinite;
+}
+.avatar-wrapper.frame-frost::after {
+  content: '❄️';
+  position: absolute;
+  top: -8px;
+  right: -7px;
+  font-size: 15px;
+  animation: santa-pulse 1.6s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px #90e0ef);
 }
 
 .avatar-img {
