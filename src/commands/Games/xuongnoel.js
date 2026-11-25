@@ -1,13 +1,10 @@
 import {
   SlashCommandBuilder,
   EmbedBuilder,
-  PermissionFlagsBits,
 } from 'discord.js';
 import {
   getOrCreateSantaPlayer,
   getSantaGuildConfig,
-  setSantaEventRole,
-  setSantaAnnounceChannel,
 } from '../../services/santaWorkshopService.js';
 import { logger } from '../../utils/logger.js';
 
@@ -24,28 +21,6 @@ export default {
       sub
         .setName('hoso')
         .setDescription('Xem nhanh Xu Tuyết, Danh Vọng và cấp Xưởng Noel của bạn'),
-    )
-    .addSubcommand((sub) =>
-      sub
-        .setName('setrole')
-        .setDescription('[Admin] Chọn Role sự kiện Noel giới hạn để đổi trong Shop')
-        .addRoleOption((opt) =>
-          opt
-            .setName('role')
-            .setDescription('Role sự kiện Giáng Sinh')
-            .setRequired(true),
-        ),
-    )
-    .addSubcommand((sub) =>
-      sub
-        .setName('setkenh')
-        .setDescription('[Admin] Chọn kênh Discord để bot Usagi báo tin Jackpot & Cây Thông')
-        .addChannelOption((opt) =>
-          opt
-            .setName('kenh')
-            .setDescription('Kênh chat nhận thông báo vinh danh Xưởng Noel')
-            .setRequired(true),
-        ),
     ),
 
   category: 'Games',
@@ -56,36 +31,6 @@ export default {
     try {
       const sub = interaction.options?.getSubcommand?.(false) || 'choi';
       const guildId = interaction.guildId || 'global';
-
-      if (sub === 'setrole') {
-        if (!interaction.memberPermissions?.has?.(PermissionFlagsBits.Administrator)) {
-          return interaction.reply({
-            content: '❌ Chỉ Quản trị viên mới được cài đặt Role sự kiện Xưởng Noel!',
-            ephemeral: !interaction._isPrefixCommand,
-          });
-        }
-        const role = interaction.options.getRole('role');
-        await setSantaEventRole(botClient, guildId, role.id);
-        return interaction.reply({
-          content: `🎄 Đã đặt Role sự kiện Xưởng Quà Noel thành <@&${role.id}>! Người chơi có thể dùng Xu Tuyết đổi trong Shop.`,
-          ephemeral: !interaction._isPrefixCommand,
-        });
-      }
-
-      if (sub === 'setkenh') {
-        if (!interaction.memberPermissions?.has?.(PermissionFlagsBits.Administrator)) {
-          return interaction.reply({
-            content: '❌ Chỉ Quản trị viên mới được cài đặt kênh thông báo Xưởng Noel!',
-            ephemeral: !interaction._isPrefixCommand,
-          });
-        }
-        const channel = interaction.options.getChannel('kenh');
-        await setSantaAnnounceChannel(botClient, guildId, channel.id);
-        return interaction.reply({
-          content: `📢 Đã chọn <#${channel.id}> làm kênh vinh danh Jackpot, Thành Tựu & Cây Thông Server!`,
-          ephemeral: !interaction._isPrefixCommand,
-        });
-      }
 
       if (sub === 'hoso') {
         const player = await getOrCreateSantaPlayer(botClient, {
