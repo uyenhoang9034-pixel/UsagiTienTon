@@ -1,4 +1,4 @@
-import { christmasAudio } from './audio.js?v=20261125f';
+import { christmasAudio } from './audio.js?v=20261125g';
 
 const STATE = {
   token: 'demo',
@@ -275,36 +275,68 @@ class SantaWorkshopScene extends Phaser.Scene {
     this.elf = this.add.container(w * 0.42, h * 0.52);
     const g = this.add.graphics();
 
-    // Cánh tiên băng giá nếu đeo skin_fairy
+    // Cánh tiên băng giá nếu đeo skin_fairy (4 cánh phát sáng)
     if (skin === 'skin_fairy') {
-      g.fillStyle(0x90e0ef, 0.65);
-      g.fillEllipse(-26, 8, 28, 36);
-      g.fillEllipse(26, 8, 28, 36);
-      g.lineStyle(2, 0xffffff, 0.8);
-      g.strokeEllipse(-26, 8, 28, 36);
-      g.strokeEllipse(26, 8, 28, 36);
+      g.fillStyle(0x72efdd, 0.55);
+      g.fillEllipse(-30, -4, 34, 24);
+      g.fillEllipse(30, -4, 34, 24);
+      g.fillEllipse(-24, 18, 26, 20);
+      g.fillEllipse(24, 18, 26, 20);
+      g.lineStyle(2, 0xffffff, 0.85);
+      g.strokeEllipse(-30, -4, 34, 24);
+      g.strokeEllipse(30, -4, 34, 24);
     }
 
-    // Màu áo theo skin
+    // Giày nhỏ
+    g.fillStyle(0x2b2d42, 1);
+    g.fillRoundedRect(-16, 42, 12, 8, 4);
+    g.fillRoundedRect(4, 42, 12, 8, 4);
+
+    // Thân áo theo skin
     const coatColor = skin === 'skin_santa' ? 0xd90429 : skin === 'skin_fairy' ? 0x00b4d8 : 0x2a9d8f;
     g.fillStyle(coatColor, 1);
-    g.fillRoundedRect(-22, 0, 44, 46, 10);
+    g.fillRoundedRect(-22, 0, 44, 44, 10);
     if (skin === 'skin_santa') {
       g.fillStyle(0xffffff, 1);
-      g.fillRect(-5, 0, 10, 46);
+      g.fillRect(-5, 0, 10, 44);
+      g.fillRoundedRect(-24, 36, 48, 8, 4);
     }
     g.fillStyle(0xffd166, 1);
-    g.fillRect(-22, 22, 44, 7);
+    g.fillRect(-22, 22, 44, 6);
 
-    // Mặt & mũ
+    // Tay trái & tay phải cầm búa gỗ
+    g.fillStyle(coatColor, 1);
+    g.fillRoundedRect(-31, 6, 11, 22, 5);
+    g.fillRoundedRect(20, 6, 11, 22, 5);
+    g.fillStyle(0xffd6ba, 1);
+    g.fillCircle(-26, 28, 5);
+    g.fillCircle(26, 28, 5);
+    // Cây búa gỗ trên tay phải
+    g.fillStyle(0x9c6644, 1);
+    g.fillRect(25, 4, 4, 24);
+    g.fillStyle(0xadb5bd, 1);
+    g.fillRoundedRect(19, -2, 16, 9, 3);
+
+    // Tai nhọn Yêu Tinh 2 bên
+    g.fillStyle(0xffcdb2, 1);
+    g.fillTriangle(-20, -18, -34, -24, -18, -8);
+    g.fillTriangle(20, -18, 34, -24, 18, -8);
+
+    // Mặt, mắt, má hồng & nụ cười
     g.fillStyle(0xffd6ba, 1);
     g.fillCircle(0, -16, 20);
     g.fillStyle(0x1d1d1d, 1);
-    g.fillCircle(-7, -18, 3);
-    g.fillCircle(7, -18, 3);
+    g.fillCircle(-7, -19, 3);
+    g.fillCircle(7, -19, 3);
     g.fillStyle(0xff758f, 0.65);
-    g.fillCircle(-12, -12, 4);
-    g.fillCircle(12, -12, 4);
+    g.fillCircle(-12, -13, 4);
+    g.fillCircle(12, -13, 4);
+    g.lineStyle(2, 0x9e2a2b, 1);
+    g.beginPath();
+    g.arc(0, -12, 6, 0.2, Math.PI - 0.2, false);
+    g.strokePath();
+
+    // Mũ Noel đỏ
     g.fillStyle(0xe63946, 1);
     g.fillTriangle(0, -56, -22, -26, 22, -26);
     g.fillStyle(0xffffff, 1);
@@ -342,8 +374,8 @@ class SantaWorkshopScene extends Phaser.Scene {
     const helpers = STATE.data?.player?.helpers || {};
     const floorY = this.scale.height * 0.64;
     const spots = [
-      { key: 'lumberjack', icon: '🪓🧝', xRatio: 0.25 },
-      { key: 'tailor', icon: '✂️🧝', xRatio: 0.64 },
+      { key: 'lumberjack', icon: '🪓🧝', xRatio: 0.24 },
+      { key: 'tailor', icon: '✂️🧝', xRatio: 0.56 },
       { key: 'mage', icon: '🌟🧝', xRatio: 0.72 },
     ];
     for (const s of spots) {
@@ -886,14 +918,14 @@ function renderPanel() {
       </div>
       <div class="grid-2">
         ${Object.entries(materialsMeta)
-          .map(
-            ([k, meta]) => `
+        .map(
+          ([k, meta]) => `
           <div class="mat-chip">
             <span>${meta.icon} ${meta.name}</span>
             <strong>${player.materials[k] || 0}</strong>
           </div>`,
-          )
-          .join('')}
+        )
+        .join('')}
       </div>
       <div class="card-row">
         <div>
@@ -1030,12 +1062,12 @@ function renderPanel() {
         <div class="muted">${riddle.question}</div>
         <div class="riddle-options">
           ${riddle.options
-            .map(
-              (opt, idx) => `
+        .map(
+          (opt, idx) => `
             <button class="btn btn-outline" data-riddle="${idx}" ${riddleSolvedToday ? 'disabled' : ''}>${opt}</button>
           `,
-            )
-            .join('')}
+        )
+        .join('')}
         </div>
       </div>
       <div class="section-title" style="margin-top:4px;"><span>🏆 Thành Tựu Xưởng Noel</span></div>
@@ -1121,14 +1153,13 @@ function renderPanel() {
                   <div class="muted">⭐ ${entry.reputation} • ❄️ ${entry.snowCoins}</div>
                 </div>
               </div>
-              ${
-                isMe
-                  ? '<span class="tag">Bạn</span>'
-                  : `<div class="friend-actions">
+              ${isMe
+              ? '<span class="tag">Bạn</span>'
+              : `<div class="friend-actions">
                       <button class="btn btn-sm btn-outline" data-visit="like" data-target="${entry.userId}" title="Thả tim giúp xưởng bạn">❤️</button>
                       <button class="btn btn-sm btn-green" data-visit="gift" data-target="${entry.userId}" title="Tặng 1 đồ chơi trong kho">🎁</button>
                     </div>`
-              }
+            }
             </div>
           `;
         })
