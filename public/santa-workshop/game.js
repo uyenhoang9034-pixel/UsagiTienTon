@@ -1,4 +1,4 @@
-import { christmasAudio } from './audio.js?v=20261125i';
+import { christmasAudio } from './audio.js?v=20261125j';
 
 const STATE = {
   token: 'demo',
@@ -134,6 +134,7 @@ class SantaWorkshopScene extends Phaser.Scene {
     if (this.bgGroup) this.bgGroup.destroy(true);
     this.bgGroup = this.add.group();
     this.lightBulbs = [];
+    this.lastTreeLevel = STATE.data?.serverTree?.level || 0;
 
     const w = this.scale.width;
     const h = this.scale.height;
@@ -226,6 +227,7 @@ class SantaWorkshopScene extends Phaser.Scene {
     }
     g.strokePath();
     this.bgGroup.add(g);
+    this.bgGroup.setDepth(0);
   }
 
   createSnowParticles() {
@@ -272,7 +274,8 @@ class SantaWorkshopScene extends Phaser.Scene {
     const h = this.scale.height;
     const skin = STATE.data?.player?.equippedSkin || 'skin_classic';
 
-    this.elf = this.add.container(w * 0.42, h * 0.52);
+    this.elf = this.add.container(w * 0.42, h * 0.52).setDepth(5);
+    this.lastElfSkin = skin;
     const g = this.add.graphics();
 
     // Cánh tiên băng giá nếu đeo skin_fairy (4 cánh phát sáng)
@@ -365,51 +368,65 @@ class SantaWorkshopScene extends Phaser.Scene {
     });
   }
 
-  syncVisualCosmetics() {
-    this.createElfCharacter();
+  syncVisualCosmetics(force = false) {
+    const skin = STATE.data?.player?.equippedSkin || 'skin_classic';
+    const petId = STATE.data?.player?.equippedPet || null;
+    const helpersKey = JSON.stringify(STATE.data?.player?.helpers || {});
 
-    // Helpers
-    for (const spr of this.helperSprites) spr.destroy();
-    this.helperSprites = [];
-    const helpers = STATE.data?.player?.helpers || {};
-    const floorY = this.scale.height * 0.64;
-    const spots = [
-      { key: 'lumberjack', icon: '🪓🧝', xRatio: 0.24 },
-      { key: 'tailor', icon: '✂️🧝', xRatio: 0.56 },
-      { key: 'mage', icon: '🌟🧝', xRatio: 0.72 },
-    ];
-    for (const s of spots) {
-      const lv = helpers[s.key] || 0;
-      if (lv > 0) {
-        const txt = this.add
-          .text(this.scale.width * s.xRatio, floorY - 26, `${s.icon} Lv.${lv}`, {
-            fontSize: '14px',
-            backgroundColor: 'rgba(0,0,0,0.4)',
-            padding: { x: 5, y: 2 },
-          })
-          .setOrigin(0.5);
-        this.tweens.add({ targets: txt, y: txt.y - 4, duration: 700, yoyo: true, repeat: -1 });
-        this.helperSprites.push(txt);
+    if (force || !this.elf || this.lastElfSkin !== skin) {
+      this.createElfCharacter();
+    }
+
+    if (force || this.lastHelpersKey !== helpersKey) {
+      this.lastHelpersKey = helpersKey;
+      for (const spr of this.helperSprites) spr.destroy();
+      this.helperSprites = [];
+      const helpers = STATE.data?.player?.helpers || {};
+      const floorY = this.scale.height * 0.64;
+      const spots = [
+        { key: 'lumberjack', icon: '🪓🧝', xRatio: 0.24 },
+        { key: 'tailor', icon: '✂️🧝', xRatio: 0.56 },
+        { key: 'mage', icon: '🌟🧝', xRatio: 0.72 },
+      ];
+      for (const s of spots) {
+        const lv = helpers[s.key] || 0;
+        if (lv > 0) {
+          const txt = this.add
+            .text(this.scale.width * s.xRatio, floorY - 26, `${s.icon} Lv.${lv}`, {
+              fontSize: '14px',
+              backgroundColor: 'rgba(0,0,0,0.4)',
+              padding: { x: 5, y: 2 },
+            })
+            .setOrigin(0.5)
+            .setDepth(5);
+          this.tweens.add({ targets: txt, y: txt.y - 4, duration: 700, yoyo: true, repeat: -1 });
+          this.helperSprites.push(txt);
+        }
       }
     }
 
-    // Pet
-    if (this.petSprite) {
-      this.petSprite.destroy();
-      this.petSprite = null;
-    }
-    const petId = STATE.data?.player?.equippedPet;
-    if (petId) {
-      const petIcon = petId === 'pet_reindeer' ? '🦌' : '🐰';
-      this.petSprite = this.add.text(this.scale.width * 0.32, floorY + 14, petIcon, { fontSize: '28px' }).setOrigin(0.5);
-      this.tweens.add({
-        targets: this.petSprite,
-        x: this.scale.width * 0.6,
-        duration: 3800,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut',
-      });
+    if (force || this.lastPetId !== petId) {
+      this.lastPetId = petId;
+      if (this.petSprite) {
+        this.petSprite.destroy();
+        this.petSprite = null;
+      }
+      if (petId) {
+        const floorY = this.scale.height * 0.64;
+        const petIcon = petId === 'pet_reindeer' ? '🦌' : '🐰';
+        this.petSprite = this.add
+          .text(this.scale.width * 0.32, floorY + 14, petIcon, { fontSize: '28px' })
+          .setOrigin(0.5)
+          .setDepth(6);
+        this.tweens.add({
+          targets: this.petSprite,
+          x: this.scale.width * 0.6,
+          duration: 3800,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+      }
     }
   }
 
@@ -512,7 +529,7 @@ class SantaWorkshopScene extends Phaser.Scene {
     let pointerMoveHandler = null;
 
     if (isBasketMode) {
-      basket = this.add.text(w * 0.5, h - 38, '🧺', { fontSize: '46px' }).setOrigin(0.5);
+      basket = this.add.text(w * 0.5, h - 38, '🧺', { fontSize: '46px' }).setOrigin(0.5).setDepth(21);
       pointerMoveHandler = (pointer) => {
         if (basket) {
           basket.x = Phaser.Math.Clamp(pointer.x, 30, this.scale.width - 30);
@@ -531,7 +548,8 @@ class SantaWorkshopScene extends Phaser.Scene {
         const fontSize = isBasketMode ? '28px' : '48px';
         const gift = this.add
           .text(x, -24, icon, { fontSize, padding: isBasketMode ? undefined : { x: 8, y: 8 } })
-          .setOrigin(0.5);
+          .setOrigin(0.5)
+          .setDepth(20);
 
         activeGifts.push(gift);
 
@@ -601,7 +619,7 @@ class SantaWorkshopScene extends Phaser.Scene {
 
   redrawLayout() {
     this.drawBackground();
-    this.syncVisualCosmetics();
+    this.syncVisualCosmetics(true);
   }
 
   playElfTapEffect(x, y, label = '✨') {
@@ -801,8 +819,11 @@ async function refreshState() {
     STATE.data = res.state;
     renderAll();
     if (STATE.scene) {
-      STATE.scene.drawBackground();
-      STATE.scene.syncVisualCosmetics();
+      const treeLv = res.state?.serverTree?.level || 0;
+      if (STATE.scene.lastTreeLevel !== treeLv) {
+        STATE.scene.drawBackground();
+      }
+      STATE.scene.syncVisualCosmetics(false);
     }
   }
 }
@@ -813,8 +834,11 @@ async function runAction(path, body = {}, tapCoords = null) {
     STATE.data = res.state;
     renderAll();
     if (STATE.scene) {
-      STATE.scene.drawBackground();
-      STATE.scene.syncVisualCosmetics();
+      const treeLv = res.state?.serverTree?.level || 0;
+      if (STATE.scene.lastTreeLevel !== treeLv) {
+        STATE.scene.drawBackground();
+      }
+      STATE.scene.syncVisualCosmetics(false);
     }
   }
   if (res?.message) {
