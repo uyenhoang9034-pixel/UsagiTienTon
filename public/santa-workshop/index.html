@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <title>Xưởng Quà Của Ông Già Noel — Usagi Activity</title>
+    <link rel="stylesheet" href="./style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+  </head>
+  <body>
+    <div id="app">
+      <!-- Top HUD -->
+      <header class="hud-header">
+        <div class="player-badge">
+          <div id="avatar-wrapper" class="avatar-wrapper">
+            <img id="player-avatar" src="" alt="Elf" class="avatar-img hidden" />
+            <div id="player-avatar-fallback" class="avatar-fallback">🧝</div>
+          </div>
+          <div class="player-meta">
+            <div id="player-name" class="player-name">Yêu Tinh Noel</div>
+            <div id="workshop-level" class="workshop-level">Xưởng Cấp 1</div>
+          </div>
+        </div>
+
+        <div class="currency-bar">
+          <div class="pill coin-pill" title="Xu Tuyết">
+            <span>❄️</span>
+            <strong id="snow-coins">0</strong>
+          </div>
+          <div class="pill rep-pill" title="Điểm Danh Vọng">
+            <span>⭐</span>
+            <strong id="reputation">0</strong>
+          </div>
+        </div>
+      </header>
+
+      <!-- Phaser 3 Canvas Area -->
+      <main class="stage-container">
+        <div id="phaser-root"></div>
+
+        <!-- Floating Toast -->
+        <div id="toast" class="toast hidden"></div>
+
+        <!-- Active Panel Drawer -->
+        <section id="panel-overlay" class="panel-overlay">
+          <div id="panel-content" class="panel-content"></div>
+        </section>
+      </main>
+
+      <!-- Bottom Navigation (PC & Mobile friendly) -->
+      <nav class="bottom-nav" aria-label="Menu trò chơi">
+        <button class="nav-btn active" data-tab="workshop">
+          <span class="nav-icon">🏠</span>
+          <span class="nav-label">Xưởng</span>
+        </button>
+        <button class="nav-btn" data-tab="craft">
+          <span class="nav-icon">🔨</span>
+          <span class="nav-label">Chế tạo</span>
+        </button>
+        <button class="nav-btn" data-tab="orders">
+          <span class="nav-icon">🛷</span>
+          <span class="nav-label">Đơn hàng</span>
+        </button>
+        <button class="nav-btn" data-tab="quests">
+          <span class="nav-icon">🎁</span>
+          <span class="nav-label">Nhiệm vụ</span>
+        </button>
+        <button class="nav-btn" data-tab="shop">
+          <span class="nav-icon">🛒</span>
+          <span class="nav-label">Shop</span>
+        </button>
+      </nav>
+    </div>
+
+    <script type="module" src="./game.js"></script>
+  </body>
+</html>

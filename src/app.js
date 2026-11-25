@@ -29,6 +29,7 @@ import {
   loadCommands,
   registerCommands as registerSlashCommands,
 } from './handlers/loaders/commandLoader.js';
+import { registerSantaWorkshopRoutes } from './services/santaWorkshopRoutes.js';
 
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -185,6 +186,8 @@ class UsagiTienTonBot extends Client {
         uptime: process.uptime(),
       }),
     );
+
+    registerSantaWorkshopRoutes(app, this);
 
     this.webServer = app.listen(port, host, () => {
       startupLog(`Web server listening on ${host}:${port}`);
