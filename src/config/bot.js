@@ -19,7 +19,7 @@ export const botConfig = {
     activities: [
       {
         name: 'Custom Status',
-        state: (process.env.BOT_ACTIVITY || 'Trời sinh bản tính dịu hiền,\nĐể che bớt vẻ thiếu tiền bên trong.').replace(/\\n/g, '\n'),
+        state: (process.env.BOT_ACTIVITY || 'Em Nâu xinh đẹp tuyệt vời!').replace(/\\n/g, '\n'),
         type: 4,
       },
     ],
