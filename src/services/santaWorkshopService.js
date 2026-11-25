@@ -2,7 +2,7 @@ import { getDatabaseValue, setDatabaseValue } from '../utils/database.js';
 import { logger } from '../utils/logger.js';
 
 export const MATERIALS = {
-  wood: { id: 'wood', name: 'Gỗ thông', icon: '🪵', baseRatePerMin: 2.0 },
+  wood: { id: 'wood', name: 'Gỗ thông', icon: '🌲', baseRatePerMin: 2.0 },
   fabric: { id: 'fabric', name: 'Vải đỏ', icon: '🧶', baseRatePerMin: 1.5 },
   magicDust: { id: 'magicDust', name: 'Bụi phép thuật', icon: '✨', baseRatePerMin: 0.9 },
   ribbon: { id: 'ribbon', name: 'Ruy băng', icon: '🎀', baseRatePerMin: 1.2 },
