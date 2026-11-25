@@ -1,4 +1,4 @@
-import { christmasAudio } from './audio.js?v=20261125g';
+import { christmasAudio } from './audio.js?v=20261125h';
 
 const STATE = {
   token: 'demo',
@@ -894,6 +894,7 @@ function renderPanel() {
     materialsMeta,
     helpersMeta = [],
     achievementsMeta = [],
+    dailyQuestsMeta = [],
     serverTree = { level: 0, points: 0, nextThreshold: 150, buffActive: false },
     shopItems,
     leaderboard,
@@ -1070,6 +1071,35 @@ function renderPanel() {
         .join('')}
         </div>
       </div>
+      <div class="section-title" style="margin-top:4px;"><span>📋 10 Nhiệm Vụ Hàng Ngày</span></div>
+      ${dailyQuestsMeta
+        .map((q) => {
+          const rewardParts = [];
+          if (q.rewardCoins) rewardParts.push(`+${q.rewardCoins} ❄️`);
+          if (q.rewardRep) rewardParts.push(`+${q.rewardRep} ⭐`);
+          if (q.rewardTickets) rewardParts.push(`+${q.rewardTickets} 🎟️`);
+          if (q.rewardMat) {
+            for (const [m, amt] of Object.entries(q.rewardMat)) {
+              rewardParts.push(`+${amt} ${materialsMeta[m]?.icon || ''}`);
+            }
+          }
+          let btnHtml = `<span class="tag">${q.progress}/${q.target}</span>`;
+          if (q.claimed) {
+            btnHtml = `<span class="tag tag-buff">Đã nhận ✅</span>`;
+          } else if (q.completed) {
+            btnHtml = `<button class="btn btn-gold btn-sm" data-claim-quest="${q.id}">Nhận thưởng</button>`;
+          }
+          return `
+            <div class="card-row">
+              <div>
+                <div><strong>${q.icon} ${q.name}</strong></div>
+                <div class="muted">${q.description} • Thưởng: ${rewardParts.join(', ')}</div>
+              </div>
+              ${btnHtml}
+            </div>
+          `;
+        })
+        .join('')}
       <div class="section-title" style="margin-top:4px;"><span>🏆 Thành Tựu Xưởng Noel</span></div>
       ${achievementsMeta
         .map(
@@ -1092,6 +1122,12 @@ function renderPanel() {
       btn.onclick = async () => {
         const r = await runAction('/api/santa/riddle', { optionIndex: Number(btn.dataset.riddle) });
         if (r?.ok) christmasAudio.playJackpotSfx();
+      };
+    });
+    container.querySelectorAll('[data-claim-quest]').forEach((btn) => {
+      btn.onclick = async () => {
+        const r = await runAction('/api/santa/quest/claim', { questId: btn.dataset.claimQuest });
+        if (r?.ok) christmasAudio.playCoinSfx();
       };
     });
   } else if (STATE.activeTab === 'shop') {

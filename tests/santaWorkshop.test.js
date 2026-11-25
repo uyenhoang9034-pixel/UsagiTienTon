@@ -17,6 +17,7 @@ import {
   handleSantaVisitFriend,
   handleSantaRepelGrinch,
   handleSantaEquipCosmetic,
+  handleSantaClaimQuest,
 } from '../src/services/santaWorkshopService.js';
 
 function createMemoryClient() {
@@ -127,4 +128,9 @@ test('Luồng chơi Xưởng Quà Ông Già Noel: Điểm danh -> Giải đố -
   await buildSantaStatePayload(client, friendId);
   const likeRes = await handleSantaVisitFriend(client, identity, { targetUserId: 'elf_02', action: 'like' });
   assert.equal(likeRes.ok, true);
+
+  // 11. Nhận thưởng nhiệm vụ hàng ngày (10 nhiệm vụ/ngày)
+  assert.equal(likeRes.state.dailyQuestsMeta.length, 10);
+  const claimRes = await handleSantaClaimQuest(client, identity, 'q_checkin');
+  assert.equal(claimRes.ok, true);
 });

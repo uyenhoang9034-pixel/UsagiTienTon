@@ -209,6 +209,35 @@ export const ACHIEVEMENTS = [
 
 const TREE_THRESHOLDS = [0, 150, 400, 800, 1500];
 
+export const DAILY_QUESTS = [
+  { id: 'q_checkin', name: 'Điểm danh sáng sớm', icon: '📅', description: 'Điểm danh nhận quà trong ngày', target: 1, rewardCoins: 30, rewardRep: 10 },
+  { id: 'q_riddle', name: 'Thám tử Giáng Sinh', icon: '🧩', description: 'Giải đúng câu đố Noel hôm nay', target: 1, rewardCoins: 40, rewardRep: 15 },
+  { id: 'q_tap_20', name: 'Gõ búa chăm chỉ', icon: '🔨', description: 'Chạm vào Xưởng để gõ búa 20 lần', target: 20, rewardCoins: 45, rewardMat: { wood: 5 } },
+  { id: 'q_collect_1', name: 'Thu hoạch kho xưởng', icon: '🧺', description: 'Bấm Thu hoạch sản lượng Idle 1 lần', target: 1, rewardCoins: 35, rewardMat: { fabric: 4 } },
+  { id: 'q_craft_3', name: 'Thợ thủ công tài ba', icon: '🧸', description: 'Chế tạo 3 món đồ chơi bất kỳ', target: 3, rewardCoins: 70, rewardRep: 15 },
+  { id: 'q_deliver_2', name: 'Shipper Bắc Cực', icon: '🛷', description: 'Giao thành công 2 đơn hàng', target: 2, rewardCoins: 90, rewardTickets: 1 },
+  { id: 'q_fever_1', name: 'Đón cơn Mưa Quà', icon: '🔥', description: 'Hoàn thành 1 lần Mưa Quà Fever', target: 1, rewardCoins: 80, rewardMat: { magicDust: 3 } },
+  { id: 'q_tree_1', name: 'Trang trí Cây Thông', icon: '🎄', description: 'Góp điểm cho Cây Thông Chung Server', target: 1, rewardCoins: 60, rewardRep: 20 },
+  { id: 'q_wheel_1', name: 'Thử vận may Noel', icon: '🎡', description: 'Quay Vòng Quay May Mắn 1 lần', target: 1, rewardCoins: 50, rewardMat: { ribbon: 4 } },
+  { id: 'q_friend_1', name: 'Yêu tinh thân thiện', icon: '❤️', description: 'Thả tim hoặc tặng quà cho bạn bè', target: 1, rewardCoins: 65, rewardTickets: 1 },
+];
+
+function ensureDailyQuests(player, today = getTodayKey()) {
+  if (!player.dailyQuests || player.dailyQuests.date !== today) {
+    player.dailyQuests = {
+      date: today,
+      progress: {},
+      claimed: [],
+    };
+  }
+  return player.dailyQuests;
+}
+
+function bumpDailyQuest(player, questId, amount = 1) {
+  const dq = ensureDailyQuests(player);
+  dq.progress[questId] = (dq.progress[questId] || 0) + amount;
+}
+
 export const ELF_HELPERS = [
   {
     id: 'lumberjack',
@@ -598,6 +627,18 @@ export async function buildSantaStatePayload(client, identity) {
       rewardTickets: a.rewardTickets,
       unlocked: (player.unlockedAchievements || []).includes(a.id),
     })),
+    dailyQuestsMeta: (() => {
+      const dq = ensureDailyQuests(player, today);
+      return DAILY_QUESTS.map((q) => {
+        const prog = Math.min(q.target, dq.progress?.[q.id] || 0);
+        return {
+          ...q,
+          progress: prog,
+          completed: prog >= q.target,
+          claimed: (dq.claimed || []).includes(q.id),
+        };
+      });
+    })(),
     serverTree,
     wheelSegments: WHEEL_SEGMENTS,
     recipes: TOY_RECIPES,
@@ -621,6 +662,7 @@ export async function handleSantaCollect(client, identity, { isTap = false } = {
     const picked = keys[Math.floor(Math.random() * keys.length)];
     const bonus = player.workshopLevel >= 4 ? 2 : 1;
     player.materials[picked] = (player.materials[picked] || 0) + bonus;
+    bumpDailyQuest(player, 'q_tap_20', 1);
     await savePlayer(client, guildId, player);
     return {
       ok: true,
@@ -643,6 +685,7 @@ export async function handleSantaCollect(client, identity, { isTap = false } = {
     player.materials[k] = (player.materials[k] || 0) + v;
   }
   player.lastCollectAt = now;
+  bumpDailyQuest(player, 'q_collect_1', 1);
   await savePlayer(client, guildId, player);
 
   return {
@@ -675,6 +718,7 @@ export async function handleSantaCheckin(client, identity) {
   player.materials.fabric += 3;
   player.materials.magicDust += 2;
   player.materials.ribbon += 3;
+  bumpDailyQuest(player, 'q_checkin', 1);
 
   await savePlayer(client, guildId, player);
   return {
@@ -711,6 +755,7 @@ export async function handleSantaRiddle(client, identity, optionIndex) {
   player.reputation += 15;
   player.materials.magicDust += 3;
   player.materials.ribbon += 2;
+  bumpDailyQuest(player, 'q_riddle', 1);
 
   await savePlayer(client, guildId, player);
   return {
@@ -744,6 +789,7 @@ export async function handleSantaCraft(client, identity, toyId) {
   }
   player.toys[recipe.id] = (player.toys[recipe.id] || 0) + 1;
   player.totalCrafted = (player.totalCrafted || 0) + 1;
+  bumpDailyQuest(player, 'q_craft_3', 1);
 
   await savePlayer(client, guildId, player);
   return {
@@ -783,6 +829,7 @@ export async function handleSantaDeliver(client, identity, orderId) {
     player.luckyTickets = (player.luckyTickets || 0) + order.rewardTickets;
   }
   player.totalDelivered = (player.totalDelivered || 0) + 1;
+  bumpDailyQuest(player, 'q_deliver_2', 1);
   player.orders.splice(idx, 1, createOrder(player.workshopLevel || 1));
 
   await savePlayer(client, guildId, player);
@@ -852,6 +899,7 @@ export async function handleSantaFeverBonus(client, identity, { hits = 0 } = {})
   player.materials.fabric += bonusMat;
   player.materials.magicDust += Math.max(1, Math.floor(bonusMat / 2));
   player.materials.ribbon += Math.max(1, Math.floor(bonusMat / 2));
+  bumpDailyQuest(player, 'q_fever_1', 1);
 
   await savePlayer(client, guildId, player);
   return {
@@ -1024,6 +1072,7 @@ export async function handleSantaSpinWheel(client, identity) {
     );
   }
 
+  bumpDailyQuest(player, 'q_wheel_1', 1);
   await savePlayer(client, guildId, player);
   return {
     ok: true,
@@ -1096,6 +1145,7 @@ export async function handleSantaContributeTree(client, identity, { mode = 'coin
 
   player.reputation += repGain;
   player.treeContributed = (player.treeContributed || 0) + 1;
+  bumpDailyQuest(player, 'q_tree_1', 1);
 
   const oldLevel = tree.level || 0;
   tree.points = (tree.points || 0) + addedPoints;
@@ -1154,6 +1204,7 @@ export async function handleSantaVisitFriend(client, identity, { targetUserId, a
     friend.reputation = (friend.reputation || 0) + 15;
 
     await savePlayer(client, guildId, friend);
+    bumpDailyQuest(player, 'q_friend_1', 1);
     await savePlayer(client, guildId, player);
     const recipe = TOY_RECIPES.find((r) => r.id === giftToy);
     return {
@@ -1173,6 +1224,7 @@ export async function handleSantaVisitFriend(client, identity, { targetUserId, a
   friend.snowCoins = (friend.snowCoins || 0) + 15;
 
   await savePlayer(client, guildId, friend);
+  bumpDailyQuest(player, 'q_friend_1', 1);
   await savePlayer(client, guildId, player);
   return {
     ok: true,
@@ -1199,6 +1251,45 @@ export async function handleSantaRepelGrinch(client, identity) {
   return {
     ok: true,
     message: '👺 Đuổi Grinch thành công! Nhận +50 ❄️ Xu Tuyết, +1 🎟️ Vé Quay & +20 ⭐!',
+    state: await buildSantaStatePayload(client, identity),
+  };
+}
+
+export async function handleSantaClaimQuest(client, identity, questId) {
+  const guildId = identity.guildId || 'global';
+  const player = await getOrCreateSantaPlayer(client, identity);
+  const dq = ensureDailyQuests(player);
+  const quest = DAILY_QUESTS.find((q) => q.id === questId);
+
+  if (!quest) {
+    return { ok: false, message: 'Nhiệm vụ không tồn tại!', state: await buildSantaStatePayload(client, identity) };
+  }
+
+  if ((dq.claimed || []).includes(questId)) {
+    return { ok: false, message: 'Bạn đã nhận thưởng nhiệm vụ này hôm nay rồi!', state: await buildSantaStatePayload(client, identity) };
+  }
+
+  const prog = dq.progress?.[questId] || 0;
+  if (prog < quest.target) {
+    return { ok: false, message: 'Bạn chưa hoàn thành nhiệm vụ này!', state: await buildSantaStatePayload(client, identity) };
+  }
+
+  dq.claimed = dq.claimed || [];
+  dq.claimed.push(questId);
+
+  if (quest.rewardCoins) player.snowCoins += quest.rewardCoins;
+  if (quest.rewardRep) player.reputation += quest.rewardRep;
+  if (quest.rewardTickets) player.luckyTickets = (player.luckyTickets || 0) + quest.rewardTickets;
+  if (quest.rewardMat) {
+    for (const [m, amt] of Object.entries(quest.rewardMat)) {
+      player.materials[m] = (player.materials[m] || 0) + amt;
+    }
+  }
+
+  await savePlayer(client, guildId, player);
+  return {
+    ok: true,
+    message: `🎁 Hoàn thành "${quest.name}"! Đã nhận thưởng!`,
     state: await buildSantaStatePayload(client, identity),
   };
 }

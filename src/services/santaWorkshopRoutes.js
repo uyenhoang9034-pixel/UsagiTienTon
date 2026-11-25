@@ -19,6 +19,7 @@ import {
   handleSantaContributeTree,
   handleSantaVisitFriend,
   handleSantaRepelGrinch,
+  handleSantaClaimQuest,
 } from './santaWorkshopService.js';
 import { logger } from '../utils/logger.js';
 
@@ -194,6 +195,7 @@ export function registerSantaWorkshopRoutes(app, client) {
     ['/api/santa/tree/contribute', (req, id) => handleSantaContributeTree(client, id, { mode: req.body?.mode, toyId: req.body?.toyId })],
     ['/api/santa/friend/visit', (req, id) => handleSantaVisitFriend(client, id, { targetUserId: req.body?.targetUserId, action: req.body?.action, toyId: req.body?.toyId })],
     ['/api/santa/grinch-repel', (_req, id) => handleSantaRepelGrinch(client, id)],
+    ['/api/santa/quest/claim', (req, id) => handleSantaClaimQuest(client, id, req.body?.questId)],
   ];
 
   for (const [routePath, handler] of actionRoutes) {
