@@ -65,7 +65,7 @@ async function initDiscordActivitySdk() {
     const cfg = await cfgRes.json();
     if (!cfg?.clientId) return;
 
-    const { DiscordSDK } = await import('./vendor/discord-sdk.mjs');
+    const { DiscordSDK } = await import('./vendor/discord-sdk.mjs?v=20261125d');
     const discordSdk = new DiscordSDK(cfg.clientId);
     await discordSdk.ready();
 
@@ -75,7 +75,6 @@ async function initDiscordActivitySdk() {
       client_id: cfg.clientId,
       response_type: 'code',
       state: '',
-      prompt: 'none',
       scope: ['identify', 'guilds'],
     });
 
@@ -88,9 +87,12 @@ async function initDiscordActivitySdk() {
     if (tokenData?.access_token) {
       await discordSdk.commands.authenticate({ access_token: tokenData.access_token });
       STATE.token = tokenData.access_token;
+    } else if (tokenData?.error) {
+      showToast(`⚠️ Chưa lấy được tên Discord: ${tokenData.error}`);
     }
   } catch (err) {
     console.warn('Discord SDK fallback to browser mode:', err);
+    showToast('⚠️ Chưa xác thực được tên Discord (kiểm tra DISCORD_CLIENT_SECRET)');
   }
 }
 

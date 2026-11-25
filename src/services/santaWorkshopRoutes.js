@@ -24,47 +24,58 @@ const PUBLIC_ACTIVITY_DIR = path.resolve(__dirname, '../../public/santa-workshop
 
 const sessionCache = new Map();
 
-async function resolveIdentityFromRequest(req) {
+async function resolveIdentityFromRequest(req, client = null) {
   const authHeader = String(req.headers.authorization || '');
   const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
 
   const fallbackGuildId = String(req.headers['x-guild-id'] || req.query.guildId || req.body?.guildId || 'global');
 
   if (bearerToken && bearerToken !== 'demo') {
+    let user = null;
     const cached = sessionCache.get(bearerToken);
     if (cached && cached.expiresAt > Date.now()) {
-      return {
-        userId: cached.user.id,
-        username: cached.user.global_name || cached.user.username,
-        avatarUrl: cached.user.avatar
-          ? `https://cdn.discordapp.com/avatars/${cached.user.id}/${cached.user.avatar}.png?size=128`
-          : null,
-        guildId: fallbackGuildId,
-      };
+      user = cached.user;
+    } else {
+      try {
+        const userRes = await axios.get('https://discord.com/api/users/@me', {
+          headers: { Authorization: `Bearer ${bearerToken}` },
+          timeout: 6000,
+        });
+        if (userRes.data?.id) {
+          user = userRes.data;
+          sessionCache.set(bearerToken, {
+            user,
+            expiresAt: Date.now() + 10 * 60 * 1000,
+          });
+        }
+      } catch (err) {
+        logger.warn('[SantaWorkshop] Không xác thực được Discord bearer token:', err?.message || err);
+      }
     }
 
-    try {
-      const userRes = await axios.get('https://discord.com/api/users/@me', {
-        headers: { Authorization: `Bearer ${bearerToken}` },
-        timeout: 6000,
-      });
-      const user = userRes.data;
-      if (user?.id) {
-        sessionCache.set(bearerToken, {
-          user,
-          expiresAt: Date.now() + 10 * 60 * 1000,
-        });
-        return {
-          userId: user.id,
-          username: user.global_name || user.username,
-          avatarUrl: user.avatar
-            ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=128`
-            : null,
-          guildId: fallbackGuildId,
-        };
+    if (user?.id) {
+      let displayName = user.global_name || user.username;
+      let avatarUrl = user.avatar
+        ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=128`
+        : null;
+
+      if (fallbackGuildId !== 'global' && client?.guilds) {
+        const guild = client.guilds.cache.get(fallbackGuildId);
+        const member = guild?.members?.cache?.get(user.id) || (guild ? await guild.members.fetch(user.id).catch(() => null) : null);
+        if (member) {
+          displayName = member.displayName || displayName;
+          if (typeof member.displayAvatarURL === 'function') {
+            avatarUrl = member.displayAvatarURL({ size: 128 });
+          }
+        }
       }
-    } catch (err) {
-      logger.warn('[SantaWorkshop] Không xác thực được Discord bearer token:', err?.message || err);
+
+      return {
+        userId: user.id,
+        username: displayName,
+        avatarUrl,
+        guildId: fallbackGuildId,
+      };
     }
   }
 
@@ -154,7 +165,7 @@ export function registerSantaWorkshopRoutes(app, client) {
 
   app.get('/api/santa/state', async (req, res) => {
     try {
-      const identity = await resolveIdentityFromRequest(req);
+      const identity = await resolveIdentityFromRequest(req, client);
       const state = await buildSantaStatePayload(client, identity);
       res.json({ ok: true, state });
     } catch (err) {
@@ -180,7 +191,7 @@ export function registerSantaWorkshopRoutes(app, client) {
   for (const [routePath, handler] of actionRoutes) {
     app.post(routePath, async (req, res) => {
       try {
-        const identity = await resolveIdentityFromRequest(req);
+        const identity = await resolveIdentityFromRequest(req, client);
         const result = await handler(req, identity);
         res.json(result);
       } catch (err) {
