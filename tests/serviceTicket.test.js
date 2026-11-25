@@ -1012,3 +1012,111 @@ test('Feedback +1 legit không kèm tên sản phẩm vẫn hợp lệ; gõ sai 
   assert.equal(syntaxMsgDeleted, true);
   assert.equal(syntaxReplyDeleted, true);
 });
+
+test('Lệnh &doisp hỗ trợ cả đổi random và đổi chỉ định (@user / user_id) kèm kiểm tra quyền SP Ticket', async () => {
+  const client = createMemoryDbClient();
+  const staff1 = '1545305594712432641';
+  const staff2 = '1545305594712432642';
+  const staff3 = '1545305594712432643';
+  const normalMemberId = '1545305594712432699';
+  const botMemberId = '1545305594712432688';
+
+  const { guild } = createMockGuild({ client, staffIds: [staff1, staff2, staff3] });
+  guild.members.cache.set(normalMemberId, {
+    id: normalMemberId,
+    user: { id: normalMemberId, bot: false },
+    roles: { cache: new Collection() },
+  });
+  guild.members.cache.set(botMemberId, {
+    id: botMemberId,
+    user: { id: botMemberId, bot: true },
+    roles: { cache: new Collection([[SERVICE_TICKET_IDS.SP_TICKET_ROLE_ID, {}]]) },
+  });
+
+  const res = await createServiceTicketFromModal(
+    { guild, user: { id: 'cust_assign_1', username: 'khachhang' } },
+    client,
+    { mode: 'buy', rawInput: 'codebot - bot nhac' },
+  );
+  assert.equal(res.ok, true);
+
+  const staffMember = {
+    guild,
+    roles: { cache: new Collection([[SERVICE_TICKET_IDS.SP_TICKET_ROLE_ID, {}]]) },
+  };
+
+  // 1. Chỉ định bằng mention <@user_id>
+  const mentionHandled = await handleServiceTicketMessage(
+    {
+      content: `&doisp <@${staff3}>`,
+      guild,
+      author: { id: staff1, bot: false },
+      member: staffMember,
+      channel: res.channel,
+      delete: async () => {},
+    },
+    client,
+  );
+  assert.equal(mentionHandled, true);
+  assert.equal(res.channel.sentMessages.at(-1).content, buildAssignedStaffMessage({ staffId: staff3 }).content);
+
+  // 2. Chỉ định bằng user ID thuần
+  const idHandled = await handleServiceTicketMessage(
+    {
+      content: `&doisp ${staff2}`,
+      guild,
+      author: { id: staff1, bot: false },
+      member: staffMember,
+      channel: res.channel,
+      delete: async () => {},
+    },
+    client,
+  );
+  assert.equal(idHandled, true);
+  assert.equal(res.channel.sentMessages.at(-1).content, buildAssignedStaffMessage({ staffId: staff2 }).content);
+
+  // 3. Không cho chỉ định member thường (không có role SP Ticket)
+  const nonStaffHandled = await handleServiceTicketMessage(
+    {
+      content: `&doisp <@${normalMemberId}>`,
+      guild,
+      author: { id: staff1, bot: false },
+      member: staffMember,
+      channel: res.channel,
+      delete: async () => {},
+    },
+    client,
+  );
+  assert.equal(nonStaffHandled, true);
+  assert.ok(String(res.channel.sentMessages.at(-1)).includes('không có quyền hỗ trợ ticket'));
+
+  // 4. Không cho chỉ định bot
+  const botHandled = await handleServiceTicketMessage(
+    {
+      content: `&doisp <@${botMemberId}>`,
+      guild,
+      author: { id: staff1, bot: false },
+      member: staffMember,
+      channel: res.channel,
+      delete: async () => {},
+    },
+    client,
+  );
+  assert.equal(botHandled, true);
+  assert.ok(String(res.channel.sentMessages.at(-1)).includes('Không thể chỉ định bot'));
+
+  // 5. Sai cú pháp
+  const badSyntaxHandled = await handleServiceTicketMessage(
+    {
+      content: '&doisp khonghople',
+      guild,
+      author: { id: staff1, bot: false },
+      member: staffMember,
+      channel: res.channel,
+      delete: async () => {},
+    },
+    client,
+  );
+  assert.equal(badSyntaxHandled, true);
+  assert.ok(String(res.channel.sentMessages.at(-1)).includes('Cú pháp không hợp lệ'));
+});

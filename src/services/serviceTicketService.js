@@ -1467,8 +1467,9 @@ export async function closeServiceTicket({
 }
 
 /**
- * Đổi ngẫu nhiên người hỗ trợ chính cho ticket (&doisp):
- * - Random lại @SP Ticket (ưu tiên khác người cũ nếu có nhiều người)
+ * Đổi người hỗ trợ chính cho ticket (&doisp hoặc &doisp @user / <user_id>):
+ * - Nếu truyền targetUserId: kiểm tra thành viên hợp lệ (không phải bot, có quyền SP Ticket / Admin / Owner) rồi gán trực tiếp
+ * - Nếu không truyền targetUserId: random lại @SP Ticket (ưu tiên khác người cũ nếu có nhiều người)
  * - Cập nhật assignedStaffId trong DB để /ib1, /ib2 và DM transcript dùng đúng SP mới
  * - Gửi lại thông báo đúng form buildAssignedStaffMessage
  */
@@ -1476,6 +1477,7 @@ export async function reassignServiceTicketStaff({
   channel,
   executor,
   client,
+  targetUserId = null,
 }) {
   if (!channel || !channel.guild) {
     return { ok: false, errorMessage: '❌ Không xác định được kênh ticket.' };
@@ -1507,14 +1509,49 @@ export async function reassignServiceTicketStaff({
     };
   }
 
-  const excludeUserIds = ticket.assignedStaffId ? [ticket.assignedStaffId] : [];
-  const newStaffId = await pickRandomServiceStaff(channel.guild, client, { excludeUserIds });
+  const cleanTargetId = targetUserId ? String(targetUserId).trim() : null;
+  let newStaffId = null;
+
+  if (cleanTargetId) {
+    const targetMember =
+      channel.guild.members?.cache?.get?.(cleanTargetId) ||
+      (typeof channel.guild.members?.fetch === 'function'
+        ? await channel.guild.members.fetch(cleanTargetId).catch(() => null)
+        : null);
+
+    if (!targetMember) {
+      return {
+        ok: false,
+        errorMessage: '❌ Không tìm thấy thành viên được chỉ định trong máy chủ.',
+      };
+    }
+
+    if (targetMember.user?.bot) {
+      return {
+        ok: false,
+        errorMessage: '❌ Không thể chỉ định bot làm hỗ trợ chính cho ticket.',
+      };
+    }
+
+    if (!isServiceTicketStaff(targetMember, cleanTargetId, client)) {
+      return {
+        ok: false,
+        errorMessage: '❌ Thành viên được chỉ định không có quyền hỗ trợ ticket (thiếu role SP Ticket hoặc quyền Quản trị).',
+      };
+    }
+
+    newStaffId = cleanTargetId;
+  } else {
+    const excludeUserIds = ticket.assignedStaffId ? [ticket.assignedStaffId] : [];
+    newStaffId = await pickRandomServiceStaff(channel.guild, client, { excludeUserIds });
+  }
 
   const updatedTicket = {
     ...ticket,
     assignedStaffId: newStaffId,
     reassignedAt: Date.now(),
     reassignedBy: executor?.id || null,
+    reassignedMode: cleanTargetId ? 'manual' : 'random',
   };
 
   await saveServiceTicketRecord(client, channel.guild.id, channel.id, updatedTicket);
@@ -1528,12 +1565,14 @@ export async function reassignServiceTicketStaff({
     executorId: executor?.id,
     previousStaffId: ticket.assignedStaffId || null,
     newStaffId,
+    mode: cleanTargetId ? 'manual' : 'random',
   });
 
   return {
     ok: true,
     previousStaffId: ticket.assignedStaffId || null,
     newStaffId,
+    mode: cleanTargetId ? 'manual' : 'random',
     ticket: updatedTicket,
   };
 }
@@ -2311,7 +2350,7 @@ export async function sendServiceDeliveryNotice({
  * - &dichvu: gửi 3 card TOS & tự xóa lệnh (SP Ticket / Admin / Owner)
  * - &panelticket: gửi bảng mở ticket & tự xóa lệnh (SP Ticket / Admin / Owner)
  * - &nhacfb: nhắc khách feedback trong ticket & tự xóa lệnh (SP Ticket / Admin / Owner)
- * - &doisp: đổi ngẫu nhiên SP Ticket hỗ trợ chính trong ticket & tự xóa lệnh (SP Ticket / Admin / Owner)
+ * - &doisp [@user | user_id]: đổi ngẫu nhiên hoặc chỉ định SP Ticket hỗ trợ chính trong ticket & tự xóa lệnh (SP Ticket / Admin / Owner)
  * - &close: đóng ticket không mua trong ticket dịch vụ & tự xóa lệnh (SP Ticket / Admin / Owner)
  * - &clear: xóa ticket dịch vụ & đẩy log (SP Ticket / Admin / Owner)
  */
@@ -2467,19 +2506,50 @@ export async function handleServiceTicketMessage(message, client) {
     return true;
   }
 
-  // 7. &doisp — SP đổi ngẫu nhiên người hỗ trợ chính cho ticket hiện tại
+  // 7. &doisp [@user | user_id] — SP đổi ngẫu nhiên hoặc chỉ định người hỗ trợ chính cho ticket hiện tại
   if (/^[&!]doisp(?:\s|$)/i.test(trimmed)) {
     if (!isServiceTicketStaff(message.member, message.author.id, client)) {
       await message.delete().catch(() => {});
       return true;
     }
 
+    const rawArg = trimmed.replace(/^[&!]doisp\s*/i, '').trim();
+    let targetUserId = null;
+
+    if (rawArg) {
+      const idMatch = rawArg.match(/^<@!?(\d+)>$|^(\d{15,22})$/);
+      if (idMatch) {
+        targetUserId = idMatch[1] || idMatch[2];
+      } else if (message.mentions?.users?.first?.()?.id) {
+        targetUserId = message.mentions.users.first().id;
+      } else {
+        await message.delete().catch(() => {});
+        const warnMsg = await message.channel
+          .send('❌ Cú pháp không hợp lệ. Dùng `&doisp` để đổi ngẫu nhiên hoặc `&doisp @user` / `&doisp <user_id>` để chỉ định SP Ticket.')
+          .catch(() => null);
+        if (warnMsg && typeof warnMsg.delete === 'function') {
+          const timer = setTimeout(() => warnMsg.delete().catch(() => {}), 8000);
+          timer?.unref?.();
+        }
+        return true;
+      }
+    }
+
     await message.delete().catch(() => {});
-    await reassignServiceTicketStaff({
+    const result = await reassignServiceTicketStaff({
       channel: message.channel,
       executor: message.author,
       client,
+      targetUserId,
     });
+
+    if (!result?.ok && result?.errorMessage) {
+      const warnMsg = await message.channel.send(result.errorMessage).catch(() => null);
+      if (warnMsg && typeof warnMsg.delete === 'function') {
+        const timer = setTimeout(() => warnMsg.delete().catch(() => {}), 8000);
+        timer?.unref?.();
+      }
+    }
     return true;
   }
 
