@@ -131,7 +131,7 @@ export const SHOP_ITEMS = [
     type: 'role',
     name: 'Role Sự Kiện Noel Giới Hạn',
     icon: '👑',
-    price: 500,
+    price: 20000,
     description: 'Nhận ngay Role Giáng Sinh giới hạn trên server Discord (nếu server đã cấu hình).',
   },
   {
