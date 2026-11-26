@@ -1,4 +1,4 @@
-import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126j';
+import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126k';
 
 const STATE = {
   token: 'demo',
@@ -1307,6 +1307,9 @@ function renderPanel() {
             (isSkin && player.equippedSkin === item.id);
           const ownedRole = item.type === 'role' && player.hasEventRole;
           const boughtThisWeek = Boolean(item.weeklyLimit && currentWeekKey && player.weeklyPurchases?.[item.id] === currentWeekKey);
+          const cooldownRemainMs = item.cooldownDays
+            ? item.cooldownDays * 24 * 60 * 60 * 1000 - (Date.now() - (player.cooldownPurchases?.[item.id] || 0))
+            : 0;
 
           let actionHtml = `<button class="btn" data-buy="${item.id}">${item.price} ❄️</button>`;
           if (owned) {
@@ -1317,6 +1320,9 @@ function renderPanel() {
             actionHtml = `<button class="btn btn-outline" disabled>Đã sở hữu</button>`;
           } else if (boughtThisWeek) {
             actionHtml = `<button class="btn btn-outline" disabled>Đã mua tuần này</button>`;
+          } else if (cooldownRemainMs > 0) {
+            const hrs = Math.ceil(cooldownRemainMs / (60 * 60 * 1000));
+            actionHtml = `<button class="btn btn-outline" disabled>Chờ ${hrs}h</button>`;
           }
 
           return `

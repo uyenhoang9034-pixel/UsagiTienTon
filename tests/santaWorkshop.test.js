@@ -187,4 +187,10 @@ test('Luồng chơi Xưởng Quà Ông Già Noel: Điểm danh -> Giải đố -
   assert.equal(pack1.ok, true);
   const pack2 = await handleSantaBuyItem(client, identity, 'mat_pack_small');
   assert.equal(pack2.ok, false);
+
+  // 16. Giới hạn mua Thuốc Tăng Tốc x3 1 lần/3 ngày
+  const buff1 = await handleSantaBuyItem(client, identity, 'buff_x3_10m');
+  assert.equal(buff1.ok, true);
+  const buff2 = await handleSantaBuyItem(client, identity, 'buff_x3_10m');
+  assert.equal(buff2.ok, false);
 });

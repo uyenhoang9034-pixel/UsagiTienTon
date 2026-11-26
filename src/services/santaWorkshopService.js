@@ -275,7 +275,8 @@ export const SHOP_ITEMS = [
     name: 'Thuốc Tăng Tốc x3 (10 phút)',
     icon: '⚡',
     price: 300,
-    description: 'Kích hoạt ngay Buff x3 tốc độ sản xuất Idle trong 10 phút!',
+    cooldownDays: 3,
+    description: 'Kích hoạt ngay Buff x3 tốc độ sản xuất Idle trong 10 phút (Giới hạn 1 lần/3 ngày)!',
   },
 ];
 
@@ -1210,6 +1211,20 @@ export async function handleSantaBuyItem(client, identity, itemId) {
     };
   }
 
+  if (item.cooldownDays) {
+    const cooldownMs = item.cooldownDays * 24 * 60 * 60 * 1000;
+    const lastAt = player.cooldownPurchases?.[item.id] || 0;
+    const remainMs = cooldownMs - (Date.now() - lastAt);
+    if (remainMs > 0) {
+      const remainHours = Math.ceil(remainMs / (60 * 60 * 1000));
+      return {
+        ok: false,
+        message: `⏳ ${item.name} mỗi ${item.cooldownDays} ngày chỉ mua 1 lần (còn ${remainHours} giờ)!`,
+        state: await buildSantaStatePayload(client, identity),
+      };
+    }
+  }
+
   if (player.snowCoins < item.price) {
     return {
       ok: false,
@@ -1266,6 +1281,10 @@ export async function handleSantaBuyItem(client, identity, itemId) {
   } else if (item.type === 'buff') {
     const base = Math.max(Date.now(), player.personalBuffExpiresAt || 0);
     player.personalBuffExpiresAt = base + 10 * 60 * 1000;
+    if (item.cooldownDays) {
+      player.cooldownPurchases = player.cooldownPurchases || {};
+      player.cooldownPurchases[item.id] = Date.now();
+    }
   }
 
   player.snowCoins -= item.price;
