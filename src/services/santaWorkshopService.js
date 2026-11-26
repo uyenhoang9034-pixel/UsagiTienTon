@@ -434,7 +434,7 @@ export const SHOP_ITEMS = [
     icon: '🎟️',
     price: 270,
     amount: 5,
-    description: 'Mua liền 5 Vé Quay Số Giáng Sinh với giá ưu đãi (tiết kiệm 30 ❄️)!',
+    description: 'Mua liền 5 Vé Quay Số Giáng Sinh với giá ưu đãi (tiết kiệm 30 ❄️, giới hạn 1 lần/ngày)!',
   },
 ];
 
