@@ -1780,7 +1780,7 @@ function renderPanel() {
         </div>
         <div class="card">
           <div class="section-title">🔁 GIAO DỊCH VỚI ĐỐI TÁC</div>
-          <div class="muted">Tối đa 10 giao dịch thành công/cặp/ngày. Nguyên liệu người gửi được giữ riêng cho tới khi đối tác duyệt. Cả hai bên nhận thêm tối thiểu 1 nguyên liệu hoặc +20% nếu lớn hơn.</div>
+          <div class="muted">Đã hoàn tất hôm nay: ${pair.daily?.date === STATE.data.today ? (pair.daily.trades || 0) : 0}/10 giao dịch. Tối đa 10 giao dịch thành công/cặp/ngày. Nguyên liệu người gửi được giữ riêng cho tới khi đối tác duyệt. Cả hai bên nhận thêm tối thiểu 1 nguyên liệu hoặc +20% nếu lớn hơn.</div>
           <div class="grid-2">
             <label class="muted">Bạn đưa<select id="duo-offer-mat" class="pill" style="display:block;width:100%;background:#101b33;">${matOptions}</select></label>
             <label class="muted">Số lượng<input id="duo-offer-amount" class="pill" type="number" min="1" value="1" style="display:block;width:100%;"></label>
