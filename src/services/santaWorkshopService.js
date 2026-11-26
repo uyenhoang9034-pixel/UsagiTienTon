@@ -358,6 +358,23 @@ function getLeaderboardKey(guildId) {
   return `santa:leaderboard:${guildId || 'global'}`;
 }
 
+export function getScaledRecipe(recipe, workshopLevel = 1) {
+  const lv = Math.max(1, Number(workshopLevel) || 1);
+  const matMult = 1 + (lv - 1) * 0.25;
+  const scaledIngredients = {};
+  for (const [mat, req] of Object.entries(recipe.ingredients)) {
+    scaledIngredients[mat] = Math.max(1, Math.round(req * matMult));
+  }
+  return {
+    ...recipe,
+    ingredients: scaledIngredients,
+  };
+}
+
+export function getScaledRecipes(workshopLevel = 1) {
+  return TOY_RECIPES.map((r) => getScaledRecipe(r, workshopLevel));
+}
+
 function createOrder(workshopLevel = 1) {
   const customer = ORDER_CUSTOMERS[Math.floor(Math.random() * ORDER_CUSTOMERS.length)];
   const unlockedRecipes = TOY_RECIPES.filter((r) => workshopLevel >= (r.minLevel || 1));
@@ -367,6 +384,7 @@ function createOrder(workshopLevel = 1) {
   const isSpecial = !isRush && roll < 0.5;
   const qty = workshopLevel >= 12 && Math.random() < 0.35 ? 3 : workshopLevel >= 3 && Math.random() < 0.35 ? 2 : 1;
   const multiplier = isRush ? 2.0 : isSpecial ? 1.5 : 1.0;
+  const levelRewardMult = 1 + (Math.max(1, workshopLevel) - 1) * 0.35;
 
   return {
     id: `ord_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
@@ -378,8 +396,8 @@ function createOrder(workshopLevel = 1) {
     isRush,
     expiresAt: isRush ? Date.now() + 90 * 1000 : null,
     rewardTickets: isRush ? 1 : 0,
-    rewardCoins: Math.round(recipe.baseCoins * qty * multiplier),
-    rewardRep: Math.round(recipe.baseRep * qty * multiplier),
+    rewardCoins: Math.round(recipe.baseCoins * qty * multiplier * levelRewardMult),
+    rewardRep: Math.round(recipe.baseRep * qty * multiplier * levelRewardMult),
   };
 }
 
@@ -745,7 +763,7 @@ export async function buildSantaStatePayload(client, identity) {
     serverBoss,
     wheelSegments: getScaledWheelSegments(player.workshopLevel || 1),
     wheelMultiplier: Number((1 + ((player.workshopLevel || 1) - 1) * 0.5).toFixed(2)),
-    recipes: TOY_RECIPES,
+    recipes: getScaledRecipes(player.workshopLevel || 1),
     shopItems: SHOP_ITEMS,
     eventRoleConfigured: Boolean(guildConfig.eventRoleId),
     leaderboard,
@@ -872,11 +890,13 @@ export async function handleSantaRiddle(client, identity, optionIndex) {
 export async function handleSantaCraft(client, identity, toyId) {
   const guildId = identity.guildId || 'global';
   const player = await getOrCreateSantaPlayer(client, identity);
-  const recipe = TOY_RECIPES.find((r) => r.id === toyId);
+  const baseRecipe = TOY_RECIPES.find((r) => r.id === toyId);
 
-  if (!recipe) {
+  if (!baseRecipe) {
     return { ok: false, message: 'Công thức đồ chơi không tồn tại!', state: await buildSantaStatePayload(client, identity) };
   }
+
+  const recipe = getScaledRecipe(baseRecipe, player.workshopLevel || 1);
 
   if ((player.workshopLevel || 1) < (recipe.minLevel || 1)) {
     return {

@@ -1,4 +1,4 @@
-import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126e';
+import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126f';
 
 const STATE = {
   token: 'demo',
@@ -1073,7 +1073,10 @@ function renderPanel() {
     });
   } else if (STATE.activeTab === 'craft') {
     container.innerHTML = `
-      <div class="section-title"><span>🔨 Bàn Chế Tạo Đồ Chơi</span></div>
+      <div class="section-title">
+        <span>🔨 Bàn Chế Tạo Đồ Chơi</span>
+        <span class="tag">Lv.${player.workshopLevel} (Độ khó & Thưởng cao)</span>
+      </div>
       ${recipes
         .map((r) => {
           const reqStr = Object.entries(r.ingredients)

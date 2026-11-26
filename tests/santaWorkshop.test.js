@@ -24,6 +24,7 @@ import {
   handleSantaAttackBoss,
   handleSantaExchangeMaterial,
   handleSantaOpenMysteryBox,
+  getScaledRecipes,
 } from '../src/services/santaWorkshopService.js';
 
 function createMemoryClient() {
@@ -169,4 +170,9 @@ test('Luồng chơi Xưởng Quà Ông Già Noel: Điểm danh -> Giải đố -
 
   const boxRes = await handleSantaOpenMysteryBox(client, identity);
   assert.equal(boxRes.ok, true);
+
+  // 14. Nguyên liệu chế tạo tăng theo cấp xưởng
+  const lv1Teddy = getScaledRecipes(1).find((r) => r.id === 'teddy');
+  const lv10Teddy = getScaledRecipes(10).find((r) => r.id === 'teddy');
+  assert.ok(lv10Teddy.ingredients.fabric > lv1Teddy.ingredients.fabric);
 });
