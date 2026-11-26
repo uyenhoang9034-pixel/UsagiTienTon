@@ -25,6 +25,8 @@ import {
   handleSantaExchangeMaterial,
   handleSantaOpenMysteryBox,
   getScaledRecipes,
+  handleSantaFeedPet,
+  handleSantaOpenAdvent,
 } from '../src/services/santaWorkshopService.js';
 
 function createMemoryClient() {
@@ -193,4 +195,16 @@ test('Luồng chơi Xưởng Quà Ông Già Noel: Điểm danh -> Giải đố -
   assert.equal(buff1.ok, true);
   const buff2 = await handleSantaBuyItem(client, identity, 'buff_x3_10m');
   assert.equal(buff2.ok, false);
+
+  // 17. Cho thú cưng ăn lên cấp & Mở Lịch Quà Giáng Sinh 24 ô & Vòng quay Lv.100
+  const feedRes = await handleSantaFeedPet(client, identity, { mode: 'coins' });
+  assert.equal(feedRes.ok, true);
+  assert.equal(feedRes.state.player.petLevels.pet_usagi, 2);
+
+  const advRes = await handleSantaOpenAdvent(client, identity, 1);
+  assert.equal(advRes.ok, true);
+  assert.equal(advRes.state.player.adventOpened.length, 1);
+
+  const lv100Segs = getScaledWheelSegments(100);
+  assert.equal(lv100Segs.find((s) => s.type === 'tickets').amount, 12);
 });

@@ -555,6 +555,58 @@ body {
   background: linear-gradient(90deg, #2a9d8f, #ffd166);
 }
 
+.advent-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.advent-cell {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 2px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--muted);
+}
+
+.advent-cell.opened {
+  background: rgba(42, 157, 143, 0.25);
+  border-color: #2a9d8f;
+  color: #80ed99;
+}
+
+.advent-cell.ready {
+  background: linear-gradient(135deg, #f4a261, #e63946);
+  border-color: var(--gold);
+  color: #fff;
+  cursor: pointer;
+}
+
+.shiny-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.shiny-slot {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 4px;
+  text-align: center;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.28);
+  opacity: 0.45;
+}
+
+.shiny-slot.collected {
+  opacity: 1;
+  border-color: var(--gold);
+  background: rgba(255, 209, 102, 0.14);
+}
+
 .riddle-options {
   display: grid;
   grid-template-columns: 1fr 1fr;

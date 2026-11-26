@@ -393,7 +393,8 @@ export function getScaledWheelSegments(workshopLevel = 1) {
   const mult = 1 + (lv - 1) * 0.5;
   return WHEEL_SEGMENTS.map((seg) => {
     if (seg.type === 'tickets') {
-      const tickets = lv >= 17 ? 6 : lv >= 13 ? 5 : lv >= 9 ? 4 : lv >= 5 ? 3 : 2;
+      const tickets =
+        lv >= 80 ? 12 : lv >= 60 ? 10 : lv >= 40 ? 8 : lv >= 25 ? 7 : lv >= 17 ? 6 : lv >= 13 ? 5 : lv >= 9 ? 4 : lv >= 5 ? 3 : 2;
       return { ...seg, amount: tickets, label: `+${tickets} 🎟️` };
     }
     const scaled = Math.round(seg.amount * mult);
@@ -517,6 +518,11 @@ function createDefaultPlayer({ userId, username, avatarUrl, guildId }) {
       santaCrown: 0,
     },
     shinyToys: {},
+    shinyCollection: [],
+    hasGoldenHands: false,
+    petLevels: {},
+    adventOpened: [],
+    lastAdventDate: null,
     personalBuffExpiresAt: 0,
     lastBossAttackAt: 0,
     orders: [createOrder(1), createOrder(1), createOrder(1)],
@@ -546,11 +552,12 @@ function createDefaultPlayer({ userId, username, avatarUrl, guildId }) {
   };
 }
 
-export function computePendingIdleMaterials(player, now = Date.now()) {
+export function computePendingIdleMaterials(player, now = Date.now(), partySize = 1) {
   const elapsedMs = Math.max(0, now - (player.lastCollectAt || now));
   const elapsedMinutes = Math.min(MAX_IDLE_MINUTES, elapsedMs / 60000);
   const levelMultiplier = 1 + (Math.max(1, player.workshopLevel || 1) - 1) * 0.35;
   const personalMult = (player.personalBuffExpiresAt || 0) > now ? 3 : 1;
+  const coopMult = 1 + (Math.max(1, Math.min(10, Number(partySize) || 1)) - 1) * 0.15;
   const helpers = player.helpers || {};
 
   const helperBonuses = { wood: 0, fabric: 0, magicDust: 0, ribbon: 0 };
@@ -566,7 +573,7 @@ export function computePendingIdleMaterials(player, now = Date.now()) {
   const pending = {};
   let totalPending = 0;
   for (const [key, meta] of Object.entries(MATERIALS)) {
-    const rate = (meta.baseRatePerMin * levelMultiplier + (helperBonuses[key] || 0)) * personalMult;
+    const rate = (meta.baseRatePerMin * levelMultiplier + (helperBonuses[key] || 0)) * personalMult * coopMult;
     const amount = Math.floor(elapsedMinutes * rate);
     pending[key] = amount;
     totalPending += amount;
@@ -582,11 +589,16 @@ export function computePendingIdleMaterials(player, now = Date.now()) {
 }
 
 export function getHelperUpgradeCost(helperDef, currentLevel = 0) {
-  return Math.round(helperDef.baseCost * Math.pow(1.38, Math.max(0, currentLevel)));
+  return Math.round(helperDef.baseCost * (1 + currentLevel * 0.45 + Math.pow(currentLevel, 1.55) * 0.35));
 }
 
 export function getUpgradeCost(level) {
-  return Math.round(90 * Math.pow(1.4, Math.max(0, level - 1)));
+  const lv = Math.max(1, Number(level) || 1);
+  if (lv <= 15) {
+    return Math.round(90 * Math.pow(1.4, lv - 1));
+  }
+  const base15 = 90 * Math.pow(1.4, 14);
+  return Math.round(base15 * (1 + (lv - 15) * 0.32));
 }
 
 export function getDailyRiddle(dateKey = getTodayKey()) {
@@ -799,20 +811,28 @@ async function savePlayer(client, guildId, player) {
 
 export async function buildSantaStatePayload(client, identity) {
   const guildId = identity.guildId || 'global';
+  const partySize = Math.max(1, Math.min(10, Number(identity.partySize) || 1));
   const player = await getOrCreateSantaPlayer(client, identity);
   const today = getTodayKey();
   const riddle = getDailyRiddle(today);
-  const idle = computePendingIdleMaterials(player);
+  const idle = computePendingIdleMaterials(player, Date.now(), partySize);
   const leaderboard = await getSantaLeaderboard(client, guildId);
   const guildConfig = await getSantaGuildConfig(client, guildId);
   const serverTree = await getServerTree(client, guildId);
   const serverBoss = await getServerBoss(client, guildId);
+  const openedAdvent = player.adventOpened || [];
+  const nextAdventDay = openedAdvent.length + 1;
+  const canOpenAdventToday = nextAdventDay <= 24 && player.lastAdventDate !== today;
 
   return {
     player,
     idle,
     today,
     currentWeekKey: getWeekKey(),
+    partySize,
+    coopBonusPct: (partySize - 1) * 15,
+    canOpenAdventToday,
+    nextAdventDay,
     personalBuffActive: (player.personalBuffExpiresAt || 0) > Date.now(),
     checkedInToday: player.lastCheckinDate === today,
     riddleSolvedToday: player.lastRiddleDate === today,
@@ -872,7 +892,8 @@ export async function handleSantaCollect(client, identity, { isTap = false } = {
     player.lastTapAt = now;
     const keys = Object.keys(MATERIALS);
     const picked = keys[Math.floor(Math.random() * keys.length)];
-    const bonus = player.workshopLevel >= 15 ? 4 : player.workshopLevel >= 8 ? 3 : player.workshopLevel >= 4 ? 2 : 1;
+    const lv = player.workshopLevel || 1;
+    const bonus = lv >= 60 ? 8 : lv >= 40 ? 6 : lv >= 25 ? 5 : lv >= 15 ? 4 : lv >= 8 ? 3 : lv >= 4 ? 2 : 1;
     player.materials[picked] = (player.materials[picked] || 0) + bonus;
     bumpDailyQuest(player, 'q_tap_20', 1);
     await savePlayer(client, guildId, player);
@@ -1011,9 +1032,23 @@ export async function handleSantaCraft(client, identity, toyId) {
   }
 
   const isShiny = Math.random() < 0.18;
+  let goldenHandsNotice = '';
   if (isShiny) {
     player.shinyToys = player.shinyToys || {};
     player.shinyToys[recipe.id] = (player.shinyToys[recipe.id] || 0) + 1;
+    player.shinyCollection = player.shinyCollection || [];
+    if (!player.shinyCollection.includes(recipe.id)) {
+      player.shinyCollection.push(recipe.id);
+      if (player.shinyCollection.length >= TOY_RECIPES.length && !player.hasGoldenHands) {
+        player.hasGoldenHands = true;
+        goldenHandsNotice = ' 🏆 Mở khóa danh hiệu "Bàn Tay Vàng Bắc Cực" (+20% Xu Tuyết vĩnh viễn)!';
+        announceToDiscordChannel(
+          client,
+          guildId,
+          `🏆 **BÀN TAY VÀNG BẮC CỰC!** Chúc mừng <@${player.userId}> đã sưu tầm đủ 8/8 Đồ Chơi Hoàng Kim!`,
+        );
+      }
+    }
   } else {
     player.toys[recipe.id] = (player.toys[recipe.id] || 0) + 1;
   }
@@ -1025,7 +1060,7 @@ export async function handleSantaCraft(client, identity, toyId) {
     ok: true,
     isShiny,
     message: isShiny
-      ? `✨ TUYỆT VỜI! Bạn chế tạo được 1 ${recipe.icon} ${recipe.name} HOÀNG KIM (Giao đơn x3 Xu Tuyết)!`
+      ? `✨ TUYỆT VỜI! Chế tạo được 1 ${recipe.icon} ${recipe.name} HOÀNG KIM (Giao đơn x3 Xu)!${goldenHandsNotice}`
       : `Chế tạo thành công 1 ${recipe.icon} ${recipe.name}!`,
     state: await buildSantaStatePayload(client, identity),
   };
@@ -1069,7 +1104,8 @@ export async function handleSantaDeliver(client, identity, orderId) {
   }
 
   const shinyMult = usedShiny > 0 ? 3 : 1;
-  const gainedCoins = order.rewardCoins * buffMult * shinyMult;
+  const goldenMult = player.hasGoldenHands ? 1.2 : 1;
+  const gainedCoins = Math.round(order.rewardCoins * buffMult * shinyMult * goldenMult);
   player.snowCoins += gainedCoins;
   player.reputation += order.rewardRep;
   if (order.rewardTickets) {
@@ -1101,8 +1137,8 @@ export async function handleSantaHireHelper(client, identity, helperId) {
 
   player.helpers = player.helpers || { lumberjack: 0, tailor: 0, mage: 0 };
   const currentLv = player.helpers[helperId] || 0;
-  if (currentLv >= 20) {
-    return { ok: false, message: `${helperDef.name} đã đạt cấp tối đa (Cấp 20)!`, state: await buildSantaStatePayload(client, identity) };
+  if (currentLv >= 100) {
+    return { ok: false, message: `${helperDef.name} đã đạt cấp tối đa (Cấp 100)!`, state: await buildSantaStatePayload(client, identity) };
   }
 
   const cost = getHelperUpgradeCost(helperDef, currentLv);
@@ -1161,8 +1197,8 @@ export async function handleSantaUpgrade(client, identity) {
   const guildId = identity.guildId || 'global';
   const player = await getOrCreateSantaPlayer(client, identity);
   const currentLevel = player.workshopLevel || 1;
-  if (currentLevel >= 20) {
-    return { ok: false, message: 'Xưởng Yêu Tinh đã đạt cấp tối đa (Cấp 20)!', state: await buildSantaStatePayload(client, identity) };
+  if (currentLevel >= 100) {
+    return { ok: false, message: 'Xưởng Yêu Tinh đã đạt cấp tối đa (Cấp 100)!', state: await buildSantaStatePayload(client, identity) };
   }
 
   const cost = getUpgradeCost(currentLevel);
@@ -1640,7 +1676,8 @@ export async function handleSantaAttackBoss(client, identity, { mode = 'tap', to
 
   const key = `santa:boss:${guildId}`;
   const boss = await getServerBoss(client, guildId);
-  let dmg = 55 + (player.workshopLevel || 1) * 5;
+  const coopMult = 1 + (Math.max(1, Math.min(10, Number(identity.partySize) || 1)) - 1) * 0.15;
+  let dmg = Math.round((55 + (player.workshopLevel || 1) * 5) * coopMult);
 
   if (mode === 'toy') {
     const useToy = toyId || Object.keys(player.toys || {}).find((k) => (player.toys[k] || 0) > 0);
@@ -1648,7 +1685,7 @@ export async function handleSantaAttackBoss(client, identity, { mode = 'tap', to
       return { ok: false, message: 'Bạn cần ít nhất 1 món đồ chơi trong kho để ném vào Boss!', state: await buildSantaStatePayload(client, identity) };
     }
     player.toys[useToy] -= 1;
-    dmg = 240 + (player.workshopLevel || 1) * 15;
+    dmg = Math.round((240 + (player.workshopLevel || 1) * 15) * coopMult);
   } else {
     player.lastBossAttackAt = now;
   }
@@ -1778,6 +1815,95 @@ export async function handleSantaOpenMysteryBox(client, identity) {
   return {
     ok: true,
     message: msg,
+    state: await buildSantaStatePayload(client, identity),
+  };
+}
+
+export async function handleSantaFeedPet(client, identity, { mode = 'coins', toyId = null } = {}) {
+  const guildId = identity.guildId || 'global';
+  const player = await getOrCreateSantaPlayer(client, identity);
+  const petId = player.equippedPet;
+
+  if (!petId) {
+    return { ok: false, message: 'Hãy trang bị một Thú Cưng trước khi cho ăn nhé!', state: await buildSantaStatePayload(client, identity) };
+  }
+
+  player.petLevels = player.petLevels || {};
+  const curLv = player.petLevels[petId] || 1;
+  if (curLv >= 5) {
+    return { ok: false, message: 'Thú Cưng này đã tiến hóa tối đa (Lv.5)!', state: await buildSantaStatePayload(client, identity) };
+  }
+
+  if (mode === 'toy') {
+    const useToy = toyId || Object.keys(player.toys || {}).find((k) => (player.toys[k] || 0) > 0);
+    if (!useToy || (player.toys[useToy] || 0) < 1) {
+      return { ok: false, message: 'Bạn cần ít nhất 1 món đồ chơi trong kho để cho thú cưng ăn!', state: await buildSantaStatePayload(client, identity) };
+    }
+    player.toys[useToy] -= 1;
+  } else {
+    const cost = 150 * curLv;
+    if (player.snowCoins < cost) {
+      return { ok: false, message: `Cần ${cost} ❄️ Xu Tuyết để nâng cấp Thú Cưng lên Lv.${curLv + 1}!`, state: await buildSantaStatePayload(client, identity) };
+    }
+    player.snowCoins -= cost;
+  }
+
+  player.petLevels[petId] = curLv + 1;
+  await savePlayer(client, guildId, player);
+
+  return {
+    ok: true,
+    message: `🐾 Tuyệt vời! Thú Cưng đã tiến hóa lên **Lv.${curLv + 1}/5** (nhặt quà Fever nhanh hơn)!`,
+    state: await buildSantaStatePayload(client, identity),
+  };
+}
+
+export async function handleSantaOpenAdvent(client, identity, dayNumber) {
+  const guildId = identity.guildId || 'global';
+  const player = await getOrCreateSantaPlayer(client, identity);
+  const today = getTodayKey();
+  const opened = Array.isArray(player.adventOpened) ? player.adventOpened : [];
+  const nextDay = opened.length + 1;
+  const reqDay = Number(dayNumber) || nextDay;
+
+  if (opened.includes(reqDay)) {
+    return { ok: false, message: `Ô Ngày ${reqDay} bạn đã mở rồi!`, state: await buildSantaStatePayload(client, identity) };
+  }
+  if (reqDay !== nextDay || reqDay < 1 || reqDay > 24) {
+    return { ok: false, message: `Hãy mở theo thứ tự — hôm nay tới lượt Ô Ngày ${nextDay}!`, state: await buildSantaStatePayload(client, identity) };
+  }
+  if (player.lastAdventDate === today) {
+    return { ok: false, message: 'Hôm nay bạn đã mở 1 ô Lịch Quà Giáng Sinh rồi! Ngày mai quay lại mở tiếp nha 🎄', state: await buildSantaStatePayload(client, identity) };
+  }
+
+  player.adventOpened = [...opened, reqDay];
+  player.lastAdventDate = today;
+
+  const coins = 50 + reqDay * 25;
+  const matBonus = 2 + Math.floor(reqDay / 4);
+  player.snowCoins += coins;
+  player.materials.wood += matBonus;
+  player.materials.fabric += matBonus;
+  player.materials.magicDust += Math.max(1, Math.floor(matBonus / 2));
+  player.materials.ribbon += Math.max(1, Math.floor(matBonus / 2));
+
+  let extra = '';
+  if (reqDay === 12) {
+    player.luckyTickets = (player.luckyTickets || 0) + 3;
+    extra = ' & +3 🎟️ Vé Quay Số!';
+  } else if (reqDay === 24) {
+    player.luckyTickets = (player.luckyTickets || 0) + 5;
+    player.personalBuffExpiresAt = Math.max(Date.now(), player.personalBuffExpiresAt || 0) + 30 * 60 * 1000;
+    extra = ' & +5 🎟️ Vé Quay + Buff x3 (30 phút)!';
+  } else if (reqDay % 5 === 0) {
+    player.luckyTickets = (player.luckyTickets || 0) + 1;
+    extra = ' & +1 🎟️ Vé Quay!';
+  }
+
+  await savePlayer(client, guildId, player);
+  return {
+    ok: true,
+    message: `📅 Mở Ô Ngày ${reqDay}/24! Nhận +${coins} ❄️ & +${matBonus} nguyên liệu${extra}`,
     state: await buildSantaStatePayload(client, identity),
   };
 }

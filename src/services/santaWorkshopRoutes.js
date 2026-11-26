@@ -25,6 +25,8 @@ import {
   handleSantaAttackBoss,
   handleSantaExchangeMaterial,
   handleSantaOpenMysteryBox,
+  handleSantaFeedPet,
+  handleSantaOpenAdvent,
 } from './santaWorkshopService.js';
 import { logger } from '../utils/logger.js';
 
@@ -85,6 +87,7 @@ async function resolveIdentityFromRequest(req, client = null) {
         username: displayName,
         avatarUrl,
         guildId: fallbackGuildId,
+        partySize: Math.max(1, Math.min(10, Number(req.headers['x-party-size']) || 1)),
       };
     }
   }
@@ -99,6 +102,7 @@ async function resolveIdentityFromRequest(req, client = null) {
     username: String(req.headers['x-guest-name'] || req.body?.guestName || 'Yêu Tinh Noel').slice(0, 32),
     avatarUrl: null,
     guildId: fallbackGuildId,
+    partySize: Math.max(1, Math.min(10, Number(req.headers['x-party-size']) || 1)),
   };
 }
 
@@ -219,6 +223,8 @@ export function registerSantaWorkshopRoutes(app, client) {
     ['/api/santa/boss/attack', (req, id) => handleSantaAttackBoss(client, id, { mode: req.body?.mode, toyId: req.body?.toyId })],
     ['/api/santa/market/exchange', (req, id) => handleSantaExchangeMaterial(client, id, { fromMat: req.body?.fromMat, toMat: req.body?.toMat, mode: req.body?.mode })],
     ['/api/santa/mystery-box', (_req, id) => handleSantaOpenMysteryBox(client, id)],
+    ['/api/santa/pet/feed', (req, id) => handleSantaFeedPet(client, id, { mode: req.body?.mode, toyId: req.body?.toyId })],
+    ['/api/santa/advent/open', (req, id) => handleSantaOpenAdvent(client, id, req.body?.dayNumber)],
   ];
 
   for (const [routePath, handler] of actionRoutes) {

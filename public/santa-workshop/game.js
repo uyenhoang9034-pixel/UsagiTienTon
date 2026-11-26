@@ -1,9 +1,10 @@
-import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126m';
+import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126n';
 
 const STATE = {
   token: 'demo',
   guildId: 'global',
   guestId: null,
+  partySize: 1,
   activeTab: 'workshop',
   panelCollapsed: false,
   data: null,
@@ -41,6 +42,7 @@ async function apiRequest(path, method = 'GET', body = null) {
       Authorization: `Bearer ${STATE.token}`,
       'x-guild-id': STATE.guildId,
       'x-guest-id': STATE.guestId,
+      'x-party-size': String(STATE.partySize || 1),
     };
     if (body) headers['Content-Type'] = 'application/json';
     const res = await fetch(path, {
@@ -95,6 +97,18 @@ async function initDiscordActivitySdk() {
       step = 'authenticate';
       await discordSdk.commands.authenticate({ access_token: tokenData.access_token });
       STATE.token = tokenData.access_token;
+      try {
+        const parts = await discordSdk.commands.getInstanceConnectedParticipants();
+        if (Array.isArray(parts?.participants) && parts.participants.length > 0) {
+          STATE.partySize = parts.participants.length;
+        }
+        discordSdk.subscribe('ACTIVITY_INSTANCE_PARTICIPANTS_UPDATE', (evt) => {
+          if (Array.isArray(evt?.participants) && evt.participants.length > 0) {
+            STATE.partySize = evt.participants.length;
+            refreshState();
+          }
+        });
+      } catch {}
     } else {
       showToast(`⚠️ Lỗi token: ${tokenData?.error || 'Không rõ'}`);
     }
@@ -465,8 +479,10 @@ class SantaWorkshopScene extends Phaser.Scene {
       }
     }
 
-    if (force || this.lastPetId !== petId) {
-      this.lastPetId = petId;
+    const petLv = STATE.data?.player?.petLevels?.[petId] || 1;
+    const petStateKey = `${petId || 'none'}:${petLv}`;
+    if (force || this.lastPetId !== petStateKey) {
+      this.lastPetId = petStateKey;
       if (this.petSprite) {
         this.petSprite.destroy();
         this.petSprite = null;
@@ -486,8 +502,14 @@ class SantaWorkshopScene extends Phaser.Scene {
                   ? '🦊'
                   : '🐰');
         const textRes = Math.min(2, window.devicePixelRatio || 1);
+        const fontSize = `${24 + (petLv - 1) * 3}px`;
+        const label = petLv > 1 ? `${petIcon}✨` : petIcon;
         this.petSprite = this.add
-          .text(this.scale.width * 0.24, floorY + 12, petIcon, { fontSize: '26px', resolution: textRes })
+          .text(this.scale.width * 0.24, floorY + 12, label, {
+            fontSize,
+            resolution: textRes,
+            shadow: petLv >= 3 ? { offsetX: 0, offsetY: 0, color: '#ffd166', blur: 10, fill: true } : undefined,
+          })
           .setOrigin(0.5)
           .setDepth(6);
         this.tweens.add({
@@ -663,8 +685,10 @@ class SantaWorkshopScene extends Phaser.Scene {
     let petTimer = null;
     const petId = STATE.data?.player?.equippedPet;
     if (petId) {
-      const petInterval =
+      const petLv = STATE.data?.player?.petLevels?.[petId] || 1;
+      const baseInterval =
         petId === 'pet_fox' ? 900 : petId === 'pet_reindeer' ? 1100 : petId === 'pet_snowman' ? 1200 : 1600;
+      const petInterval = Math.max(420, baseInterval - (petLv - 1) * 140);
       const petEmoji =
         petId === 'pet_fox'
           ? '🦊'
@@ -1012,6 +1036,10 @@ function renderPanel() {
     serverTree = { level: 0, points: 0, nextThreshold: 150, buffActive: false },
     serverBoss = { name: 'Người Tuyết Bão Tố Khổng Lồ', icon: '⛄', level: 1, hp: 2000, maxHp: 2000 },
     personalBuffActive = false,
+    partySize = 1,
+    coopBonusPct = 0,
+    canOpenAdventToday = false,
+    nextAdventDay = 1,
     shopItems,
     currentWeekKey,
     leaderboard,
@@ -1030,9 +1058,12 @@ function renderPanel() {
     container.innerHTML = `
       <div class="section-title">
         <span>🏠 Kho Nguyên Liệu Xưởng</span>
-        <button class="btn btn-gold btn-sm" id="btn-upgrade" ${player.workshopLevel >= 20 ? 'disabled' : ''}>
-          ${player.workshopLevel >= 20 ? 'Cấp Tối Đa (20)' : `Nâng Xưởng (${upgradeCost} ❄️)`}
-        </button>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          ${partySize > 1 ? `<span class="tag tag-buff">👥 ${partySize} (+${coopBonusPct}%)</span>` : ''}
+          <button class="btn btn-gold btn-sm" id="btn-upgrade" ${player.workshopLevel >= 100 ? 'disabled' : ''}>
+            ${player.workshopLevel >= 100 ? 'Cấp Tối Đa (100)' : `Nâng Xưởng (${upgradeCost} ❄️)`}
+          </button>
+        </div>
       </div>
       <div class="grid-2">
         ${Object.entries(materialsMeta)
@@ -1100,11 +1131,11 @@ function renderPanel() {
           (h) => `
         <div class="card-row">
           <div>
-            <div><strong>${h.icon} ${h.name}</strong> <span class="tag">Lv.${h.level}/20</span></div>
+            <div><strong>${h.icon} ${h.name}</strong> <span class="tag">Lv.${h.level}/100</span></div>
             <div class="muted">${h.description}</div>
           </div>
-          <button class="btn btn-gold btn-sm" data-hire="${h.id}" ${h.level >= 20 ? 'disabled' : ''}>
-            ${h.level >= 20 ? 'MAX' : `${h.nextCost} ❄️`}
+          <button class="btn btn-gold btn-sm" data-hire="${h.id}" ${h.level >= 100 ? 'disabled' : ''}>
+            ${h.level >= 100 ? 'MAX' : `${h.nextCost} ❄️`}
           </button>
         </div>
       `,
@@ -1148,7 +1179,26 @@ function renderPanel() {
       };
     });
   } else if (STATE.activeTab === 'craft') {
+    const collected = player.shinyCollection || [];
     container.innerHTML = `
+      <div class="card">
+        <div class="section-title">
+          <span>📖 Sổ Tay Hoàng Kim (${collected.length}/${recipes.length})</span>
+          ${player.hasGoldenHands ? '<span class="tag tag-buff">🏆 Bàn Tay Vàng +20% Xu</span>' : '<span class="tag">Đủ 8/8: +20% Xu</span>'}
+        </div>
+        <div class="shiny-grid">
+          ${recipes
+            .map(
+              (r) => `
+            <div class="shiny-slot ${collected.includes(r.id) ? 'collected' : ''}">
+              <div style="font-size:18px;">${r.icon}</div>
+              <div>${collected.includes(r.id) ? '✨ Đã có' : '🔒'}</div>
+            </div>
+          `,
+            )
+            .join('')}
+        </div>
+      </div>
       <div class="section-title">
         <span>🔨 Bàn Chế Tạo Đồ Chơi</span>
         <span class="tag">Lv.${player.workshopLevel} (Độ khó & Thưởng cao)</span>
@@ -1222,7 +1272,24 @@ function renderPanel() {
       };
     });
   } else if (STATE.activeTab === 'quests') {
+    const openedAdv = player.adventOpened || [];
+    const adventCells = Array.from({ length: 24 }, (_, idx) => {
+      const day = idx + 1;
+      const isOpened = openedAdv.includes(day);
+      const isReady = !isOpened && canOpenAdventToday && day === nextAdventDay;
+      const cls = isOpened ? 'opened' : isReady ? 'ready' : '';
+      const icon = isOpened ? '✅' : isReady ? '🎁' : '🔒';
+      return `<button class="advent-cell ${cls}" ${isReady ? `data-advent="${day}"` : 'disabled'}>${day}<br/>${icon}</button>`;
+    }).join('');
+
     container.innerHTML = `
+      <div class="card">
+        <div class="section-title">
+          <span>📅 Lịch Quà Giáng Sinh (${openedAdv.length}/24)</span>
+          <span class="tag">${canOpenAdventToday ? `Mở Ô ${nextAdventDay}!` : 'Mai quay lại'}</span>
+        </div>
+        <div class="advent-grid">${adventCells}</div>
+      </div>
       <div class="section-title"><span>🎁 Nhiệm Vụ & Thành Tựu</span></div>
       <div class="card-row">
         <div>
@@ -1305,8 +1372,37 @@ function renderPanel() {
         if (r?.ok) christmasAudio.playCoinSfx();
       };
     });
+    container.querySelectorAll('[data-advent]').forEach((btn) => {
+      btn.onclick = async () => {
+        const r = await runAction('/api/santa/advent/open', { dayNumber: Number(btn.dataset.advent) });
+        if (r?.ok) christmasAudio.playJackpotSfx();
+      };
+    });
   } else if (STATE.activeTab === 'shop') {
+    const equippedPetObj = player.equippedPet ? shopItems.find((i) => i.id === player.equippedPet) : null;
+    const equippedPetLv = player.equippedPet ? player.petLevels?.[player.equippedPet] || 1 : 1;
+    const feedCost = 150 * equippedPetLv;
+
     container.innerHTML = `
+      ${
+        equippedPetObj
+          ? `<div class="card">
+              <div class="section-title">
+                <span>🐾 Thú Cưng: ${equippedPetObj.icon} ${equippedPetObj.name}</span>
+                <span class="tag">Lv.${equippedPetLv}/5</span>
+              </div>
+              <div class="muted">Cho ăn để tiến hóa, nhặt quà Fever nhanh hơn & phát sáng hào quang!</div>
+              <div style="display:flex;gap:8px;margin-top:4px;">
+                <button class="btn btn-gold btn-sm" id="btn-feed-coins" ${equippedPetLv >= 5 ? 'disabled' : ''}>
+                  ${equippedPetLv >= 5 ? 'Đã Tối Đa' : `🍖 Cho ăn (${feedCost} ❄️)`}
+                </button>
+                <button class="btn btn-green btn-sm" id="btn-feed-toy" ${equippedPetLv >= 5 ? 'disabled' : ''}>
+                  🧸 Cho ăn 1 Đồ Chơi
+                </button>
+              </div>
+            </div>`
+          : ''
+      }
       <div class="section-title">
         <span>🛒 Shop, Thú Cưng & Tủ Đồ</span>
         <div style="display:flex;gap:6px;">
@@ -1388,6 +1484,18 @@ function renderPanel() {
         })
         .join('')}
     `;
+    if (document.getElementById('btn-feed-coins')) {
+      document.getElementById('btn-feed-coins').onclick = async () => {
+        const r = await runAction('/api/santa/pet/feed', { mode: 'coins' });
+        if (r?.ok) christmasAudio.playJackpotSfx();
+      };
+    }
+    if (document.getElementById('btn-feed-toy')) {
+      document.getElementById('btn-feed-toy').onclick = async () => {
+        const r = await runAction('/api/santa/pet/feed', { mode: 'toy' });
+        if (r?.ok) christmasAudio.playJackpotSfx();
+      };
+    }
     document.getElementById('btn-mystery-box').onclick = async () => {
       const r = await runAction('/api/santa/mystery-box');
       if (r?.ok) christmasAudio.playJackpotSfx();
@@ -1542,7 +1650,7 @@ function openUpgradeConfirmModal() {
   if (!STATE.data) return;
   const { player, upgradeCost } = STATE.data;
   const curLv = player.workshopLevel || 1;
-  if (curLv >= 20) return;
+  if (curLv >= 100) return;
 
   const nextLv = curLv + 1;
   const curMult = (1 + (curLv - 1) * 0.35).toFixed(2);
@@ -1568,6 +1676,8 @@ function openUpgradeConfirmModal() {
     perks.push(`<div class="mat-chip"><span>📦 Mở khóa mới</span><strong>Đơn hàng 3 món (x3 Thưởng!)</strong></div>`);
   } else if (nextLv === 15) {
     perks.push(`<div class="mat-chip"><span>🔨 Gõ búa chạm Xưởng</span><strong>+3 → +4 nguyên liệu/lần!</strong></div>`);
+  } else if (nextLv === 25 || nextLv === 40 || nextLv === 60) {
+    perks.push(`<div class="mat-chip"><span>🔨 Gõ búa chạm Xưởng</span><strong>Tăng sản lượng gõ búa!</strong></div>`);
   } else if (nextLv < 4) {
     perks.push(`<div class="mat-chip"><span>🔨 Mốc Cấp 4</span><span class="muted">Gõ búa nhận x2 nguyên liệu</span></div>`);
   }
