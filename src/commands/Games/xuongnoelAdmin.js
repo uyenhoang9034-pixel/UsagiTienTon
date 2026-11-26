@@ -6,6 +6,7 @@ import { ROLE_HIERARCHY } from '../../config/roleHierarchy.js';
 import {
   setSantaEventRole,
   setSantaAnnounceChannel,
+  cleanupGuestSantaData,
 } from '../../services/santaWorkshopService.js';
 import { logger } from '../../utils/logger.js';
 
@@ -44,6 +45,11 @@ export default {
             .setDescription('Kênh chat nhận thông báo vinh danh Xưởng Noel')
             .setRequired(true),
         ),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName('dondep')
+        .setDescription('Xóa toàn bộ dữ liệu khách ẩn danh (Yêu Tinh Noel cũ) khỏi Bảng Xếp Hạng'),
     ),
 
   category: 'Games',
@@ -76,6 +82,14 @@ export default {
         await setSantaAnnounceChannel(botClient, guildId, channel.id);
         return interaction.reply({
           content: `📢 Đã chọn <#${channel.id}> làm kênh vinh danh Jackpot, Thành Tựu & Cây Thông Server!`,
+          ephemeral: !interaction._isPrefixCommand,
+        });
+      }
+
+      if (sub === 'dondep') {
+        const { deletedPlayers, cleanedBoards } = await cleanupGuestSantaData(botClient);
+        return interaction.reply({
+          content: `🧹 Đã dọn sạch **${deletedPlayers}** dữ liệu khách ẩn danh và **${cleanedBoards}** bảng xếp hạng cũ! Giờ chỉ giữ lại người chơi có ID Discord thật thôi ạ.`,
           ephemeral: !interaction._isPrefixCommand,
         });
       }

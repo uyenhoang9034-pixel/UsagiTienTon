@@ -1,4 +1,9 @@
-import { getDatabaseValue, setDatabaseValue } from '../utils/database.js';
+import {
+  getDatabaseValue,
+  setDatabaseValue,
+  deleteDatabaseValue,
+  listDatabaseKeys,
+} from '../utils/database.js';
 import { logger } from '../utils/logger.js';
 
 export const MATERIALS = {
@@ -510,10 +515,20 @@ function evaluateAchievements(player) {
   return newlyUnlocked;
 }
 
+function isGuestUserId(userId) {
+  const s = String(userId || '').trim();
+  return !s || s.startsWith('guest_');
+}
+
 async function updateLeaderboard(client, guildId, player) {
+  if (isGuestUserId(player?.userId)) {
+    return;
+  }
   const key = getLeaderboardKey(guildId);
   const list = (await getDatabaseValue(client, key, [])) || [];
-  const filtered = Array.isArray(list) ? list.filter((e) => String(e.userId) !== String(player.userId)) : [];
+  const filtered = Array.isArray(list)
+    ? list.filter((e) => !isGuestUserId(e?.userId) && String(e.userId) !== String(player.userId))
+    : [];
   filtered.push({
     userId: String(player.userId),
     username: player.username,
@@ -528,8 +543,36 @@ async function updateLeaderboard(client, guildId, player) {
 }
 
 export async function getSantaLeaderboard(client, guildId) {
-  const list = await getDatabaseValue(client, getLeaderboardKey(guildId), []);
-  return Array.isArray(list) ? list : [];
+  const key = getLeaderboardKey(guildId);
+  const list = await getDatabaseValue(client, key, []);
+  if (!Array.isArray(list)) return [];
+  const clean = list.filter((e) => !isGuestUserId(e?.userId));
+  if (clean.length !== list.length) {
+    await setDatabaseValue(client, key, clean).catch(() => {});
+  }
+  return clean;
+}
+
+export async function cleanupGuestSantaData(client) {
+  let deletedPlayers = 0;
+  let cleanedBoards = 0;
+  const keys = await listDatabaseKeys(client, 'santa:');
+  for (const k of keys) {
+    if (k.startsWith('santa:player:') && k.includes(':guest_')) {
+      const ok = await deleteDatabaseValue(client, k);
+      if (ok) deletedPlayers += 1;
+    } else if (k.startsWith('santa:leaderboard:')) {
+      const list = await getDatabaseValue(client, k, []);
+      if (Array.isArray(list)) {
+        const clean = list.filter((e) => !isGuestUserId(e?.userId));
+        if (clean.length !== list.length) {
+          await setDatabaseValue(client, k, clean);
+          cleanedBoards += 1;
+        }
+      }
+    }
+  }
+  return { deletedPlayers, cleanedBoards };
 }
 
 export async function getOrCreateSantaPlayer(client, { userId, username, avatarUrl, guildId = 'global' }) {

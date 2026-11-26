@@ -20,6 +20,7 @@ import {
   handleSantaVisitFriend,
   handleSantaRepelGrinch,
   handleSantaClaimQuest,
+  cleanupGuestSantaData,
 } from './santaWorkshopService.js';
 import { logger } from '../utils/logger.js';
 
@@ -98,7 +99,15 @@ async function resolveIdentityFromRequest(req, client = null) {
 }
 
 export function registerSantaWorkshopRoutes(app, client) {
+  let didCleanupGuests = false;
   app.use('/api/santa', express.json());
+  app.use('/api/santa', (_req, _res, next) => {
+    if (!didCleanupGuests) {
+      didCleanupGuests = true;
+      cleanupGuestSantaData(client).catch(() => {});
+    }
+    next();
+  });
 
   // Cho phép nhúng vào iframe của Discord Activity & tắt cache để luôn nhận bản mới nhất
   app.use('/activity', (_req, res, next) => {
