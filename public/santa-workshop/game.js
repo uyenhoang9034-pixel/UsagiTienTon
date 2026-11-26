@@ -1188,8 +1188,8 @@ function renderPanel() {
         <span>🏠 Kho Nguyên Liệu Xưởng</span>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
           ${partySize > 1 ? `<span class="tag tag-buff">👥 ${partySize} (+${coopBonusPct}%)</span>` : ''}
-          <button class="btn btn-gold btn-sm" id="btn-upgrade" ${player.workshopLevel >= 100 ? 'disabled' : ''}>
-            ${player.workshopLevel >= 100 ? 'Cấp Tối Đa (100)' : `Nâng Xưởng (${upgradeCost} ❄️)`}
+          <button class="btn btn-gold btn-sm" id="btn-upgrade" ${player.workshopLevel >= 2000 ? 'disabled' : ''}>
+            ${player.workshopLevel >= 2000 ? 'Cấp Tối Đa (2000)' : `Nâng Xưởng (${upgradeCost} ❄️)`}
           </button>
         </div>
       </div>
@@ -1279,11 +1279,11 @@ function renderPanel() {
           (h) => `
         <div class="card-row">
           <div>
-            <div><strong>${h.icon} ${h.name}</strong> <span class="tag">Lv.${h.level}/100</span></div>
+            <div><strong>${h.icon} ${h.name}</strong> <span class="tag">Lv.${h.level}/2000</span></div>
             <div class="muted">${h.description}</div>
           </div>
-          <button class="btn btn-gold btn-sm" data-hire="${h.id}" ${h.level >= 100 ? 'disabled' : ''}>
-            ${h.level >= 100 ? 'MAX' : `${h.nextCost} ❄️`}
+          <button class="btn btn-gold btn-sm" data-hire="${h.id}" ${h.level >= 2000 ? 'disabled' : ''}>
+            ${h.level >= 2000 ? 'MAX' : `${h.nextCost} ❄️`}
           </button>
         </div>
       `,
@@ -1622,6 +1622,11 @@ function renderPanel() {
       ${leaderboard
         .slice(0, 8)
         .map((entry, idx) => {
+          const socialDaily = player.socialDaily?.date === new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10)
+            ? player.socialDaily
+            : { likes: 0, gifts: 0 };
+          const likesLeft = Math.max(0, 3 - (Number(socialDaily.likes) || 0));
+          const giftsLeft = Math.max(0, 3 - (Number(socialDaily.gifts) || 0));
           const isMe = String(entry.userId) === String(player.userId);
           const frameCls = entry.equippedFrame ? entry.equippedFrame.replace('_', '-') : '';
           const avaHtml = entry.avatarUrl
@@ -1639,8 +1644,8 @@ function renderPanel() {
               ${isMe
               ? '<span class="tag">Bạn</span>'
               : `<div class="friend-actions">
-                      <button class="btn btn-sm btn-outline" data-visit="like" data-target="${entry.userId}" title="Thả tim giúp xưởng bạn">❤️</button>
-                      <button class="btn btn-sm btn-green" data-visit="gift" data-target="${entry.userId}" ${Object.values(player.toys || {}).reduce((s, n) => s + Math.max(0, Number(n) || 0), 0) <= 0 ? 'disabled' : ''} title="Tặng ngẫu nhiên 1 đồ chơi trong kho">🎁</button>
+                      <button class="btn btn-sm btn-outline" data-visit="like" data-target="${entry.userId}" ${likesLeft <= 0 ? "disabled" : ""} title="Thả tim (còn ${likesLeft}/3 lượt hôm nay)">❤️ ${likesLeft}/3</button>
+                      <button class="btn btn-sm btn-green" data-visit="gift" data-target="${entry.userId}" ${giftsLeft <= 0 || Object.values(player.toys || {}).reduce((s, n) => s + Math.max(0, Number(n) || 0), 0) <= 0 ? "disabled" : ""} title="Tặng quà (còn ${giftsLeft}/3 lượt hôm nay)">🎁 ${giftsLeft}/3</button>
                     </div>`
             }
             </div>
