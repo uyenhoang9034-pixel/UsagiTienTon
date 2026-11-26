@@ -1624,9 +1624,10 @@ function renderPanel() {
         .map((entry, idx) => {
           const socialDaily = player.socialDaily?.date === new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10)
             ? player.socialDaily
-            : { likes: 0, gifts: 0 };
-          const likesLeft = Math.max(0, 3 - (Number(socialDaily.likes) || 0));
-          const giftsLeft = Math.max(0, 3 - (Number(socialDaily.gifts) || 0));
+            : { targets: {} };
+          const targetDaily = socialDaily.targets?.[String(entry.userId)] || { likes: 0, gifts: 0 };
+          const likesLeft = Math.max(0, 3 - (Number(targetDaily.likes) || 0));
+          const giftsLeft = Math.max(0, 3 - (Number(targetDaily.gifts) || 0));
           const isMe = String(entry.userId) === String(player.userId);
           const frameCls = entry.equippedFrame ? entry.equippedFrame.replace('_', '-') : '';
           const avaHtml = entry.avatarUrl
