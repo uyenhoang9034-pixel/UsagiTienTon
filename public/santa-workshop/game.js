@@ -1,4 +1,4 @@
-import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126s';
+import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126t';
 
 const STATE = {
   token: 'demo',
@@ -986,19 +986,24 @@ function drawWheelCanvas() {
   ctx.fillText('🎄', cx, cy + 5);
 }
 
-async function spinLuckyWheel() {
+async function spinLuckyWheel(count = 1) {
   if (STATE.wheelSpinning) return;
   const segments = STATE.data?.wheelSegments || [];
   if (segments.length === 0) return;
 
+  const btn1 = document.getElementById('btn-spin-now');
+  const btn10 = document.getElementById('btn-spin-10');
   STATE.wheelSpinning = true;
-  document.getElementById('btn-spin-now').disabled = true;
-  document.getElementById('wheel-result').textContent = 'Đang quay số... 🎶';
+  if (btn1) btn1.disabled = true;
+  if (btn10) btn10.disabled = true;
+  document.getElementById('wheel-result').textContent =
+    count > 1 ? `Đang quay nhanh x${count}... 🎶` : 'Đang quay số... 🎶';
 
-  const res = await apiRequest('/api/santa/wheel', 'POST', {});
+  const res = await apiRequest('/api/santa/wheel', 'POST', { count });
   if (!res?.ok) {
     STATE.wheelSpinning = false;
-    document.getElementById('btn-spin-now').disabled = false;
+    if (btn1) btn1.disabled = false;
+    if (btn10) btn10.disabled = (STATE.data?.player?.luckyTickets || 0) < 10;
     document.getElementById('wheel-result').textContent = res?.message || 'Không thể quay!';
     return;
   }
@@ -1028,7 +1033,8 @@ async function spinLuckyWheel() {
       requestAnimationFrame(animate);
     } else {
       STATE.wheelSpinning = false;
-      document.getElementById('btn-spin-now').disabled = false;
+      if (btn1) btn1.disabled = false;
+      if (btn10) btn10.disabled = ((res.state?.player?.luckyTickets ?? STATE.data?.player?.luckyTickets) || 0) < 10;
       christmasAudio.playJackpotSfx();
       document.getElementById('wheel-result').textContent = res.message;
       if (res.state) {
@@ -1113,6 +1119,10 @@ function renderHud() {
   document.getElementById('snow-coins').textContent = player.snowCoins;
   document.getElementById('reputation').textContent = player.reputation;
   document.getElementById('wheel-tickets-count').textContent = player.luckyTickets || 0;
+  const btnSpin10 = document.getElementById('btn-spin-10');
+  if (btnSpin10 && !STATE.wheelSpinning) {
+    btnSpin10.disabled = (player.luckyTickets || 0) < 10;
+  }
 
   const avatarImg = document.getElementById('player-avatar');
   const fallback = document.getElementById('player-avatar-fallback');
@@ -1779,7 +1789,8 @@ function bindEvents() {
     }
   });
 
-  document.getElementById('btn-spin-now').addEventListener('click', spinLuckyWheel);
+  document.getElementById('btn-spin-now').addEventListener('click', () => spinLuckyWheel(1));
+  document.getElementById('btn-spin-10').addEventListener('click', () => spinLuckyWheel(10));
 
   document.getElementById('btn-close-upgrade').addEventListener('click', () => {
     document.getElementById('upgrade-modal').classList.add('hidden');

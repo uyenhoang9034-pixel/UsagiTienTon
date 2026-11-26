@@ -211,7 +211,7 @@ export function registerSantaWorkshopRoutes(app, client) {
     ['/api/santa/upgrade', (_req, id) => handleSantaUpgrade(client, id)],
     ['/api/santa/shop/buy', (req, id) => handleSantaBuyItem(client, id, req.body?.itemId)],
     ['/api/santa/equip-frame', (req, id) => handleSantaEquipFrame(client, id, req.body?.frameId)],
-    ['/api/santa/wheel', (_req, id) => handleSantaSpinWheel(client, id)],
+    ['/api/santa/wheel', (req, id) => handleSantaSpinWheel(client, id, req.body?.count)],
     ['/api/santa/hire-helper', (req, id) => handleSantaHireHelper(client, id, req.body?.helperId)],
     ['/api/santa/fever-claim', (req, id) => handleSantaFeverBonus(client, id, { hits: req.body?.hits })],
     ['/api/santa/equip', (req, id) => handleSantaEquipCosmetic(client, id, { kind: req.body?.kind, itemId: req.body?.itemId })],

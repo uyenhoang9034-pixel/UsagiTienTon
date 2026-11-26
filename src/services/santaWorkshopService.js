@@ -808,9 +808,9 @@ async function announceToDiscordChannel(client, guildId, content) {
       client.channels?.cache?.get(cfg.announceChannelId) ||
       (await client.channels?.fetch?.(cfg.announceChannelId).catch(() => null));
     if (ch && typeof ch.send === 'function') {
-      await ch.send(content).catch(() => {});
+      await ch.send(content).catch(() => { });
     }
-  } catch {}
+  } catch { }
 }
 
 function getTreeLevelFromPoints(points) {
@@ -884,6 +884,7 @@ async function updateLeaderboard(client, guildId, player) {
     totalDelivered: player.totalDelivered || 0,
     equippedFrame: player.equippedFrame || null,
   });
+  filtered.sort((a, b) => (b.reputation - a.reputation) || (b.snowCoins - a.snowCoins));
   filtered.sort(compareLeaderboardEntries);
   await setDatabaseValue(client, key, filtered.slice(0, 25));
 }
@@ -895,7 +896,7 @@ export async function getSantaLeaderboard(client, guildId) {
   const clean = list.filter((e) => !isGuestUserId(e?.userId));
   clean.sort(compareLeaderboardEntries);
   if (clean.length !== list.length) {
-    await setDatabaseValue(client, key, clean).catch(() => {});
+    await setDatabaseValue(client, key, clean).catch(() => { });
   }
   return clean;
 }
@@ -1531,59 +1532,102 @@ export async function handleSantaEquipFrame(client, identity, frameId) {
   };
 }
 
-export async function handleSantaSpinWheel(client, identity) {
+export async function handleSantaSpinWheel(client, identity, rawCount = 1) {
   const guildId = identity.guildId || 'global';
   const player = await getOrCreateSantaPlayer(client, identity);
+  const spinCount = Math.max(1, Math.min(10, Math.floor(Number(rawCount) || 1)));
 
-  if ((player.luckyTickets || 0) <= 0) {
+  if ((player.luckyTickets || 0) < spinCount) {
     return {
       ok: false,
-      message: 'Bạn đã hết Vé Quay Số! Hãy ghé Shop Giáng Sinh mua thêm nhé 🎟️',
+      message:
+        spinCount > 1
+          ? `Bạn cần ít nhất ${spinCount} Vé Quay Số để quay x${spinCount}! (Hiện có ${player.luckyTickets || 0} 🎟️)`
+          : 'Bạn đã hết Vé Quay Số! Hãy ghé Shop Giáng Sinh mua thêm nhé 🎟️',
       state: await buildSantaStatePayload(client, identity),
     };
   }
 
-  player.luckyTickets -= 1;
+  player.luckyTickets -= spinCount;
   const scaledSegments = getScaledWheelSegments(player.workshopLevel || 1);
-  const wheelIndex = Math.floor(Math.random() * scaledSegments.length);
-  const seg = scaledSegments[wheelIndex];
-  let prizeText = seg.label;
+  const repBonusPerJackpot = Math.round(40 * (1 + ((player.workshopLevel || 1) - 1) * 0.5));
 
-  if (seg.type === 'coins') {
-    player.snowCoins += seg.amount;
-    prizeText = `+${seg.amount} ❄️ Xu Tuyết!`;
-  } else if (seg.type === 'magicDust') {
-    player.materials.magicDust += seg.amount;
-    prizeText = `+${seg.amount} ✨ Bụi phép!`;
-  } else if (seg.type === 'rep') {
-    player.reputation += seg.amount;
-    prizeText = `+${seg.amount} ⭐ Điểm Danh Vọng!`;
-  } else if (seg.type === 'mats') {
-    player.materials.wood += seg.amount;
-    player.materials.fabric += seg.amount;
-    prizeText = `+${seg.amount} 🌲 Gỗ thông & +${seg.amount} 🧶 Vải đỏ!`;
-  } else if (seg.type === 'tickets') {
-    player.luckyTickets += seg.amount;
-    prizeText = `+${seg.amount} 🎟️ Vé Quay Số!`;
-  } else if (seg.type === 'jackpot') {
-    const repBonus = Math.round(40 * (1 + ((player.workshopLevel || 1) - 1) * 0.5));
-    player.snowCoins += seg.amount;
-    player.reputation += repBonus;
-    prizeText = `JACKPOT! +${seg.amount} ❄️ Xu Tuyết & +${repBonus} ⭐ Danh Vọng!`;
+  let lastWheelIndex = 0;
+  let lastPrizeText = '';
+  let totalCoins = 0;
+  let totalMagicDust = 0;
+  let totalRep = 0;
+  let totalMats = 0;
+  let totalTickets = 0;
+  let jackpotCount = 0;
+
+  for (let i = 0; i < spinCount; i += 1) {
+    const wheelIndex = Math.floor(Math.random() * scaledSegments.length);
+    const seg = scaledSegments[wheelIndex];
+    lastWheelIndex = wheelIndex;
+
+    if (seg.type === 'coins') {
+      player.snowCoins += seg.amount;
+      totalCoins += seg.amount;
+      lastPrizeText = `+${seg.amount} ❄️ Xu Tuyết!`;
+    } else if (seg.type === 'magicDust') {
+      player.materials.magicDust += seg.amount;
+      totalMagicDust += seg.amount;
+      lastPrizeText = `+${seg.amount} ✨ Bụi phép!`;
+    } else if (seg.type === 'rep') {
+      player.reputation += seg.amount;
+      totalRep += seg.amount;
+      lastPrizeText = `+${seg.amount} ⭐ Điểm Danh Vọng!`;
+    } else if (seg.type === 'mats') {
+      player.materials.wood += seg.amount;
+      player.materials.fabric += seg.amount;
+      totalMats += seg.amount;
+      lastPrizeText = `+${seg.amount} 🌲 Gỗ thông & +${seg.amount} 🧶 Vải đỏ!`;
+    } else if (seg.type === 'tickets') {
+      player.luckyTickets += seg.amount;
+      totalTickets += seg.amount;
+      lastPrizeText = `+${seg.amount} 🎟️ Vé Quay Số!`;
+    } else if (seg.type === 'jackpot') {
+      player.snowCoins += seg.amount;
+      player.reputation += repBonusPerJackpot;
+      totalCoins += seg.amount;
+      totalRep += repBonusPerJackpot;
+      jackpotCount += 1;
+      lastPrizeText = `JACKPOT! +${seg.amount} ❄️ Xu Tuyết & +${repBonusPerJackpot} ⭐ Danh Vọng!`;
+    }
+  }
+
+  if (jackpotCount > 0) {
+    const jackpotSeg = scaledSegments.find((s) => s.type === 'jackpot');
+    const jackpotCoins = (jackpotSeg?.amount || 0) * jackpotCount;
+    const prefix = jackpotCount > 1 ? `**${jackpotCount}x JACKPOT ĐÊM NOEL!**` : '**JACKPOT ĐÊM NOEL!**';
     announceToDiscordChannel(
       client,
       guildId,
-      `🎰 **JACKPOT ĐÊM NOEL!** Chúc mừng <@${player.userId}> vừa quay trúng **+${seg.amount} ❄️ Xu Tuyết** tại Vòng Quay Xưởng Quà Ông Già Noel!`,
+      `🎰 ${prefix} Chúc mừng <@${player.userId}> vừa quay trúng **+${jackpotCoins} ❄️ Xu Tuyết** tại Vòng Quay Xưởng Quà Ông Già Noel!`,
     );
   }
 
-  bumpDailyQuest(player, 'q_wheel_1', 1);
+  let prizeText = lastPrizeText;
+  if (spinCount > 1) {
+    const parts = [];
+    if (jackpotCount > 0) parts.push(`🎉 ${jackpotCount}x JACKPOT!`);
+    if (totalCoins > 0) parts.push(`+${totalCoins} ❄️ Xu`);
+    if (totalMagicDust > 0) parts.push(`+${totalMagicDust} ✨ Bụi phép`);
+    if (totalRep > 0) parts.push(`+${totalRep} ⭐ Danh vọng`);
+    if (totalMats > 0) parts.push(`+${totalMats} 🌲🧶 Nguyên liệu`);
+    if (totalTickets > 0) parts.push(`+${totalTickets} 🎟️ Vé`);
+    prizeText = parts.join(' • ');
+  }
+
+  bumpDailyQuest(player, 'q_wheel_1', spinCount);
   await savePlayer(client, guildId, player);
   return {
     ok: true,
-    wheelIndex,
+    spinCount,
+    wheelIndex: lastWheelIndex,
     prizeText,
-    message: `🎡 Trúng thưởng: ${prizeText}`,
+    message: spinCount > 1 ? `🎡 Quay x${spinCount} trúng: ${prizeText}` : `🎡 Trúng thưởng: ${prizeText}`,
     state: await buildSantaStatePayload(client, identity),
   };
 }

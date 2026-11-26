@@ -7,8 +7,8 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <title>Xưởng Quà Của Ông Già Noel — Usagi Activity</title>
-    <link rel="stylesheet" href="./style.css?v=20261126s" />
-    <script src="./vendor/phaser.min.js?v=20261126s"></script>
+    <link rel="stylesheet" href="./style.css?v=20261126t" />
+    <script src="./vendor/phaser.min.js?v=20261126t"></script>
   </head>
   <body>
     <div id="app">
@@ -91,9 +91,14 @@
             <canvas id="wheel-canvas" width="280" height="280"></canvas>
           </div>
           <div id="wheel-result" class="wheel-result">Nhấn nút để thử vận may đêm Noel!</div>
-          <button id="btn-spin-now" class="btn btn-gold" style="width: 100%">
-            🎡 Quay Ngay (<span id="wheel-tickets-count">0</span> 🎟️)
-          </button>
+          <div style="display: flex; gap: 8px; width: 100%">
+            <button id="btn-spin-now" class="btn btn-gold" style="flex: 1">
+              🎡 Quay x1 (<span id="wheel-tickets-count">0</span> 🎟️)
+            </button>
+            <button id="btn-spin-10" class="btn btn-gold" style="flex: 1">
+              ⚡ Quay x10 (10 🎟️)
+            </button>
+          </div>
         </div>
       </div>
 
@@ -161,6 +166,6 @@
       </nav>
     </div>
 
-    <script type="module" src="./game.js?v=20261126s"></script>
+    <script type="module" src="./game.js?v=20261126t"></script>
   </body>
 </html>
