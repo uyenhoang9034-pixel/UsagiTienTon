@@ -159,6 +159,14 @@ export async function handleDuoBondBreakupRespond(client, identity, accept) {
     await persistPair(client, guildId, pair);
     return { ok: true, message: 'Bạn đã từ chối. Hai người vẫn tiếp tục đồng hành cùng Tony.' };
   }
+  if (pair.pendingTrade) {
+    const escrowOwner = await getPlayer(client, guildId, pair.pendingTrade.fromId);
+    if (escrowOwner) {
+      escrowOwner.materials = escrowOwner.materials || {};
+      escrowOwner.materials[pair.pendingTrade.offerMat] = (escrowOwner.materials[pair.pendingTrade.offerMat] || 0) + pair.pendingTrade.offerAmount;
+      await savePlayer(client, guildId, escrowOwner);
+    }
+  }
   pair.status = 'ended';
   pair.endedAt = Date.now();
   await persistPair(client, guildId, pair);
