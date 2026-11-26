@@ -280,8 +280,10 @@ test('Giới hạn mỗi người 3 lượt tim và 3 lượt tặng quà mỗi 
   const client = createMemoryClient();
   const identity = { userId: 'social_elf', username: 'SocialElf', guildId: 'social_guild' };
   const friend = { userId: 'social_friend', username: 'FriendElf', guildId: 'social_guild' };
+  const friend2 = { userId: 'social_friend_2', username: 'FriendElf2', guildId: 'social_guild' };
   await buildSantaStatePayload(client, identity);
   await buildSantaStatePayload(client, friend);
+  await buildSantaStatePayload(client, friend2);
 
   const playerKey = 'santa:player:social_guild:social_elf';
   const player = await client.db.get(playerKey);
@@ -294,6 +296,8 @@ test('Giới hạn mỗi người 3 lượt tim và 3 lượt tặng quà mỗi 
   }
   const fourthLike = await handleSantaVisitFriend(client, identity, { targetUserId: friend.userId, action: 'like' });
   assert.equal(fourthLike.ok, false);
+  const otherFriendLike = await handleSantaVisitFriend(client, identity, { targetUserId: friend2.userId, action: 'like' });
+  assert.equal(otherFriendLike.ok, true);
 
   for (let i = 0; i < 3; i += 1) {
     const result = await handleSantaVisitFriend(client, identity, { targetUserId: friend.userId, action: 'gift' });
