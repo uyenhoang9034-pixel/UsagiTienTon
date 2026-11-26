@@ -215,7 +215,7 @@ export async function handleDuoBondToy(client, identity, toyId) {
 export async function handleDuoBondStorage(client, identity, action, material, amount) {
   const guildId = identity.guildId || 'global', uid = String(identity.userId);
   const pair = await getPair(client, guildId, uid);
-  const qty = Math.floor(Number(amount));
+  const qty = Number(amount);
   if (!pair || !MATERIALS.includes(material) || !Number.isSafeInteger(qty) || qty < 1 || qty > 1000000000) return { ok: false, message: 'Thông tin thao tác kho chung không hợp lệ.' };
   const p = await getPlayer(client, guildId, uid);
   if (!p) return { ok: false, message: 'Không tìm thấy hồ sơ Xưởng Noel.' };
@@ -236,7 +236,7 @@ export async function handleDuoBondTradeCreate(client, identity, { offerMat, off
   if (!pair || !MATERIALS.includes(offerMat) || !MATERIALS.includes(wantMat) || offerMat === wantMat) return { ok: false, message: 'Giao dịch không hợp lệ hoặc bạn chưa kết đôi.' };
   if (pair.pendingTrade) return { ok: false, message: 'Cặp đôi đang có một giao dịch chờ duyệt.' };
   if (d.trades >= DAILY_TRADES) return { ok: false, message: 'Hai bạn đã hoàn tất đủ 10 giao dịch hôm nay.' };
-  const a = Math.floor(Number(offerAmount)), b = Math.floor(Number(wantAmount));
+  const a = Number(offerAmount), b = Number(wantAmount);
   if (![a,b].every(n => Number.isSafeInteger(n) && n > 0 && n <= 100000000)) return { ok: false, message: 'Số lượng giao dịch không hợp lệ.' };
   const p = await getPlayer(client, guildId, uid);
   if (!p || Number(p.materials?.[offerMat] || 0) < a) return { ok: false, message: 'Kho cá nhân không đủ nguyên liệu để đặt giao dịch.' };
