@@ -1,4 +1,4 @@
-import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126q';
+import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126r';
 
 const STATE = {
   token: 'demo',
@@ -484,6 +484,39 @@ class SantaWorkshopScene extends Phaser.Scene {
       repeat: -1,
       ease: 'Sine.easeInOut',
     });
+
+    // Hiệu ứng hạt phát sáng thật sự quanh Yêu Tinh theo từng trang phục đặc biệt
+    if (this.elfAuraTimer) {
+      this.elfAuraTimer.remove(false);
+      this.elfAuraTimer = null;
+    }
+    const auraMap = {
+      skin_fairy: '❄️',
+      skin_golden: '✨',
+      skin_wizard: '🪄',
+      skin_angel: '⭐',
+      skin_reindeer_suit: '🔴',
+    };
+    const auraChar = auraMap[skin];
+    if (auraChar) {
+      this.elfAuraTimer = this.time.addEvent({
+        delay: 480,
+        loop: true,
+        callback: () => {
+          if (!this.elf || !this.elf.active) return;
+          const ox = this.elf.x + Phaser.Math.Between(-34, 34);
+          const oy = this.elf.y + Phaser.Math.Between(-24, 30);
+          const p = this.add.text(ox, oy, auraChar, { fontSize: '12px' }).setOrigin(0.5).setDepth(7);
+          this.tweens.add({
+            targets: p,
+            y: oy - 26,
+            alpha: 0,
+            duration: 900,
+            onComplete: () => p.destroy(),
+          });
+        },
+      });
+    }
   }
 
   syncVisualCosmetics(force = false) {
@@ -567,10 +600,20 @@ class SantaWorkshopScene extends Phaser.Scene {
           })
           .setOrigin(0.5)
           .setDepth(6);
+        const runDurationMap = {
+          pet_dragon: 1300,
+          pet_husky: 1800,
+          pet_fox: 2300,
+          pet_snowman: 2800,
+          pet_reindeer: 3200,
+          pet_penguin: 3400,
+          pet_usagi: 4000,
+        };
+        const runDuration = Math.max(850, (runDurationMap[petId] || 3800) - (petLv - 1) * 180);
         this.tweens.add({
           targets: this.petSprite,
           x: this.scale.width * 0.6,
-          duration: 3800,
+          duration: runDuration,
           yoyo: true,
           repeat: -1,
           ease: 'Sine.easeInOut',
@@ -743,17 +786,19 @@ class SantaWorkshopScene extends Phaser.Scene {
       const petLv = STATE.data?.player?.petLevels?.[petId] || 1;
       const baseInterval =
         petId === 'pet_dragon'
-          ? 600
+          ? 380
           : petId === 'pet_husky'
-            ? 750
+            ? 550
             : petId === 'pet_fox'
-              ? 900
-              : petId === 'pet_reindeer'
-                ? 1100
-                : petId === 'pet_snowman'
-                  ? 1200
-                  : 1600;
-      const petInterval = Math.max(420, baseInterval - (petLv - 1) * 100);
+              ? 750
+              : petId === 'pet_snowman'
+                ? 950
+                : petId === 'pet_reindeer'
+                  ? 1150
+                  : petId === 'pet_penguin'
+                    ? 1250
+                    : 1500;
+      const petInterval = Math.max(250, baseInterval - (petLv - 1) * 50);
       const petEmoji =
         petId === 'pet_dragon'
           ? '🐲'

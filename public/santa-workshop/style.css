@@ -196,7 +196,16 @@ body {
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.9));
 }
 
-/* 6. Khung Chuông Vàng Đôi: viền lá thông kép + chuông vàng trên đỉnh + ruy băng dưới */
+@keyframes santa-swing {
+  0%, 100% {
+    transform: translateX(-50%) rotate(-12deg);
+  }
+  50% {
+    transform: translateX(-50%) rotate(12deg);
+  }
+}
+
+/* 6. Khung Chuông Vàng Đôi: viền lá thông kép + chuông vàng rung lắc + ruy băng dưới */
 .avatar-wrapper.frame-bells {
   border: 4px double #2ecc71;
   outline: 2px solid #e63946;
@@ -208,8 +217,8 @@ body {
   position: absolute;
   top: -12px;
   left: 50%;
-  transform: translateX(-50%);
   font-size: 16px;
+  animation: santa-swing 1.2s ease-in-out infinite;
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.9));
 }
 .avatar-wrapper.frame-bells::after {

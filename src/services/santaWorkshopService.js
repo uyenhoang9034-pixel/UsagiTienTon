@@ -295,7 +295,7 @@ export const SHOP_ITEMS = [
     name: 'Người Tuyết Tí Hon',
     icon: '⛄',
     price: 550,
-    description: 'Chạy lon ton trong xưởng & tự nhặt quà Fever mỗi 1.2 giây!',
+    description: 'Chạy lon ton trong xưởng & tự nhặt quà Fever mỗi 0.95 giây!',
   },
   {
     id: 'pet_fox',
@@ -303,7 +303,7 @@ export const SHOP_ITEMS = [
     name: 'Cáo Tuyết Bắc Cực',
     icon: '🦊',
     price: 900,
-    description: 'Siêu tốc độ! Tự động nhặt hộ quà Fever mỗi 0.9 giây!',
+    description: 'Nhanh nhẹn! Tự động nhặt hộ quà Fever mỗi 0.75 giây!',
   },
   {
     id: 'skin_ginger',
@@ -407,7 +407,7 @@ export const SHOP_ITEMS = [
     name: 'Chó Tuyết Husky',
     icon: '🐺',
     price: 1400,
-    description: 'Trung thành & nhanh nhẹn! Tự động nhặt quà Fever mỗi 0.75 giây!',
+    description: 'Chạy cực nhanh & tự động nhặt quà Fever mỗi 0.55 giây!',
   },
   {
     id: 'pet_dragon',
@@ -415,7 +415,7 @@ export const SHOP_ITEMS = [
     name: 'Rồng Tuyết Tí Hon',
     icon: '🐲',
     price: 2800,
-    description: 'Thú cưng huyền thoại! Nhặt quà Fever siêu tốc mỗi 0.6 giây!',
+    description: 'Thú cưng huyền thoại! Bay siêu tốc & nhặt quà Fever mỗi 0.38 giây!',
   },
   {
     id: 'mat_pack_legend',
