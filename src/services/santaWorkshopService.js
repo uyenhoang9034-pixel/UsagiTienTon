@@ -724,7 +724,9 @@ export function computePendingIdleMaterials(player, now = Date.now(), partySize 
   const elapsedMinutes = Math.min(MAX_IDLE_MINUTES, elapsedMs / 60000);
   const levelMultiplier = 1 + (Math.max(1, player.workshopLevel || 1) - 1) * 0.35;
   const personalMult = (player.personalBuffExpiresAt || 0) > now ? 3 : 1;
-  const coopMult = 1 + (Math.max(1, Math.min(10, Number(partySize) || 1)) - 1) * 0.15;
+  const voiceBuff = (Math.max(1, Math.min(10, Number(partySize) || 1)) - 1) * 0.15;
+  const duoBuff = Math.max(0, Number(player.duoBondBuffPct) || 0) / 100;
+  const coopMult = 1 + voiceBuff + duoBuff;
   const helpers = player.helpers || {};
 
   const helperBonuses = { wood: 0, fabric: 0, magicDust: 0, ribbon: 0 };
