@@ -230,22 +230,23 @@ body {
   font-size: 14px;
 }
 
-/* 7. Khung Quả Cầu Tuyết Pha Lê: vòm kính phản chiếu + đế gỗ đỏ khắc vàng */
+/* 7. Khung Quả Cầu Tuyết Pha Lê: vòm kính pha lê lấp lánh + đế vương miện đồng đỏ ôm sát cầu */
 .avatar-wrapper.frame-snowglobe {
-  border: 3px solid #bde0fe;
-  box-shadow: inset 4px 4px 10px rgba(255, 255, 255, 0.55), 0 0 14px rgba(144, 224, 239, 0.8);
+  border: 3px solid rgba(189, 224, 254, 0.95);
+  box-shadow:
+    inset 4px 5px 10px rgba(255, 255, 255, 0.72),
+    inset -3px -4px 8px rgba(0, 180, 216, 0.45),
+    0 0 16px rgba(144, 224, 239, 0.85);
 }
 .avatar-wrapper.frame-snowglobe::before {
-  content: '';
+  content: '❄️';
   position: absolute;
-  top: 3px;
-  left: 6px;
-  width: 14px;
-  height: 7px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.55);
-  transform: rotate(-28deg);
-  z-index: 2;
+  top: -7px;
+  left: -6px;
+  font-size: 13px;
+  z-index: 3;
+  animation: santa-pulse 2s ease-in-out infinite;
+  filter: drop-shadow(0 0 5px #ffffff);
 }
 .avatar-wrapper.frame-snowglobe::after {
   content: '';
@@ -253,11 +254,12 @@ body {
   bottom: -6px;
   left: 50%;
   transform: translateX(-50%);
-  width: 78%;
-  height: 8px;
-  border-radius: 4px;
-  background: linear-gradient(90deg, #9e2a2b, #e63946, #9e2a2b);
-  border: 1.5px solid #ffd166;
+  width: 68%;
+  height: 7px;
+  border-radius: 2px 2px 8px 8px;
+  background: linear-gradient(90deg, #b5173d, #ffd166, #b5173d);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.75);
+  z-index: 3;
 }
 
 /* 8. Khung Cực Quang Bắc Cực: dải cực quang xoay + mũ Noel nghiêng */
@@ -446,6 +448,8 @@ body {
   border-top: 1px solid var(--border);
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 209, 102, 0.45) transparent;
   z-index: 15;
 }
 

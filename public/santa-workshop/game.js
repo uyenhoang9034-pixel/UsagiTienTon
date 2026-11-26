@@ -1,4 +1,4 @@
-import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126r';
+import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126s';
 
 const STATE = {
   token: 'demo',
@@ -1137,7 +1137,9 @@ function formatCountdown(expiresAt) {
 
 function renderPanel() {
   const container = document.getElementById('panel-content');
+  const overlay = document.getElementById('panel-overlay');
   if (!STATE.data || !container) return;
+  const savedScrollTop = overlay ? overlay.scrollTop : 0;
 
   const {
     player,
@@ -1673,6 +1675,13 @@ function renderPanel() {
         });
         if (r?.ok) christmasAudio.playCoinSfx();
       };
+    });
+  }
+
+  if (overlay && savedScrollTop > 0) {
+    overlay.scrollTop = savedScrollTop;
+    requestAnimationFrame(() => {
+      overlay.scrollTop = savedScrollTop;
     });
   }
 }
