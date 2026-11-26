@@ -65,6 +65,14 @@ test('Duo Bond: kết đôi, thưởng mốc đầu, kho chung, giao dịch duy�
   let duo = await getDuoBondState(client, a);
   assert.equal(duo.pair.sharedStorage.wood, 3);
 
+  const rejectedOffer = await handleDuoBondTradeCreate(client, a, { offerMat: 'wood', offerAmount: 1, wantMat: 'fabric', wantAmount: 1 });
+  assert.equal(rejectedOffer.ok, true);
+  let escrowPlayer = await client.db.get(`santa:player:${guildId}:${a.userId}`);
+  assert.equal(escrowPlayer.materials.wood, 4);
+  assert.equal((await handleDuoBondTradeRespond(client, b, false)).ok, true);
+  escrowPlayer = await client.db.get(`santa:player:${guildId}:${a.userId}`);
+  assert.equal(escrowPlayer.materials.wood, 5);
+
   const created = await handleDuoBondTradeCreate(client, a, { offerMat: 'wood', offerAmount: 1, wantMat: 'fabric', wantAmount: 1 });
   assert.equal(created.ok, true);
   const approved = await handleDuoBondTradeRespond(client, b, true);
@@ -75,6 +83,7 @@ test('Duo Bond: kết đôi, thưởng mốc đầu, kho chung, giao dịch duy�
   assert.equal(pb.materials.wood, 2);
 
   assert.equal((await handleDuoBondBreakupRequest(client, a)).ok, true);
+  assert.equal((await handleDuoBondBreakupRespond(client, a, true)).ok, false);
   assert.equal((await handleDuoBondBreakupRespond(client, b, true)).ok, true);
   duo = await getDuoBondState(client, a);
   assert.equal(duo.pair, null);
