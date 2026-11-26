@@ -767,8 +767,8 @@ export function getUpgradeCost(level) {
   if (lv === 100) return 2_000_000;
   if (lv === 101) return 3_000_000;
   if (lv < 1000) return Math.round(3_000_000 + ((lv - 101) / 899) * 17_000_000);
-  if (lv < 1500) return Math.round(20_000_000 + (lv - 1000) * 360_000);
-  return Math.round(200_000_000 + (lv - 1500) * 1_600_000);
+  if (lv < 1500) return 20_000_000;
+  return 200_000_000;
 }
 
 export function getHelperUpgradeCost(helperDef, currentLevel = 0) {
