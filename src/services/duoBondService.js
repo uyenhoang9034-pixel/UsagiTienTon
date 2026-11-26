@@ -1,4 +1,4 @@
-import { getDatabaseValue, setDatabaseValue, deleteDatabaseValue } from '../utils/database.js';
+import { getDatabaseValue, setDatabaseValue, deleteDatabaseValue, listDatabaseKeys } from '../utils/database.js';
 
 const LEVEL_XP = [0, 30000, 100000, 250000, 600000, 1200000];
 const LEVEL_NAMES = ['Khởi đầu bạn bè', 'Friendzone', 'Một chút cảm nắng', 'Kết đôi tình yêu', 'Nắm tay vợ chồng', 'Tuổi già cùng nhau'];
@@ -26,11 +26,42 @@ async function savePlayer(client, guildId, player) {
   return setDatabaseValue(client, `santa:player:${guildId || 'global'}:${player.userId}`, player);
 }
 async function getPair(client, guildId, userId) {
-  const index = await getDatabaseValue(client, key(guildId, userId), null);
-  if (!index?.pairId) return null;
-  const pair = await getDatabaseValue(client, pairKey(guildId, index.pairId), null);
-  if (!pair || pair.status !== 'active') return null;
-  return pair;
+  const uid = String(userId);
+  const currentKey = key(guildId, uid);
+  const index = await getDatabaseValue(client, currentKey, null);
+
+  if (index?.pairId) {
+    const storedGuildId = index.guildId || guildId;
+    const pair = await getDatabaseValue(client, pairKey(storedGuildId, index.pairId), null);
+    if (pair?.status === 'active' && pair.members?.includes(uid)) return pair;
+  }
+
+  // Activity có thể trả guildId khác sau khi khởi động/cập nhật.
+  // Tìm index cũ theo userId để không làm mất liên kết đang lưu trong PostgreSQL.
+  const prefix = 'santa:duo:user:';
+  const candidateKeys = await listDatabaseKeys(client, prefix);
+  for (const candidateKey of candidateKeys) {
+    if (!candidateKey.startsWith(prefix) || !candidateKey.endsWith(`:${uid}`)) continue;
+    const storedGuildId = candidateKey.slice(prefix.length, -(uid.length + 1));
+    if (!storedGuildId) continue;
+
+    const candidateIndex = candidateKey === currentKey
+      ? index
+      : await getDatabaseValue(client, candidateKey, null);
+    if (!candidateIndex?.pairId) continue;
+
+    const pairGuildId = candidateIndex.guildId || storedGuildId;
+    const pair = await getDatabaseValue(client, pairKey(pairGuildId, candidateIndex.pairId), null);
+    if (!pair || pair.status !== 'active' || !pair.members?.includes(uid)) continue;
+
+    // Tạo alias ở scope hiện tại; dữ liệu gốc và pairId không bị thay đổi.
+    if (candidateKey !== currentKey) {
+      await setDatabaseValue(client, currentKey, { pairId: candidateIndex.pairId, guildId: pairGuildId });
+    }
+    return pair;
+  }
+
+  return null;
 }
 function getLevel(xp) {
   let level = 1;
