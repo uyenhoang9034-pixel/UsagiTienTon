@@ -27,6 +27,7 @@ import {
   getScaledRecipes,
   handleSantaFeedPet,
   handleSantaOpenAdvent,
+  getSantaLeaderboard,
 } from '../src/services/santaWorkshopService.js';
 
 function createMemoryClient() {
@@ -217,4 +218,12 @@ test('Luồng chơi Xưởng Quà Ông Già Noel: Điểm danh -> Giải đố -
   assert.equal(b1.ok, true);
   assert.equal(b2.ok, true);
   assert.equal(b3.ok, false); // Đã đánh 1 lần ở mục 13 + 2 lần ở đây = 3 lần -> lần thứ 4 bị chặn!
+
+  // 19. BXH xếp theo workshopLevel giảm dần -> cùng level xếp theo totalDelivered giảm dần
+  await client.db.set('santa:leaderboard:guild_sort', [
+    { userId: 'u_low_lv', username: 'Lv20', workshopLevel: 20, totalDelivered: 300, reputation: 9999 },
+    { userId: 'u_hi_lv', username: 'Lv21', workshopLevel: 21, totalDelivered: 30, reputation: 10 },
+  ]);
+  const sortedBoard = await getSantaLeaderboard(client, 'guild_sort');
+  assert.equal(sortedBoard[0].userId, 'u_hi_lv');
 });

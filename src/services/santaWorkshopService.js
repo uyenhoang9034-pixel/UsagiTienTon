@@ -856,6 +856,15 @@ function isGuestUserId(userId) {
   return !s || s.startsWith('guest_');
 }
 
+function compareLeaderboardEntries(a, b) {
+  return (
+    ((b.workshopLevel || 1) - (a.workshopLevel || 1)) ||
+    ((b.totalDelivered || 0) - (a.totalDelivered || 0)) ||
+    ((b.reputation || 0) - (a.reputation || 0)) ||
+    ((b.snowCoins || 0) - (a.snowCoins || 0))
+  );
+}
+
 async function updateLeaderboard(client, guildId, player) {
   if (isGuestUserId(player?.userId)) {
     return;
@@ -875,7 +884,7 @@ async function updateLeaderboard(client, guildId, player) {
     totalDelivered: player.totalDelivered || 0,
     equippedFrame: player.equippedFrame || null,
   });
-  filtered.sort((a, b) => (b.reputation - a.reputation) || (b.snowCoins - a.snowCoins));
+  filtered.sort(compareLeaderboardEntries);
   await setDatabaseValue(client, key, filtered.slice(0, 25));
 }
 
@@ -884,6 +893,7 @@ export async function getSantaLeaderboard(client, guildId) {
   const list = await getDatabaseValue(client, key, []);
   if (!Array.isArray(list)) return [];
   const clean = list.filter((e) => !isGuestUserId(e?.userId));
+  clean.sort(compareLeaderboardEntries);
   if (clean.length !== list.length) {
     await setDatabaseValue(client, key, clean).catch(() => {});
   }
