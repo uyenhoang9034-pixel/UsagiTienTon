@@ -1539,6 +1539,13 @@ function renderPanel() {
     const equippedPetObj = player.equippedPet ? shopItems.find((i) => i.id === player.equippedPet) : null;
     const equippedPetLv = player.equippedPet ? player.petLevels?.[player.equippedPet] || 1 : 1;
     const feedCost = 150 * equippedPetLv;
+    const workshopLv = Math.max(1, Number(player.workshopLevel) || 1);
+    const mysteryBoxPrice = Math.round(150 * (1 + (workshopLv - 1) * 0.5));
+    const mysteryBoxDaily = player.mysteryBoxDaily || {};
+    const mysteryBoxUsed = mysteryBoxDaily.date === new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' })
+      ? Math.max(0, Number(mysteryBoxDaily.count) || 0)
+      : 0;
+    const mysteryBoxRemaining = Math.max(0, 3 - mysteryBoxUsed);
 
     container.innerHTML = `
       ${
@@ -1563,7 +1570,7 @@ function renderPanel() {
       <div class="section-title">
         <span>🛒 Shop, Thú Cưng & Tủ Đồ</span>
         <div style="display:flex;gap:6px;">
-          <button class="btn btn-sm" id="btn-mystery-box">🎁 Hộp Bí Ẩn (150❄️)</button>
+          <button class="btn btn-sm" id="btn-mystery-box" ${mysteryBoxRemaining <= 0 ? 'disabled' : ''}>🎁 Hộp Bí Ẩn (${mysteryBoxPrice.toLocaleString('vi-VN')}❄️) · ${mysteryBoxRemaining}/3</button>
           <button class="btn btn-gold btn-sm" id="btn-open-wheel">🎡 Vòng Quay (${player.luckyTickets || 0} 🎟️)</button>
         </div>
       </div>
