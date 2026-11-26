@@ -6,6 +6,7 @@ import {
   handleDuoBondInvite,
   handleDuoBondAccept,
   handleDuoBondFeed,
+  handleDuoBondToy,
   handleDuoBondStorage,
   handleDuoBondTradeCreate,
   handleDuoBondTradeRespond,
@@ -96,4 +97,28 @@ test('Duo Bond: kết đôi, thưởng mốc đầu, kho chung, giao dịch duy�
   assert.equal(acceptAgain.ok, true);
   pa = await client.db.get(`santa:player:${guildId}:${a.userId}`);
   assert.equal(pa.materials.ribbon, 4004);
+});
+
+
+test('Duo Bond: 3 đồ chơi quý hiếm nhất đạt trần 1.800 XP và khóa cho ăn trong ngày', async () => {
+  const client = memoryClient();
+  const guildId = 'duo_toy_cap_test';
+  const a = { userId: '20000000000000001', username: 'Elf A', guildId };
+  const b = { userId: '20000000000000002', username: 'Elf B', guildId };
+  await buildSantaStatePayload(client, a);
+  await buildSantaStatePayload(client, b);
+  await handleDuoBondInvite(client, a, b.userId);
+  assert.equal((await handleDuoBondAccept(client, b)).ok, true);
+
+  const player = await client.db.get(`santa:player:${guildId}:${a.userId}`);
+  player.toys = player.toys || {};
+  player.toys.eternalGift = 3;
+  await client.db.set(`santa:player:${guildId}:${a.userId}`, player);
+
+  for (let i = 0; i < 3; i++) {
+    assert.equal((await handleDuoBondToy(client, a, 'eternalGift')).ok, true);
+  }
+  const duo = await getDuoBondState(client, a);
+  assert.equal(duo.pair.xp, 1800);
+  assert.equal((await handleDuoBondFeed(client, a)).ok, false);
 });
