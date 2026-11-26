@@ -106,7 +106,7 @@ export default {
             .setMaxLength(140)
             .setRequired(false),
         ),
-    ),
+    )
     .addSubcommand((sub) =>
       sub
         .setName('tangnguyenlieu')
