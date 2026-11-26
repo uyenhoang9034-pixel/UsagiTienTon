@@ -28,6 +28,19 @@ import {
   handleSantaFeedPet,
   handleSantaOpenAdvent,
 } from './santaWorkshopService.js';
+import {
+  getDuoBondState,
+  handleDuoBondInvite,
+  handleDuoBondAccept,
+  handleDuoBondDecline,
+  handleDuoBondBreakupRequest,
+  handleDuoBondBreakupRespond,
+  handleDuoBondFeed,
+  handleDuoBondToy,
+  handleDuoBondStorage,
+  handleDuoBondTradeCreate,
+  handleDuoBondTradeRespond,
+} from './duoBondService.js';
 import { logger } from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -195,12 +208,41 @@ export function registerSantaWorkshopRoutes(app, client) {
     try {
       const identity = await resolveIdentityFromRequest(req, client);
       const state = await buildSantaStatePayload(client, identity);
+      state.duoBond = await getDuoBondState(client, identity);
       res.json({ ok: true, state });
     } catch (err) {
       logger.error('[SantaWorkshop] /api/santa/state error:', err);
       res.status(500).json({ ok: false, message: 'Lỗi tải dữ liệu Xưởng Quà Noel.' });
     }
   });
+
+  const duoRoutes = [
+    ['/api/santa/duo/invite', (req, id) => handleDuoBondInvite(client, id, req.body?.targetUserId)],
+    ['/api/santa/duo/accept', (_req, id) => handleDuoBondAccept(client, id)],
+    ['/api/santa/duo/decline', (_req, id) => handleDuoBondDecline(client, id)],
+    ['/api/santa/duo/breakup/request', (_req, id) => handleDuoBondBreakupRequest(client, id)],
+    ['/api/santa/duo/breakup/respond', (req, id) => handleDuoBondBreakupRespond(client, id, Boolean(req.body?.accept))],
+    ['/api/santa/duo/feed', (_req, id) => handleDuoBondFeed(client, id)],
+    ['/api/santa/duo/toy', (req, id) => handleDuoBondToy(client, id, req.body?.toyId)],
+    ['/api/santa/duo/storage', (req, id) => handleDuoBondStorage(client, id, req.body?.action, req.body?.material, req.body?.amount)],
+    ['/api/santa/duo/trade/create', (req, id) => handleDuoBondTradeCreate(client, id, req.body || {})],
+    ['/api/santa/duo/trade/respond', (req, id) => handleDuoBondTradeRespond(client, id, Boolean(req.body?.accept))],
+  ];
+  for (const [routePath, handler] of duoRoutes) {
+    app.post(routePath, async (req, res) => {
+      try {
+        const identity = await resolveIdentityFromRequest(req, client);
+        const result = await handler(req, identity);
+        const duo = await getDuoBondState(client, identity);
+        const santaState = await buildSantaStatePayload(client, identity);
+        santaState.duoBond = duo;
+        res.json({ ...result, state: santaState });
+      } catch (err) {
+        logger.error(`[DuoBond] ${routePath} error:`, err);
+        res.status(500).json({ ok: false, message: 'Không thể xử lý Duo Bond lúc này.' });
+      }
+    });
+  }
 
   const actionRoutes = [
     ['/api/santa/collect', (req, id) => handleSantaCollect(client, id, { isTap: Boolean(req.body?.isTap) })],
