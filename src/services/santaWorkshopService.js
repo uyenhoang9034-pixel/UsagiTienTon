@@ -360,7 +360,7 @@ function getLeaderboardKey(guildId) {
 
 export function getScaledRecipe(recipe, workshopLevel = 1) {
   const lv = Math.max(1, Number(workshopLevel) || 1);
-  const matMult = 1 + (lv - 1) * 0.25;
+  const matMult = 1 + (lv - 1) * 0.6;
   const scaledIngredients = {};
   for (const [mat, req] of Object.entries(recipe.ingredients)) {
     scaledIngredients[mat] = Math.max(1, Math.round(req * matMult));
@@ -384,7 +384,7 @@ function createOrder(workshopLevel = 1) {
   const isSpecial = !isRush && roll < 0.5;
   const qty = workshopLevel >= 12 && Math.random() < 0.35 ? 3 : workshopLevel >= 3 && Math.random() < 0.35 ? 2 : 1;
   const multiplier = isRush ? 2.0 : isSpecial ? 1.5 : 1.0;
-  const levelRewardMult = 1 + (Math.max(1, workshopLevel) - 1) * 0.35;
+  const levelRewardMult = 1 + (Math.max(1, workshopLevel) - 1) * 1.0;
 
   return {
     id: `ord_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
