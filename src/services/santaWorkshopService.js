@@ -775,7 +775,7 @@ export function getHelperUpgradeCost(helperDef, currentLevel = 0) {
   const lv = Math.max(0, Math.min(MAX_SANTA_LEVEL - 1, Math.floor(Number(currentLevel) || 0)));
   const earlyCost = Math.round(helperDef.baseCost * (1 + lv * 0.45 + Math.pow(lv, 1.55) * 0.35));
   if (lv < 100) return earlyCost;
-  return Math.max(earlyCost, Math.round(getUpgradeCost(lv) * 0.1));
+  return Math.max(earlyCost, getUpgradeCost(lv));
 }
 
 export function getDailyRiddle(dateKey = getTodayKey()) {
