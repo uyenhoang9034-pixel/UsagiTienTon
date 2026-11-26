@@ -923,7 +923,34 @@ export async function cleanupGuestSantaData(client) {
   return { deletedPlayers, cleanedBoards };
 }
 
+let ticketInflationResetPromise = null;
+
+async function ensureSantaTicketInflationReset(client) {
+  if (ticketInflationResetPromise) return ticketInflationResetPromise;
+  ticketInflationResetPromise = (async () => {
+    const markerKey = 'santa:maintenance:ticket-inflation-reset-v1';
+    if (await getDatabaseValue(client, markerKey, false)) return { reset: false, count: 0 };
+    const keys = await listDatabaseKeys(client, 'santa:player:');
+    let count = 0;
+    for (const key of keys) {
+      const player = await getDatabaseValue(client, key, null);
+      if (!player || typeof player !== 'object') continue;
+      player.luckyTickets = 0;
+      if (await setDatabaseValue(client, key, player)) count += 1;
+    }
+    await setDatabaseValue(client, markerKey, { completedAt: Date.now(), resetPlayers: count });
+    logger.info(`[SantaWorkshop] Đã reset vé quay một lần cho ${count} người chơi.`);
+    return { reset: true, count };
+  })().catch((error) => {
+    ticketInflationResetPromise = null;
+    logger.error('[SantaWorkshop] Lỗi reset vé quay chống lạm phát:', error);
+    throw error;
+  });
+  return ticketInflationResetPromise;
+}
+
 export async function getOrCreateSantaPlayer(client, { userId, username, avatarUrl, guildId = 'global' }) {
+  await ensureSantaTicketInflationReset(client);
   const key = getPlayerKey(guildId, userId);
   let player = await getDatabaseValue(client, key, null);
   if (!player) {
@@ -1421,6 +1448,14 @@ export async function handleSantaBuyItem(client, identity, itemId) {
   }
 
   const weekKey = getWeekKey();
+  const todayKey = getTodayKey();
+  if (item.id === 'ticket_bundle_5' && player.dailyPurchases?.[item.id] === todayKey) {
+    return {
+      ok: false,
+      message: '⏳ Xấp 5 Vé Quay Số chỉ được mua 1 lần mỗi ngày! Ngày mai bạn quay lại nhé.',
+      state: await buildSantaStatePayload(client, identity),
+    };
+  }
   if (item.weeklyLimit && player.weeklyPurchases?.[item.id] === weekKey) {
     return {
       ok: false,
@@ -1488,6 +1523,10 @@ export async function handleSantaBuyItem(client, identity, itemId) {
     player.equippedSkin = item.id;
   } else if (item.type === 'ticket') {
     player.luckyTickets = (player.luckyTickets || 0) + (item.amount || 1);
+    if (item.id === 'ticket_bundle_5') {
+      player.dailyPurchases = player.dailyPurchases || {};
+      player.dailyPurchases[item.id] = todayKey;
+    }
   } else if (item.type === 'pack' && item.pack) {
     for (const [m, amt] of Object.entries(item.pack)) {
       player.materials[m] = (player.materials[m] || 0) + amt;
@@ -1551,6 +1590,7 @@ export async function handleSantaSpinWheel(client, identity, rawCount = 1) {
   player.luckyTickets -= spinCount;
   const scaledSegments = getScaledWheelSegments(player.workshopLevel || 1);
   const repBonusPerJackpot = Math.round(40 * (1 + ((player.workshopLevel || 1) - 1) * 0.5));
+  player.wheelPity = player.wheelPity || { spinsSinceJackpot: 0, spinsSinceTicket: 0 };
 
   let lastWheelIndex = 0;
   let lastPrizeText = '';
@@ -1562,9 +1602,26 @@ export async function handleSantaSpinWheel(client, identity, rawCount = 1) {
   let jackpotCount = 0;
 
   for (let i = 0; i < spinCount; i += 1) {
-    const wheelIndex = Math.floor(Math.random() * scaledSegments.length);
-    const seg = scaledSegments[wheelIndex];
-    lastWheelIndex = wheelIndex;
+    player.wheelPity.spinsSinceJackpot = Math.max(0, Number(player.wheelPity.spinsSinceJackpot) || 0) + 1;
+    player.wheelPity.spinsSinceTicket = Math.max(0, Number(player.wheelPity.spinsSinceTicket) || 0) + 1;
+
+    const jackpotDue = player.wheelPity.spinsSinceJackpot >= 100;
+    const ticketDue = player.wheelPity.spinsSinceTicket >= 100;
+    let wheelIndex;
+    if (jackpotDue) {
+      wheelIndex = scaledSegments.findIndex((segment) => segment.type === 'jackpot');
+      player.wheelPity.spinsSinceJackpot = 0;
+    } else if (ticketDue) {
+      wheelIndex = scaledSegments.findIndex((segment) => segment.type === 'tickets');
+      player.wheelPity.spinsSinceTicket = 0;
+    } else {
+      wheelIndex = Math.floor(Math.random() * scaledSegments.length);
+      const selected = scaledSegments[wheelIndex];
+      if (selected?.type === 'jackpot') player.wheelPity.spinsSinceJackpot = 0;
+      if (selected?.type === 'tickets') player.wheelPity.spinsSinceTicket = 0;
+    }
+    const seg = scaledSegments[wheelIndex >= 0 ? wheelIndex : 0];
+    lastWheelIndex = wheelIndex >= 0 ? wheelIndex : 0;
 
     if (seg.type === 'coins') {
       player.snowCoins += seg.amount;
@@ -1857,7 +1914,7 @@ export async function handleSantaClaimQuest(client, identity, questId) {
 }
 
 export async function grantSantaSnowCoins(client, { guildId = 'global', targetUser, amount, adminUser, note = '' }) {
-  const safeAmount = Math.max(1, Math.floor(Number(amount) || 0));
+  const safeAmount = Math.min(20000000000, Math.max(1, Math.floor(Number(amount) || 0)));
   const player = await getOrCreateSantaPlayer(client, {
     userId: targetUser.id,
     username: targetUser.globalName || targetUser.username || 'Yêu Tinh Noel',
@@ -2241,7 +2298,7 @@ export async function handleSantaOpenAdvent(client, identity, dayNumber) {
 
 
 export async function grantSantaRibbon(client, { guildId = 'global', targetUser, amount, adminUser, note = '' }) {
-  const safeAmount = Math.max(1, Math.floor(Number(amount) || 0));
+  const safeAmount = Math.min(2000000, Math.max(1, Math.floor(Number(amount) || 0)));
   const player = await getOrCreateSantaPlayer(client, {
     userId: targetUser.id,
     username: targetUser.globalName || targetUser.username || 'Yêu Tinh Noel',
