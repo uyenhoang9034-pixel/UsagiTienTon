@@ -89,10 +89,11 @@ test('Luồng chơi Xưởng Quà Ông Già Noel: Điểm danh -> Giải đố -
   assert.equal(upgradeRes.ok, true);
   assert.equal(upgradeRes.state.player.workshopLevel, 2);
 
-  // 7. Mua Khung Avatar & Quay số may mắn
+  // 7. Mua Khung Avatar & Quay số may mắn (đã scale theo Xưởng Cấp 2 = x1.5)
   const buyFrame = await handleSantaBuyItem(client, identity, 'frame_wreath');
   assert.equal(buyFrame.ok, true);
   assert.equal(buyFrame.state.player.equippedFrame, 'frame_wreath');
+  assert.equal(buyFrame.state.wheelMultiplier, 1.5);
 
   const spinRes = await handleSantaSpinWheel(client, identity);
   assert.equal(spinRes.ok, true);

@@ -271,15 +271,34 @@ export const ELF_HELPERS = [
 ];
 
 export const WHEEL_SEGMENTS = [
-  { label: '+40 ❄️', color: '#e63946', type: 'coins', amount: 40 },
-  { label: '+4 ✨', color: '#2a9d8f', type: 'magicDust', amount: 4 },
-  { label: '+60 ⭐', color: '#457b9d', type: 'rep', amount: 60 },
-  { label: '+80 ❄️', color: '#e76f51', type: 'coins', amount: 80 },
-  { label: '+5 🌲🧶', color: '#2d6a4f', type: 'mats', amount: 5 },
-  { label: '+120 ❄️', color: '#9b5de5', type: 'coins', amount: 120 },
+  { label: '+60 ❄️', color: '#e63946', type: 'coins', amount: 60 },
+  { label: '+5 ✨', color: '#2a9d8f', type: 'magicDust', amount: 5 },
+  { label: '+70 ⭐', color: '#457b9d', type: 'rep', amount: 70 },
+  { label: '+100 ❄️', color: '#e76f51', type: 'coins', amount: 100 },
+  { label: '+6 🌲🧶', color: '#2d6a4f', type: 'mats', amount: 6 },
+  { label: '+150 ❄️', color: '#9b5de5', type: 'coins', amount: 150 },
   { label: '+2 🎟️', color: '#f4a261', type: 'tickets', amount: 2 },
-  { label: 'JACKPOT 220❄️', color: '#d90429', type: 'jackpot', amount: 220 },
+  { label: 'JACKPOT 300❄️', color: '#d90429', type: 'jackpot', amount: 300 },
 ];
+
+export function getScaledWheelSegments(workshopLevel = 1) {
+  const lv = Math.max(1, Number(workshopLevel) || 1);
+  const mult = 1 + (lv - 1) * 0.5;
+  return WHEEL_SEGMENTS.map((seg) => {
+    if (seg.type === 'tickets') {
+      const tickets = lv >= 9 ? 4 : lv >= 5 ? 3 : 2;
+      return { ...seg, amount: tickets, label: `+${tickets} 🎟️` };
+    }
+    const scaled = Math.round(seg.amount * mult);
+    let label = seg.label;
+    if (seg.type === 'coins') label = `+${scaled} ❄️`;
+    else if (seg.type === 'magicDust') label = `+${scaled} ✨`;
+    else if (seg.type === 'rep') label = `+${scaled} ⭐`;
+    else if (seg.type === 'mats') label = `+${scaled} 🌲🧶`;
+    else if (seg.type === 'jackpot') label = `JACKPOT ${scaled}❄️`;
+    return { ...seg, amount: scaled, label };
+  });
+}
 
 const ORDER_CUSTOMERS = [
   { name: 'Bé Bông', icon: '👧' },
@@ -683,7 +702,8 @@ export async function buildSantaStatePayload(client, identity) {
       });
     })(),
     serverTree,
-    wheelSegments: WHEEL_SEGMENTS,
+    wheelSegments: getScaledWheelSegments(player.workshopLevel || 1),
+    wheelMultiplier: Number((1 + ((player.workshopLevel || 1) - 1) * 0.5).toFixed(2)),
     recipes: TOY_RECIPES,
     shopItems: SHOP_ITEMS,
     eventRoleConfigured: Boolean(guildConfig.eventRoleId),
@@ -1084,8 +1104,9 @@ export async function handleSantaSpinWheel(client, identity) {
   }
 
   player.luckyTickets -= 1;
-  const wheelIndex = Math.floor(Math.random() * WHEEL_SEGMENTS.length);
-  const seg = WHEEL_SEGMENTS[wheelIndex];
+  const scaledSegments = getScaledWheelSegments(player.workshopLevel || 1);
+  const wheelIndex = Math.floor(Math.random() * scaledSegments.length);
+  const seg = scaledSegments[wheelIndex];
   let prizeText = seg.label;
 
   if (seg.type === 'coins') {
@@ -1105,9 +1126,10 @@ export async function handleSantaSpinWheel(client, identity) {
     player.luckyTickets += seg.amount;
     prizeText = `+${seg.amount} 🎟️ Vé Quay Số!`;
   } else if (seg.type === 'jackpot') {
+    const repBonus = Math.round(40 * (1 + ((player.workshopLevel || 1) - 1) * 0.5));
     player.snowCoins += seg.amount;
-    player.reputation += 40;
-    prizeText = `JACKPOT! +${seg.amount} ❄️ Xu Tuyết & +40 ⭐ Danh Vọng!`;
+    player.reputation += repBonus;
+    prizeText = `JACKPOT! +${seg.amount} ❄️ Xu Tuyết & +${repBonus} ⭐ Danh Vọng!`;
     announceToDiscordChannel(
       client,
       guildId,

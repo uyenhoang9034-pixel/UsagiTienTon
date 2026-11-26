@@ -1,4 +1,4 @@
-import { christmasAudio } from './audio.js?v=20261126a';
+import { christmasAudio } from './audio.js?v=20261126b';
 
 const STATE = {
   token: 'demo',
@@ -1233,6 +1233,9 @@ function renderPanel() {
         .join('')}
     `;
     document.getElementById('btn-open-wheel').onclick = () => {
+      const lv = player.workshopLevel || 1;
+      const mult = (1 + (lv - 1) * 0.5).toFixed(1);
+      document.getElementById('wheel-result').textContent = `Xưởng Lv.${lv}: Quà Vòng Quay đang nhân x${mult}!`;
       document.getElementById('wheel-modal').classList.remove('hidden');
       drawWheelCanvas();
     };
@@ -1341,6 +1344,7 @@ function openUpgradeConfirmModal() {
 
   const perks = [
     `<div class="mat-chip"><span>⚡ Tốc độ Idle tự động</span><strong>x${curMult} → x${nextMult}</strong></div>`,
+    `<div class="mat-chip"><span>🎡 Thưởng Vòng Quay</span><strong>x${(1 + (curLv - 1) * 0.5).toFixed(1)} → x${(1 + (nextLv - 1) * 0.5).toFixed(1)}</strong></div>`,
   ];
   if (nextLv === 3) {
     perks.push(`<div class="mat-chip"><span>📦 Mở khóa mới</span><strong>Đơn hàng 2 món (x2 Thưởng!)</strong></div>`);
