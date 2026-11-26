@@ -1725,6 +1725,15 @@ export async function handleSantaContributeTree(client, identity, { mode = 'coin
   };
 }
 
+function pickRandomAvailableToy(player, preferredToyId = null) {
+  if (preferredToyId && Number(player.toys?.[preferredToyId] || 0) > 0) {
+    return preferredToyId;
+  }
+  const available = Object.keys(player.toys || {}).filter((k) => Number(player.toys[k] || 0) > 0);
+  if (available.length === 0) return null;
+  return available[Math.floor(Math.random() * available.length)];
+}
+
 export async function handleSantaVisitFriend(client, identity, { targetUserId, action = 'like', toyId = null } = {}) {
   const guildId = identity.guildId || 'global';
   if (!targetUserId || String(targetUserId) === String(identity.userId)) {
@@ -1742,11 +1751,15 @@ export async function handleSantaVisitFriend(client, identity, { targetUserId, a
   player.likedToday = player.likedToday || {};
 
   if (action === 'gift') {
-    const giftToy = toyId || Object.keys(player.toys || {}).find((k) => (player.toys[k] || 0) > 0);
-    if (!giftToy || (player.toys[giftToy] || 0) < 1) {
-      return { ok: false, message: 'Bạn cần có ít nhất 1 món đồ chơi trong kho để tặng bạn!', state: await buildSantaStatePayload(client, identity) };
+    const giftToy = pickRandomAvailableToy(player, toyId);
+    if (!giftToy || Number(player.toys?.[giftToy] || 0) < 1) {
+      return {
+        ok: false,
+        message: 'Kho đồ chơi của bạn đang trống! Hãy chế tạo ít nhất 1 món đồ chơi mới tặng được nhé 🎁',
+        state: await buildSantaStatePayload(client, identity),
+      };
     }
-    player.toys[giftToy] -= 1;
+    player.toys[giftToy] = Math.max(0, Number(player.toys[giftToy] || 0) - 1);
     player.reputation += 15;
     friend.toys = friend.toys || {};
     friend.toys[giftToy] = (friend.toys[giftToy] || 0) + 1;
@@ -1758,7 +1771,7 @@ export async function handleSantaVisitFriend(client, identity, { targetUserId, a
     const recipe = TOY_RECIPES.find((r) => r.id === giftToy);
     return {
       ok: true,
-      message: `🎁 Đã tặng ${recipe?.icon || ''} ${recipe?.name || 'đồ chơi'} cho ${friend.username}! Cả 2 nhận +15 ⭐!`,
+      message: `🎁 Đã tặng ${recipe?.icon || ''} ${recipe?.name || 'đồ chơi'} (còn ${player.toys[giftToy]} trong kho) cho ${friend.username}! Cả 2 nhận +15 ⭐!`,
       state: await buildSantaStatePayload(client, identity),
     };
   }
@@ -1967,12 +1980,14 @@ export async function handleSantaAttackBoss(client, identity, { mode = 'tap', to
   const coopMult = 1 + (Math.max(1, Math.min(10, Number(identity.partySize) || 1)) - 1) * 0.15;
   let dmg = Math.round((85 + (player.workshopLevel || 1) * 12) * coopMult);
 
+  let thrownToyId = null;
   if (mode === 'toy') {
-    const useToy = toyId || Object.keys(player.toys || {}).find((k) => (player.toys[k] || 0) > 0);
-    if (!useToy || (player.toys[useToy] || 0) < 1) {
-      return { ok: false, message: 'Bạn cần ít nhất 1 món đồ chơi trong kho để ném vào Boss!', state: await buildSantaStatePayload(client, identity) };
+    const useToy = pickRandomAvailableToy(player, toyId);
+    if (!useToy || Number(player.toys?.[useToy] || 0) < 1) {
+      return { ok: false, message: 'Kho đồ chơi đang trống! Hãy chế tạo ít nhất 1 món đồ chơi để ném vào Boss!', state: await buildSantaStatePayload(client, identity) };
     }
-    player.toys[useToy] -= 1;
+    player.toys[useToy] = Math.max(0, Number(player.toys[useToy] || 0) - 1);
+    thrownToyId = useToy;
     player.bossDaily.toy = (player.bossDaily.toy || 0) + 1;
     dmg = Math.round((320 + (player.workshopLevel || 1) * 25) * coopMult);
   } else {
@@ -1990,7 +2005,11 @@ export async function handleSantaAttackBoss(client, identity, { mode = 'tap', to
   player.reputation += mode === 'toy' ? 25 : 10;
   player.snowCoins += mode === 'toy' ? 30 : 12;
 
-  let msg = `⚔️ Gây **${dmg} sát thương** lên ${boss.icon} ${boss.name}!`;
+  const thrownRecipe = thrownToyId ? TOY_RECIPES.find((r) => r.id === thrownToyId) : null;
+  let msg =
+    mode === 'toy' && thrownToyId
+      ? `🧸 Đã ném ${thrownRecipe?.icon || ''} ${thrownRecipe?.name || 'đồ chơi'} (còn ${player.toys[thrownToyId]} trong kho) gây **${dmg} sát thương** lên ${boss.icon} ${boss.name}!`
+      : `⚔️ Gây **${dmg} sát thương** lên ${boss.icon} ${boss.name}!`;
 
   if (boss.hp <= 0) {
     const rewardCoins = 400 + (boss.level || 1) * 120;
@@ -2141,12 +2160,14 @@ export async function handleSantaFeedPet(client, identity, { mode = 'coins', toy
     return { ok: false, message: 'Thú Cưng này đã tiến hóa tối đa (Lv.5)!', state: await buildSantaStatePayload(client, identity) };
   }
 
+  let fedToyId = null;
   if (mode === 'toy') {
-    const useToy = toyId || Object.keys(player.toys || {}).find((k) => (player.toys[k] || 0) > 0);
-    if (!useToy || (player.toys[useToy] || 0) < 1) {
-      return { ok: false, message: 'Bạn cần ít nhất 1 món đồ chơi trong kho để cho thú cưng ăn!', state: await buildSantaStatePayload(client, identity) };
+    const useToy = pickRandomAvailableToy(player, toyId);
+    if (!useToy || Number(player.toys?.[useToy] || 0) < 1) {
+      return { ok: false, message: 'Kho đồ chơi đang trống! Hãy chế tạo ít nhất 1 món đồ chơi để cho thú cưng ăn!', state: await buildSantaStatePayload(client, identity) };
     }
-    player.toys[useToy] -= 1;
+    player.toys[useToy] = Math.max(0, Number(player.toys[useToy] || 0) - 1);
+    fedToyId = useToy;
   } else {
     const cost = 150 * curLv;
     if (player.snowCoins < cost) {
@@ -2158,9 +2179,12 @@ export async function handleSantaFeedPet(client, identity, { mode = 'coins', toy
   player.petLevels[petId] = curLv + 1;
   await savePlayer(client, guildId, player);
 
+  const fedRecipe = fedToyId ? TOY_RECIPES.find((r) => r.id === fedToyId) : null;
   return {
     ok: true,
-    message: `🐾 Tuyệt vời! Thú Cưng đã tiến hóa lên **Lv.${curLv + 1}/5** (nhặt quà Fever nhanh hơn)!`,
+    message: fedToyId
+      ? `🐾 Đã cho thú cưng ăn ${fedRecipe?.icon || ''} ${fedRecipe?.name || 'đồ chơi'} (còn ${player.toys[fedToyId]} trong kho)! Thú Cưng tiến hóa lên **Lv.${curLv + 1}/5**!`
+      : `🐾 Tuyệt vời! Thú Cưng đã tiến hóa lên **Lv.${curLv + 1}/5** (nhặt quà Fever nhanh hơn)!`,
     state: await buildSantaStatePayload(client, identity),
   };
 }

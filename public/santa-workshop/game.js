@@ -1,4 +1,4 @@
-import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126t';
+import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126u';
 
 const STATE = {
   token: 'demo',
@@ -1251,7 +1251,7 @@ function renderPanel() {
           <button class="btn btn-sm" id="btn-boss-tap" ${serverBoss.status !== 'active' || bossTapLeft <= 0 ? 'disabled' : ''}>
             ⚔️ Đánh (${bossTapLeft}/3)
           </button>
-          <button class="btn btn-gold btn-sm" id="btn-boss-toy" ${serverBoss.status !== 'active' || bossToyLeft <= 0 ? 'disabled' : ''}>
+          <button class="btn btn-gold btn-sm" id="btn-boss-toy" ${serverBoss.status !== 'active' || bossToyLeft <= 0 || Object.values(player.toys || {}).reduce((s, n) => s + Math.max(0, Number(n) || 0), 0) <= 0 ? 'disabled' : ''}>
             🧸 Ném đồ (${bossToyLeft}/2)
           </button>
         </div>
@@ -1553,7 +1553,7 @@ function renderPanel() {
                 <button class="btn btn-gold btn-sm" id="btn-feed-coins" ${equippedPetLv >= 5 ? 'disabled' : ''}>
                   ${equippedPetLv >= 5 ? 'Đã Tối Đa' : `🍖 Cho ăn (${feedCost} ❄️)`}
                 </button>
-                <button class="btn btn-green btn-sm" id="btn-feed-toy" ${equippedPetLv >= 5 ? 'disabled' : ''}>
+                <button class="btn btn-green btn-sm" id="btn-feed-toy" ${equippedPetLv >= 5 || Object.values(player.toys || {}).reduce((s, n) => s + Math.max(0, Number(n) || 0), 0) <= 0 ? 'disabled' : ''}>
                   🧸 Cho ăn 1 Đồ Chơi
                 </button>
               </div>
@@ -1633,7 +1633,7 @@ function renderPanel() {
               ? '<span class="tag">Bạn</span>'
               : `<div class="friend-actions">
                       <button class="btn btn-sm btn-outline" data-visit="like" data-target="${entry.userId}" title="Thả tim giúp xưởng bạn">❤️</button>
-                      <button class="btn btn-sm btn-green" data-visit="gift" data-target="${entry.userId}" title="Tặng 1 đồ chơi trong kho">🎁</button>
+                      <button class="btn btn-sm btn-green" data-visit="gift" data-target="${entry.userId}" ${Object.values(player.toys || {}).reduce((s, n) => s + Math.max(0, Number(n) || 0), 0) <= 0 ? 'disabled' : ''} title="Tặng ngẫu nhiên 1 đồ chơi trong kho">🎁</button>
                     </div>`
             }
             </div>
