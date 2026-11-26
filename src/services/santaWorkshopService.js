@@ -336,7 +336,7 @@ function createOrder(workshopLevel = 1) {
   const roll = Math.random();
   const isRush = roll < 0.25;
   const isSpecial = !isRush && roll < 0.5;
-  const qty = workshopLevel >= 3 && Math.random() < 0.35 ? 2 : 1;
+  const qty = workshopLevel >= 12 && Math.random() < 0.35 ? 3 : workshopLevel >= 3 && Math.random() < 0.35 ? 2 : 1;
   const multiplier = isRush ? 2.0 : isSpecial ? 1.5 : 1.0;
 
   return {
@@ -439,11 +439,11 @@ export function computePendingIdleMaterials(player, now = Date.now()) {
 }
 
 export function getHelperUpgradeCost(helperDef, currentLevel = 0) {
-  return Math.round(helperDef.baseCost * Math.pow(1.55, Math.max(0, currentLevel)));
+  return Math.round(helperDef.baseCost * Math.pow(1.38, Math.max(0, currentLevel)));
 }
 
 export function getUpgradeCost(level) {
-  return Math.round(90 * Math.pow(1.6, Math.max(0, level - 1)));
+  return Math.round(90 * Math.pow(1.4, Math.max(0, level - 1)));
 }
 
 export function getDailyRiddle(dateKey = getTodayKey()) {
@@ -724,7 +724,7 @@ export async function handleSantaCollect(client, identity, { isTap = false } = {
     player.lastTapAt = now;
     const keys = Object.keys(MATERIALS);
     const picked = keys[Math.floor(Math.random() * keys.length)];
-    const bonus = player.workshopLevel >= 4 ? 2 : 1;
+    const bonus = player.workshopLevel >= 15 ? 4 : player.workshopLevel >= 8 ? 3 : player.workshopLevel >= 4 ? 2 : 1;
     player.materials[picked] = (player.materials[picked] || 0) + bonus;
     bumpDailyQuest(player, 'q_tap_20', 1);
     await savePlayer(client, guildId, player);
@@ -917,8 +917,8 @@ export async function handleSantaHireHelper(client, identity, helperId) {
 
   player.helpers = player.helpers || { lumberjack: 0, tailor: 0, mage: 0 };
   const currentLv = player.helpers[helperId] || 0;
-  if (currentLv >= 10) {
-    return { ok: false, message: `${helperDef.name} đã đạt cấp tối đa (Cấp 10)!`, state: await buildSantaStatePayload(client, identity) };
+  if (currentLv >= 20) {
+    return { ok: false, message: `${helperDef.name} đã đạt cấp tối đa (Cấp 20)!`, state: await buildSantaStatePayload(client, identity) };
   }
 
   const cost = getHelperUpgradeCost(helperDef, currentLv);
@@ -977,8 +977,8 @@ export async function handleSantaUpgrade(client, identity) {
   const guildId = identity.guildId || 'global';
   const player = await getOrCreateSantaPlayer(client, identity);
   const currentLevel = player.workshopLevel || 1;
-  if (currentLevel >= 10) {
-    return { ok: false, message: 'Xưởng Yêu Tinh đã đạt cấp tối đa (Cấp 10)!', state: await buildSantaStatePayload(client, identity) };
+  if (currentLevel >= 20) {
+    return { ok: false, message: 'Xưởng Yêu Tinh đã đạt cấp tối đa (Cấp 20)!', state: await buildSantaStatePayload(client, identity) };
   }
 
   const cost = getUpgradeCost(currentLevel);

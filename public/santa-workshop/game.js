@@ -1,4 +1,4 @@
-import { christmasAudio } from './audio.js?v=20261126c';
+import { christmasAudio } from './audio.js?v=20261126d';
 
 const STATE = {
   token: 'demo',
@@ -945,8 +945,8 @@ function renderPanel() {
     container.innerHTML = `
       <div class="section-title">
         <span>🏠 Kho Nguyên Liệu Xưởng</span>
-        <button class="btn btn-gold btn-sm" id="btn-upgrade" ${player.workshopLevel >= 10 ? 'disabled' : ''}>
-          ${player.workshopLevel >= 10 ? 'Cấp Tối Đa' : `Nâng Xưởng (${upgradeCost} ❄️)`}
+        <button class="btn btn-gold btn-sm" id="btn-upgrade" ${player.workshopLevel >= 20 ? 'disabled' : ''}>
+          ${player.workshopLevel >= 20 ? 'Cấp Tối Đa (20)' : `Nâng Xưởng (${upgradeCost} ❄️)`}
         </button>
       </div>
       <div class="grid-2">
@@ -986,11 +986,11 @@ function renderPanel() {
           (h) => `
         <div class="card-row">
           <div>
-            <div><strong>${h.icon} ${h.name}</strong> <span class="tag">Lv.${h.level}/10</span></div>
+            <div><strong>${h.icon} ${h.name}</strong> <span class="tag">Lv.${h.level}/20</span></div>
             <div class="muted">${h.description}</div>
           </div>
-          <button class="btn btn-gold btn-sm" data-hire="${h.id}" ${h.level >= 10 ? 'disabled' : ''}>
-            ${h.level >= 10 ? 'MAX' : `${h.nextCost} ❄️`}
+          <button class="btn btn-gold btn-sm" data-hire="${h.id}" ${h.level >= 20 ? 'disabled' : ''}>
+            ${h.level >= 20 ? 'MAX' : `${h.nextCost} ❄️`}
           </button>
         </div>
       `,
@@ -1363,7 +1363,7 @@ function openUpgradeConfirmModal() {
   if (!STATE.data) return;
   const { player, upgradeCost } = STATE.data;
   const curLv = player.workshopLevel || 1;
-  if (curLv >= 10) return;
+  if (curLv >= 20) return;
 
   const nextLv = curLv + 1;
   const curMult = (1 + (curLv - 1) * 0.35).toFixed(2);
@@ -1383,6 +1383,12 @@ function openUpgradeConfirmModal() {
   }
   if (nextLv === 4) {
     perks.push(`<div class="mat-chip"><span>🔨 Gõ búa chạm Xưởng</span><strong>+1 → +2 nguyên liệu/lần!</strong></div>`);
+  } else if (nextLv === 8) {
+    perks.push(`<div class="mat-chip"><span>🔨 Gõ búa chạm Xưởng</span><strong>+2 → +3 nguyên liệu/lần!</strong></div>`);
+  } else if (nextLv === 12) {
+    perks.push(`<div class="mat-chip"><span>📦 Mở khóa mới</span><strong>Đơn hàng 3 món (x3 Thưởng!)</strong></div>`);
+  } else if (nextLv === 15) {
+    perks.push(`<div class="mat-chip"><span>🔨 Gõ búa chạm Xưởng</span><strong>+3 → +4 nguyên liệu/lần!</strong></div>`);
   } else if (nextLv < 4) {
     perks.push(`<div class="mat-chip"><span>🔨 Mốc Cấp 4</span><span class="muted">Gõ búa nhận x2 nguyên liệu</span></div>`);
   }
