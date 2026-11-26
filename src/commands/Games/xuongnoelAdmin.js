@@ -55,6 +55,32 @@ export default {
     )
     .addSubcommand((sub) =>
       sub
+        .setName('tangruybang')
+        .setDescription('Tặng Ruy băng 🎀 cho thành viên trong Xưởng Quà Noel')
+        .addUserOption((opt) =>
+          opt
+            .setName('nguoinhan')
+            .setDescription('Thành viên được tặng Ruy băng')
+            .setRequired(true),
+        )
+        .addIntegerOption((opt) =>
+          opt
+            .setName('soluong')
+            .setDescription('Số lượng Ruy băng muốn tặng')
+            .setMinValue(1)
+            .setMaxValue(1000000)
+            .setRequired(true),
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName('loinhan')
+            .setDescription('Lời nhắn gửi kèm (tùy chọn)')
+            .setMaxLength(140)
+            .setRequired(false),
+        ),
+    )
+    .addSubcommand((sub) =>
+      sub
         .setName('tangtuyet')
         .setDescription('Tặng Xu Tuyết ❄️ cho thành viên (hiện thông báo khi họ mở Activity)')
         .addUserOption((opt) =>
@@ -119,6 +145,35 @@ export default {
         const { deletedPlayers, cleanedBoards } = await cleanupGuestSantaData(botClient);
         return interaction.reply({
           content: `🧹 Đã dọn sạch **${deletedPlayers}** dữ liệu khách ẩn danh và **${cleanedBoards}** bảng xếp hạng cũ! Giờ chỉ giữ lại người chơi có ID Discord thật thôi ạ.`,
+          flags: replyFlags,
+        });
+      }
+
+      if (sub === 'tangruybang') {
+        const targetUser = interaction.options.getUser('nguoinhan');
+        const amount = interaction.options.getInteger('soluong');
+        const note = interaction.options.getString('loinhan') || '';
+
+        if (!targetUser || targetUser.bot) {
+          return interaction.reply({
+            content: '❌ Không thể tặng Ruy băng cho bot!',
+            flags: replyFlags,
+          });
+        }
+
+        await grantSantaRibbon(botClient, {
+          guildId,
+          targetUser,
+          amount,
+          adminUser: interaction.member?.displayName
+            ? { username: interaction.member.displayName }
+            : interaction.user,
+          note,
+        });
+
+        const noteText = note ? `\\n💌 Lời nhắn: *${note}*` : '';
+        return interaction.reply({
+          content: `🎀 Đã tặng **+${amount} Ruy băng** cho <@${targetUser.id}>! Khi bạn ấy mở game Xưởng Quà Noel sẽ thấy vật phẩm trong kho.${noteText}`,
           flags: replyFlags,
         });
       }
