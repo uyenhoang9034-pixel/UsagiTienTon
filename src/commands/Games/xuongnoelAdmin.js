@@ -9,6 +9,7 @@ import {
   setSantaAnnounceChannel,
   cleanupGuestSantaData,
   grantSantaSnowCoins,
+  grantSantaRibbon,
 } from '../../services/santaWorkshopService.js';
 import { logger } from '../../utils/logger.js';
 
@@ -171,7 +172,7 @@ export default {
           note,
         });
 
-        const noteText = note ? `\\n💌 Lời nhắn: *${note}*` : '';
+        const noteText = note ? `\n💌 Lời nhắn: *${note}*` : '';
         return interaction.reply({
           content: `🎀 Đã tặng **+${amount} Ruy băng** cho <@${targetUser.id}>! Khi bạn ấy mở game Xưởng Quà Noel sẽ thấy vật phẩm trong kho.${noteText}`,
           flags: replyFlags,
