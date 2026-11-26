@@ -25,6 +25,8 @@ import {
   handleSantaExchangeMaterial,
   handleSantaOpenMysteryBox,
   getScaledRecipes,
+  getUpgradeCost,
+  getHelperUpgradeCost,
   handleSantaFeedPet,
   handleSantaOpenAdvent,
   getSantaLeaderboard,
@@ -207,7 +209,7 @@ test('Luồng chơi Xưởng Quà Ông Già Noel: Điểm danh -> Giải đố -
   assert.equal(advRes.state.player.adventOpened.length, 1);
 
   const lv100Segs = getScaledWheelSegments(100);
-  assert.equal(lv100Segs.find((s) => s.type === 'tickets').amount, 12);
+  assert.equal(lv100Segs.find((s) => s.type === 'tickets').amount, 11);
 
   // 18. Công thức tới Lv.100 & Boss giới hạn 3 thường + 2 ném đồ/ngày
   const lv100Recipes = getScaledRecipes(100);
@@ -226,4 +228,72 @@ test('Luồng chơi Xưởng Quà Ông Già Noel: Điểm danh -> Giải đố -
   ]);
   const sortedBoard = await getSantaLeaderboard(client, 'guild_sort');
   assert.equal(sortedBoard[0].userId, 'u_hi_lv');
+});
+
+
+test('Tiến trình Xưởng Noel hỗ trợ cấp 2000 với chi phí late-game tăng mạnh', async () => {
+  assert.equal(getUpgradeCost(100), 2_000_000);
+  assert.equal(getUpgradeCost(101), 3_000_000);
+  assert.equal(getUpgradeCost(1000), 20_000_000);
+  assert.equal(getUpgradeCost(1500), 200_000_000);
+  assert.equal(getUpgradeCost(1999), 998_400_000);
+
+  const helper = { baseCost: 80 };
+  assert.ok(getHelperUpgradeCost(helper, 1500) >= 20_000_000);
+
+  const lv100 = getScaledRecipes(100).find((r) => r.id === 'teddy');
+  const lv2000 = getScaledRecipes(2000).find((r) => r.id === 'teddy');
+  assert.ok(lv2000.ingredients.fabric > lv100.ingredients.fabric * 40);
+
+  const lv2000Wheel = getScaledWheelSegments(2000);
+  assert.ok(lv2000Wheel.find((s) => s.type === 'coins').amount > getScaledWheelSegments(100).find((s) => s.type === 'coins').amount);
+  assert.equal(lv2000Wheel.find((s) => s.type === 'tickets').amount, 201);
+
+  const client = createMemoryClient();
+  const identity = { userId: 'high_level_elf', username: 'HighLevelElf', guildId: 'high_level_guild' };
+  await buildSantaStatePayload(client, identity);
+  const key = 'santa:player:high_level_guild:high_level_elf';
+  const player = await client.db.get(key);
+  player.workshopLevel = 2000;
+  player.snowCoins = 1_000_000_000;
+  await client.db.set(key, player);
+
+  const maxState = await buildSantaStatePayload(client, identity);
+  assert.equal(maxState.maxWorkshopLevel, 2000);
+  assert.equal(maxState.shopItems.find((item) => item.id === 'lucky_ticket').price, 59_970);
+
+  const helperMax = await handleSantaHireHelper(client, identity, 'lumberjack');
+  assert.equal(helperMax.ok, true);
+  const current = await client.db.get(key);
+  current.helpers.lumberjack = 2000;
+  await client.db.set(key, current);
+  const helperBlocked = await handleSantaHireHelper(client, identity, 'lumberjack');
+  assert.equal(helperBlocked.ok, false);
+});
+
+test('Giới hạn mỗi người 3 lượt tim và 3 lượt tặng quà mỗi ngày', async () => {
+  const client = createMemoryClient();
+  const identity = { userId: 'social_elf', username: 'SocialElf', guildId: 'social_guild' };
+  const friend = { userId: 'social_friend', username: 'FriendElf', guildId: 'social_guild' };
+  await buildSantaStatePayload(client, identity);
+  await buildSantaStatePayload(client, friend);
+
+  const playerKey = 'santa:player:social_guild:social_elf';
+  const player = await client.db.get(playerKey);
+  player.toys.teddy = 3;
+  await client.db.set(playerKey, player);
+
+  for (let i = 0; i < 3; i += 1) {
+    const result = await handleSantaVisitFriend(client, identity, { targetUserId: friend.userId, action: 'like' });
+    assert.equal(result.ok, true);
+  }
+  const fourthLike = await handleSantaVisitFriend(client, identity, { targetUserId: friend.userId, action: 'like' });
+  assert.equal(fourthLike.ok, false);
+
+  for (let i = 0; i < 3; i += 1) {
+    const result = await handleSantaVisitFriend(client, identity, { targetUserId: friend.userId, action: 'gift' });
+    assert.equal(result.ok, true);
+  }
+  const fourthGift = await handleSantaVisitFriend(client, identity, { targetUserId: friend.userId, action: 'gift' });
+  assert.equal(fourthGift.ok, false);
 });
