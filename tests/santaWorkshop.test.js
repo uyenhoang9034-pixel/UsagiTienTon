@@ -288,7 +288,7 @@ test('Giới hạn mỗi người 3 lượt tim và 3 lượt tặng quà mỗi 
 
   const playerKey = 'santa:player:social_guild:social_elf';
   const player = await client.db.get(playerKey);
-  player.toys.teddy = 3;
+  player.toys.teddy = 4;
   await client.db.set(playerKey, player);
 
   for (let i = 0; i < 3; i += 1) {
@@ -306,4 +306,6 @@ test('Giới hạn mỗi người 3 lượt tim và 3 lượt tặng quà mỗi 
   }
   const fourthGift = await handleSantaVisitFriend(client, identity, { targetUserId: friend.userId, action: 'gift' });
   assert.equal(fourthGift.ok, false);
+  const otherFriendGift = await handleSantaVisitFriend(client, identity, { targetUserId: friend2.userId, action: 'gift' });
+  assert.equal(otherFriendGift.ok, true);
 });
