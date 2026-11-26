@@ -3,7 +3,7 @@ import { getDatabaseValue, setDatabaseValue, deleteDatabaseValue } from '../util
 const LEVEL_XP = [0, 30000, 100000, 250000, 600000, 1200000];
 const LEVEL_NAMES = ['Khởi đầu bạn bè', 'Friendzone', 'Một chút cảm nắng', 'Kết đôi tình yêu', 'Nắm tay vợ chồng', 'Tuổi già cùng nhau'];
 const LEVEL_BUFFS = [20, 22, 24, 26, 28, 30];
-const LEVEL_RIBBONS = [2000, 20000, 400000, 900000, 1200000, 2000000];
+const LEVEL_RIBBONS = [2000, 20000, 40000, 90000, 200000, 1200000];
 const TOY_POINTS = { teddy: 10, train: 20, musicBox: 35, snowGlobe: 60, santaSleigh: 100, polarExpress: 160, icePalace: 240, santaCrown: 350, magicLantern: 500, reindeerBell: 700, frostGuitar: 950, auroraPrism: 1250, starCompass: 1600, santaWatch: 2000, polarOrb: 2500, eternalGift: 3200 };
 const MATERIALS = ['wood', 'fabric', 'magicDust', 'ribbon'];
 const DAILY_FEEDS = 20;
