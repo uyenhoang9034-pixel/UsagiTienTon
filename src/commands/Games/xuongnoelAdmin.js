@@ -10,6 +10,7 @@ import {
   cleanupGuestSantaData,
   grantSantaSnowCoins,
   grantSantaRibbon,
+  grantSantaMaterials,
 } from '../../services/santaWorkshopService.js';
 import { logger } from '../../utils/logger.js';
 
@@ -96,6 +97,32 @@ export default {
             .setDescription('Số lượng Xu Tuyết muốn tặng')
             .setMinValue(1)
             .setMaxValue(20000000000)
+            .setRequired(true),
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName('loinhan')
+            .setDescription('Lời nhắn gửi kèm (tùy chọn)')
+            .setMaxLength(140)
+            .setRequired(false),
+        ),
+    ),
+    .addSubcommand((sub) =>
+      sub
+        .setName('tangnguyenlieu')
+        .setDescription('Tặng đồng thời Gỗ, Vải và Bụi phép (không gồm Ruy băng)')
+        .addUserOption((opt) =>
+          opt
+            .setName('nguoinhan')
+            .setDescription('Thành viên được tặng nguyên liệu')
+            .setRequired(true),
+        )
+        .addIntegerOption((opt) =>
+          opt
+            .setName('soluong')
+            .setDescription('Số lượng MỖI loại nguyên liệu muốn tặng')
+            .setMinValue(1)
+            .setMaxValue(2000000)
             .setRequired(true),
         )
         .addStringOption((opt) =>
@@ -204,6 +231,36 @@ export default {
         const noteText = note ? `\n💌 Lời nhắn: *${note}*` : '';
         return interaction.reply({
           content: `❄️ Đã tặng **+${amount} Xu Tuyết** cho <@${targetUser.id}>! Khi bạn ấy mở game Xưởng Quà Noel sẽ hiện thông báo nhận quà ngay.${noteText}`,
+          flags: replyFlags,
+        });
+      }
+
+
+      if (sub === 'tangnguyenlieu') {
+        const targetUser = interaction.options.getUser('nguoinhan');
+        const amount = interaction.options.getInteger('soluong');
+        const note = interaction.options.getString('loinhan') || '';
+
+        if (!targetUser || targetUser.bot) {
+          return interaction.reply({
+            content: '❌ Không thể tặng nguyên liệu cho bot!',
+            flags: replyFlags,
+          });
+        }
+
+        await grantSantaMaterials(botClient, {
+          guildId,
+          targetUser,
+          amount,
+          adminUser: interaction.member?.displayName
+            ? { username: interaction.member.displayName }
+            : interaction.user,
+          note,
+        });
+
+        const noteText = note ? '\n💌 Lời nhắn: *' + note + '*' : '';
+        return interaction.reply({
+          content: '🎁 Đã tặng cho <@' + targetUser.id + '> **+' + amount.toLocaleString('vi-VN') + ' Gỗ thông, +' + amount.toLocaleString('vi-VN') + ' Vải đỏ và +' + amount.toLocaleString('vi-VN') + ' Bụi phép thuật**! (Không bao gồm Ruy băng và Điểm Danh Vọng).' + noteText,
           flags: replyFlags,
         });
       }
