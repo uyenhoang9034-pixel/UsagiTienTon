@@ -106,7 +106,7 @@ function daily(pair) {
 }
 async function persistPair(client, guildId, pair) {
   pair.updatedAt = Date.now();
-  await setDatabaseValue(client, pairKey(guildId, pair.id), pair);
+  await setDatabaseValue(client, pairKey(pair.guildId || guildId, pair.id), pair);
 }
 async function state(client, identity) {
   const guildId = identity.guildId || 'global';
@@ -152,8 +152,8 @@ export async function handleDuoBondAccept(client, identity) {
   const pairId = pairIdFor(uid, invite.fromId);
   const pair = { id: pairId, guildId, members: [invite.fromId, uid], status: 'active', xp: 0, level: 1, buffPct: 20, sharedStorage: { wood: 0, fabric: 0, magicDust: 0, ribbon: 0 }, pendingTrade: null, breakupRequest: null, daily: freshDaily(), history: [{ type: 'paired', at: Date.now() }], createdAt: Date.now(), updatedAt: Date.now() };
   await persistPair(client, guildId, pair);
-  await setDatabaseValue(client, key(guildId, uid), { pairId });
-  await setDatabaseValue(client, key(guildId, invite.fromId), { pairId });
+  await setDatabaseValue(client, key(guildId, uid), { pairId, guildId });
+  await setDatabaseValue(client, key(guildId, invite.fromId), { pairId, guildId });
   await deleteDatabaseValue(client, inviteKey(guildId, uid));
   await deleteDatabaseValue(client, `santa:duo:outgoing:${guildId}:${invite.fromId}`);
   await syncBuff(client, guildId, pair);
