@@ -2165,13 +2165,22 @@ export async function handleSantaExchangeMaterial(client, identity, { fromMat, t
 export async function handleSantaOpenMysteryBox(client, identity) {
   const guildId = identity.guildId || 'global';
   const player = await getOrCreateSantaPlayer(client, identity);
-  const price = 150;
+  const today = getTodayKey();
+  const daily = player.mysteryBoxDaily || { date: today, count: 0 };
+  const usedToday = daily.date === today ? Math.max(0, Number(daily.count) || 0) : 0;
+  const remaining = Math.max(0, 3 - usedToday);
+  const level = Math.max(1, Number(player.workshopLevel) || 1);
+  const price = Math.round(150 * (1 + (level - 1) * 0.5));
 
+  if (usedToday >= 3) {
+    return { ok: false, message: '🎁 Bạn đã mở đủ 3 Hộp Quà Bí Ẩn hôm nay! Hãy quay lại vào ngày mai nhé.', state: await buildSantaStatePayload(client, identity) };
+  }
   if (player.snowCoins < price) {
-    return { ok: false, message: `Cần ${price} ❄️ để mở Hộp Quà Bí Ẩn Noel!`, state: await buildSantaStatePayload(client, identity) };
+    return { ok: false, message: `Cần ${price.toLocaleString('vi-VN')} ❄️ để mở Hộp Quà Bí Ẩn Noel (Xưởng Lv.${level})!`, state: await buildSantaStatePayload(client, identity) };
   }
 
   player.snowCoins -= price;
+  player.mysteryBoxDaily = { date: today, count: usedToday + 1 };
   const roll = Math.random();
   let msg = '';
 
@@ -2203,11 +2212,10 @@ export async function handleSantaOpenMysteryBox(client, identity) {
   await savePlayer(client, guildId, player);
   return {
     ok: true,
-    message: msg,
+    message: `${msg} (Đã mở ${usedToday + 1}/3 hộp hôm nay, còn ${remaining - 1} lượt.)`,
     state: await buildSantaStatePayload(client, identity),
   };
 }
-
 export async function handleSantaFeedPet(client, identity, { mode = 'coins', toyId = null } = {}) {
   const guildId = identity.guildId || 'global';
   const player = await getOrCreateSantaPlayer(client, identity);
