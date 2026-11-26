@@ -1,4 +1,4 @@
-import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126o';
+import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126p';
 
 const STATE = {
   token: 'demo',
@@ -301,7 +301,7 @@ class SantaWorkshopScene extends Phaser.Scene {
     this.lastElfSkin = skin;
     const g = this.add.graphics();
 
-    // Cánh tiên băng giá nếu đeo skin_fairy (4 cánh phát sáng)
+    // Cánh tiên băng giá hoặc Cánh Thiên Thần lớn
     if (skin === 'skin_fairy') {
       g.fillStyle(0x72efdd, 0.55);
       g.fillEllipse(-30, -4, 34, 24);
@@ -311,6 +311,15 @@ class SantaWorkshopScene extends Phaser.Scene {
       g.lineStyle(2, 0xffffff, 0.85);
       g.strokeEllipse(-30, -4, 34, 24);
       g.strokeEllipse(30, -4, 34, 24);
+    } else if (skin === 'skin_angel') {
+      g.fillStyle(0xffffff, 0.88);
+      g.fillEllipse(-34, 2, 40, 26);
+      g.fillEllipse(34, 2, 40, 26);
+      g.fillEllipse(-26, 20, 28, 18);
+      g.fillEllipse(26, 20, 28, 18);
+      g.lineStyle(2, 0xffd166, 0.8);
+      g.strokeEllipse(-34, 2, 40, 26);
+      g.strokeEllipse(34, 2, 40, 26);
     }
 
     // Giày nhỏ
@@ -336,7 +345,13 @@ class SantaWorkshopScene extends Phaser.Scene {
               ? 0xb07d4f
               : skin === 'skin_golden'
                 ? 0xffb703
-                : 0x2a9d8f;
+                : skin === 'skin_reindeer_suit'
+                  ? 0x8d5524
+                  : skin === 'skin_wizard'
+                    ? 0x3c096c
+                    : skin === 'skin_angel'
+                      ? 0xf8f9fa
+                      : 0x2a9d8f;
     g.fillStyle(coatColor, 1);
     g.fillRoundedRect(-22, 0, 44, 44, 10);
 
@@ -345,7 +360,6 @@ class SantaWorkshopScene extends Phaser.Scene {
       g.fillRect(-5, 0, 10, 44);
       g.fillRoundedRect(-24, 36, 48, 8, 4);
     } else if (skin === 'skin_ginger') {
-      // Viền kem đường trắng & cúc áo kẹo
       g.fillStyle(0xffffff, 1);
       g.fillRoundedRect(-23, 35, 46, 7, 3);
       g.fillStyle(0xe63946, 1);
@@ -353,7 +367,6 @@ class SantaWorkshopScene extends Phaser.Scene {
       g.fillStyle(0x2ecc71, 1);
       g.fillCircle(0, 31, 4);
     } else if (skin === 'skin_knight') {
-      // Giáp ngực bạc & khiên băng
       g.fillStyle(0x90e0ef, 1);
       g.fillRoundedRect(-12, 4, 24, 18, 4);
       g.fillStyle(0x48cae4, 1);
@@ -361,25 +374,40 @@ class SantaWorkshopScene extends Phaser.Scene {
       g.lineStyle(2, 0xffffff, 0.9);
       g.strokeRoundedRect(-36, 6, 14, 24, 5);
     } else if (skin === 'skin_golden') {
-      // Giáp ngực vàng sáng
       g.fillStyle(0xfff3b0, 1);
       g.fillRoundedRect(-12, 4, 24, 16, 4);
+    } else if (skin === 'skin_reindeer_suit') {
+      g.fillStyle(0xf1c27d, 1);
+      g.fillEllipse(0, 20, 22, 26);
+    } else if (skin === 'skin_wizard') {
+      g.fillStyle(0xffd166, 1);
+      g.fillCircle(-8, 12, 3);
+      g.fillCircle(9, 30, 3);
+    } else if (skin === 'skin_angel') {
+      g.fillStyle(0xffd166, 1);
+      g.fillRect(-4, 0, 8, 44);
     }
     g.fillStyle(0xffd166, 1);
     g.fillRect(-22, 22, 44, 6);
 
-    // Tay trái & tay phải cầm búa (búa vàng nếu skin_golden)
+    // Tay trái & tay phải cầm vũ khí/phụ kiện theo skin
     g.fillStyle(coatColor, 1);
     g.fillRoundedRect(-31, 6, 11, 22, 5);
     g.fillRoundedRect(20, 6, 11, 22, 5);
     g.fillStyle(0xffd6ba, 1);
     g.fillCircle(-26, 28, 5);
     g.fillCircle(26, 28, 5);
-    // Cây búa gỗ / vàng trên tay phải
-    g.fillStyle(0x9c6644, 1);
-    g.fillRect(25, 4, 4, 24);
-    g.fillStyle(skin === 'skin_golden' ? 0xffd166 : 0xadb5bd, 1);
-    g.fillRoundedRect(19, -2, 16, 9, 3);
+    if (skin === 'skin_wizard' || skin === 'skin_angel') {
+      g.fillStyle(0x9c6644, 1);
+      g.fillRect(25, -4, 4, 34);
+      g.fillStyle(skin === 'skin_wizard' ? 0x00bbf9 : 0xffd166, 1);
+      g.fillCircle(27, -7, 7);
+    } else {
+      g.fillStyle(0x9c6644, 1);
+      g.fillRect(25, 4, 4, 24);
+      g.fillStyle(skin === 'skin_golden' ? 0xffd166 : 0xadb5bd, 1);
+      g.fillRoundedRect(19, -2, 16, 9, 3);
+    }
 
     // Tai nhọn Yêu Tinh 2 bên
     g.fillStyle(0xffcdb2, 1);
@@ -395,17 +423,44 @@ class SantaWorkshopScene extends Phaser.Scene {
     g.fillStyle(0xff758f, 0.65);
     g.fillCircle(-12, -13, 4);
     g.fillCircle(12, -13, 4);
+    if (skin === 'skin_reindeer_suit') {
+      g.fillStyle(0xe63946, 1);
+      g.fillCircle(0, -14, 5);
+    }
     g.lineStyle(2, 0x9e2a2b, 1);
     g.beginPath();
-    g.arc(0, -12, 6, 0.2, Math.PI - 0.2, false);
+    g.arc(0, -10, 6, 0.2, Math.PI - 0.2, false);
     g.strokePath();
 
-    // Mũ Noel đỏ
-    g.fillStyle(0xe63946, 1);
-    g.fillTriangle(0, -56, -22, -26, 22, -26);
-    g.fillStyle(0xffffff, 1);
-    g.fillRoundedRect(-24, -30, 48, 9, 4);
-    g.fillCircle(0, -58, 6);
+    // Mũ / Sừng / Hào quang theo skin
+    if (skin === 'skin_reindeer_suit') {
+      g.lineStyle(4, 0x6f4e37, 1);
+      g.beginPath();
+      g.moveTo(-10, -32);
+      g.lineTo(-18, -54);
+      g.moveTo(-14, -44);
+      g.lineTo(-6, -50);
+      g.moveTo(10, -32);
+      g.lineTo(18, -54);
+      g.moveTo(14, -44);
+      g.lineTo(6, -50);
+      g.strokePath();
+    } else if (skin === 'skin_wizard') {
+      g.fillStyle(0x5a189a, 1);
+      g.fillTriangle(0, -64, -24, -26, 24, -26);
+      g.fillRoundedRect(-28, -28, 56, 6, 3);
+      g.fillStyle(0xffd166, 1);
+      g.fillCircle(0, -42, 4);
+    } else if (skin === 'skin_angel') {
+      g.lineStyle(3, 0xffd166, 1);
+      g.strokeEllipse(0, -46, 34, 10);
+    } else {
+      g.fillStyle(0xe63946, 1);
+      g.fillTriangle(0, -56, -22, -26, 22, -26);
+      g.fillStyle(0xffffff, 1);
+      g.fillRoundedRect(-24, -30, 48, 9, 4);
+      g.fillCircle(0, -58, 6);
+    }
     this.elf.add(g);
 
     const textRes = Math.min(2, window.devicePixelRatio || 1);
@@ -687,18 +742,32 @@ class SantaWorkshopScene extends Phaser.Scene {
     if (petId) {
       const petLv = STATE.data?.player?.petLevels?.[petId] || 1;
       const baseInterval =
-        petId === 'pet_fox' ? 900 : petId === 'pet_reindeer' ? 1100 : petId === 'pet_snowman' ? 1200 : 1600;
-      const petInterval = Math.max(420, baseInterval - (petLv - 1) * 140);
+        petId === 'pet_dragon'
+          ? 600
+          : petId === 'pet_husky'
+            ? 750
+            : petId === 'pet_fox'
+              ? 900
+              : petId === 'pet_reindeer'
+                ? 1100
+                : petId === 'pet_snowman'
+                  ? 1200
+                  : 1600;
+      const petInterval = Math.max(420, baseInterval - (petLv - 1) * 100);
       const petEmoji =
-        petId === 'pet_fox'
-          ? '🦊'
-          : petId === 'pet_reindeer'
-            ? '🦌'
-            : petId === 'pet_snowman'
-              ? '⛄'
-              : petId === 'pet_penguin'
-                ? '🐧'
-                : '🐰';
+        petId === 'pet_dragon'
+          ? '🐲'
+          : petId === 'pet_husky'
+            ? '🐺'
+            : petId === 'pet_fox'
+              ? '🦊'
+              : petId === 'pet_reindeer'
+                ? '🦌'
+                : petId === 'pet_snowman'
+                  ? '⛄'
+                  : petId === 'pet_penguin'
+                    ? '🐧'
+                    : '🐰';
       petTimer = this.time.addEvent({
         delay: petInterval,
         loop: true,

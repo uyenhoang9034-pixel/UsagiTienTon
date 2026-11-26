@@ -350,6 +350,92 @@ export const SHOP_ITEMS = [
     cooldownDays: 3,
     description: 'Kích hoạt ngay Buff x3 tốc độ sản xuất Idle trong 10 phút (Giới hạn 1 lần/3 ngày)!',
   },
+  {
+    id: 'frame_bells',
+    type: 'frame',
+    name: 'Khung Chuông Vàng Đôi',
+    icon: '🔔',
+    price: 650,
+    description: 'Viền lá thông kép đính đôi chuông vàng trên đỉnh & dải ruy băng đỏ bên dưới.',
+    cssClass: 'frame-bells',
+  },
+  {
+    id: 'frame_snowglobe',
+    type: 'frame',
+    name: 'Khung Quả Cầu Tuyết Pha Lê',
+    icon: '🔮',
+    price: 950,
+    description: 'Vòm kính pha lê phản chiếu ánh sáng kèm đế gỗ đỏ khắc vàng bên dưới avatar.',
+    cssClass: 'frame-snowglobe',
+  },
+  {
+    id: 'frame_aurora',
+    type: 'frame',
+    name: 'Khung Cực Quang Bắc Cực',
+    icon: '🌌',
+    price: 1800,
+    description: 'Dải cực quang chuyển sắc uốn lượn kèm sao Bắc Đẩu & mũ Noel nghiêng.',
+    cssClass: 'frame-aurora',
+  },
+  {
+    id: 'skin_reindeer_suit',
+    type: 'skin',
+    name: 'Bộ Đồ Tuần Lộc Đáng Yêu',
+    icon: '🦌',
+    price: 680,
+    description: 'Mọc cặp sừng tuần lộc nâu trên đầu, mũi đỏ Rudolph & áo yếm nâu trắng!',
+  },
+  {
+    id: 'skin_wizard',
+    type: 'skin',
+    name: 'Pháp Sư Tuyết Bắc Cực',
+    icon: '🧙',
+    price: 1100,
+    description: 'Đội nón phù thủy chóp cao đính sao vàng & cầm quyền trượng phép phát sáng!',
+  },
+  {
+    id: 'skin_angel',
+    type: 'skin',
+    name: 'Thiên Thần Giáng Sinh',
+    icon: '👼',
+    price: 2200,
+    description: 'Vòng hào quang trên đầu, đôi cánh trắng khổng lồ & đũa phép sao vàng!',
+  },
+  {
+    id: 'pet_husky',
+    type: 'pet',
+    name: 'Chó Tuyết Husky',
+    icon: '🐺',
+    price: 1400,
+    description: 'Trung thành & nhanh nhẹn! Tự động nhặt quà Fever mỗi 0.75 giây!',
+  },
+  {
+    id: 'pet_dragon',
+    type: 'pet',
+    name: 'Rồng Tuyết Tí Hon',
+    icon: '🐲',
+    price: 2800,
+    description: 'Thú cưng huyền thoại! Nhặt quà Fever siêu tốc mỗi 0.6 giây!',
+  },
+  {
+    id: 'mat_pack_legend',
+    type: 'pack',
+    name: 'Hòm Kho Báu Bắc Cực',
+    icon: '👑',
+    price: 1800,
+    weeklyLimit: 1,
+    description: 'Nhận ngay +150 🌲, +150 🧶, +110 ✨, +120 🎀 vào kho (1 lần/tuần)!',
+    pack: { wood: 150, fabric: 150, magicDust: 110, ribbon: 120 },
+  },
+  {
+    id: 'ticket_bundle_5',
+    type: 'ticket',
+    name: 'Xấp 5 Vé Quay Số',
+    icon: '🎟️',
+    price: 270,
+    amount: 5,
+    description: 'Mua liền 5 Vé Quay Số Giáng Sinh với giá ưu đãi (tiết kiệm 30 ❄️)!',
+  },
 ];
 
 export const ACHIEVEMENTS = [
@@ -1383,7 +1469,7 @@ export async function handleSantaBuyItem(client, identity, itemId) {
     player.ownedSkins.push(item.id);
     player.equippedSkin = item.id;
   } else if (item.type === 'ticket') {
-    player.luckyTickets = (player.luckyTickets || 0) + 1;
+    player.luckyTickets = (player.luckyTickets || 0) + (item.amount || 1);
   } else if (item.type === 'pack' && item.pack) {
     for (const [m, amt] of Object.entries(item.pack)) {
       player.materials[m] = (player.materials[m] || 0) + amt;
