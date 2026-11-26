@@ -2003,8 +2003,11 @@ export async function grantSantaMaterials(client, { guildId = 'global', targetUs
 export async function handleSantaAckGifts(client, identity) {
   const guildId = identity.guildId || 'global';
   const player = await getOrCreateSantaPlayer(client, identity);
-  if (Array.isArray(player.pendingGiftNotices) && player.pendingGiftNotices.length > 0) {
+  const hasCoinNotices = Array.isArray(player.pendingGiftNotices) && player.pendingGiftNotices.length > 0;
+  const hasMaterialNotices = Array.isArray(player.pendingMaterialGiftNotices) && player.pendingMaterialGiftNotices.length > 0;
+  if (hasCoinNotices || hasMaterialNotices) {
     player.pendingGiftNotices = [];
+    player.pendingMaterialGiftNotices = [];
     await savePlayer(client, guildId, player);
   }
   return { ok: true, state: await buildSantaStatePayload(client, identity) };
