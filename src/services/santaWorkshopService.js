@@ -936,9 +936,14 @@ async function ensureSantaTicketInflationReset(client) {
       const player = await getDatabaseValue(client, key, null);
       if (!player || typeof player !== 'object') continue;
       player.luckyTickets = 0;
-      if (await setDatabaseValue(client, key, player)) count += 1;
+      if (!(await setDatabaseValue(client, key, player))) {
+        throw new Error(`Không thể lưu reset vé quay cho key ${key}`);
+      }
+      count += 1;
     }
-    await setDatabaseValue(client, markerKey, { completedAt: Date.now(), resetPlayers: count });
+    if (!(await setDatabaseValue(client, markerKey, { completedAt: Date.now(), resetPlayers: count }))) {
+      throw new Error('Không thể ghi dấu hoàn tất reset vé quay');
+    }
     logger.info(`[SantaWorkshop] Đã reset vé quay một lần cho ${count} người chơi.`);
     return { reset: true, count };
   })().catch((error) => {
@@ -1615,10 +1620,11 @@ export async function handleSantaSpinWheel(client, identity, rawCount = 1) {
       wheelIndex = scaledSegments.findIndex((segment) => segment.type === 'tickets');
       player.wheelPity.spinsSinceTicket = 0;
     } else {
-      wheelIndex = Math.floor(Math.random() * scaledSegments.length);
-      const selected = scaledSegments[wheelIndex];
-      if (selected?.type === 'jackpot') player.wheelPity.spinsSinceJackpot = 0;
-      if (selected?.type === 'tickets') player.wheelPity.spinsSinceTicket = 0;
+      const ordinarySegments = scaledSegments
+        .map((segment, index) => ({ segment, index }))
+        .filter(({ segment }) => segment.type !== 'jackpot' && segment.type !== 'tickets');
+      const picked = ordinarySegments[Math.floor(Math.random() * ordinarySegments.length)];
+      wheelIndex = picked?.index ?? 0;
     }
     const seg = scaledSegments[wheelIndex >= 0 ? wheelIndex : 0];
     lastWheelIndex = wheelIndex >= 0 ? wheelIndex : 0;
