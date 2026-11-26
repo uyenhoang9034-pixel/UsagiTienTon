@@ -1175,6 +1175,7 @@ function renderPanel() {
     checkedInToday,
     riddleSolvedToday,
     upgradeCost,
+    duoBond = {},
   } = STATE.data;
 
   if (STATE.activeTab === 'workshop') {
@@ -1724,6 +1725,102 @@ function renderPanel() {
         if (r?.ok) christmasAudio.playCoinSfx();
       };
     });
+  }
+
+
+  else if (STATE.activeTab === 'duo') {
+    const pair = duoBond.pair;
+    const partner = duoBond.partner;
+    const incoming = duoBond.incoming;
+    const outgoing = duoBond.outgoing;
+    const levels = duoBond.levels || [];
+    const matOptions = Object.entries(materialsMeta || {}).map(([id, m]) => \`<option value="\${id}">\${m.icon} \${m.name}</option>\`).join('');
+    const toyOptions = (recipes || []).map((r) => \`<option value="\${r.id}">\${r.icon} \${r.name}</option>\`).join('');
+    const currentLevel = pair?.level || 1;
+    const nextLevel = levels[currentLevel] || null;
+    const xp = Number(pair?.xp || 0);
+    const progress = nextLevel ? Math.min(100, Math.floor((xp - (levels[currentLevel - 1]?.xp || 0)) / Math.max(1, nextLevel.xp - (levels[currentLevel - 1]?.xp || 0)) * 100)) : 100;
+    const pendingTrade = pair?.pendingTrade;
+    const breakup = pair?.breakupRequest;
+    container.innerHTML = \`
+      <div class="card" style="text-align:center;background:linear-gradient(135deg,rgba(95,55,92,.65),rgba(24,43,80,.92));">
+        <div style="font-size:42px;">🦌</div>
+        <div class="section-title" style="justify-content:center;font-size:17px;">💞 DUO BOND – KHẾ ƯỚC ĐỒNG HÀNH</div>
+        <div class="muted">Tony – Tuần Lộc Đồng Hành. Cùng chăm sóc, cùng tích lũy thân mật và phát triển mối quan hệ.</div>
+      </div>
+      \${pair ? \`
+        <div class="card">
+          <div class="section-title"><span>🦌 Tony và hai người</span><span class="tag tag-buff">+ \${pair.buffPct || 20}% sản xuất</span></div>
+          <div style="text-align:center;font-size:16px;font-weight:800;">\${partner?.username || 'Đối tác'} & Bạn</div>
+          <div class="muted" style="text-align:center;">Cấp \${currentLevel}/6 • \${levels[currentLevel - 1]?.name || ''}</div>
+          <div class="progress-bar"><div class="progress-fill" style="width:\${progress}%"></div></div>
+          <div class="muted">\${nextLevel ? xp.toLocaleString('vi-VN') + ' / ' + nextLevel.xp.toLocaleString('vi-VN') + ' điểm thân mật để lên cấp' : 'Tony đã đạt cấp quan hệ tối đa!'}</div>
+          <div class="grid-2">
+            <div class="mat-chip"><span>🍎 Lượt cho ăn hôm nay</span><strong>\${pair.daily?.date === STATE.data.today ? (pair.daily.feeds?.[player.userId] || 0) : 0}/20</strong></div>
+            <div class="mat-chip"><span>🧸 Lượt chơi hôm nay</span><strong>\${pair.daily?.date === STATE.data.today ? (pair.daily.toys?.[player.userId] || 0) : 0}/3</strong></div>
+          </div>
+          <div style="display:flex;gap:7px;flex-wrap:wrap;">
+            <button class="btn btn-gold" id="duo-feed" style="flex:1;">🍎 Cho Tony ăn (300 ❄️)</button>
+            <select id="duo-toy" class="pill" style="flex:1;min-width:130px;background:#101b33;">\${toyOptions}</select>
+            <button class="btn btn-green" id="duo-play">🧸 Ném đồ chơi</button>
+          </div>
+          <div class="muted">Mỗi người: 20 lần cho ăn và 3 lần ném đồ chơi/ngày. Điểm đồ chơi phụ thuộc độ quý hiếm.</div>
+          \${breakup ? \`<div class="card"><strong>⚠️ Yêu cầu hủy kết đôi</strong><div class="muted">Đối tác \${breakup.fromId === player.userId ? 'đã gửi yêu cầu hủy kết đôi.' : 'đang chờ bạn xác nhận hủy kết đôi.'}</div>\${breakup.fromId !== player.userId ? '<div style="display:flex;gap:7px;"><button class="btn btn-gold" id="duo-break-yes" style="flex:1;">Đồng ý hủy</button><button class="btn btn-outline" id="duo-break-no" style="flex:1;">Từ chối</button></div>' : ''}</div>\` : '<button class="btn btn-outline" id="duo-break-request">Yêu cầu hủy kết đôi</button>'}
+        </div>
+        <div class="card">
+          <div class="section-title">🏦 KHO CHUNG</div>
+          <div class="grid-2">\${Object.entries(materialsMeta || {}).map(([id,m]) => \`<div class="mat-chip"><span>\${m.icon} \${m.name}</span><strong>\${Number(pair.sharedStorage?.[id] || 0).toLocaleString('vi-VN')}</strong></div>\`).join('')}</div>
+          <div class="muted">Cả hai đều có thể gửi và rút nguyên liệu. Giao dịch trao đổi riêng luôn cần đối tác duyệt.</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <select id="duo-storage-mat" class="pill" style="background:#101b33;flex:1;">\${matOptions}</select>
+            <input id="duo-storage-amount" type="number" min="1" step="1" value="1" class="pill" style="width:90px;">
+            <button class="btn btn-green" id="duo-deposit">Gửi</button>
+            <button class="btn btn-gold" id="duo-withdraw">Rút</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="section-title">🔁 GIAO DỊCH VỚI ĐỐI TÁC</div>
+          <div class="muted">Tối đa 10 giao dịch thành công/cặp/ngày. Nguyên liệu người gửi được giữ riêng cho tới khi đối tác duyệt. Cả hai bên nhận thêm tối thiểu 1 nguyên liệu hoặc +20% nếu lớn hơn.</div>
+          <div class="grid-2">
+            <label class="muted">Bạn đưa<select id="duo-offer-mat" class="pill" style="display:block;width:100%;background:#101b33;">\${matOptions}</select></label>
+            <label class="muted">Số lượng<input id="duo-offer-amount" class="pill" type="number" min="1" value="1" style="display:block;width:100%;"></label>
+            <label class="muted">Bạn muốn nhận<select id="duo-want-mat" class="pill" style="display:block;width:100%;background:#101b33;">\${matOptions}</select></label>
+            <label class="muted">Số lượng yêu cầu<input id="duo-want-amount" class="pill" type="number" min="1" value="1" style="display:block;width:100%;"></label>
+          </div>
+          <button class="btn btn-green" id="duo-trade-create">Gửi đề nghị giao dịch</button>
+          \${pendingTrade ? \`<div class="card"><strong>⏳ Giao dịch đang chờ duyệt</strong><div class="muted">Người gửi: \${pendingTrade.fromId === player.userId ? 'Bạn' : (partner?.username || 'Đối tác')} • Đưa \${pendingTrade.offerAmount} \${materialsMeta[pendingTrade.offerMat]?.icon || ''} • Muốn nhận \${pendingTrade.wantAmount} \${materialsMeta[pendingTrade.wantMat]?.icon || ''}</div>\${pendingTrade.fromId !== player.userId ? '<div style="display:flex;gap:7px;"><button class="btn btn-gold" id="duo-trade-yes" style="flex:1;">Duyệt giao dịch</button><button class="btn btn-outline" id="duo-trade-no" style="flex:1;">Từ chối</button></div>' : '<div class="muted">Đang chờ đối tác xác nhận. Nguyên liệu đã được khóa.</div>'}</div>\` : ''}
+        </div>
+        <div class="card">
+          <div class="section-title">💗 HÀNH TRÌNH QUAN HỆ</div>
+          \${levels.map((lv) => \`<div class="card-row"><div><strong>\${lv.level}. \${lv.name}</strong><div class="muted">Buff +\${lv.buffPct}% • Thưởng lần đầu của hành trình: \${lv.ribbonReward.toLocaleString('vi-VN')} 🎀 mỗi người</div></div><span class="tag">\${currentLevel >= lv.level ? 'Đã đạt' : 'Chưa mở'}</span></div>\`).join('')}
+        </div>
+      \` : \`
+        \${incoming ? \`<div class="card"><div class="section-title">💌 LỜI MỜI KẾT ĐÔI</div><strong>\${incoming.fromName} muốn cùng bạn đồng hành!</strong><div class="muted">Khi chấp nhận, Tony xuất hiện và cả hai bắt đầu từ cấp 1. Mỗi người nhận 2.000 🎀 mốc đầu tiên.</div><div style="display:flex;gap:8px;"><button class="btn btn-gold" id="duo-accept" style="flex:1;">Chấp nhận</button><button class="btn btn-outline" id="duo-decline" style="flex:1;">Từ chối</button></div></div>\` : ''}
+        <div class="card">
+          <div class="section-title">💌 TÌM ĐỐI TÁC ĐỒNG HÀNH</div>
+          <div class="muted">Nhập Discord User ID của người đã có hồ sơ Xưởng Noel trong cùng server. Cả hai phải đồng ý mới bắt đầu.</div>
+          <input id="duo-target-id" class="pill" placeholder="Discord User ID" inputmode="numeric" style="width:100%;">
+          <button class="btn btn-gold" id="duo-invite" style="width:100%;">Gửi lời mời kết đôi</button>
+          \${outgoing ? \`<div class="muted">Lời mời đã gửi đến \${outgoing.toName}. Đang chờ phản hồi.</div>\` : ''}
+        </div>
+      \`}
+    \`;
+    const callDuo = async (path, body = {}) => { const r = await apiRequest(path, 'POST', body); if (r?.message) showToast(r.message); await refreshState(); return r; };
+    const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+    on('duo-invite', () => callDuo('/api/santa/duo/invite', { targetUserId: document.getElementById('duo-target-id')?.value?.trim() }));
+    on('duo-accept', () => callDuo('/api/santa/duo/accept'));
+    on('duo-decline', () => callDuo('/api/santa/duo/decline'));
+    on('duo-break-request', () => callDuo('/api/santa/duo/breakup/request'));
+    on('duo-break-yes', () => callDuo('/api/santa/duo/breakup/respond', { accept: true }));
+    on('duo-break-no', () => callDuo('/api/santa/duo/breakup/respond', { accept: false }));
+    on('duo-feed', () => callDuo('/api/santa/duo/feed'));
+    on('duo-play', () => callDuo('/api/santa/duo/toy', { toyId: document.getElementById('duo-toy')?.value }));
+    const storage = (action) => callDuo('/api/santa/duo/storage', { action, material: document.getElementById('duo-storage-mat')?.value, amount: Number(document.getElementById('duo-storage-amount')?.value) });
+    on('duo-deposit', () => storage('deposit'));
+    on('duo-withdraw', () => storage('withdraw'));
+    on('duo-trade-create', () => callDuo('/api/santa/duo/trade/create', { offerMat: document.getElementById('duo-offer-mat')?.value, offerAmount: Number(document.getElementById('duo-offer-amount')?.value), wantMat: document.getElementById('duo-want-mat')?.value, wantAmount: Number(document.getElementById('duo-want-amount')?.value) }));
+    on('duo-trade-yes', () => callDuo('/api/santa/duo/trade/respond', { accept: true }));
+    on('duo-trade-no', () => callDuo('/api/santa/duo/trade/respond', { accept: false }));
   }
 
   if (overlay && savedScrollTop > 0) {
