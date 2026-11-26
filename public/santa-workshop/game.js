@@ -1,4 +1,4 @@
-import { christmasAudio } from './audio.js?v=20261126d';
+import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126e';
 
 const STATE = {
   token: 'demo',
@@ -304,7 +304,14 @@ class SantaWorkshopScene extends Phaser.Scene {
     g.fillRoundedRect(4, 42, 12, 8, 4);
 
     // Thân áo theo skin
-    const coatColor = skin === 'skin_santa' ? 0xd90429 : skin === 'skin_fairy' ? 0x00b4d8 : 0x2a9d8f;
+    const coatColor =
+      skin === 'skin_santa'
+        ? 0xd90429
+        : skin === 'skin_fairy'
+          ? 0x00b4d8
+          : skin === 'skin_knight'
+            ? 0x4361ee
+            : 0x2a9d8f;
     g.fillStyle(coatColor, 1);
     g.fillRoundedRect(-22, 0, 44, 44, 10);
     if (skin === 'skin_santa') {
@@ -421,7 +428,7 @@ class SantaWorkshopScene extends Phaser.Scene {
       }
       if (petId) {
         const floorY = this.scale.height * 0.64;
-        const petIcon = petId === 'pet_reindeer' ? '🦌' : '🐰';
+        const petIcon = petId === 'pet_reindeer' ? '🦌' : petId === 'pet_penguin' ? '🐧' : '🐰';
         this.petSprite = this.add
           .text(this.scale.width * 0.32, floorY + 14, petIcon, { fontSize: '28px' })
           .setOrigin(0.5)
@@ -928,6 +935,8 @@ function renderPanel() {
     achievementsMeta = [],
     dailyQuestsMeta = [],
     serverTree = { level: 0, points: 0, nextThreshold: 150, buffActive: false },
+    serverBoss = { name: 'Người Tuyết Bão Tố Khổng Lồ', icon: '⛄', level: 1, hp: 2000, maxHp: 2000 },
+    personalBuffActive = false,
     shopItems,
     leaderboard,
     riddle,
@@ -980,6 +989,35 @@ function renderPanel() {
         </div>
       </div>
 
+      <div class="card">
+        <div class="section-title">
+          <span>${serverBoss.icon} Boss Server: ${serverBoss.name} (Lv.${serverBoss.level})</span>
+          ${personalBuffActive ? '<span class="tag tag-buff">x3 IDLE!</span>' : ''}
+        </div>
+        <div class="muted">HP: ${serverBoss.hp}/${serverBoss.maxHp} • Hạ gục nhận Rương +${300 + (serverBoss.level || 1) * 100} ❄️ & +3 🎟️!</div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${Math.max(0, Math.round((serverBoss.hp / Math.max(1, serverBoss.maxHp)) * 100))}%;background:#e63946;"></div></div>
+        <div style="display:flex;gap:8px;margin-top:4px;">
+          <button class="btn btn-sm" id="btn-boss-tap">⚔️ Đánh Boss</button>
+          <button class="btn btn-gold btn-sm" id="btn-boss-toy">🧸 Ném 1 Đồ Chơi</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title"><span>🏪 Chợ Đổi Nguyên Liệu</span></div>
+        <div class="muted">Đổi 2 nguyên liệu dư lấy 1 loại cần, hoặc bán 5 nguyên liệu lấy +20 ❄️</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px;">
+          <select id="mkt-from" class="pill" style="background:#101b33;">
+            ${Object.entries(materialsMeta).map(([k, m]) => `<option value="${k}">${m.icon} ${m.name}</option>`).join('')}
+          </select>
+          <span>→</span>
+          <select id="mkt-to" class="pill" style="background:#101b33;">
+            ${Object.entries(materialsMeta).map(([k, m], idx) => `<option value="${k}" ${idx === 1 ? 'selected' : ''}>${m.icon} ${m.name}</option>`).join('')}
+          </select>
+          <button class="btn btn-green btn-sm" id="btn-mkt-swap">Đổi (2→1)</button>
+          <button class="btn btn-gold btn-sm" id="btn-mkt-sell">Bán 5 (+20❄️)</button>
+        </div>
+      </div>
+
       <div class="section-title" style="margin-top:4px;"><span>🧝 Đội Ngũ Yêu Tinh Phụ Việc</span></div>
       ${helpersMeta
         .map(
@@ -1008,6 +1046,25 @@ function renderPanel() {
       const r = await runAction('/api/santa/tree/contribute', { mode: 'coins' });
       if (r?.ok) christmasAudio.playJackpotSfx();
     };
+    document.getElementById('btn-boss-tap').onclick = async () => {
+      const r = await runAction('/api/santa/boss/attack', { mode: 'tap' });
+      if (r?.ok) christmasAudio.playTapSfx(5);
+    };
+    document.getElementById('btn-boss-toy').onclick = async () => {
+      const r = await runAction('/api/santa/boss/attack', { mode: 'toy' });
+      if (r?.ok) christmasAudio.playJackpotSfx();
+    };
+    document.getElementById('btn-mkt-swap').onclick = async () => {
+      const fromMat = document.getElementById('mkt-from').value;
+      const toMat = document.getElementById('mkt-to').value;
+      const r = await runAction('/api/santa/market/exchange', { mode: 'swap', fromMat, toMat });
+      if (r?.ok) christmasAudio.playCoinSfx();
+    };
+    document.getElementById('btn-mkt-sell').onclick = async () => {
+      const fromMat = document.getElementById('mkt-from').value;
+      const r = await runAction('/api/santa/market/exchange', { mode: 'sell', fromMat });
+      if (r?.ok) christmasAudio.playCoinSfx();
+    };
     container.querySelectorAll('[data-hire]').forEach((btn) => {
       btn.onclick = async () => {
         const r = await runAction('/api/santa/hire-helper', { helperId: btn.dataset.hire });
@@ -1022,14 +1079,22 @@ function renderPanel() {
           const reqStr = Object.entries(r.ingredients)
             .map(([m, q]) => `${materialsMeta[m].icon} ${player.materials[m] || 0}/${q}`)
             .join(' • ');
-          const canCraft = Object.entries(r.ingredients).every(([m, q]) => (player.materials[m] || 0) >= q);
+          const unlocked = (player.workshopLevel || 1) >= (r.minLevel || 1);
+          const canCraft = unlocked && Object.entries(r.ingredients).every(([m, q]) => (player.materials[m] || 0) >= q);
+          const shinyCount = player.shinyToys?.[r.id] || 0;
           return `
             <div class="card-row">
               <div>
-                <div><strong>${r.icon} ${r.name}</strong> <span class="tag">Kho: ${player.toys[r.id] || 0}</span></div>
+                <div>
+                  <strong>${r.icon} ${r.name}</strong>
+                  <span class="tag">Kho: ${player.toys[r.id] || 0}${shinyCount > 0 ? ` (+${shinyCount} ✨)` : ''}</span>
+                  ${!unlocked ? `<span class="tag tag-rush">Mở ở Lv.${r.minLevel}</span>` : ''}
+                </div>
                 <div class="muted">${reqStr}</div>
               </div>
-              <button class="btn ${canCraft ? 'btn-green' : ''}" data-craft="${r.id}" ${canCraft ? '' : 'disabled'}>Chế tạo</button>
+              <button class="btn ${canCraft ? 'btn-green' : ''}" data-craft="${r.id}" ${canCraft ? '' : 'disabled'}>
+                ${unlocked ? 'Chế tạo' : `Lv.${r.minLevel}`}
+              </button>
             </div>
           `;
         })
@@ -1052,7 +1117,7 @@ function renderPanel() {
       ${player.orders
         .map((ord) => {
           const recipe = recipes.find((r) => r.id === ord.toyId);
-          const have = player.toys[ord.toyId] || 0;
+          const have = (player.toys[ord.toyId] || 0) + (player.shinyToys?.[ord.toyId] || 0);
           const canDeliver = have >= ord.qty;
           const rushBadge = ord.isRush
             ? `<span class="tag tag-rush" data-expire="${ord.expiresAt}">⚡ Khẩn x2 (${formatCountdown(ord.expiresAt)})</span>`
@@ -1165,7 +1230,10 @@ function renderPanel() {
     container.innerHTML = `
       <div class="section-title">
         <span>🛒 Shop, Thú Cưng & Tủ Đồ</span>
-        <button class="btn btn-gold btn-sm" id="btn-open-wheel">🎡 Vòng Quay (${player.luckyTickets || 0} 🎟️)</button>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-sm" id="btn-mystery-box">🎁 Hộp Bí Ẩn (150❄️)</button>
+          <button class="btn btn-gold btn-sm" id="btn-open-wheel">🎡 Vòng Quay (${player.luckyTickets || 0} 🎟️)</button>
+        </div>
       </div>
       ${shopItems
         .map((item) => {
@@ -1216,7 +1284,7 @@ function renderPanel() {
               <div style="display:flex;align-items:center;gap:9px;min-width:0;">
                 <div class="avatar-wrapper avatar-sm ${frameCls}">${avaHtml}</div>
                 <div style="min-width:0;">
-                  <div><strong>#${idx + 1} ${entry.username}</strong> (Lv.${entry.workshopLevel})</div>
+                  <div><strong>#${idx + 1} ${entry.username}</strong> (Lv.${entry.workshopLevel} • 📦 ${entry.totalDelivered || 0} đơn)</div>
                   <div class="muted">⭐ ${entry.reputation} • ❄️ ${entry.snowCoins}</div>
                 </div>
               </div>
@@ -1232,6 +1300,10 @@ function renderPanel() {
         })
         .join('')}
     `;
+    document.getElementById('btn-mystery-box').onclick = async () => {
+      const r = await runAction('/api/santa/mystery-box');
+      if (r?.ok) christmasAudio.playJackpotSfx();
+    };
     document.getElementById('btn-open-wheel').onclick = () => {
       const lv = player.workshopLevel || 1;
       const mult = (1 + (lv - 1) * 0.5).toFixed(1);
@@ -1315,10 +1387,29 @@ function bindEvents() {
     btn.textContent = STATE.panelCollapsed ? '▴ Mở bảng' : '▾ Thu gọn';
   });
 
-  document.getElementById('btn-song').addEventListener('click', async () => {
-    const song = await christmasAudio.nextSong();
-    document.getElementById('song-name').textContent = song.title;
-    showToast(`🎵 Đang phát: ${song.title}`);
+  document.getElementById('btn-song').addEventListener('click', () => {
+    const listEl = document.getElementById('music-list');
+    const currentId = christmasAudio.getCurrentSong().id;
+    listEl.innerHTML = CHRISTMAS_SONGS.map(
+      (s) => `
+      <button class="btn ${s.id === currentId ? 'btn-gold' : 'btn-outline'}" data-song-id="${s.id}" style="text-align:left;">
+        ${s.id === currentId ? '🔊 ' : '🎵 '}${s.title}
+      </button>
+    `,
+    ).join('');
+    listEl.querySelectorAll('[data-song-id]').forEach((b) => {
+      b.onclick = async () => {
+        const song = await christmasAudio.selectSongById(b.dataset.songId);
+        document.getElementById('song-name').textContent = song.title;
+        document.getElementById('music-modal').classList.add('hidden');
+        showToast(`🎵 Đang phát: ${song.title}`);
+      };
+    });
+    document.getElementById('music-modal').classList.remove('hidden');
+  });
+
+  document.getElementById('btn-close-music').addEventListener('click', () => {
+    document.getElementById('music-modal').classList.add('hidden');
   });
 
   document.getElementById('btn-mute').addEventListener('click', async () => {

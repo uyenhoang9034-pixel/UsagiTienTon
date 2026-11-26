@@ -20,6 +20,10 @@ import {
   handleSantaClaimQuest,
   grantSantaSnowCoins,
   handleSantaAckGifts,
+  getScaledWheelSegments,
+  handleSantaAttackBoss,
+  handleSantaExchangeMaterial,
+  handleSantaOpenMysteryBox,
 } from '../src/services/santaWorkshopService.js';
 
 function createMemoryClient() {
@@ -151,4 +155,18 @@ test('Luồng chơi Xưởng Quà Ông Già Noel: Điểm danh -> Giải đố -
   const ackRes = await handleSantaAckGifts(client, identity);
   assert.equal(ackRes.ok, true);
   assert.equal(ackRes.state.player.pendingGiftNotices.length, 0);
+
+  // 13. Vé Quay scale đến Lv.20 (+6 vé ở Lv.17+), Boss Server, Chợ & Hộp Bí Ẩn
+  const lv17Segs = getScaledWheelSegments(17);
+  const ticketSeg = lv17Segs.find((s) => s.type === 'tickets');
+  assert.equal(ticketSeg.amount, 6);
+
+  const bossRes = await handleSantaAttackBoss(client, identity, { mode: 'tap' });
+  assert.equal(bossRes.ok, true);
+
+  const swapRes = await handleSantaExchangeMaterial(client, identity, { mode: 'swap', fromMat: 'wood', toMat: 'magicDust' });
+  assert.equal(swapRes.ok, true);
+
+  const boxRes = await handleSantaOpenMysteryBox(client, identity);
+  assert.equal(boxRes.ok, true);
 });

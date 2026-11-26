@@ -7,8 +7,8 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <title>Xưởng Quà Của Ông Già Noel — Usagi Activity</title>
-    <link rel="stylesheet" href="./style.css?v=20261126d" />
-    <script src="./vendor/phaser.min.js?v=20261126d"></script>
+    <link rel="stylesheet" href="./style.css?v=20261126e" />
+    <script src="./vendor/phaser.min.js?v=20261126e"></script>
   </head>
   <body>
     <div id="app">
@@ -125,6 +125,17 @@
         </div>
       </div>
 
+      <!-- Music Selector Modal -->
+      <div id="music-modal" class="modal-backdrop hidden">
+        <div class="modal-card" style="align-items: stretch;">
+          <div class="modal-header">
+            <strong>🎶 Chọn Nhạc Giáng Sinh</strong>
+            <button id="btn-close-music" class="btn btn-outline btn-sm">✕</button>
+          </div>
+          <div id="music-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+        </div>
+      </div>
+
       <!-- Bottom Navigation -->
       <nav class="bottom-nav" aria-label="Menu trò chơi">
         <button class="nav-btn active" data-tab="workshop">
@@ -150,6 +161,6 @@
       </nav>
     </div>
 
-    <script type="module" src="./game.js?v=20261126d"></script>
+    <script type="module" src="./game.js?v=20261126e"></script>
   </body>
 </html>

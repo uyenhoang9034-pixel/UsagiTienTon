@@ -65,6 +65,30 @@ export const CHRISTMAS_SONGS = [
       ['R', 1],
     ],
   },
+  {
+    id: 'all_i_want',
+    title: 'All I Want For Christmas Is You',
+    tempoMs: 210,
+    notes: [
+      ['G4', 0.5], ['B4', 0.5], ['D5', 0.5], ['Fs5', 0.5], ['G5', 1], ['Fs5', 0.5], ['E5', 0.5],
+      ['D5', 1.5], ['B4', 0.5], ['G4', 1], ['R', 0.5],
+      ['E5', 0.5], ['E5', 0.5], ['D5', 1], ['C5', 0.5], ['B4', 0.5], ['A4', 1.5],
+      ['G4', 0.5], ['A4', 0.5], ['B4', 0.5], ['D5', 1], ['G5', 1.5],
+      ['R', 1],
+    ],
+  },
+  {
+    id: 'santa_claus',
+    title: 'Santa Claus Is Coming To Town',
+    tempoMs: 230,
+    notes: [
+      ['G4', 0.5], ['E4', 0.5], ['F4', 0.5], ['G4', 1], ['G4', 1], ['G4', 0.5], ['A4', 0.5], ['B4', 0.5],
+      ['C5', 1], ['C5', 1.5], ['E4', 0.5], ['F4', 0.5], ['G4', 1], ['G4', 1],
+      ['G4', 0.5], ['A4', 0.5], ['G4', 0.5], ['F4', 1], ['F4', 1.5],
+      ['E4', 1], ['G4', 1], ['C4', 1], ['E4', 1], ['D4', 1.5], ['F4', 0.5], ['B4', 1], ['C5', 2],
+      ['R', 1],
+    ],
+  },
 ];
 
 class ChristmasAudioEngine {
@@ -147,6 +171,18 @@ class ChristmasAudioEngine {
 
   async nextSong() {
     this.songIndex = (this.songIndex + 1) % CHRISTMAS_SONGS.length;
+    this.noteIndex = 0;
+    this.muted = false;
+    await this.ensureContext();
+    clearTimeout(this.timer);
+    this.musicPlaying = true;
+    this.scheduleNextNote();
+    return CHRISTMAS_SONGS[this.songIndex];
+  }
+
+  async selectSongById(songId) {
+    const idx = CHRISTMAS_SONGS.findIndex((s) => s.id === songId);
+    if (idx !== -1) this.songIndex = idx;
     this.noteIndex = 0;
     this.muted = false;
     await this.ensureContext();

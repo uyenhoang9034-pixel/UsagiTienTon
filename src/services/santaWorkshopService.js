@@ -53,6 +53,34 @@ export const TOY_RECIPES = [
     ingredients: { wood: 5, fabric: 2, magicDust: 3, ribbon: 2 },
     baseCoins: 145,
     baseRep: 50,
+    minLevel: 1,
+  },
+  {
+    id: 'polarExpress',
+    name: 'Tàu Tốc Hành Bắc Cực',
+    icon: '🚅',
+    ingredients: { wood: 7, fabric: 3, magicDust: 5, ribbon: 4 },
+    baseCoins: 290,
+    baseRep: 95,
+    minLevel: 10,
+  },
+  {
+    id: 'icePalace',
+    name: 'Cung Điện Tuyết',
+    icon: '🏰',
+    ingredients: { wood: 8, fabric: 5, magicDust: 8, ribbon: 6 },
+    baseCoins: 480,
+    baseRep: 160,
+    minLevel: 15,
+  },
+  {
+    id: 'santaCrown',
+    name: 'Vương Miện Ông Già Noel',
+    icon: '👑',
+    ingredients: { wood: 10, fabric: 8, magicDust: 12, ribbon: 10 },
+    baseCoins: 850,
+    baseRep: 280,
+    minLevel: 20,
   },
 ];
 
@@ -286,7 +314,7 @@ export function getScaledWheelSegments(workshopLevel = 1) {
   const mult = 1 + (lv - 1) * 0.5;
   return WHEEL_SEGMENTS.map((seg) => {
     if (seg.type === 'tickets') {
-      const tickets = lv >= 9 ? 4 : lv >= 5 ? 3 : 2;
+      const tickets = lv >= 17 ? 6 : lv >= 13 ? 5 : lv >= 9 ? 4 : lv >= 5 ? 3 : 2;
       return { ...seg, amount: tickets, label: `+${tickets} 🎟️` };
     }
     const scaled = Math.round(seg.amount * mult);
@@ -332,7 +360,8 @@ function getLeaderboardKey(guildId) {
 
 function createOrder(workshopLevel = 1) {
   const customer = ORDER_CUSTOMERS[Math.floor(Math.random() * ORDER_CUSTOMERS.length)];
-  const recipe = TOY_RECIPES[Math.floor(Math.random() * TOY_RECIPES.length)];
+  const unlockedRecipes = TOY_RECIPES.filter((r) => workshopLevel >= (r.minLevel || 1));
+  const recipe = unlockedRecipes[Math.floor(Math.random() * unlockedRecipes.length)] || TOY_RECIPES[0];
   const roll = Math.random();
   const isRush = roll < 0.25;
   const isSpecial = !isRush && roll < 0.5;
@@ -376,7 +405,13 @@ function createDefaultPlayer({ userId, username, avatarUrl, guildId }) {
       musicBox: 0,
       snowGlobe: 0,
       santaSleigh: 0,
+      polarExpress: 0,
+      icePalace: 0,
+      santaCrown: 0,
     },
+    shinyToys: {},
+    personalBuffExpiresAt: 0,
+    lastBossAttackAt: 0,
     orders: [createOrder(1), createOrder(1), createOrder(1)],
     ownedFrames: [],
     equippedFrame: null,
@@ -408,6 +443,7 @@ export function computePendingIdleMaterials(player, now = Date.now()) {
   const elapsedMs = Math.max(0, now - (player.lastCollectAt || now));
   const elapsedMinutes = Math.min(MAX_IDLE_MINUTES, elapsedMs / 60000);
   const levelMultiplier = 1 + (Math.max(1, player.workshopLevel || 1) - 1) * 0.35;
+  const personalMult = (player.personalBuffExpiresAt || 0) > now ? 3 : 1;
   const helpers = player.helpers || {};
 
   const helperBonuses = { wood: 0, fabric: 0, magicDust: 0, ribbon: 0 };
@@ -423,7 +459,7 @@ export function computePendingIdleMaterials(player, now = Date.now()) {
   const pending = {};
   let totalPending = 0;
   for (const [key, meta] of Object.entries(MATERIALS)) {
-    const rate = meta.baseRatePerMin * levelMultiplier + (helperBonuses[key] || 0);
+    const rate = (meta.baseRatePerMin * levelMultiplier + (helperBonuses[key] || 0)) * personalMult;
     const amount = Math.floor(elapsedMinutes * rate);
     pending[key] = amount;
     totalPending += amount;
@@ -556,6 +592,7 @@ async function updateLeaderboard(client, guildId, player) {
     reputation: player.reputation || 0,
     snowCoins: player.snowCoins || 0,
     workshopLevel: player.workshopLevel || 1,
+    totalDelivered: player.totalDelivered || 0,
     equippedFrame: player.equippedFrame || null,
   });
   filtered.sort((a, b) => (b.reputation - a.reputation) || (b.snowCoins - a.snowCoins));
@@ -662,11 +699,13 @@ export async function buildSantaStatePayload(client, identity) {
   const leaderboard = await getSantaLeaderboard(client, guildId);
   const guildConfig = await getSantaGuildConfig(client, guildId);
   const serverTree = await getServerTree(client, guildId);
+  const serverBoss = await getServerBoss(client, guildId);
 
   return {
     player,
     idle,
     today,
+    personalBuffActive: (player.personalBuffExpiresAt || 0) > Date.now(),
     checkedInToday: player.lastCheckinDate === today,
     riddleSolvedToday: player.lastRiddleDate === today,
     riddle: {
@@ -703,6 +742,7 @@ export async function buildSantaStatePayload(client, identity) {
       });
     })(),
     serverTree,
+    serverBoss,
     wheelSegments: getScaledWheelSegments(player.workshopLevel || 1),
     wheelMultiplier: Number((1 + ((player.workshopLevel || 1) - 1) * 0.5).toFixed(2)),
     recipes: TOY_RECIPES,
@@ -838,6 +878,14 @@ export async function handleSantaCraft(client, identity, toyId) {
     return { ok: false, message: 'Công thức đồ chơi không tồn tại!', state: await buildSantaStatePayload(client, identity) };
   }
 
+  if ((player.workshopLevel || 1) < (recipe.minLevel || 1)) {
+    return {
+      ok: false,
+      message: `Cần Xưởng Cấp ${recipe.minLevel} để mở khóa ${recipe.name}!`,
+      state: await buildSantaStatePayload(client, identity),
+    };
+  }
+
   for (const [mat, req] of Object.entries(recipe.ingredients)) {
     if ((player.materials[mat] || 0) < req) {
       return {
@@ -851,14 +899,24 @@ export async function handleSantaCraft(client, identity, toyId) {
   for (const [mat, req] of Object.entries(recipe.ingredients)) {
     player.materials[mat] -= req;
   }
-  player.toys[recipe.id] = (player.toys[recipe.id] || 0) + 1;
+
+  const isShiny = Math.random() < 0.18;
+  if (isShiny) {
+    player.shinyToys = player.shinyToys || {};
+    player.shinyToys[recipe.id] = (player.shinyToys[recipe.id] || 0) + 1;
+  } else {
+    player.toys[recipe.id] = (player.toys[recipe.id] || 0) + 1;
+  }
   player.totalCrafted = (player.totalCrafted || 0) + 1;
   bumpDailyQuest(player, 'q_craft_3', 1);
 
   await savePlayer(client, guildId, player);
   return {
     ok: true,
-    message: `Chế tạo thành công 1 ${recipe.icon} ${recipe.name}!`,
+    isShiny,
+    message: isShiny
+      ? `✨ TUYỆT VỜI! Bạn chế tạo được 1 ${recipe.icon} ${recipe.name} HOÀNG KIM (Giao đơn x3 Xu Tuyết)!`
+      : `Chế tạo thành công 1 ${recipe.icon} ${recipe.name}!`,
     state: await buildSantaStatePayload(client, identity),
   };
 }
@@ -874,7 +932,9 @@ export async function handleSantaDeliver(client, identity, orderId) {
 
   const order = player.orders[idx];
   const recipe = TOY_RECIPES.find((r) => r.id === order.toyId);
-  if ((player.toys[order.toyId] || 0) < order.qty) {
+  const normalCount = player.toys[order.toyId] || 0;
+  const shinyCount = player.shinyToys?.[order.toyId] || 0;
+  if (normalCount + shinyCount < order.qty) {
     return {
       ok: false,
       message: `Bạn cần ${order.qty} ${recipe?.icon || ''} ${recipe?.name || ''} để giao đơn này!`,
@@ -885,8 +945,21 @@ export async function handleSantaDeliver(client, identity, orderId) {
   const tree = await getServerTree(client, guildId);
   const buffMult = tree.buffActive ? 2 : 1;
 
-  player.toys[order.toyId] -= order.qty;
-  const gainedCoins = order.rewardCoins * buffMult;
+  // Ưu tiên dùng bản Hoàng Kim (nếu có) để nhân 3 Xu Tuyết!
+  let usedShiny = 0;
+  let remaining = order.qty;
+  player.shinyToys = player.shinyToys || {};
+  if (shinyCount > 0) {
+    usedShiny = Math.min(shinyCount, remaining);
+    player.shinyToys[order.toyId] -= usedShiny;
+    remaining -= usedShiny;
+  }
+  if (remaining > 0) {
+    player.toys[order.toyId] -= remaining;
+  }
+
+  const shinyMult = usedShiny > 0 ? 3 : 1;
+  const gainedCoins = order.rewardCoins * buffMult * shinyMult;
   player.snowCoins += gainedCoins;
   player.reputation += order.rewardRep;
   if (order.rewardTickets) {
@@ -899,9 +972,10 @@ export async function handleSantaDeliver(client, identity, orderId) {
   await savePlayer(client, guildId, player);
   const ticketNote = order.rewardTickets ? ` & +${order.rewardTickets} 🎟️` : '';
   const buffNote = buffMult > 1 ? ' (x2 Cây Thông!)' : '';
+  const shinyNote = usedShiny > 0 ? ' (✨ Hoàng Kim x3!)' : '';
   return {
     ok: true,
-    message: `Giao hàng cho ${order.customerIcon} ${order.customerName} thành công! Nhận +${gainedCoins} ❄️, +${order.rewardRep} ⭐${ticketNote}${buffNote}`,
+    message: `Giao hàng cho ${order.customerIcon} ${order.customerName} thành công! Nhận +${gainedCoins} ❄️, +${order.rewardRep} ⭐${ticketNote}${buffNote}${shinyNote}`,
     state: await buildSantaStatePayload(client, identity),
   };
 }
@@ -1391,4 +1465,171 @@ export async function handleSantaAckGifts(client, identity) {
     await savePlayer(client, guildId, player);
   }
   return { ok: true, state: await buildSantaStatePayload(client, identity) };
+}
+
+export async function getServerBoss(client, guildId) {
+  const key = `santa:boss:${guildId || 'global'}`;
+  const boss = (await getDatabaseValue(client, key, null)) || {
+    name: 'Người Tuyết Bão Tố Khổng Lồ',
+    icon: '⛄',
+    level: 1,
+    hp: 2000,
+    maxHp: 2000,
+    contributors: {},
+    defeatedCount: 0,
+  };
+  return boss;
+}
+
+export async function handleSantaAttackBoss(client, identity, { mode = 'tap', toyId = null } = {}) {
+  const guildId = identity.guildId || 'global';
+  const player = await getOrCreateSantaPlayer(client, identity);
+  const now = Date.now();
+
+  if (mode === 'tap' && now - (player.lastBossAttackAt || 0) < 2500) {
+    return { ok: false, message: 'Đang nạp sức đánh Boss, chờ 2 giây nha!', state: await buildSantaStatePayload(client, identity) };
+  }
+
+  const key = `santa:boss:${guildId}`;
+  const boss = await getServerBoss(client, guildId);
+  let dmg = 55 + (player.workshopLevel || 1) * 5;
+
+  if (mode === 'toy') {
+    const useToy = toyId || Object.keys(player.toys || {}).find((k) => (player.toys[k] || 0) > 0);
+    if (!useToy || (player.toys[useToy] || 0) < 1) {
+      return { ok: false, message: 'Bạn cần ít nhất 1 món đồ chơi trong kho để ném vào Boss!', state: await buildSantaStatePayload(client, identity) };
+    }
+    player.toys[useToy] -= 1;
+    dmg = 240 + (player.workshopLevel || 1) * 15;
+  } else {
+    player.lastBossAttackAt = now;
+  }
+
+  boss.hp = Math.max(0, (boss.hp || 0) - dmg);
+  boss.contributors = boss.contributors || {};
+  boss.contributors[player.userId] = {
+    username: player.username,
+    dmg: (boss.contributors[player.userId]?.dmg || 0) + dmg,
+  };
+
+  player.reputation += mode === 'toy' ? 20 : 6;
+  player.snowCoins += mode === 'toy' ? 25 : 8;
+
+  let msg = `⚔️ Gây **${dmg} sát thương** lên ${boss.icon} ${boss.name}!`;
+
+  if (boss.hp <= 0) {
+    // Hạ gục Boss -> Thưởng lớn cho người kết liễu & tất cả người tham gia!
+    const rewardCoins = 300 + (boss.level || 1) * 100;
+    player.snowCoins += rewardCoins;
+    player.luckyTickets = (player.luckyTickets || 0) + 3;
+    player.reputation += 100;
+
+    announceToDiscordChannel(
+      client,
+      guildId,
+      `⛄💥 **BOSS SERVER BỊ HẠ GỤC!** <@${player.userId}> đã tung đòn kết liễu **${boss.name} (Lv.${boss.level})**, nhận rương thưởng **+${rewardCoins} ❄️ & +3 🎟️**!`,
+    );
+
+    boss.level = (boss.level || 1) + 1;
+    boss.defeatedCount = (boss.defeatedCount || 0) + 1;
+    boss.maxHp = 2000 + (boss.level - 1) * 1000;
+    boss.hp = boss.maxHp;
+    boss.contributors = {};
+    msg = `🎉 HẠ GỤC BOSS THÀNH CÔNG! Nhận Rương Quà +${rewardCoins} ❄️, +3 🎟️ Vé Quay & +100 ⭐!`;
+  }
+
+  await setDatabaseValue(client, key, boss);
+  await savePlayer(client, guildId, player);
+
+  return {
+    ok: true,
+    damage: dmg,
+    message: msg,
+    state: await buildSantaStatePayload(client, identity),
+  };
+}
+
+export async function handleSantaExchangeMaterial(client, identity, { fromMat, toMat, mode = 'swap' } = {}) {
+  const guildId = identity.guildId || 'global';
+  const player = await getOrCreateSantaPlayer(client, identity);
+
+  if (!MATERIALS[fromMat]) {
+    return { ok: false, message: 'Nguyên liệu nguồn không hợp lệ!', state: await buildSantaStatePayload(client, identity) };
+  }
+
+  if (mode === 'sell') {
+    if ((player.materials[fromMat] || 0) < 5) {
+      return { ok: false, message: `Cần ít nhất 5 ${MATERIALS[fromMat].icon} để bán lấy 20 ❄️!`, state: await buildSantaStatePayload(client, identity) };
+    }
+    player.materials[fromMat] -= 5;
+    player.snowCoins += 20;
+    await savePlayer(client, guildId, player);
+    return {
+      ok: true,
+      message: `🏪 Đã bán 5 ${MATERIALS[fromMat].icon} ${MATERIALS[fromMat].name} lấy +20 ❄️ Xu Tuyết!`,
+      state: await buildSantaStatePayload(client, identity),
+    };
+  }
+
+  if (!MATERIALS[toMat] || fromMat === toMat) {
+    return { ok: false, message: 'Hãy chọn loại nguyên liệu muốn đổi sang khác loại cũ!', state: await buildSantaStatePayload(client, identity) };
+  }
+  if ((player.materials[fromMat] || 0) < 2) {
+    return { ok: false, message: `Cần 2 ${MATERIALS[fromMat].icon} để đổi lấy 1 ${MATERIALS[toMat].icon}!`, state: await buildSantaStatePayload(client, identity) };
+  }
+
+  player.materials[fromMat] -= 2;
+  player.materials[toMat] = (player.materials[toMat] || 0) + 1;
+  await savePlayer(client, guildId, player);
+  return {
+    ok: true,
+    message: `🏪 Đã đổi 2 ${MATERIALS[fromMat].icon} → 1 ${MATERIALS[toMat].icon} ${MATERIALS[toMat].name}!`,
+    state: await buildSantaStatePayload(client, identity),
+  };
+}
+
+export async function handleSantaOpenMysteryBox(client, identity) {
+  const guildId = identity.guildId || 'global';
+  const player = await getOrCreateSantaPlayer(client, identity);
+  const price = 150;
+
+  if (player.snowCoins < price) {
+    return { ok: false, message: `Cần ${price} ❄️ để mở Hộp Quà Bí Ẩn Noel!`, state: await buildSantaStatePayload(client, identity) };
+  }
+
+  player.snowCoins -= price;
+  const roll = Math.random();
+  let msg = '';
+
+  if (roll < 0.3) {
+    player.personalBuffExpiresAt = Date.now() + 10 * 60 * 1000;
+    msg = '🎁 Trúng BUFF ĐỘC QUYỀN: x3 tốc độ sản xuất Idle trong 10 phút!';
+  } else if (roll < 0.55) {
+    player.materials.magicDust += 8;
+    player.materials.ribbon += 8;
+    msg = '🎁 Trúng Gói Nguyên Liệu Hiếm: +8 ✨ Bụi phép & +8 🎀 Ruy băng!';
+  } else if (roll < 0.78) {
+    player.luckyTickets = (player.luckyTickets || 0) + 3;
+    msg = '🎁 Trúng +3 🎟️ Vé Quay Số May Mắn!';
+  } else if (roll < 0.9 && !(player.ownedPets || []).includes('pet_penguin')) {
+    player.ownedPets = player.ownedPets || [];
+    player.ownedPets.push('pet_penguin');
+    player.equippedPet = 'pet_penguin';
+    msg = '🐧 SIÊU HIẾM! Bạn mở trúng Thú Cưng Bí Mật: Chim Cánh Cụt Hoàng Đế!';
+  } else if (!(player.ownedSkins || []).includes('skin_knight')) {
+    player.ownedSkins = player.ownedSkins || ['skin_classic'];
+    player.ownedSkins.push('skin_knight');
+    player.equippedSkin = 'skin_knight';
+    msg = '🛡️ SIÊU HIẾM! Bạn mở trúng Skin Bí Mật: Hiệp Sĩ Băng Giá!';
+  } else {
+    player.snowCoins += 280;
+    msg = '🎁 Trúng Túi Xu Tuyết Lớn: +280 ❄️!';
+  }
+
+  await savePlayer(client, guildId, player);
+  return {
+    ok: true,
+    message: msg,
+    state: await buildSantaStatePayload(client, identity),
+  };
 }

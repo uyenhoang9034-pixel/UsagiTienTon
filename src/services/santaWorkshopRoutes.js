@@ -22,6 +22,9 @@ import {
   handleSantaClaimQuest,
   cleanupGuestSantaData,
   handleSantaAckGifts,
+  handleSantaAttackBoss,
+  handleSantaExchangeMaterial,
+  handleSantaOpenMysteryBox,
 } from './santaWorkshopService.js';
 import { logger } from '../utils/logger.js';
 
@@ -213,6 +216,9 @@ export function registerSantaWorkshopRoutes(app, client) {
     ['/api/santa/grinch-repel', (_req, id) => handleSantaRepelGrinch(client, id)],
     ['/api/santa/quest/claim', (req, id) => handleSantaClaimQuest(client, id, req.body?.questId)],
     ['/api/santa/ack-gifts', (_req, id) => handleSantaAckGifts(client, id)],
+    ['/api/santa/boss/attack', (req, id) => handleSantaAttackBoss(client, id, { mode: req.body?.mode, toyId: req.body?.toyId })],
+    ['/api/santa/market/exchange', (req, id) => handleSantaExchangeMaterial(client, id, { fromMat: req.body?.fromMat, toMat: req.body?.toMat, mode: req.body?.mode })],
+    ['/api/santa/mystery-box', (_req, id) => handleSantaOpenMysteryBox(client, id)],
   ];
 
   for (const [routePath, handler] of actionRoutes) {
