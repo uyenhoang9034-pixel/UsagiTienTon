@@ -175,4 +175,16 @@ test('Luồng chơi Xưởng Quà Ông Già Noel: Điểm danh -> Giải đố -
   const lv1Teddy = getScaledRecipes(1).find((r) => r.id === 'teddy');
   const lv10Teddy = getScaledRecipes(10).find((r) => r.id === 'teddy');
   assert.ok(lv10Teddy.ingredients.fabric > lv1Teddy.ingredients.fabric);
+
+  // 15. Giới hạn mua gói nguyên liệu 1 lần/tuần
+  await grantSantaSnowCoins(client, {
+    guildId: 'guild_noel',
+    targetUser: { id: 'elf_01', username: 'UsagiElf' },
+    amount: 500,
+    adminUser: { username: 'Boss' },
+  });
+  const pack1 = await handleSantaBuyItem(client, identity, 'mat_pack_small');
+  assert.equal(pack1.ok, true);
+  const pack2 = await handleSantaBuyItem(client, identity, 'mat_pack_small');
+  assert.equal(pack2.ok, false);
 });

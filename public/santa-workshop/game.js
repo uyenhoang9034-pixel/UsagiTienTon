@@ -1,4 +1,4 @@
-import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126i';
+import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126j';
 
 const STATE = {
   token: 'demo',
@@ -991,6 +991,7 @@ function renderPanel() {
     serverBoss = { name: 'Người Tuyết Bão Tố Khổng Lồ', icon: '⛄', level: 1, hp: 2000, maxHp: 2000 },
     personalBuffActive = false,
     shopItems,
+    currentWeekKey,
     leaderboard,
     riddle,
     checkedInToday,
@@ -1305,6 +1306,7 @@ function renderPanel() {
             (isPet && player.equippedPet === item.id) ||
             (isSkin && player.equippedSkin === item.id);
           const ownedRole = item.type === 'role' && player.hasEventRole;
+          const boughtThisWeek = Boolean(item.weeklyLimit && currentWeekKey && player.weeklyPurchases?.[item.id] === currentWeekKey);
 
           let actionHtml = `<button class="btn" data-buy="${item.id}">${item.price} ❄️</button>`;
           if (owned) {
@@ -1313,6 +1315,8 @@ function renderPanel() {
               : `<button class="btn btn-green" data-equip-kind="${item.type}" data-equip-id="${item.id}">Trang bị</button>`;
           } else if (ownedRole) {
             actionHtml = `<button class="btn btn-outline" disabled>Đã sở hữu</button>`;
+          } else if (boughtThisWeek) {
+            actionHtml = `<button class="btn btn-outline" disabled>Đã mua tuần này</button>`;
           }
 
           return `

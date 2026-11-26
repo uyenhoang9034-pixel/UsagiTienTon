@@ -255,7 +255,8 @@ export const SHOP_ITEMS = [
     name: 'Túi Nguyên Liệu Xưởng',
     icon: '📦',
     price: 120,
-    description: 'Nhận ngay +10 🌲, +10 🧶, +6 ✨, +8 🎀 vào kho.',
+    weeklyLimit: 1,
+    description: 'Nhận ngay +10 🌲, +10 🧶, +6 ✨, +8 🎀 vào kho (Giới hạn 1 lần/tuần).',
     pack: { wood: 10, fabric: 10, magicDust: 6, ribbon: 8 },
   },
   {
@@ -264,7 +265,8 @@ export const SHOP_ITEMS = [
     name: 'Rương Nguyên Liệu Đại Gia',
     icon: '🧳',
     price: 480,
-    description: 'Nhận ngay +45 🌲, +45 🧶, +30 ✨, +35 🎀 vào kho!',
+    weeklyLimit: 1,
+    description: 'Nhận ngay +45 🌲, +45 🧶, +30 ✨, +35 🎀 vào kho (Giới hạn 1 lần/tuần)!',
     pack: { wood: 45, fabric: 45, magicDust: 30, ribbon: 35 },
   },
   {
@@ -420,6 +422,16 @@ function getTodayKey() {
   const now = new Date();
   const vnTime = new Date(now.getTime() + 7 * 60 * 60 * 1000);
   return vnTime.toISOString().slice(0, 10);
+}
+
+function getWeekKey() {
+  const now = new Date();
+  const vnTime = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  const day = vnTime.getUTCDay(); // 0 = CN, 1 = T2...
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(vnTime);
+  monday.setUTCDate(vnTime.getUTCDate() + diffToMonday);
+  return monday.toISOString().slice(0, 10);
 }
 
 function getPlayerKey(guildId, userId) {
@@ -799,6 +811,7 @@ export async function buildSantaStatePayload(client, identity) {
     player,
     idle,
     today,
+    currentWeekKey: getWeekKey(),
     personalBuffActive: (player.personalBuffExpiresAt || 0) > Date.now(),
     checkedInToday: player.lastCheckinDate === today,
     riddleSolvedToday: player.lastRiddleDate === today,
@@ -1188,6 +1201,15 @@ export async function handleSantaBuyItem(client, identity, itemId) {
     return { ok: false, message: 'Bạn đã nhận Role Sự Kiện Noel rồi!', state: await buildSantaStatePayload(client, identity) };
   }
 
+  const weekKey = getWeekKey();
+  if (item.weeklyLimit && player.weeklyPurchases?.[item.id] === weekKey) {
+    return {
+      ok: false,
+      message: `⏳ ${item.name} mỗi tuần chỉ được mua 1 lần! Hãy quay lại vào tuần sau nhé!`,
+      state: await buildSantaStatePayload(client, identity),
+    };
+  }
+
   if (player.snowCoins < item.price) {
     return {
       ok: false,
@@ -1236,6 +1258,10 @@ export async function handleSantaBuyItem(client, identity, itemId) {
   } else if (item.type === 'pack' && item.pack) {
     for (const [m, amt] of Object.entries(item.pack)) {
       player.materials[m] = (player.materials[m] || 0) + amt;
+    }
+    if (item.weeklyLimit) {
+      player.weeklyPurchases = player.weeklyPurchases || {};
+      player.weeklyPurchases[item.id] = weekKey;
     }
   } else if (item.type === 'buff') {
     const base = Math.max(Date.now(), player.personalBuffExpiresAt || 0);
