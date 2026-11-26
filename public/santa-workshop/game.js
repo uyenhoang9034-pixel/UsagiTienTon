@@ -1827,7 +1827,7 @@ function openUpgradeConfirmModal() {
   if (!STATE.data) return;
   const { player, upgradeCost } = STATE.data;
   const curLv = player.workshopLevel || 1;
-  if (curLv >= 100) return;
+  if (curLv >= 2000) return;
 
   const nextLv = curLv + 1;
   const curMult = (1 + (curLv - 1) * 0.35).toFixed(2);
