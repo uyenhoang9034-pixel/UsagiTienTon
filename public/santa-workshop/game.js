@@ -1,4 +1,4 @@
-import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126n';
+import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126o';
 
 const STATE = {
   token: 'demo',
@@ -1040,6 +1040,8 @@ function renderPanel() {
     coopBonusPct = 0,
     canOpenAdventToday = false,
     nextAdventDay = 1,
+    bossTapLeft = 3,
+    bossToyLeft = 2,
     shopItems,
     currentWeekKey,
     leaderboard,
@@ -1098,14 +1100,34 @@ function renderPanel() {
 
       <div class="card">
         <div class="section-title">
-          <span>${serverBoss.icon} Boss Server: ${serverBoss.name} (Lv.${serverBoss.level})</span>
-          ${personalBuffActive ? '<span class="tag tag-buff">x3 IDLE!</span>' : ''}
+          <span>${serverBoss.icon} Boss Ngày: ${serverBoss.name} (Lv.${serverBoss.level})</span>
+          ${
+            serverBoss.status === 'defeated'
+              ? '<span class="tag tag-buff">ĐÃ HẠ GỤC!</span>'
+              : serverBoss.status === 'expired'
+                ? '<span class="tag tag-rush">HẾT GIỜ (20H)</span>'
+                : personalBuffActive
+                  ? '<span class="tag tag-buff">x3 IDLE!</span>'
+                  : ''
+          }
         </div>
-        <div class="muted">HP: ${serverBoss.hp}/${serverBoss.maxHp} • Hạ gục nhận Rương +${300 + (serverBoss.level || 1) * 100} ❄️ & +3 🎟️!</div>
+        <div class="muted">
+          HP: ${serverBoss.hp}/${serverBoss.maxHp} •
+          ${
+            serverBoss.status === 'active' && serverBoss.closesAt
+              ? `Còn ${Math.max(0, Math.ceil((serverBoss.closesAt - Date.now()) / 3600000))}h/20h`
+              : 'Mở lại vào ngày mai'
+          } •
+          Thưởng: +${400 + (serverBoss.level || 1) * 120} ❄️ & +3 🎟️
+        </div>
         <div class="progress-bar"><div class="progress-fill" style="width:${Math.max(0, Math.round((serverBoss.hp / Math.max(1, serverBoss.maxHp)) * 100))}%;background:#e63946;"></div></div>
-        <div style="display:flex;gap:8px;margin-top:4px;">
-          <button class="btn btn-sm" id="btn-boss-tap">⚔️ Đánh Boss</button>
-          <button class="btn btn-gold btn-sm" id="btn-boss-toy">🧸 Ném 1 Đồ Chơi</button>
+        <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;">
+          <button class="btn btn-sm" id="btn-boss-tap" ${serverBoss.status !== 'active' || bossTapLeft <= 0 ? 'disabled' : ''}>
+            ⚔️ Đánh (${bossTapLeft}/3)
+          </button>
+          <button class="btn btn-gold btn-sm" id="btn-boss-toy" ${serverBoss.status !== 'active' || bossToyLeft <= 0 ? 'disabled' : ''}>
+            🧸 Ném đồ (${bossToyLeft}/2)
+          </button>
         </div>
       </div>
 
@@ -1184,7 +1206,7 @@ function renderPanel() {
       <div class="card">
         <div class="section-title">
           <span>📖 Sổ Tay Hoàng Kim (${collected.length}/${recipes.length})</span>
-          ${player.hasGoldenHands ? '<span class="tag tag-buff">🏆 Bàn Tay Vàng +20% Xu</span>' : '<span class="tag">Đủ 8/8: +20% Xu</span>'}
+          ${player.hasGoldenHands ? '<span class="tag tag-buff">🏆 Bàn Tay Vàng +20% Xu</span>' : `<span class="tag">Đủ ${recipes.length}/${recipes.length}: +20% Xu</span>`}
         </div>
         <div class="shiny-grid">
           ${recipes

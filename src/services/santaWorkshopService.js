@@ -82,6 +82,78 @@ export const TOY_RECIPES = [
     baseRep: 280,
     minLevel: 20,
   },
+  {
+    id: 'magicLantern',
+    name: 'Đèn Lồng Phép Thuật',
+    icon: '🏮',
+    ingredients: { wood: 11, fabric: 9, magicDust: 14, ribbon: 11 },
+    baseCoins: 1050,
+    baseRep: 340,
+    minLevel: 25,
+  },
+  {
+    id: 'reindeerBell',
+    name: 'Chuông Vàng Tuần Lộc',
+    icon: '🔔',
+    ingredients: { wood: 12, fabric: 10, magicDust: 16, ribbon: 13 },
+    baseCoins: 1280,
+    baseRep: 410,
+    minLevel: 30,
+  },
+  {
+    id: 'frostGuitar',
+    name: 'Đàn Tuyết Bắc Cực',
+    icon: '🎸',
+    ingredients: { wood: 14, fabric: 11, magicDust: 18, ribbon: 15 },
+    baseCoins: 1550,
+    baseRep: 490,
+    minLevel: 35,
+  },
+  {
+    id: 'auroraPrism',
+    name: 'Pha Lê Cực Quang',
+    icon: '💎',
+    ingredients: { wood: 15, fabric: 13, magicDust: 21, ribbon: 17 },
+    baseCoins: 1850,
+    baseRep: 580,
+    minLevel: 40,
+  },
+  {
+    id: 'starCompass',
+    name: 'La Bàn Ngôi Sao',
+    icon: '🧭',
+    ingredients: { wood: 18, fabric: 15, magicDust: 25, ribbon: 20 },
+    baseCoins: 2300,
+    baseRep: 720,
+    minLevel: 50,
+  },
+  {
+    id: 'santaWatch',
+    name: 'Đồng Hồ Đêm Giáng Sinh',
+    icon: '⌚',
+    ingredients: { wood: 21, fabric: 18, magicDust: 30, ribbon: 24 },
+    baseCoins: 2900,
+    baseRep: 900,
+    minLevel: 65,
+  },
+  {
+    id: 'polarOrb',
+    name: 'Quả Cầu Bắc Cực',
+    icon: '🌐',
+    ingredients: { wood: 25, fabric: 22, magicDust: 36, ribbon: 28 },
+    baseCoins: 3600,
+    baseRep: 1150,
+    minLevel: 80,
+  },
+  {
+    id: 'eternalGift',
+    name: 'Đại Lễ Vật Giáng Sinh',
+    icon: '🎁',
+    ingredients: { wood: 30, fabric: 26, magicDust: 44, ribbon: 35 },
+    baseCoins: 4800,
+    baseRep: 1500,
+    minLevel: 100,
+  },
 ];
 
 export const CHRISTMAS_RIDDLES = [
@@ -319,7 +391,10 @@ export const ACHIEVEMENTS = [
   },
 ];
 
-const TREE_THRESHOLDS = [0, 150, 400, 800, 1500];
+const TREE_THRESHOLDS = [
+  0, 150, 400, 800, 1500, 2500, 4000, 6000, 8500, 11500, 15000,
+  20000, 26000, 33000, 41000, 50000, 62000, 76000, 92000, 110000, 135000,
+];
 
 export const DAILY_QUESTS = [
   { id: 'q_checkin', name: 'Điểm danh sáng sớm', icon: '📅', description: 'Điểm danh nhận quà trong ngày', target: 1, rewardCoins: 30, rewardRep: 10 },
@@ -823,6 +898,7 @@ export async function buildSantaStatePayload(client, identity) {
   const openedAdvent = player.adventOpened || [];
   const nextAdventDay = openedAdvent.length + 1;
   const canOpenAdventToday = nextAdventDay <= 24 && player.lastAdventDate !== today;
+  const bossDaily = player.bossDaily?.date === today ? player.bossDaily : { date: today, tap: 0, toy: 0 };
 
   return {
     player,
@@ -833,6 +909,8 @@ export async function buildSantaStatePayload(client, identity) {
     coopBonusPct: (partySize - 1) * 15,
     canOpenAdventToday,
     nextAdventDay,
+    bossTapLeft: Math.max(0, 3 - (bossDaily.tap || 0)),
+    bossToyLeft: Math.max(0, 2 - (bossDaily.toy || 0)),
     personalBuffActive: (player.personalBuffExpiresAt || 0) > Date.now(),
     checkedInToday: player.lastCheckinDate === today,
     riddleSolvedToday: player.lastRiddleDate === today,
@@ -1653,31 +1731,94 @@ export async function handleSantaAckGifts(client, identity) {
 
 export async function getServerBoss(client, guildId) {
   const key = `santa:boss:${guildId || 'global'}`;
-  const boss = (await getDatabaseValue(client, key, null)) || {
-    name: 'Người Tuyết Bão Tố Khổng Lồ',
-    icon: '⛄',
-    level: 1,
-    hp: 2000,
-    maxHp: 2000,
-    contributors: {},
-    defeatedCount: 0,
-  };
+  const today = getTodayKey();
+  const now = Date.now();
+  const BOSS_DURATION_MS = 20 * 60 * 60 * 1000;
+
+  let boss = await getDatabaseValue(client, key, null);
+  if (!boss || boss.date !== today) {
+    // Nếu boss ngày cũ hết giờ mà chưa kịp phát quà an ủi
+    if (boss && boss.status === 'active' && !boss.rewardsDistributed && boss.contributors) {
+      await distributeBossConsolation(client, guildId, boss);
+    }
+    const nextLv = boss ? (boss.level || 1) : 1;
+    const maxHp = 8000 + (nextLv - 1) * 4000;
+    boss = {
+      name: 'Người Tuyết Bão Tố Khổng Lồ',
+      icon: '⛄',
+      level: nextLv,
+      hp: maxHp,
+      maxHp,
+      date: today,
+      openedAt: now,
+      closesAt: now + BOSS_DURATION_MS,
+      status: 'active',
+      rewardsDistributed: false,
+      contributors: {},
+      defeatedCount: boss?.defeatedCount || 0,
+    };
+    await setDatabaseValue(client, key, boss);
+  } else if (boss.status === 'active' && boss.closesAt && now > boss.closesAt) {
+    boss.status = 'expired';
+    if (!boss.rewardsDistributed && boss.contributors) {
+      await distributeBossConsolation(client, guildId, boss);
+      boss.rewardsDistributed = true;
+    }
+    await setDatabaseValue(client, key, boss);
+  }
   return boss;
+}
+
+async function distributeBossConsolation(client, guildId, boss) {
+  const consolationCoins = 45;
+  for (const uid of Object.keys(boss.contributors || {})) {
+    const p = await getDatabaseValue(client, getPlayerKey(guildId, uid), null);
+    if (!p) continue;
+    p.snowCoins = (p.snowCoins || 0) + consolationCoins;
+    p.pendingGiftNotices = Array.isArray(p.pendingGiftNotices) ? p.pendingGiftNotices : [];
+    p.pendingGiftNotices.push({
+      id: `boss_con_${Date.now().toString(36)}_${uid.slice(-4)}`,
+      amount: consolationCoins,
+      fromName: 'Ông Già Noel (An ủi Boss)',
+      note: `Hết 20h đánh ${boss.name} chưa thành công, gửi bạn chút Xu Tuyết an ủi nhé!`,
+      at: Date.now(),
+    });
+    await setDatabaseValue(client, getPlayerKey(guildId, uid), p);
+  }
 }
 
 export async function handleSantaAttackBoss(client, identity, { mode = 'tap', toyId = null } = {}) {
   const guildId = identity.guildId || 'global';
   const player = await getOrCreateSantaPlayer(client, identity);
+  const today = getTodayKey();
   const now = Date.now();
-
-  if (mode === 'tap' && now - (player.lastBossAttackAt || 0) < 2500) {
-    return { ok: false, message: 'Đang nạp sức đánh Boss, chờ 2 giây nha!', state: await buildSantaStatePayload(client, identity) };
-  }
 
   const key = `santa:boss:${guildId}`;
   const boss = await getServerBoss(client, guildId);
+
+  if (boss.status === 'defeated') {
+    return { ok: false, message: '🎉 Boss hôm nay đã bị cả server hạ gục rồi! Hẹn gặp lại ngày mai nha!', state: await buildSantaStatePayload(client, identity) };
+  }
+  if (boss.status === 'expired') {
+    return { ok: false, message: '⏳ Đã hết 20 giờ đánh Boss hôm nay! Ngày mai quay lại chiến tiếp nhé!', state: await buildSantaStatePayload(client, identity) };
+  }
+
+  if (!player.bossDaily || player.bossDaily.date !== today) {
+    player.bossDaily = { date: today, tap: 0, toy: 0 };
+  }
+
+  if (mode === 'toy') {
+    if ((player.bossDaily.toy || 0) >= 2) {
+      return { ok: false, message: 'Hôm nay bạn đã ném đồ chơi Boss đủ 2/2 lần rồi!', state: await buildSantaStatePayload(client, identity) };
+    }
+  } else {
+    if ((player.bossDaily.tap || 0) >= 3) {
+      return { ok: false, message: 'Hôm nay bạn đã đánh Boss thường đủ 3/3 lần rồi!', state: await buildSantaStatePayload(client, identity) };
+    }
+  }
+
   const coopMult = 1 + (Math.max(1, Math.min(10, Number(identity.partySize) || 1)) - 1) * 0.15;
-  let dmg = Math.round((55 + (player.workshopLevel || 1) * 5) * coopMult);
+  let dmg = Math.round((85 + (player.workshopLevel || 1) * 12) * coopMult);
 
   if (mode === 'toy') {
     const useToy = toyId || Object.keys(player.toys || {}).find((k) => (player.toys[k] || 0) > 0);
@@ -1685,8 +1826,10 @@ export async function handleSantaAttackBoss(client, identity, { mode = 'tap', to
       return { ok: false, message: 'Bạn cần ít nhất 1 món đồ chơi trong kho để ném vào Boss!', state: await buildSantaStatePayload(client, identity) };
     }
     player.toys[useToy] -= 1;
-    dmg = Math.round((240 + (player.workshopLevel || 1) * 15) * coopMult);
+    player.bossDaily.toy = (player.bossDaily.toy || 0) + 1;
+    dmg = Math.round((320 + (player.workshopLevel || 1) * 25) * coopMult);
   } else {
+    player.bossDaily.tap = (player.bossDaily.tap || 0) + 1;
     player.lastBossAttackAt = now;
   }
 
@@ -1697,30 +1840,47 @@ export async function handleSantaAttackBoss(client, identity, { mode = 'tap', to
     dmg: (boss.contributors[player.userId]?.dmg || 0) + dmg,
   };
 
-  player.reputation += mode === 'toy' ? 20 : 6;
-  player.snowCoins += mode === 'toy' ? 25 : 8;
+  player.reputation += mode === 'toy' ? 25 : 10;
+  player.snowCoins += mode === 'toy' ? 30 : 12;
 
   let msg = `⚔️ Gây **${dmg} sát thương** lên ${boss.icon} ${boss.name}!`;
 
   if (boss.hp <= 0) {
-    // Hạ gục Boss -> Thưởng lớn cho người kết liễu & tất cả người tham gia!
-    const rewardCoins = 300 + (boss.level || 1) * 100;
+    const rewardCoins = 400 + (boss.level || 1) * 120;
+    const teamCoins = 180 + (boss.level || 1) * 50;
     player.snowCoins += rewardCoins;
     player.luckyTickets = (player.luckyTickets || 0) + 3;
-    player.reputation += 100;
+    player.reputation += 120;
+
+    // Gửi thưởng đồng đội cho các thành viên khác đã tham gia đánh Boss hôm nay
+    for (const uid of Object.keys(boss.contributors || {})) {
+      if (String(uid) === String(player.userId)) continue;
+      const mate = await getDatabaseValue(client, getPlayerKey(guildId, uid), null);
+      if (!mate) continue;
+      mate.snowCoins = (mate.snowCoins || 0) + teamCoins;
+      mate.luckyTickets = (mate.luckyTickets || 0) + 1;
+      mate.pendingGiftNotices = Array.isArray(mate.pendingGiftNotices) ? mate.pendingGiftNotices : [];
+      mate.pendingGiftNotices.push({
+        id: `boss_win_${Date.now().toString(36)}_${uid.slice(-4)}`,
+        amount: teamCoins,
+        fromName: 'Chiến Thắng Boss Server!',
+        note: `Cả server đã hạ gục ${boss.name} (Lv.${boss.level})! Tặng bạn +${teamCoins} ❄️ & +1 🎟️!`,
+        at: Date.now(),
+      });
+      await setDatabaseValue(client, getPlayerKey(guildId, uid), mate);
+    }
 
     announceToDiscordChannel(
       client,
       guildId,
-      `⛄💥 **BOSS SERVER BỊ HẠ GỤC!** <@${player.userId}> đã tung đòn kết liễu **${boss.name} (Lv.${boss.level})**, nhận rương thưởng **+${rewardCoins} ❄️ & +3 🎟️**!`,
+      `⛄💥 **BOSS SERVER ĐÃ BỊ HẠ GỤC!** <@${player.userId}> đã tung đòn kết liễu **${boss.name} (Lv.${boss.level})**, nhận rương thưởng **+${rewardCoins} ❄️ & +3 🎟️**! Các đồng đội tham gia đều được nhận **+${teamCoins} ❄️ & +1 🎟️**!`,
     );
 
     boss.level = (boss.level || 1) + 1;
     boss.defeatedCount = (boss.defeatedCount || 0) + 1;
-    boss.maxHp = 2000 + (boss.level - 1) * 1000;
-    boss.hp = boss.maxHp;
-    boss.contributors = {};
-    msg = `🎉 HẠ GỤC BOSS THÀNH CÔNG! Nhận Rương Quà +${rewardCoins} ❄️, +3 🎟️ Vé Quay & +100 ⭐!`;
+    boss.status = 'defeated';
+    boss.rewardsDistributed = true;
+    msg = `🎉 HẠ GỤC BOSS THÀNH CÔNG! Nhận Rương Quà +${rewardCoins} ❄️, +3 🎟️ Vé Quay & +120 ⭐!`;
   }
 
   await setDatabaseValue(client, key, boss);

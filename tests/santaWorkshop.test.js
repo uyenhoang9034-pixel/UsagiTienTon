@@ -207,4 +207,14 @@ test('Luồng chơi Xưởng Quà Ông Già Noel: Điểm danh -> Giải đố -
 
   const lv100Segs = getScaledWheelSegments(100);
   assert.equal(lv100Segs.find((s) => s.type === 'tickets').amount, 12);
+
+  // 18. Công thức tới Lv.100 & Boss giới hạn 3 thường + 2 ném đồ/ngày
+  const lv100Recipes = getScaledRecipes(100);
+  assert.ok(lv100Recipes.some((r) => r.minLevel === 100));
+  const b1 = await handleSantaAttackBoss(client, identity, { mode: 'tap' });
+  const b2 = await handleSantaAttackBoss(client, identity, { mode: 'tap' });
+  const b3 = await handleSantaAttackBoss(client, identity, { mode: 'tap' });
+  assert.equal(b1.ok, true);
+  assert.equal(b2.ok, true);
+  assert.equal(b3.ok, false); // Đã đánh 1 lần ở mục 13 + 2 lần ở đây = 3 lần -> lần thứ 4 bị chặn!
 });
