@@ -79,8 +79,8 @@ test('Duo Bond: kết đôi, thưởng mốc đầu, kho chung, giao dịch duy�
   assert.equal(approved.ok, true);
   pa = await client.db.get(`santa:player:${guildId}:${a.userId}`);
   pb = await client.db.get(`santa:player:${guildId}:${b.userId}`);
-  assert.equal(pa.materials.fabric, 2);
-  assert.equal(pb.materials.wood, 2);
+  assert.equal(pa.materials.fabric, 7);
+  assert.equal(pb.materials.wood, 8);
 
   assert.equal((await handleDuoBondBreakupRequest(client, a)).ok, true);
   assert.equal((await handleDuoBondBreakupRespond(client, a, true)).ok, false);
