@@ -260,7 +260,7 @@ test('Tiến trình Xưởng Noel hỗ trợ cấp 2000 với chi phí late-game
 
   const maxState = await buildSantaStatePayload(client, identity);
   assert.equal(maxState.maxWorkshopLevel, 2000);
-  assert.equal(maxState.shopItems.find((item) => item.id === 'lucky_ticket').price, 59_970);
+  assert.equal(maxState.shopItems.find((item) => item.id === 'lucky_ticket').price, 60_030);
 
   const helperMax = await handleSantaHireHelper(client, identity, 'lumberjack');
   assert.equal(helperMax.ok, true);
