@@ -4,10 +4,11 @@ const LEVEL_XP = [0, 30000, 100000, 250000, 600000, 1200000];
 const LEVEL_NAMES = ['Khởi đầu bạn bè', 'Friendzone', 'Một chút cảm nắng', 'Kết đôi tình yêu', 'Nắm tay vợ chồng', 'Tuổi già cùng nhau'];
 const LEVEL_BUFFS = [20, 22, 24, 26, 28, 30];
 const LEVEL_RIBBONS = [2000, 20000, 40000, 90000, 200000, 1200000];
-const TOY_POINTS = { teddy: 10, train: 20, musicBox: 35, snowGlobe: 60, santaSleigh: 100, polarExpress: 160, icePalace: 240, santaCrown: 350, magicLantern: 500, reindeerBell: 700, frostGuitar: 950, auroraPrism: 1250, starCompass: 1600, santaWatch: 2000, polarOrb: 2500, eternalGift: 3200 };
+const TOY_POINTS = { teddy: 2, train: 4, musicBox: 7, snowGlobe: 11, santaSleigh: 19, polarExpress: 30, icePalace: 45, santaCrown: 66, magicLantern: 94, reindeerBell: 131, frostGuitar: 178, auroraPrism: 234, starCompass: 300, santaWatch: 375, polarOrb: 469, eternalGift: 600 };
 const MATERIALS = ['wood', 'fabric', 'magicDust', 'ribbon'];
 const DAILY_FEEDS = 20;
 const DAILY_TOYS = 3;
+const DAILY_INTIMACY_XP = 1800;
 const DAILY_TRADES = 10;
 
 const key = (guildId, userId) => `santa:duo:user:${guildId || 'global'}:${userId}`;
@@ -16,7 +17,7 @@ const inviteKey = (guildId, userId) => `santa:duo:invite:${guildId || 'global'}:
 const pairIdFor = (a, b) => [String(a), String(b)].sort().join(':');
 const todayKey = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10);
 const cleanName = (s) => String(s || 'Yêu Tinh Noel').slice(0, 32);
-const freshDaily = () => ({ date: todayKey(), feeds: {}, toys: {}, trades: 0 });
+const freshDaily = () => ({ date: todayKey(), feeds: {}, toys: {}, intimacyXp: 0, trades: 0 });
 
 async function getPlayer(client, guildId, userId) {
   return getDatabaseValue(client, `santa:player:${guildId || 'global'}:${userId}`, null);
@@ -184,10 +185,12 @@ export async function handleDuoBondFeed(client, identity) {
   if (!pair) return { ok: false, message: 'Bạn cần kết đôi trước khi chăm sóc Tony.' };
   const d = daily(pair), used = Number(d.feeds[uid] || 0);
   if (used >= DAILY_FEEDS) return { ok: false, message: 'Bạn đã cho Tony ăn đủ 20 lần hôm nay.' };
+  const remainingXp = Math.max(0, DAILY_INTIMACY_XP - Number(d.intimacyXp || 0));
+  if (remainingXp < 300) return { ok: false, message: 'Hôm nay hai bạn đã tích đủ 1.800 điểm thân mật. Không thể cho Tony ăn thêm; hãy quay lại vào ngày mai.' };
   const p = await getPlayer(client, guildId, uid);
   if (!p || Number(p.snowCoins || 0) < 300) return { ok: false, message: 'Cần 300 ❄️ Xu Tuyết để cho Tony ăn.' };
   p.snowCoins -= 300; await savePlayer(client, guildId, p);
-  d.feeds[uid] = used + 1; pair.xp += 300;
+  d.feeds[uid] = used + 1; d.intimacyXp = Number(d.intimacyXp || 0) + 300; pair.xp += 300;
   const milestones = updateLevel(pair);
   await grantMilestones(client, guildId, pair, milestones);
   await syncBuff(client, guildId, pair); await persistPair(client, guildId, pair);
@@ -202,10 +205,12 @@ export async function handleDuoBondToy(client, identity, toyId) {
   if (used >= DAILY_TOYS) return { ok: false, message: 'Bạn đã ném đồ chơi cho Tony đủ 3 lần hôm nay.' };
   const points = TOY_POINTS[String(toyId)];
   if (!points) return { ok: false, message: 'Đồ chơi không hợp lệ.' };
+  const remainingXp = Math.max(0, DAILY_INTIMACY_XP - Number(d.intimacyXp || 0));
+  if (remainingXp < points) return { ok: false, message: 'Hôm nay hai bạn đã tích đủ giới hạn 1.800 điểm thân mật. Không thể ném thêm đồ chơi hoặc cho Tony ăn nữa; hãy quay lại vào ngày mai.' };
   const p = await getPlayer(client, guildId, uid);
   if (!p || Number(p.toys?.[toyId] || 0) < 1) return { ok: false, message: 'Bạn không có món đồ chơi này.' };
   p.toys[toyId] -= 1; await savePlayer(client, guildId, p);
-  d.toys[uid] = used + 1; pair.xp += points;
+  d.toys[uid] = used + 1; d.intimacyXp = Number(d.intimacyXp || 0) + points; pair.xp += points;
   const milestones = updateLevel(pair);
   await grantMilestones(client, guildId, pair, milestones);
   await syncBuff(client, guildId, pair); await persistPair(client, guildId, pair);
