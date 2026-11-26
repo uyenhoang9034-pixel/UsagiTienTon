@@ -1189,7 +1189,7 @@ function renderPanel() {
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
           ${partySize > 1 ? `<span class="tag tag-buff">👥 ${partySize} (+${coopBonusPct}%)</span>` : ''}
           <button class="btn btn-gold btn-sm" id="btn-upgrade" ${player.workshopLevel >= 2000 ? 'disabled' : ''}>
-            ${player.workshopLevel >= 2000 ? 'Cấp Tối Đa (2000)' : `Nâng Xưởng (${upgradeCost} ❄️)`}
+            ${player.workshopLevel >= 2000 ? 'Cấp Tối Đa (2000)' : `Nâng Xưởng (${upgradeCost.toLocaleString('vi-VN')} ❄️)`}
           </button>
         </div>
       </div>
@@ -1283,7 +1283,7 @@ function renderPanel() {
             <div class="muted">${h.description}</div>
           </div>
           <button class="btn btn-gold btn-sm" data-hire="${h.id}" ${h.level >= 2000 ? 'disabled' : ''}>
-            ${h.level >= 2000 ? 'MAX' : `${h.nextCost} ❄️`}
+            ${h.level >= 2000 ? 'MAX' : `${h.nextCost.toLocaleString('vi-VN')} ❄️`}
           </button>
         </div>
       `,
