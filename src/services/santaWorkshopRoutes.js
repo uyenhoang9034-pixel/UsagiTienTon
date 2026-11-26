@@ -206,7 +206,7 @@ export function registerSantaWorkshopRoutes(app, client) {
     ['/api/santa/collect', (req, id) => handleSantaCollect(client, id, { isTap: Boolean(req.body?.isTap) })],
     ['/api/santa/checkin', (_req, id) => handleSantaCheckin(client, id)],
     ['/api/santa/riddle', (req, id) => handleSantaRiddle(client, id, req.body?.optionIndex)],
-    ['/api/santa/craft', (req, id) => handleSantaCraft(client, id, req.body?.toyId)],
+    ['/api/santa/craft', (req, id) => handleSantaCraft(client, id, req.body?.toyId, req.body?.count)],
     ['/api/santa/deliver', (req, id) => handleSantaDeliver(client, id, req.body?.orderId)],
     ['/api/santa/upgrade', (_req, id) => handleSantaUpgrade(client, id)],
     ['/api/santa/shop/buy', (req, id) => handleSantaBuyItem(client, id, req.body?.itemId)],

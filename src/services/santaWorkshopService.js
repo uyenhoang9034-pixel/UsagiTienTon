@@ -1162,10 +1162,11 @@ export async function handleSantaRiddle(client, identity, optionIndex) {
   };
 }
 
-export async function handleSantaCraft(client, identity, toyId) {
+export async function handleSantaCraft(client, identity, toyId, count = 1) {
   const guildId = identity.guildId || 'global';
   const player = await getOrCreateSantaPlayer(client, identity);
   const baseRecipe = TOY_RECIPES.find((r) => r.id === toyId);
+  const qty = Math.max(1, Math.min(20, Math.floor(Number(count) || 1)));
 
   if (!baseRecipe) {
     return { ok: false, message: 'Công thức đồ chơi không tồn tại!', state: await buildSantaStatePayload(client, identity) };
@@ -1182,50 +1183,56 @@ export async function handleSantaCraft(client, identity, toyId) {
   }
 
   for (const [mat, req] of Object.entries(recipe.ingredients)) {
-    if ((player.materials[mat] || 0) < req) {
+    if ((player.materials[mat] || 0) < req * qty) {
       return {
         ok: false,
-        message: `Thiếu ${MATERIALS[mat].icon} ${MATERIALS[mat].name} để chế tạo ${recipe.name}!`,
+        message: `Thiếu ${MATERIALS[mat].icon} ${MATERIALS[mat].name} để chế tạo ${qty} ${recipe.name}!`,
         state: await buildSantaStatePayload(client, identity),
       };
     }
   }
 
   for (const [mat, req] of Object.entries(recipe.ingredients)) {
-    player.materials[mat] -= req;
+    player.materials[mat] -= req * qty;
   }
 
-  const isShiny = Math.random() < 0.18;
+  let shinyMade = 0;
+  let normalMade = 0;
   let goldenHandsNotice = '';
-  if (isShiny) {
-    player.shinyToys = player.shinyToys || {};
-    player.shinyToys[recipe.id] = (player.shinyToys[recipe.id] || 0) + 1;
-    player.shinyCollection = player.shinyCollection || [];
-    if (!player.shinyCollection.includes(recipe.id)) {
-      player.shinyCollection.push(recipe.id);
-      if (player.shinyCollection.length >= TOY_RECIPES.length && !player.hasGoldenHands) {
-        player.hasGoldenHands = true;
-        goldenHandsNotice = ' 🏆 Mở khóa danh hiệu "Bàn Tay Vàng Bắc Cực" (+20% Xu Tuyết vĩnh viễn)!';
-        announceToDiscordChannel(
-          client,
-          guildId,
-          `🏆 **BÀN TAY VÀNG BẮC CỰC!** Chúc mừng <@${player.userId}> đã sưu tầm đủ 8/8 Đồ Chơi Hoàng Kim!`,
-        );
+  player.shinyToys = player.shinyToys || {};
+  player.shinyCollection = player.shinyCollection || [];
+
+  for (let i = 0; i < qty; i += 1) {
+    if (Math.random() < 0.18) {
+      shinyMade += 1;
+      player.shinyToys[recipe.id] = (player.shinyToys[recipe.id] || 0) + 1;
+      if (!player.shinyCollection.includes(recipe.id)) {
+        player.shinyCollection.push(recipe.id);
+        if (player.shinyCollection.length >= TOY_RECIPES.length && !player.hasGoldenHands) {
+          player.hasGoldenHands = true;
+          goldenHandsNotice = ' 🏆 Mở khóa danh hiệu "Bàn Tay Vàng Bắc Cực" (+20% Xu Tuyết vĩnh viễn)!';
+          announceToDiscordChannel(
+            client,
+            guildId,
+            `🏆 **BÀN TAY VÀNG BẮC CỰC!** Chúc mừng <@${player.userId}> đã sưu tầm đủ ${TOY_RECIPES.length}/${TOY_RECIPES.length} Đồ Chơi Hoàng Kim!`,
+          );
+        }
       }
+    } else {
+      normalMade += 1;
+      player.toys[recipe.id] = (player.toys[recipe.id] || 0) + 1;
     }
-  } else {
-    player.toys[recipe.id] = (player.toys[recipe.id] || 0) + 1;
   }
-  player.totalCrafted = (player.totalCrafted || 0) + 1;
-  bumpDailyQuest(player, 'q_craft_3', 1);
+
+  player.totalCrafted = (player.totalCrafted || 0) + qty;
+  bumpDailyQuest(player, 'q_craft_3', qty);
 
   await savePlayer(client, guildId, player);
+  const shinyNote = shinyMade > 0 ? ` (✨ ${shinyMade} Hoàng Kim!)` : '';
   return {
     ok: true,
-    isShiny,
-    message: isShiny
-      ? `✨ TUYỆT VỜI! Chế tạo được 1 ${recipe.icon} ${recipe.name} HOÀNG KIM (Giao đơn x3 Xu)!${goldenHandsNotice}`
-      : `Chế tạo thành công 1 ${recipe.icon} ${recipe.name}!`,
+    isShiny: shinyMade > 0,
+    message: `Chế tạo thành công ${qty} ${recipe.icon} ${recipe.name}!${shinyNote}${goldenHandsNotice}`,
     state: await buildSantaStatePayload(client, identity),
   };
 }

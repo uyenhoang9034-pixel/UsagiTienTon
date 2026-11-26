@@ -1,4 +1,4 @@
-import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126p';
+import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126q';
 
 const STATE = {
   token: 'demo',
@@ -1301,6 +1301,7 @@ function renderPanel() {
             .join(' • ');
           const unlocked = (player.workshopLevel || 1) >= (r.minLevel || 1);
           const canCraft = unlocked && Object.entries(r.ingredients).every(([m, q]) => (player.materials[m] || 0) >= q);
+          const canCraft20 = unlocked && Object.entries(r.ingredients).every(([m, q]) => (player.materials[m] || 0) >= q * 20);
           const shinyCount = player.shinyToys?.[r.id] || 0;
           return `
             <div class="card-row">
@@ -1312,9 +1313,16 @@ function renderPanel() {
                 </div>
                 <div class="muted">${reqStr}</div>
               </div>
-              <button class="btn ${canCraft ? 'btn-green' : ''}" data-craft="${r.id}" ${canCraft ? '' : 'disabled'}>
-                ${unlocked ? 'Chế tạo' : `Lv.${r.minLevel}`}
-              </button>
+              <div style="display:flex;gap:5px;flex-shrink:0;">
+                <button class="btn ${canCraft ? 'btn-green' : ''} btn-sm" data-craft="${r.id}" data-count="1" ${canCraft ? '' : 'disabled'}>
+                  ${unlocked ? 'Chế tạo' : `Lv.${r.minLevel}`}
+                </button>
+                ${
+                  unlocked
+                    ? `<button class="btn ${canCraft20 ? 'btn-gold' : ''} btn-sm" data-craft="${r.id}" data-count="20" ${canCraft20 ? '' : 'disabled'}>x20</button>`
+                    : ''
+                }
+              </div>
             </div>
           `;
         })
@@ -1323,7 +1331,8 @@ function renderPanel() {
     container.querySelectorAll('[data-craft]').forEach((btn) => {
       btn.onclick = async () => {
         const toyId = btn.dataset.craft;
-        const r = await runAction('/api/santa/craft', { toyId });
+        const count = Number(btn.dataset.count) || 1;
+        const r = await runAction('/api/santa/craft', { toyId, count });
         if (r?.ok) {
           christmasAudio.playCraftSfx();
           const rec = recipes.find((x) => x.id === toyId);
