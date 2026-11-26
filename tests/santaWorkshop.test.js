@@ -256,6 +256,7 @@ test('Tiến trình Xưởng Noel hỗ trợ cấp 2000 với chi phí late-game
   const player = await client.db.get(key);
   player.workshopLevel = 2000;
   player.snowCoins = 1_000_000_000;
+  player.unlockedAchievements = ['coins_1000'];
   await client.db.set(key, player);
 
   const maxState = await buildSantaStatePayload(client, identity);
