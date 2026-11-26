@@ -460,7 +460,7 @@ function createOrder(workshopLevel = 1) {
   const isSpecial = !isRush && roll < 0.5;
   const qty = workshopLevel >= 12 && Math.random() < 0.35 ? 3 : workshopLevel >= 3 && Math.random() < 0.35 ? 2 : 1;
   const multiplier = isRush ? 2.0 : isSpecial ? 1.5 : 1.0;
-  const levelRewardMult = 1 + (Math.max(1, workshopLevel) - 1) * 1.0;
+  const levelRewardMult = 1 + (Math.max(1, workshopLevel) - 1) * 0.35;
 
   return {
     id: `ord_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
