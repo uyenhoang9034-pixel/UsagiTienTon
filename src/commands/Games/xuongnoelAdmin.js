@@ -69,7 +69,7 @@ export default {
             .setName('soluong')
             .setDescription('Số lượng Ruy băng muốn tặng')
             .setMinValue(1)
-            .setMaxValue(1000000)
+            .setMaxValue(2000000)
             .setRequired(true),
         )
         .addStringOption((opt) =>
@@ -95,7 +95,7 @@ export default {
             .setName('soluong')
             .setDescription('Số lượng Xu Tuyết muốn tặng')
             .setMinValue(1)
-            .setMaxValue(1000000)
+            .setMaxValue(20000000000)
             .setRequired(true),
         )
         .addStringOption((opt) =>
