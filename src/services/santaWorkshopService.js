@@ -2238,3 +2238,29 @@ export async function handleSantaOpenAdvent(client, identity, dayNumber) {
     state: await buildSantaStatePayload(client, identity),
   };
 }
+
+
+export async function grantSantaRibbon(client, { guildId = 'global', targetUser, amount, adminUser, note = '' }) {
+  const safeAmount = Math.max(1, Math.floor(Number(amount) || 0));
+  const player = await getOrCreateSantaPlayer(client, {
+    userId: targetUser.id,
+    username: targetUser.globalName || targetUser.username || 'Yêu Tinh Noel',
+    avatarUrl: typeof targetUser.displayAvatarURL === 'function' ? targetUser.displayAvatarURL({ size: 128 }) : null,
+    guildId,
+  });
+
+  player.materials = player.materials || {};
+  player.materials.ribbon = (player.materials.ribbon || 0) + safeAmount;
+  player.pendingMaterialGiftNotices = Array.isArray(player.pendingMaterialGiftNotices) ? player.pendingMaterialGiftNotices : [];
+  player.pendingMaterialGiftNotices.push({
+    id: `ribbon_gift_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    material: 'ribbon',
+    amount: safeAmount,
+    fromName: adminUser?.globalName || adminUser?.username || 'Admin',
+    note: String(note || '').trim().slice(0, 140),
+    at: Date.now(),
+  });
+
+  await savePlayer(client, guildId, player);
+  return { ok: true, amount: safeAmount, player };
+}
