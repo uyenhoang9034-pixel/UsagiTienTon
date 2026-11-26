@@ -1,4 +1,4 @@
-import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126g';
+import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126h';
 
 const STATE = {
   token: 'demo',
@@ -438,8 +438,10 @@ class SantaWorkshopScene extends Phaser.Scene {
       }
       if (petId) {
         const floorY = this.scale.height * 0.64;
+        const shopPet = (STATE.data?.shopItems || []).find((i) => i.id === petId);
         const petIcon =
-          petId === 'pet_reindeer'
+          shopPet?.icon ||
+          (petId === 'pet_reindeer'
             ? '🦌'
             : petId === 'pet_penguin'
               ? '🐧'
@@ -447,7 +449,7 @@ class SantaWorkshopScene extends Phaser.Scene {
                 ? '⛄'
                 : petId === 'pet_fox'
                   ? '🦊'
-                  : '🐰';
+                  : '🐰');
         this.petSprite = this.add
           .text(this.scale.width * 0.32, floorY + 14, petIcon, { fontSize: '28px' })
           .setOrigin(0.5)
