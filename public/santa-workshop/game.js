@@ -1,4 +1,4 @@
-import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126k';
+import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126l';
 
 const STATE = {
   token: 'demo',
@@ -280,9 +280,10 @@ class SantaWorkshopScene extends Phaser.Scene {
     if (this.elf) this.elf.destroy();
     const w = this.scale.width;
     const h = this.scale.height;
+    const isNarrow = w < 500;
     const skin = STATE.data?.player?.equippedSkin || 'skin_classic';
 
-    this.elf = this.add.container(w * 0.42, h * 0.52).setDepth(5);
+    this.elf = this.add.container(w * (isNarrow ? 0.36 : 0.42), h * 0.5).setDepth(5);
     this.lastElfSkin = skin;
     const g = this.add.graphics();
 
@@ -393,13 +394,15 @@ class SantaWorkshopScene extends Phaser.Scene {
     g.fillCircle(0, -58, 6);
     this.elf.add(g);
 
+    const textRes = Math.min(2, window.devicePixelRatio || 1);
     const hint = this.add
-      .text(0, 62, 'Chạm vào Xưởng để gõ búa & tích Fever!', {
-        fontSize: '12px',
+      .text(0, isNarrow ? 74 : 66, isNarrow ? 'Chạm Xưởng gõ búa!' : 'Chạm vào Xưởng để gõ búa & tích Fever!', {
+        fontSize: isNarrow ? '11px' : '12px',
         color: '#ffd166',
         fontStyle: 'bold',
-        backgroundColor: 'rgba(0,0,0,0.48)',
+        backgroundColor: 'rgba(0,0,0,0.5)',
         padding: { x: 8, y: 4 },
+        resolution: textRes,
       })
       .setOrigin(0.5);
     this.elf.add(hint);
@@ -428,20 +431,31 @@ class SantaWorkshopScene extends Phaser.Scene {
       for (const spr of this.helperSprites) spr.destroy();
       this.helperSprites = [];
       const helpers = STATE.data?.player?.helpers || {};
+      const w = this.scale.width;
       const floorY = this.scale.height * 0.64;
-      const spots = [
-        { key: 'lumberjack', icon: '🪓🧝', xRatio: 0.24 },
-        { key: 'tailor', icon: '✂️🧝', xRatio: 0.56 },
-        { key: 'mage', icon: '🌟🧝', xRatio: 0.72 },
-      ];
+      const isNarrow = w < 500;
+      const textRes = Math.min(2, window.devicePixelRatio || 1);
+      const spots = isNarrow
+        ? [
+            { key: 'lumberjack', icon: '🪓', xRatio: 0.14, yOffset: -24 },
+            { key: 'tailor', icon: '✂️', xRatio: 0.62, yOffset: -30 },
+            { key: 'mage', icon: '🌟', xRatio: 0.85, yOffset: 16 },
+          ]
+        : [
+            { key: 'lumberjack', icon: '🪓🧝', xRatio: 0.22, yOffset: -26 },
+            { key: 'tailor', icon: '✂️🧝', xRatio: 0.57, yOffset: -26 },
+            { key: 'mage', icon: '🌟🧝', xRatio: 0.74, yOffset: -26 },
+          ];
       for (const s of spots) {
         const lv = helpers[s.key] || 0;
         if (lv > 0) {
+          const label = isNarrow ? `${s.icon}${lv}` : `${s.icon} Lv.${lv}`;
           const txt = this.add
-            .text(this.scale.width * s.xRatio, floorY - 26, `${s.icon} Lv.${lv}`, {
-              fontSize: '14px',
-              backgroundColor: 'rgba(0,0,0,0.4)',
+            .text(w * s.xRatio, floorY + s.yOffset, label, {
+              fontSize: isNarrow ? '12px' : '13px',
+              backgroundColor: 'rgba(0,0,0,0.52)',
               padding: { x: 5, y: 2 },
+              resolution: textRes,
             })
             .setOrigin(0.5)
             .setDepth(5);
@@ -471,8 +485,9 @@ class SantaWorkshopScene extends Phaser.Scene {
                 : petId === 'pet_fox'
                   ? '🦊'
                   : '🐰');
+        const textRes = Math.min(2, window.devicePixelRatio || 1);
         this.petSprite = this.add
-          .text(this.scale.width * 0.32, floorY + 14, petIcon, { fontSize: '28px' })
+          .text(this.scale.width * 0.24, floorY + 12, petIcon, { fontSize: '26px', resolution: textRes })
           .setOrigin(0.5)
           .setDepth(6);
         this.tweens.add({
@@ -504,16 +519,18 @@ class SantaWorkshopScene extends Phaser.Scene {
     const floorY = this.scale.height * 0.64;
     let hitsNeeded = 8;
 
-    const gx = Phaser.Math.Between(Math.floor(w * 0.2), Math.floor(w * 0.8));
-    this.grinchContainer = this.add.container(gx, floorY - 24);
-    const body = this.add.text(0, 0, '👺', { fontSize: '44px' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    const gx = Phaser.Math.Between(Math.floor(w * 0.55), Math.floor(w * 0.85));
+    const textRes = Math.min(2, window.devicePixelRatio || 1);
+    this.grinchContainer = this.add.container(gx, floorY - 56).setDepth(15);
+    const body = this.add.text(0, 0, '👺', { fontSize: '42px', resolution: textRes }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     const label = this.add
-      .text(0, -36, `Đuổi Grinch! (${hitsNeeded})`, {
+      .text(0, -34, `Đuổi Grinch! (${hitsNeeded})`, {
         fontSize: '12px',
         fontStyle: 'bold',
         color: '#fff',
         backgroundColor: '#d90429',
         padding: { x: 6, y: 3 },
+        resolution: textRes,
       })
       .setOrigin(0.5);
 
@@ -757,6 +774,11 @@ function bootPhaser() {
     width: window.innerWidth,
     height: window.innerHeight,
     transparent: false,
+    render: {
+      antialias: true,
+      pixelArt: false,
+      roundPixels: false,
+    },
     scale: {
       mode: Phaser.Scale.RESIZE,
       autoCenter: Phaser.Scale.CENTER_BOTH,

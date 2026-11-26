@@ -357,6 +357,7 @@ body {
   background: linear-gradient(180deg, rgba(11, 22, 44, 0.92), rgba(9, 18, 36, 0.98));
   border-top: 1px solid var(--border);
   overflow-y: auto;
+  overflow-x: hidden;
   z-index: 15;
 }
 
@@ -384,11 +385,13 @@ body {
 }
 
 .panel-content {
+  width: 100%;
   max-width: 780px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  overflow-x: hidden;
 }
 
 /* Cards & Grids */
@@ -400,7 +403,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .grid-2 {
