@@ -7,8 +7,8 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <title>Xưởng Quà Của Ông Già Noel — Usagi Activity</title>
-    <link rel="stylesheet" href="./style.css?v=20261126b" />
-    <script src="./vendor/phaser.min.js?v=20261126b"></script>
+    <link rel="stylesheet" href="./style.css?v=20261126c" />
+    <script src="./vendor/phaser.min.js?v=20261126c"></script>
   </head>
   <body>
     <div id="app">
@@ -112,6 +112,19 @@
         </div>
       </div>
 
+      <!-- Gift Notice Modal -->
+      <div id="gift-notice-modal" class="modal-backdrop hidden">
+        <div class="modal-card" style="align-items: stretch; text-align: center;">
+          <div class="modal-header" style="justify-content: center;">
+            <strong>🎁 Quà Tặng Đặc Biệt Từ Quản Trị Viên!</strong>
+          </div>
+          <div id="gift-notice-body" style="display:flex;flex-direction:column;gap:8px;font-size:13.5px;"></div>
+          <button id="btn-ack-gifts" class="btn btn-gold" style="width:100%;margin-top:4px;">
+            🎉 Tuyệt vời! Nhận ngay
+          </button>
+        </div>
+      </div>
+
       <!-- Bottom Navigation -->
       <nav class="bottom-nav" aria-label="Menu trò chơi">
         <button class="nav-btn active" data-tab="workshop">
@@ -137,6 +150,6 @@
       </nav>
     </div>
 
-    <script type="module" src="./game.js?v=20261126b"></script>
+    <script type="module" src="./game.js?v=20261126c"></script>
   </body>
 </html>

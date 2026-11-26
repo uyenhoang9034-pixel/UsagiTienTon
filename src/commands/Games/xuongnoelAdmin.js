@@ -7,6 +7,7 @@ import {
   setSantaEventRole,
   setSantaAnnounceChannel,
   cleanupGuestSantaData,
+  grantSantaSnowCoins,
 } from '../../services/santaWorkshopService.js';
 import { logger } from '../../utils/logger.js';
 
@@ -50,6 +51,32 @@ export default {
       sub
         .setName('dondep')
         .setDescription('Xóa toàn bộ dữ liệu khách ẩn danh (Yêu Tinh Noel cũ) khỏi Bảng Xếp Hạng'),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName('tangtuyet')
+        .setDescription('Tặng Xu Tuyết ❄️ cho thành viên (hiện thông báo khi họ mở Activity)')
+        .addUserOption((opt) =>
+          opt
+            .setName('nguoinhan')
+            .setDescription('Thành viên được tặng Xu Tuyết')
+            .setRequired(true),
+        )
+        .addIntegerOption((opt) =>
+          opt
+            .setName('soluong')
+            .setDescription('Số lượng Xu Tuyết muốn tặng')
+            .setMinValue(1)
+            .setMaxValue(1000000)
+            .setRequired(true),
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName('loinhan')
+            .setDescription('Lời nhắn gửi kèm (tùy chọn)')
+            .setMaxLength(140)
+            .setRequired(false),
+        ),
     ),
 
   category: 'Games',
@@ -90,6 +117,35 @@ export default {
         const { deletedPlayers, cleanedBoards } = await cleanupGuestSantaData(botClient);
         return interaction.reply({
           content: `🧹 Đã dọn sạch **${deletedPlayers}** dữ liệu khách ẩn danh và **${cleanedBoards}** bảng xếp hạng cũ! Giờ chỉ giữ lại người chơi có ID Discord thật thôi ạ.`,
+          ephemeral: !interaction._isPrefixCommand,
+        });
+      }
+
+      if (sub === 'tangtuyet') {
+        const targetUser = interaction.options.getUser('nguoinhan');
+        const amount = interaction.options.getInteger('soluong');
+        const note = interaction.options.getString('loinhan') || '';
+
+        if (!targetUser || targetUser.bot) {
+          return interaction.reply({
+            content: '❌ Không thể tặng Xu Tuyết cho bot!',
+            ephemeral: !interaction._isPrefixCommand,
+          });
+        }
+
+        await grantSantaSnowCoins(botClient, {
+          guildId,
+          targetUser,
+          amount,
+          adminUser: interaction.member?.displayName
+            ? { username: interaction.member.displayName }
+            : interaction.user,
+          note,
+        });
+
+        const noteText = note ? `\n💌 Lời nhắn: *${note}*` : '';
+        return interaction.reply({
+          content: `❄️ Đã tặng **+${amount} Xu Tuyết** cho <@${targetUser.id}>! Khi bạn ấy mở game Xưởng Quà Noel sẽ hiện thông báo nhận quà ngay.${noteText}`,
           ephemeral: !interaction._isPrefixCommand,
         });
       }

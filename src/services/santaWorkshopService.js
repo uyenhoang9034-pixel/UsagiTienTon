@@ -390,6 +390,7 @@ function createDefaultPlayer({ userId, username, avatarUrl, guildId }) {
     feverCount: 0,
     likedToday: {},
     lastGrinchAt: 0,
+    pendingGiftNotices: [],
     luckyTickets: 1,
     hasEventRole: false,
     lastCheckinDate: null,
@@ -1357,4 +1358,37 @@ export async function handleSantaClaimQuest(client, identity, questId) {
     message: `🎁 Hoàn thành "${quest.name}"! Đã nhận thưởng!`,
     state: await buildSantaStatePayload(client, identity),
   };
+}
+
+export async function grantSantaSnowCoins(client, { guildId = 'global', targetUser, amount, adminUser, note = '' }) {
+  const safeAmount = Math.max(1, Math.floor(Number(amount) || 0));
+  const player = await getOrCreateSantaPlayer(client, {
+    userId: targetUser.id,
+    username: targetUser.globalName || targetUser.username || 'Yêu Tinh Noel',
+    avatarUrl: typeof targetUser.displayAvatarURL === 'function' ? targetUser.displayAvatarURL({ size: 128 }) : null,
+    guildId,
+  });
+
+  player.snowCoins = (player.snowCoins || 0) + safeAmount;
+  player.pendingGiftNotices = Array.isArray(player.pendingGiftNotices) ? player.pendingGiftNotices : [];
+  player.pendingGiftNotices.push({
+    id: `gift_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    amount: safeAmount,
+    fromName: adminUser?.globalName || adminUser?.username || 'Admin',
+    note: String(note || '').trim().slice(0, 140),
+    at: Date.now(),
+  });
+
+  await savePlayer(client, guildId, player);
+  return { ok: true, amount: safeAmount, player };
+}
+
+export async function handleSantaAckGifts(client, identity) {
+  const guildId = identity.guildId || 'global';
+  const player = await getOrCreateSantaPlayer(client, identity);
+  if (Array.isArray(player.pendingGiftNotices) && player.pendingGiftNotices.length > 0) {
+    player.pendingGiftNotices = [];
+    await savePlayer(client, guildId, player);
+  }
+  return { ok: true, state: await buildSantaStatePayload(client, identity) };
 }

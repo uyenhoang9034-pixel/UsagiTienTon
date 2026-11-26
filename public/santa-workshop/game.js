@@ -1,4 +1,4 @@
-import { christmasAudio } from './audio.js?v=20261126b';
+import { christmasAudio } from './audio.js?v=20261126c';
 
 const STATE = {
   token: 'demo',
@@ -1264,9 +1264,33 @@ function renderPanel() {
   }
 }
 
+function checkPendingGiftNotices() {
+  const notices = STATE.data?.player?.pendingGiftNotices;
+  if (!Array.isArray(notices) || notices.length === 0) return;
+
+  const modal = document.getElementById('gift-notice-modal');
+  const body = document.getElementById('gift-notice-body');
+  if (!modal || !body) return;
+
+  body.innerHTML = notices
+    .map(
+      (g) => `
+      <div class="card">
+        <div style="font-size:16px;font-weight:800;color:var(--gold);">+${g.amount} ❄️ Xu Tuyết</div>
+        <div>Người tặng: <strong>${g.fromName || 'Admin'}</strong></div>
+        ${g.note ? `<div class="muted">"${g.note}"</div>` : ''}
+      </div>
+    `,
+    )
+    .join('');
+
+  modal.classList.remove('hidden');
+}
+
 function renderAll() {
   renderHud();
   renderPanel();
+  checkPendingGiftNotices();
 }
 
 function bindEvents() {
@@ -1326,6 +1350,12 @@ function bindEvents() {
     document.getElementById('upgrade-modal').classList.add('hidden');
     const r = await runAction('/api/santa/upgrade');
     if (r?.ok) christmasAudio.playCraftSfx();
+  });
+
+  document.getElementById('btn-ack-gifts').addEventListener('click', async () => {
+    document.getElementById('gift-notice-modal').classList.add('hidden');
+    christmasAudio.playJackpotSfx();
+    await runAction('/api/santa/ack-gifts');
   });
 }
 

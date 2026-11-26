@@ -21,6 +21,7 @@ import {
   handleSantaRepelGrinch,
   handleSantaClaimQuest,
   cleanupGuestSantaData,
+  handleSantaAckGifts,
 } from './santaWorkshopService.js';
 import { logger } from '../utils/logger.js';
 
@@ -211,6 +212,7 @@ export function registerSantaWorkshopRoutes(app, client) {
     ['/api/santa/friend/visit', (req, id) => handleSantaVisitFriend(client, id, { targetUserId: req.body?.targetUserId, action: req.body?.action, toyId: req.body?.toyId })],
     ['/api/santa/grinch-repel', (_req, id) => handleSantaRepelGrinch(client, id)],
     ['/api/santa/quest/claim', (req, id) => handleSantaClaimQuest(client, id, req.body?.questId)],
+    ['/api/santa/ack-gifts', (_req, id) => handleSantaAckGifts(client, id)],
   ];
 
   for (const [routePath, handler] of actionRoutes) {

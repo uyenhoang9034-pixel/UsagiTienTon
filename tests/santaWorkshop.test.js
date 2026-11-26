@@ -18,6 +18,8 @@ import {
   handleSantaRepelGrinch,
   handleSantaEquipCosmetic,
   handleSantaClaimQuest,
+  grantSantaSnowCoins,
+  handleSantaAckGifts,
 } from '../src/services/santaWorkshopService.js';
 
 function createMemoryClient() {
@@ -134,4 +136,19 @@ test('Luồng chơi Xưởng Quà Ông Già Noel: Điểm danh -> Giải đố -
   assert.equal(likeRes.state.dailyQuestsMeta.length, 10);
   const claimRes = await handleSantaClaimQuest(client, identity, 'q_checkin');
   assert.equal(claimRes.ok, true);
+
+  // 12. Admin tặng Xu Tuyết & user mở Activity nhận thông báo
+  const grantRes = await grantSantaSnowCoins(client, {
+    guildId: 'guild_noel',
+    targetUser: { id: 'elf_01', username: 'UsagiElf' },
+    amount: 500,
+    adminUser: { username: 'BossKimNong' },
+    note: 'Thưởng chăm chỉ',
+  });
+  assert.equal(grantRes.ok, true);
+  assert.equal(grantRes.player.pendingGiftNotices.length, 1);
+
+  const ackRes = await handleSantaAckGifts(client, identity);
+  assert.equal(ackRes.ok, true);
+  assert.equal(ackRes.state.player.pendingGiftNotices.length, 0);
 });
