@@ -1,4 +1,4 @@
-import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126h';
+import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126i';
 
 const STATE = {
   token: 'demo',
@@ -316,7 +316,7 @@ class SantaWorkshopScene extends Phaser.Scene {
         : skin === 'skin_fairy'
           ? 0x00b4d8
           : skin === 'skin_knight'
-            ? 0x4361ee
+            ? 0x3a5a98
             : skin === 'skin_ginger'
               ? 0xb07d4f
               : skin === 'skin_golden'
@@ -324,25 +324,46 @@ class SantaWorkshopScene extends Phaser.Scene {
                 : 0x2a9d8f;
     g.fillStyle(coatColor, 1);
     g.fillRoundedRect(-22, 0, 44, 44, 10);
+
     if (skin === 'skin_santa') {
       g.fillStyle(0xffffff, 1);
       g.fillRect(-5, 0, 10, 44);
       g.fillRoundedRect(-24, 36, 48, 8, 4);
+    } else if (skin === 'skin_ginger') {
+      // Viền kem đường trắng & cúc áo kẹo
+      g.fillStyle(0xffffff, 1);
+      g.fillRoundedRect(-23, 35, 46, 7, 3);
+      g.fillStyle(0xe63946, 1);
+      g.fillCircle(0, 10, 4);
+      g.fillStyle(0x2ecc71, 1);
+      g.fillCircle(0, 31, 4);
+    } else if (skin === 'skin_knight') {
+      // Giáp ngực bạc & khiên băng
+      g.fillStyle(0x90e0ef, 1);
+      g.fillRoundedRect(-12, 4, 24, 18, 4);
+      g.fillStyle(0x48cae4, 1);
+      g.fillRoundedRect(-36, 6, 14, 24, 5);
+      g.lineStyle(2, 0xffffff, 0.9);
+      g.strokeRoundedRect(-36, 6, 14, 24, 5);
+    } else if (skin === 'skin_golden') {
+      // Giáp ngực vàng sáng
+      g.fillStyle(0xfff3b0, 1);
+      g.fillRoundedRect(-12, 4, 24, 16, 4);
     }
     g.fillStyle(0xffd166, 1);
     g.fillRect(-22, 22, 44, 6);
 
-    // Tay trái & tay phải cầm búa gỗ
+    // Tay trái & tay phải cầm búa (búa vàng nếu skin_golden)
     g.fillStyle(coatColor, 1);
     g.fillRoundedRect(-31, 6, 11, 22, 5);
     g.fillRoundedRect(20, 6, 11, 22, 5);
     g.fillStyle(0xffd6ba, 1);
     g.fillCircle(-26, 28, 5);
     g.fillCircle(26, 28, 5);
-    // Cây búa gỗ trên tay phải
+    // Cây búa gỗ / vàng trên tay phải
     g.fillStyle(0x9c6644, 1);
     g.fillRect(25, 4, 4, 24);
-    g.fillStyle(0xadb5bd, 1);
+    g.fillStyle(skin === 'skin_golden' ? 0xffd166 : 0xadb5bd, 1);
     g.fillRoundedRect(19, -2, 16, 9, 3);
 
     // Tai nhọn Yêu Tinh 2 bên
