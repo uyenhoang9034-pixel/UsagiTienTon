@@ -101,6 +101,7 @@ async function resolveIdentityFromRequest(req, client = null) {
         avatarUrl,
         guildId: fallbackGuildId,
         partySize: Math.max(1, Math.min(10, Number(req.headers['x-party-size']) || 1)),
+        isAuthenticated: true,
       };
     }
   }
@@ -116,6 +117,7 @@ async function resolveIdentityFromRequest(req, client = null) {
     avatarUrl: null,
     guildId: fallbackGuildId,
     partySize: Math.max(1, Math.min(10, Number(req.headers['x-party-size']) || 1)),
+    isAuthenticated: false,
   };
 }
 
@@ -232,6 +234,7 @@ export function registerSantaWorkshopRoutes(app, client) {
     app.post(routePath, async (req, res) => {
       try {
         const identity = await resolveIdentityFromRequest(req, client);
+        if (!identity.isAuthenticated) return res.status(401).json({ ok: false, message: 'Hãy mở Xưởng Noel trong Discord và đăng nhập trước khi sử dụng Duo Bond.' });
         const result = await handler(req, identity);
         const duo = await getDuoBondState(client, identity);
         const santaState = await buildSantaStatePayload(client, identity);
