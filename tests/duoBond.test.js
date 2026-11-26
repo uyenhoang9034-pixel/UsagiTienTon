@@ -122,3 +122,22 @@ test('Duo Bond: 3 đồ chơi quý hiếm nhất đạt trần 1.800 XP và khó
   assert.equal(duo.pair.xp, 1800);
   assert.equal((await handleDuoBondFeed(client, a)).ok, false);
 });
+
+
+test('Duo Bond: tự khôi phục liên kết khi Activity đổi guildId', async () => {
+  const client = memoryClient();
+  const oldGuildId = 'duo_old_scope';
+  const newGuildId = 'duo_new_scope';
+  const a = { userId: '30000000000000001', username: 'Elf A', guildId: oldGuildId };
+  const b = { userId: '30000000000000002', username: 'Elf B', guildId: oldGuildId };
+  await buildSantaStatePayload(client, a);
+  await buildSantaStatePayload(client, b);
+  await handleDuoBondInvite(client, a, b.userId);
+  assert.equal((await handleDuoBondAccept(client, b)).ok, true);
+
+  const recovered = await getDuoBondState(client, { ...a, guildId: newGuildId });
+  assert.ok(recovered.pair);
+  assert.deepEqual(recovered.pair.members, [a.userId, b.userId]);
+  const alias = await client.db.get(`santa:duo:user:${newGuildId}:${a.userId}`);
+  assert.equal(alias.guildId, oldGuildId);
+});
