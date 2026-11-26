@@ -1709,28 +1709,33 @@ function renderPanel() {
 }
 
 function checkPendingGiftNotices() {
-  const notices = STATE.data?.player?.pendingGiftNotices;
-  if (!Array.isArray(notices) || notices.length === 0) return;
+  const coinNotices = STATE.data?.player?.pendingGiftNotices;
+  const materialNotices = STATE.data?.player?.pendingMaterialGiftNotices;
+  const notices = [
+    ...(Array.isArray(coinNotices) ? coinNotices : []),
+    ...(Array.isArray(materialNotices) ? materialNotices : []),
+  ];
+  if (notices.length === 0) return;
 
   const modal = document.getElementById('gift-notice-modal');
   const body = document.getElementById('gift-notice-body');
   if (!modal || !body) return;
 
   body.innerHTML = notices
-    .map(
-      (g) => `
-      <div class="card">
-        <div style="font-size:16px;font-weight:800;color:var(--gold);">+${g.amount} ❄️ Xu Tuyết</div>
-        <div>Người tặng: <strong>${g.fromName || 'Admin'}</strong></div>
-        ${g.note ? `<div class="muted">"${g.note}"</div>` : ''}
-      </div>
-    `,
-    )
+    .map((g) => {
+      if (g.materials) {
+        const materialNames = { wood: '🌲 Gỗ thông', fabric: '🧶 Vải đỏ', magicDust: '✨ Bụi phép thuật' };
+        const list = Object.entries(g.materials)
+          .map(([key, value]) => `<div><strong>+${Number(value).toLocaleString('vi-VN')} ${materialNames[key] || key}</strong></div>`)
+          .join('');
+        return `<div class="card"><div style="font-size:16px;font-weight:800;color:var(--gold);">🎁 Quà nguyên liệu Xưởng Noel</div>${list}<div>Người tặng: <strong>${g.fromName || 'Admin'}</strong></div>${g.note ? `<div class="muted">"${g.note}"</div>` : ''}</div>`;
+      }
+      return `<div class="card"><div style="font-size:16px;font-weight:800;color:var(--gold);">+${Number(g.amount || 0).toLocaleString('vi-VN')} ❄️ Xu Tuyết</div><div>Người tặng: <strong>${g.fromName || 'Admin'}</strong></div>${g.note ? `<div class="muted">"${g.note}"</div>` : ''}</div>`;
+    })
     .join('');
 
   modal.classList.remove('hidden');
 }
-
 function renderAll() {
   renderHud();
   renderPanel();
