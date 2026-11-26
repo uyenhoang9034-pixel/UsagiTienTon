@@ -1259,8 +1259,8 @@ function renderPanel() {
 
       <div class="card">
         <div class="section-title"><span>🏪 Chợ Đổi Nguyên Liệu</span></div>
-        <div class="muted">Đổi 2 nguyên liệu dư lấy 1 loại cần, hoặc bán 5 nguyên liệu lấy +20 ❄️</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px;">
+        <div class="muted">Đổi nguyên liệu theo lô x1 / x20 / x100. Riêng Ruy băng: 20 nguyên liệu thường ↔ 1 🎀 Ruy băng. Nguyên liệu thường đổi với nhau theo tỷ lệ 2:1. Bán 5 nguyên liệu lấy +20 ❄️</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;">
           <select id="mkt-from" class="pill" style="background:#101b33;">
             ${Object.entries(materialsMeta).map(([k, m]) => `<option value="${k}">${m.icon} ${m.name}</option>`).join('')}
           </select>
@@ -1268,9 +1268,14 @@ function renderPanel() {
           <select id="mkt-to" class="pill" style="background:#101b33;">
             ${Object.entries(materialsMeta).map(([k, m], idx) => `<option value="${k}" ${idx === 1 ? 'selected' : ''}>${m.icon} ${m.name}</option>`).join('')}
           </select>
-          <button class="btn btn-green btn-sm" id="btn-mkt-swap">Đổi (2→1)</button>
+          <span class="muted">Số lượt:</span>
+          <button class="btn btn-green btn-sm" type="button" data-mkt-amount="1">x1</button>
+          <button class="btn btn-sm" type="button" data-mkt-amount="20">x20</button>
+          <button class="btn btn-sm" type="button" data-mkt-amount="100">x100</button>
+          <button class="btn btn-green btn-sm" id="btn-mkt-swap">Đổi</button>
           <button class="btn btn-gold btn-sm" id="btn-mkt-sell">Bán 5 (+20❄️)</button>
         </div>
+        <div class="muted" id="mkt-rate-hint" style="margin-top:6px;">Chọn số lượt đổi và nguyên liệu cần nhận.</div>
       </div>
 
       <div class="section-title" style="margin-top:4px;"><span>🧝 Đội Ngũ Yêu Tinh Phụ Việc</span></div>
@@ -1309,10 +1314,30 @@ function renderPanel() {
       const r = await runAction('/api/santa/boss/attack', { mode: 'toy' });
       if (r?.ok) christmasAudio.playJackpotSfx();
     };
+    let marketExchangeAmount = 1;
+    const updateMarketExchangeHint = () => {
+      const fromMat = document.getElementById('mkt-from').value;
+      const toMat = document.getElementById('mkt-to').value;
+      const ribbonExchange = fromMat === 'ribbon' || toMat === 'ribbon';
+      const inputPerExchange = ribbonExchange ? (toMat === 'ribbon' ? 20 : 1) : 2;
+      const outputPerExchange = ribbonExchange ? (fromMat === 'ribbon' ? 20 : 1) : 1;
+      const hint = document.getElementById('mkt-rate-hint');
+      hint.textContent = `Lô x${marketExchangeAmount}: cần ${(inputPerExchange * marketExchangeAmount).toLocaleString('vi-VN')} nguyên liệu nguồn → nhận ${(outputPerExchange * marketExchangeAmount).toLocaleString('vi-VN')} nguyên liệu đích.`;
+    };
+    container.querySelectorAll('[data-mkt-amount]').forEach((btn) => {
+      btn.onclick = () => {
+        marketExchangeAmount = Number(btn.dataset.mktAmount) || 1;
+        container.querySelectorAll('[data-mkt-amount]').forEach((item) => item.classList.toggle('btn-green', item === btn));
+        updateMarketExchangeHint();
+      };
+    });
+    document.getElementById('mkt-from').onchange = updateMarketExchangeHint;
+    document.getElementById('mkt-to').onchange = updateMarketExchangeHint;
+    updateMarketExchangeHint();
     document.getElementById('btn-mkt-swap').onclick = async () => {
       const fromMat = document.getElementById('mkt-from').value;
       const toMat = document.getElementById('mkt-to').value;
-      const r = await runAction('/api/santa/market/exchange', { mode: 'swap', fromMat, toMat });
+      const r = await runAction('/api/santa/market/exchange', { mode: 'swap', fromMat, toMat, amount: marketExchangeAmount });
       if (r?.ok) christmasAudio.playCoinSfx();
     };
     document.getElementById('btn-mkt-sell').onclick = async () => {
