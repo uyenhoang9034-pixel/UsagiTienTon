@@ -116,15 +116,20 @@ export function registerSantaWorkshopRoutes(app, client) {
   app.use('/activity', express.static(PUBLIC_ACTIVITY_DIR, { etag: false, maxAge: 0 }));
 
   app.get('/api/santa/config', (_req, res) => {
-    res.json({
-      clientId: process.env.CLIENT_ID || process.env.DISCORD_CLIENT_ID || '',
-    });
+    const clientId = String(
+      client?.config?.bot?.clientId || process.env.CLIENT_ID || process.env.DISCORD_CLIENT_ID || '',
+    ).trim();
+    res.json({ clientId });
   });
 
   app.post('/api/santa/token', async (req, res) => {
     const code = String(req.body?.code || '').trim();
-    const clientId = process.env.CLIENT_ID || process.env.DISCORD_CLIENT_ID || '';
-    const clientSecret = process.env.DISCORD_CLIENT_SECRET || process.env.CLIENT_SECRET || '';
+    const clientId = String(
+      client?.config?.bot?.clientId || process.env.CLIENT_ID || process.env.DISCORD_CLIENT_ID || '',
+    ).trim();
+    const clientSecret = String(
+      process.env.DISCORD_CLIENT_SECRET || process.env.CLIENT_SECRET || '',
+    ).trim();
 
     if (!code) {
       return res.status(400).json({ error: 'Missing OAuth2 code' });
@@ -163,8 +168,9 @@ export function registerSantaWorkshopRoutes(app, client) {
 
       return res.json({ access_token: accessToken, user: userRes.data });
     } catch (err) {
+      const detail = err?.response?.data?.error_description || err?.response?.data?.error || err?.message || 'Unknown';
       logger.error('[SantaWorkshop] OAuth2 token exchange failed:', err?.response?.data || err?.message || err);
-      return res.status(500).json({ error: 'Token exchange failed' });
+      return res.status(500).json({ error: `Token exchange failed: ${detail}` });
     }
   });
 

@@ -1,4 +1,4 @@
-import { christmasAudio } from './audio.js?v=20261125j';
+import { christmasAudio } from './audio.js?v=20261126a';
 
 const STATE = {
   token: 'demo',
@@ -60,24 +60,31 @@ async function initDiscordActivitySdk() {
   const params = new URLSearchParams(window.location.search);
   if (!params.has('frame_id')) return;
 
+  let step = 'config';
   try {
     const cfgRes = await fetch('/api/santa/config');
     const cfg = await cfgRes.json();
-    if (!cfg?.clientId) return;
+    if (!cfg?.clientId) {
+      showToast('⚠️ Thiếu CLIENT_ID trên server');
+      return;
+    }
 
-    const { DiscordSDK } = await import('./vendor/discord-sdk.mjs?v=20261125e');
+    step = 'sdk';
+    const { DiscordSDK } = await import('./vendor/discord-sdk.mjs?v=20261126a');
     const discordSdk = new DiscordSDK(cfg.clientId);
     await discordSdk.ready();
 
     if (discordSdk.guildId) STATE.guildId = discordSdk.guildId;
 
+    step = 'authorize';
     const { code } = await discordSdk.commands.authorize({
       client_id: cfg.clientId,
       response_type: 'code',
       state: '',
-      scope: ['identify', 'guilds'],
+      scope: ['identify'],
     });
 
+    step = 'token';
     const tokenRes = await fetch('/api/santa/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -85,14 +92,15 @@ async function initDiscordActivitySdk() {
     });
     const tokenData = await tokenRes.json();
     if (tokenData?.access_token) {
+      step = 'authenticate';
       await discordSdk.commands.authenticate({ access_token: tokenData.access_token });
       STATE.token = tokenData.access_token;
-    } else if (tokenData?.error) {
-      showToast(`⚠️ Chưa lấy được tên Discord: ${tokenData.error}`);
+    } else {
+      showToast(`⚠️ Lỗi token: ${tokenData?.error || 'Không rõ'}`);
     }
   } catch (err) {
-    console.warn('Discord SDK fallback to browser mode:', err);
-    showToast('⚠️ Chưa xác thực được tên Discord (kiểm tra DISCORD_CLIENT_SECRET)');
+    console.warn('Discord SDK fallback to browser mode:', step, err);
+    showToast(`⚠️ Lỗi xác thực (${step}): ${err?.message || err}`);
   }
 }
 
