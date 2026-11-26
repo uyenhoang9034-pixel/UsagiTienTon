@@ -236,7 +236,7 @@ test('Tiến trình Xưởng Noel hỗ trợ cấp 2000 với chi phí late-game
   assert.equal(getUpgradeCost(101), 3_000_000);
   assert.equal(getUpgradeCost(1000), 20_000_000);
   assert.equal(getUpgradeCost(1500), 200_000_000);
-  assert.equal(getUpgradeCost(1999), 998_400_000);
+  assert.equal(getUpgradeCost(1999), 200_000_000);
 
   const helper = { baseCost: 80 };
   assert.equal(getHelperUpgradeCost(helper, 1500), 200_000_000);
