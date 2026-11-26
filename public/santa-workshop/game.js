@@ -1,4 +1,4 @@
-import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126f';
+import { christmasAudio, CHRISTMAS_SONGS } from './audio.js?v=20261126g';
 
 const STATE = {
   token: 'demo',
@@ -303,6 +303,12 @@ class SantaWorkshopScene extends Phaser.Scene {
     g.fillRoundedRect(-16, 42, 12, 8, 4);
     g.fillRoundedRect(4, 42, 12, 8, 4);
 
+    // Hào quang vàng nếu đeo skin_golden
+    if (skin === 'skin_golden') {
+      g.fillStyle(0xffd166, 0.28);
+      g.fillCircle(0, 0, 48);
+    }
+
     // Thân áo theo skin
     const coatColor =
       skin === 'skin_santa'
@@ -311,7 +317,11 @@ class SantaWorkshopScene extends Phaser.Scene {
           ? 0x00b4d8
           : skin === 'skin_knight'
             ? 0x4361ee
-            : 0x2a9d8f;
+            : skin === 'skin_ginger'
+              ? 0xb07d4f
+              : skin === 'skin_golden'
+                ? 0xffb703
+                : 0x2a9d8f;
     g.fillStyle(coatColor, 1);
     g.fillRoundedRect(-22, 0, 44, 44, 10);
     if (skin === 'skin_santa') {
@@ -428,7 +438,16 @@ class SantaWorkshopScene extends Phaser.Scene {
       }
       if (petId) {
         const floorY = this.scale.height * 0.64;
-        const petIcon = petId === 'pet_reindeer' ? '🦌' : petId === 'pet_penguin' ? '🐧' : '🐰';
+        const petIcon =
+          petId === 'pet_reindeer'
+            ? '🦌'
+            : petId === 'pet_penguin'
+              ? '🐧'
+              : petId === 'pet_snowman'
+                ? '⛄'
+                : petId === 'pet_fox'
+                  ? '🦊'
+                  : '🐰';
         this.petSprite = this.add
           .text(this.scale.width * 0.32, floorY + 14, petIcon, { fontSize: '28px' })
           .setOrigin(0.5)
@@ -604,7 +623,18 @@ class SantaWorkshopScene extends Phaser.Scene {
     let petTimer = null;
     const petId = STATE.data?.player?.equippedPet;
     if (petId) {
-      const petInterval = petId === 'pet_reindeer' ? 1100 : 1600;
+      const petInterval =
+        petId === 'pet_fox' ? 900 : petId === 'pet_reindeer' ? 1100 : petId === 'pet_snowman' ? 1200 : 1600;
+      const petEmoji =
+        petId === 'pet_fox'
+          ? '🦊'
+          : petId === 'pet_reindeer'
+            ? '🦌'
+            : petId === 'pet_snowman'
+              ? '⛄'
+              : petId === 'pet_penguin'
+                ? '🐧'
+                : '🐰';
       petTimer = this.time.addEvent({
         delay: petInterval,
         loop: true,
@@ -613,7 +643,7 @@ class SantaWorkshopScene extends Phaser.Scene {
           if (target) {
             STATE.feverHits += 1;
             christmasAudio.playCoinSfx();
-            this.playElfTapEffect(target.x, target.y, `${petId === 'pet_reindeer' ? '🦌' : '🐰'} +3 ❄️`);
+            this.playElfTapEffect(target.x, target.y, `${petEmoji} +3 ❄️`);
             target.destroy();
           }
         },

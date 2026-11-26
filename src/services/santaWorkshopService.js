@@ -199,6 +199,82 @@ export const SHOP_ITEMS = [
     price: 320,
     description: 'Đôi cánh băng phát sáng rực rỡ sau lưng Yêu Tinh.',
   },
+  {
+    id: 'frame_candy',
+    type: 'frame',
+    name: 'Khung Kẹo Gậy Ngọt Ngào',
+    icon: '🍭',
+    price: 350,
+    description: 'Viền kẹo gậy sọc đỏ trắng ngọt ngào kèm kẹo gắn góc.',
+    cssClass: 'frame-candy',
+  },
+  {
+    id: 'frame_royal',
+    type: 'frame',
+    name: 'Khung Vương Miện Bắc Cực',
+    icon: '👑',
+    price: 1200,
+    description: 'Hào quang tím-vàng hoàng gia xoay vòng dành cho đại gia Noel.',
+    cssClass: 'frame-royal',
+  },
+  {
+    id: 'pet_snowman',
+    type: 'pet',
+    name: 'Người Tuyết Tí Hon',
+    icon: '⛄',
+    price: 550,
+    description: 'Chạy lon ton trong xưởng & tự nhặt quà Fever mỗi 1.2 giây!',
+  },
+  {
+    id: 'pet_fox',
+    type: 'pet',
+    name: 'Cáo Tuyết Bắc Cực',
+    icon: '🦊',
+    price: 900,
+    description: 'Siêu tốc độ! Tự động nhặt hộ quà Fever mỗi 0.9 giây!',
+  },
+  {
+    id: 'skin_ginger',
+    type: 'skin',
+    name: 'Áo Bánh Gừng Ngọt Ngào',
+    icon: '🍪',
+    price: 420,
+    description: 'Trang phục bánh gừng nâu ấm viền kem đường cho Yêu Tinh.',
+  },
+  {
+    id: 'skin_golden',
+    type: 'skin',
+    name: 'Chiến Giáp Hoàng Kim Noel',
+    icon: '🌟',
+    price: 1500,
+    description: 'Bộ giáp vàng lấp lánh kèm hào quang rực rỡ trên Yêu Tinh.',
+  },
+  {
+    id: 'mat_pack_small',
+    type: 'pack',
+    name: 'Túi Nguyên Liệu Xưởng',
+    icon: '📦',
+    price: 120,
+    description: 'Nhận ngay +10 🌲, +10 🧶, +6 ✨, +8 🎀 vào kho.',
+    pack: { wood: 10, fabric: 10, magicDust: 6, ribbon: 8 },
+  },
+  {
+    id: 'mat_pack_mega',
+    type: 'pack',
+    name: 'Rương Nguyên Liệu Đại Gia',
+    icon: '🧳',
+    price: 480,
+    description: 'Nhận ngay +45 🌲, +45 🧶, +30 ✨, +35 🎀 vào kho!',
+    pack: { wood: 45, fabric: 45, magicDust: 30, ribbon: 35 },
+  },
+  {
+    id: 'buff_x3_10m',
+    type: 'buff',
+    name: 'Thuốc Tăng Tốc x3 (10 phút)',
+    icon: '⚡',
+    price: 300,
+    description: 'Kích hoạt ngay Buff x3 tốc độ sản xuất Idle trong 10 phút!',
+  },
 ];
 
 export const ACHIEVEMENTS = [
@@ -1157,6 +1233,13 @@ export async function handleSantaBuyItem(client, identity, itemId) {
     player.equippedSkin = item.id;
   } else if (item.type === 'ticket') {
     player.luckyTickets = (player.luckyTickets || 0) + 1;
+  } else if (item.type === 'pack' && item.pack) {
+    for (const [m, amt] of Object.entries(item.pack)) {
+      player.materials[m] = (player.materials[m] || 0) + amt;
+    }
+  } else if (item.type === 'buff') {
+    const base = Math.max(Date.now(), player.personalBuffExpiresAt || 0);
+    player.personalBuffExpiresAt = base + 10 * 60 * 1000;
   }
 
   player.snowCoins -= item.price;

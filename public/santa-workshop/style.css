@@ -155,6 +155,47 @@ body {
   filter: drop-shadow(0 0 6px #90e0ef);
 }
 
+/* 4. Khung Kẹo Gậy Ngọt Ngào */
+.avatar-wrapper.frame-candy {
+  border: 3px solid transparent;
+  background:
+    linear-gradient(#23395d, #23395d) padding-box,
+    repeating-conic-gradient(#e63946 0deg 20deg, #ffffff 20deg 40deg) border-box;
+  box-shadow: 0 0 14px rgba(230, 57, 70, 0.75);
+}
+.avatar-wrapper.frame-candy::after {
+  content: '🍭';
+  position: absolute;
+  top: -8px;
+  right: -7px;
+  font-size: 15px;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.8));
+}
+
+/* 5. Khung Vương Miện Bắc Cực */
+.avatar-wrapper.frame-royal {
+  border: 3px solid transparent;
+  box-shadow: 0 0 18px rgba(155, 93, 229, 0.95), 0 0 8px #ffd166;
+}
+.avatar-wrapper.frame-royal::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, #9b5de5, #ffd166, #f15bb5, #00bbf9, #9b5de5);
+  z-index: -1;
+  animation: santa-spin 3s linear infinite;
+}
+.avatar-wrapper.frame-royal::after {
+  content: '👑';
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 16px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.9));
+}
+
 .avatar-img {
   width: 100%;
   height: 100%;
