@@ -549,13 +549,17 @@ export const WHEEL_SEGMENTS = [
   { label: 'JACKPOT 300❄️', color: '#d90429', type: 'jackpot', amount: 300 },
 ];
 
+export function getWheelRewardMultiplier(workshopLevel = 1) {
+  const lv = Math.max(1, Math.min(2000, Number(workshopLevel) || 1));
+  return 1 + (lv - 1) * 0.5;
+}
+
 export function getScaledWheelSegments(workshopLevel = 1) {
-  const lv = Math.max(1, Number(workshopLevel) || 1);
-  const mult = 1 + (lv - 1) * 0.5;
+  const lv = Math.max(1, Math.min(2000, Number(workshopLevel) || 1));
+  const mult = getWheelRewardMultiplier(lv);
   return WHEEL_SEGMENTS.map((seg) => {
     if (seg.type === 'tickets') {
-      const tickets =
-        lv >= 80 ? 12 : lv >= 60 ? 10 : lv >= 40 ? 8 : lv >= 25 ? 7 : lv >= 17 ? 6 : lv >= 13 ? 5 : lv >= 9 ? 4 : lv >= 5 ? 3 : 2;
+      const tickets = 2 + Math.floor((lv - 1) * 0.1);
       return { ...seg, amount: tickets, label: `+${tickets} 🎟️` };
     }
     const scaled = Math.round(seg.amount * mult);
@@ -610,8 +614,10 @@ function getLeaderboardKey(guildId) {
 }
 
 export function getScaledRecipe(recipe, workshopLevel = 1) {
-  const lv = Math.max(1, Number(workshopLevel) || 1);
-  const matMult = 1 + (lv - 1) * 0.6;
+  const lv = Math.max(1, Math.min(2000, Number(workshopLevel) || 1));
+  const earlyMultiplier = 1 + (Math.min(lv, 100) - 1) * 0.6;
+  const lateMultiplier = lv > 100 ? 1 + (lv - 100) * 0.025 : 1;
+  const matMult = earlyMultiplier * lateMultiplier;
   const scaledIngredients = {};
   for (const [mat, req] of Object.entries(recipe.ingredients)) {
     scaledIngredients[mat] = Math.max(1, Math.round(req * matMult));
@@ -749,17 +755,27 @@ export function computePendingIdleMaterials(player, now = Date.now(), partySize 
   };
 }
 
-export function getHelperUpgradeCost(helperDef, currentLevel = 0) {
-  return Math.round(helperDef.baseCost * (1 + currentLevel * 0.45 + Math.pow(currentLevel, 1.55) * 0.35));
-}
+export const MAX_SANTA_LEVEL = 2000;
 
 export function getUpgradeCost(level) {
-  const lv = Math.max(1, Number(level) || 1);
-  if (lv <= 15) {
-    return Math.round(90 * Math.pow(1.4, lv - 1));
+  const lv = Math.max(1, Math.min(MAX_SANTA_LEVEL - 1, Math.floor(Number(level) || 1)));
+  if (lv < 100) {
+    if (lv <= 15) return Math.round(90 * Math.pow(1.4, lv - 1));
+    const base15 = 90 * Math.pow(1.4, 14);
+    return Math.round(base15 * (1 + (lv - 15) * 0.32));
   }
-  const base15 = 90 * Math.pow(1.4, 14);
-  return Math.round(base15 * (1 + (lv - 15) * 0.32));
+  if (lv === 100) return 2_000_000;
+  if (lv === 101) return 3_000_000;
+  if (lv < 1000) return Math.round(3_000_000 + ((lv - 101) / 899) * 17_000_000);
+  if (lv < 1500) return Math.round(20_000_000 + (lv - 1000) * 360_000);
+  return Math.round(200_000_000 + (lv - 1500) * 1_600_000);
+}
+
+export function getHelperUpgradeCost(helperDef, currentLevel = 0) {
+  const lv = Math.max(0, Math.min(MAX_SANTA_LEVEL - 1, Math.floor(Number(currentLevel) || 0)));
+  const earlyCost = Math.round(helperDef.baseCost * (1 + lv * 0.45 + Math.pow(lv, 1.55) * 0.35));
+  if (lv < 100) return earlyCost;
+  return Math.max(earlyCost, Math.round(getUpgradeCost(lv) * 0.1));
 }
 
 export function getDailyRiddle(dateKey = getTodayKey()) {
@@ -1049,6 +1065,7 @@ export async function buildSantaStatePayload(client, identity) {
       options: riddle.options,
     },
     upgradeCost: getUpgradeCost(player.workshopLevel || 1),
+    maxWorkshopLevel: MAX_SANTA_LEVEL,
     materialsMeta: MATERIALS,
     helpersMeta: ELF_HELPERS.map((h) => ({
       ...h,
@@ -1081,7 +1098,9 @@ export async function buildSantaStatePayload(client, identity) {
     wheelSegments: getScaledWheelSegments(player.workshopLevel || 1),
     wheelMultiplier: Number((1 + ((player.workshopLevel || 1) - 1) * 0.5).toFixed(2)),
     recipes: getScaledRecipes(player.workshopLevel || 1),
-    shopItems: SHOP_ITEMS,
+    shopItems: SHOP_ITEMS.map((item) => item.type === 'ticket'
+      ? { ...item, price: Math.round(item.price * getWheelRewardMultiplier(player.workshopLevel || 1)) }
+      : item),
     eventRoleConfigured: Boolean(guildConfig.eventRoleId),
     leaderboard,
   };
@@ -1351,8 +1370,8 @@ export async function handleSantaHireHelper(client, identity, helperId) {
 
   player.helpers = player.helpers || { lumberjack: 0, tailor: 0, mage: 0 };
   const currentLv = player.helpers[helperId] || 0;
-  if (currentLv >= 100) {
-    return { ok: false, message: `${helperDef.name} đã đạt cấp tối đa (Cấp 100)!`, state: await buildSantaStatePayload(client, identity) };
+  if (currentLv >= MAX_SANTA_LEVEL) {
+    return { ok: false, message: `${helperDef.name} đã đạt cấp tối đa (Cấp ${MAX_SANTA_LEVEL})!`, state: await buildSantaStatePayload(client, identity) };
   }
 
   const cost = getHelperUpgradeCost(helperDef, currentLv);
@@ -1411,8 +1430,8 @@ export async function handleSantaUpgrade(client, identity) {
   const guildId = identity.guildId || 'global';
   const player = await getOrCreateSantaPlayer(client, identity);
   const currentLevel = player.workshopLevel || 1;
-  if (currentLevel >= 100) {
-    return { ok: false, message: 'Xưởng Yêu Tinh đã đạt cấp tối đa (Cấp 100)!', state: await buildSantaStatePayload(client, identity) };
+  if (currentLevel >= MAX_SANTA_LEVEL) {
+    return { ok: false, message: `Xưởng Yêu Tinh đã đạt cấp tối đa (Cấp ${MAX_SANTA_LEVEL})!`, state: await buildSantaStatePayload(client, identity) };
   }
 
   const cost = getUpgradeCost(currentLevel);
@@ -1438,7 +1457,11 @@ export async function handleSantaUpgrade(client, identity) {
 export async function handleSantaBuyItem(client, identity, itemId) {
   const guildId = identity.guildId || 'global';
   const player = await getOrCreateSantaPlayer(client, identity);
-  const item = SHOP_ITEMS.find((i) => i.id === itemId);
+  const baseItem = SHOP_ITEMS.find((i) => i.id === itemId);
+  const level = Math.max(1, Number(player.workshopLevel) || 1);
+  const item = baseItem && baseItem.type === 'ticket'
+    ? { ...baseItem, price: Math.round(baseItem.price * getWheelRewardMultiplier(level)) }
+    : baseItem;
 
   if (!item) {
     return { ok: false, message: 'Vật phẩm không tồn tại!', state: await buildSantaStatePayload(client, identity) };
@@ -1952,6 +1975,31 @@ export async function grantSantaSnowCoins(client, { guildId = 'global', targetUs
   return { ok: true, amount: safeAmount, player };
 }
 
+export async function grantSantaMaterials(client, { guildId = 'global', targetUser, amount, adminUser, note = '' }) {
+  const safeAmount = Math.min(2_000_000, Math.max(1, Math.floor(Number(amount) || 0)));
+  const player = await getOrCreateSantaPlayer(client, {
+    userId: targetUser.id,
+    username: targetUser.globalName || targetUser.username || 'Yêu Tinh Noel',
+    avatarUrl: typeof targetUser.displayAvatarURL === 'function' ? targetUser.displayAvatarURL({ size: 128 }) : null,
+    guildId,
+  });
+  player.materials = player.materials || {};
+  const granted = { wood: safeAmount, fabric: safeAmount, magicDust: safeAmount };
+  for (const [material, quantity] of Object.entries(granted)) {
+    player.materials[material] = (Number(player.materials[material]) || 0) + quantity;
+  }
+  player.pendingMaterialGiftNotices = Array.isArray(player.pendingMaterialGiftNotices) ? player.pendingMaterialGiftNotices : [];
+  player.pendingMaterialGiftNotices.push({
+    id: 'materials_gift_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
+    materials: granted,
+    fromName: adminUser?.globalName || adminUser?.username || 'Admin',
+    note: String(note || '').trim().slice(0, 140),
+    at: Date.now(),
+  });
+  await savePlayer(client, guildId, player);
+  return { ok: true, amount: safeAmount, materials: granted, player };
+}
+
 export async function handleSantaAckGifts(client, identity) {
   const guildId = identity.guildId || 'global';
   const player = await getOrCreateSantaPlayer(client, identity);
@@ -2180,7 +2228,7 @@ export async function handleSantaOpenMysteryBox(client, identity) {
   const usedToday = daily.date === today ? Math.max(0, Number(daily.count) || 0) : 0;
   const remaining = Math.max(0, 3 - usedToday);
   const level = Math.max(1, Number(player.workshopLevel) || 1);
-  const price = Math.round(150 * (1 + (level - 1) * 0.5));
+  const price = Math.round(150 * getWheelRewardMultiplier(level));
 
   if (usedToday >= 3) {
     return { ok: false, message: '🎁 Bạn đã mở đủ 3 Hộp Quà Bí Ẩn hôm nay! Hãy quay lại vào ngày mai nhé.', state: await buildSantaStatePayload(client, identity) };
