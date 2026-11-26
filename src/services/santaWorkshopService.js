@@ -1835,12 +1835,14 @@ export async function handleSantaVisitFriend(client, identity, { targetUserId, a
 
   const today = getTodayKey();
   player.socialDaily = player.socialDaily || {};
-  if (player.socialDaily.date !== today) player.socialDaily = { date: today, likes: 0, gifts: 0 };
-  player.socialDaily.likes = Math.max(0, Number(player.socialDaily.likes) || 0);
-  player.socialDaily.gifts = Math.max(0, Number(player.socialDaily.gifts) || 0);
+  if (player.socialDaily.date !== today) player.socialDaily = { date: today, targets: {} };
+  player.socialDaily.targets = player.socialDaily.targets || {};
+  const targetDaily = player.socialDaily.targets[String(targetUserId)] || { likes: 0, gifts: 0 };
+  targetDaily.likes = Math.max(0, Number(targetDaily.likes) || 0);
+  targetDaily.gifts = Math.max(0, Number(targetDaily.gifts) || 0);
 
   if (action === 'gift') {
-    if (player.socialDaily.gifts >= 3) {
+    if (targetDaily.gifts >= 3) {
       return { ok: false, message: '🎁 Bạn đã dùng đủ 3/3 lượt tặng quà hôm nay. Ngày mai quay lại nhé!', state: await buildSantaStatePayload(client, identity) };
     }
     const giftToy = pickRandomAvailableToy(player, toyId);
@@ -1852,7 +1854,8 @@ export async function handleSantaVisitFriend(client, identity, { targetUserId, a
       };
     }
     player.toys[giftToy] = Math.max(0, Number(player.toys[giftToy] || 0) - 1);
-    player.socialDaily.gifts += 1;
+    targetDaily.gifts += 1;
+    player.socialDaily.targets[String(targetUserId)] = targetDaily;
     player.reputation += 15;
     friend.toys = friend.toys || {};
     friend.toys[giftToy] = (friend.toys[giftToy] || 0) + 1;
@@ -1872,11 +1875,12 @@ export async function handleSantaVisitFriend(client, identity, { targetUserId, a
   if (action !== 'like') {
     return { ok: false, message: 'Thao tác không hợp lệ!', state: await buildSantaStatePayload(client, identity) };
   }
-  if (player.socialDaily.likes >= 3) {
+  if (targetDaily.likes >= 3) {
     return { ok: false, message: '❤️ Bạn đã dùng đủ 3/3 lượt thả tim hôm nay. Ngày mai quay lại nhé!', state: await buildSantaStatePayload(client, identity) };
   }
 
-  player.socialDaily.likes += 1;
+  targetDaily.likes += 1;
+  player.socialDaily.targets[String(targetUserId)] = targetDaily;
   player.reputation += 10;
   friend.reputation = (friend.reputation || 0) + 10;
   friend.snowCoins = (friend.snowCoins || 0) + 15;
