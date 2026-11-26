@@ -125,7 +125,9 @@ export async function handleDuoBondAccept(client, identity) {
   await deleteDatabaseValue(client, inviteKey(guildId, uid));
   await deleteDatabaseValue(client, `santa:duo:outgoing:${guildId}:${invite.fromId}`);
   await syncBuff(client, guildId, pair);
-  return { ok: true, message: '💞 Hai bạn đã kết đôi! Tony – Tuần Lộc Đồng Hành đã xuất hiện. Cả hai nhận buff sản xuất +20%.', duo: await state(client, identity) };
+  await grantMilestones(client, guildId, pair, [{ level: 1, reward: LEVEL_RIBBONS[0] }]);
+  await persistPair(client, guildId, pair);
+  return { ok: true, message: '💞 Hai bạn đã kết đôi! Tony – Tuần Lộc Đồng Hành đã xuất hiện. Cả hai nhận buff sản xuất +20% và mỗi người nhận 2.000 Ruy băng mốc đầu tiên.', duo: await state(client, identity) };
 }
 
 export async function handleDuoBondDecline(client, identity) {
@@ -253,10 +255,10 @@ export async function handleDuoBondTradeRespond(client, identity, accept) {
   if (d.trades >= DAILY_TRADES) return { ok: false, message: 'Hai bạn đã hoàn tất đủ 10 giao dịch hôm nay.' };
   if (!receiver || Number(receiver.materials?.[trade.wantMat] || 0) < trade.wantAmount) return { ok: false, message: 'Kho cá nhân của bạn không đủ nguyên liệu yêu cầu.' };
   receiver.materials[trade.wantMat] -= trade.wantAmount;
-  receiver.materials[trade.offerMat] = (receiver.materials[trade.offerMat] || 0) + Math.max(1, Math.floor(trade.offerAmount * 1.2));
-  sender.materials[trade.wantMat] = (sender.materials[trade.wantMat] || 0) + Math.max(1, Math.floor(trade.wantAmount * 1.2));
+  receiver.materials[trade.offerMat] = (receiver.materials[trade.offerMat] || 0) + trade.offerAmount + Math.max(1, Math.ceil(trade.offerAmount * 0.2));
+  sender.materials[trade.wantMat] = (sender.materials[trade.wantMat] || 0) + trade.wantAmount + Math.max(1, Math.ceil(trade.wantAmount * 0.2));
   await savePlayer(client, guildId, receiver); await savePlayer(client, guildId, sender);
   d.trades += 1; pair.pendingTrade = null; pair.history = [...(pair.history || []), { type: 'trade', fromId: trade.fromId, toId: uid, at: Date.now() }];
   await persistPair(client, guildId, pair);
-  return { ok: true, message: 'Giao dịch hoàn tất! Cả hai đã nhận nguyên liệu kèm thưởng +20% (làm tròn xuống, tối thiểu 1).' };
+  return { ok: true, message: 'Giao dịch hoàn tất! Cả hai đã nhận nguyên liệu kèm thưởng +20% (làm tròn lên phần lẻ, tối thiểu +1).' };
 }
