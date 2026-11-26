@@ -1,6 +1,7 @@
 import {
   SlashCommandBuilder,
   EmbedBuilder,
+  MessageFlags,
 } from 'discord.js';
 import {
   getOrCreateSantaPlayer,
@@ -96,7 +97,7 @@ export default {
       if (!interaction.replied && !interaction.deferred) {
         return interaction.reply({
           content: '❌ Có lỗi khi mở Xưởng Quà Noel, thử lại sau nhé!',
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
     }

@@ -1,6 +1,7 @@
 import {
   SlashCommandBuilder,
   PermissionFlagsBits,
+  MessageFlags,
 } from 'discord.js';
 import { ROLE_HIERARCHY } from '../../config/roleHierarchy.js';
 import {
@@ -85,11 +86,12 @@ export default {
     const botClient = client || interaction.client;
 
     try {
+      const replyFlags = interaction._isPrefixCommand ? undefined : MessageFlags.Ephemeral;
       const guildId = interaction.guildId || 'global';
       if (!hasOwnerRole(interaction.member, interaction.guild, interaction.user?.id)) {
         return interaction.reply({
           content: `❌ Lệnh này chỉ dành riêng cho <@&${ROLE_HIERARCHY.OWNER}>!`,
-          ephemeral: !interaction._isPrefixCommand,
+          flags: replyFlags,
         });
       }
 
@@ -100,7 +102,7 @@ export default {
         await setSantaEventRole(botClient, guildId, role.id);
         return interaction.reply({
           content: `🎄 Đã đặt Role sự kiện Xưởng Quà Noel thành <@&${role.id}>! Người chơi có thể dùng Xu Tuyết đổi trong Shop.`,
-          ephemeral: !interaction._isPrefixCommand,
+          flags: replyFlags,
         });
       }
 
@@ -109,7 +111,7 @@ export default {
         await setSantaAnnounceChannel(botClient, guildId, channel.id);
         return interaction.reply({
           content: `📢 Đã chọn <#${channel.id}> làm kênh vinh danh Jackpot, Thành Tựu & Cây Thông Server!`,
-          ephemeral: !interaction._isPrefixCommand,
+          flags: replyFlags,
         });
       }
 
@@ -117,7 +119,7 @@ export default {
         const { deletedPlayers, cleanedBoards } = await cleanupGuestSantaData(botClient);
         return interaction.reply({
           content: `🧹 Đã dọn sạch **${deletedPlayers}** dữ liệu khách ẩn danh và **${cleanedBoards}** bảng xếp hạng cũ! Giờ chỉ giữ lại người chơi có ID Discord thật thôi ạ.`,
-          ephemeral: !interaction._isPrefixCommand,
+          flags: replyFlags,
         });
       }
 
@@ -129,7 +131,7 @@ export default {
         if (!targetUser || targetUser.bot) {
           return interaction.reply({
             content: '❌ Không thể tặng Xu Tuyết cho bot!',
-            ephemeral: !interaction._isPrefixCommand,
+            flags: replyFlags,
           });
         }
 
@@ -146,20 +148,20 @@ export default {
         const noteText = note ? `\n💌 Lời nhắn: *${note}*` : '';
         return interaction.reply({
           content: `❄️ Đã tặng **+${amount} Xu Tuyết** cho <@${targetUser.id}>! Khi bạn ấy mở game Xưởng Quà Noel sẽ hiện thông báo nhận quà ngay.${noteText}`,
-          ephemeral: !interaction._isPrefixCommand,
+          flags: replyFlags,
         });
       }
 
       return interaction.reply({
         content: 'Hãy chọn `/xuongnoel-admin setrole` hoặc `/xuongnoel-admin setkenh` nhé!',
-        ephemeral: !interaction._isPrefixCommand,
+        flags: replyFlags,
       });
     } catch (error) {
       logger.error('[Command:XuongNoelAdmin] Lỗi thực thi:', error);
       if (!interaction.replied && !interaction.deferred) {
         return interaction.reply({
           content: '❌ Có lỗi khi cấu hình Xưởng Quà Noel, thử lại sau nhé!',
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
     }
