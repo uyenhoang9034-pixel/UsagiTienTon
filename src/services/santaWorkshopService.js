@@ -2188,7 +2188,7 @@ export async function handleSantaAttackBoss(client, identity, { mode = 'tap', to
   };
 }
 
-export async function handleSantaExchangeMaterial(client, identity, { fromMat, toMat, mode = 'swap' } = {}) {
+export async function handleSantaExchangeMaterial(client, identity, { fromMat, toMat, mode = 'swap', amount = 1 } = {}) {
   const guildId = identity.guildId || 'global';
   const player = await getOrCreateSantaPlayer(client, identity);
 
@@ -2213,16 +2213,29 @@ export async function handleSantaExchangeMaterial(client, identity, { fromMat, t
   if (!MATERIALS[toMat] || fromMat === toMat) {
     return { ok: false, message: 'Hãy chọn loại nguyên liệu muốn đổi sang khác loại cũ!', state: await buildSantaStatePayload(client, identity) };
   }
-  if ((player.materials[fromMat] || 0) < 2) {
-    return { ok: false, message: `Cần 2 ${MATERIALS[fromMat].icon} để đổi lấy 1 ${MATERIALS[toMat].icon}!`, state: await buildSantaStatePayload(client, identity) };
+
+  // amount là số lần đổi; chỉ cho phép các mốc nút đã định sẵn để tránh gửi số lượng tùy ý.
+  const exchangeCount = [1, 20, 100].includes(Number(amount)) ? Number(amount) : 1;
+  const ribbonExchange = fromMat === 'ribbon' || toMat === 'ribbon';
+  const inputPerExchange = ribbonExchange ? (toMat === 'ribbon' ? 20 : 1) : 2;
+  const outputPerExchange = ribbonExchange ? (fromMat === 'ribbon' ? 20 : 1) : 1;
+  const required = inputPerExchange * exchangeCount;
+  const received = outputPerExchange * exchangeCount;
+
+  if ((player.materials[fromMat] || 0) < required) {
+    return {
+      ok: false,
+      message: `Cần ${required.toLocaleString('vi-VN')} ${MATERIALS[fromMat].icon} ${MATERIALS[fromMat].name} để đổi!`,
+      state: await buildSantaStatePayload(client, identity),
+    };
   }
 
-  player.materials[fromMat] -= 2;
-  player.materials[toMat] = (player.materials[toMat] || 0) + 1;
+  player.materials[fromMat] -= required;
+  player.materials[toMat] = (player.materials[toMat] || 0) + received;
   await savePlayer(client, guildId, player);
   return {
     ok: true,
-    message: `🏪 Đã đổi 2 ${MATERIALS[fromMat].icon} → 1 ${MATERIALS[toMat].icon} ${MATERIALS[toMat].name}!`,
+    message: `🏪 Đã đổi ${required.toLocaleString('vi-VN')} ${MATERIALS[fromMat].icon} → ${received.toLocaleString('vi-VN')} ${MATERIALS[toMat].icon} ${MATERIALS[toMat].name}!`,
     state: await buildSantaStatePayload(client, identity),
   };
 }
