@@ -239,7 +239,7 @@ test('Tiến trình Xưởng Noel hỗ trợ cấp 2000 với chi phí late-game
   assert.equal(getUpgradeCost(1999), 998_400_000);
 
   const helper = { baseCost: 80 };
-  assert.ok(getHelperUpgradeCost(helper, 1500) >= 20_000_000);
+  assert.equal(getHelperUpgradeCost(helper, 1500), 200_000_000);
 
   const lv100 = getScaledRecipes(100).find((r) => r.id === 'teddy');
   const lv2000 = getScaledRecipes(2000).find((r) => r.id === 'teddy');
