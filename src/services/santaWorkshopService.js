@@ -229,7 +229,8 @@ export const SHOP_ITEMS = [
     name: 'Vé Quay Số Giáng Sinh',
     icon: '🎟️',
     price: 60,
-    description: 'Dùng để quay Vòng Quay May Mắn trúng Xu Tuyết & Bụi Phép!',
+    dailyLimit: 5,
+    description: 'Dùng để quay Vòng Quay May Mắn trúng Xu Tuyết & Bụi Phép (Giới hạn 5 vé/ngày)!',
   },
   {
     id: 'event_role',
@@ -531,7 +532,34 @@ export const ACHIEVEMENTS = [
 const TREE_THRESHOLDS = [
   0, 150, 400, 800, 1500, 2500, 4000, 6000, 8500, 11500, 15000,
   20000, 26000, 33000, 41000, 50000, 62000, 76000, 92000, 110000, 135000,
+  165000, 200000, 240000, 285000, 335000, 390000, 450000, 520000, 600000, 690000,
+  790000, 900000, 1020000, 1150000, 1300000, 1460000, 1630000, 1820000, 2020000, 2240000,
+  2480000, 2740000, 3020000, 3320000, 3650000, 4000000, 4380000, 4780000, 5220000, 5700000,
 ];
+
+export function getDailyQuestMultiplier(workshopLevel = 1) {
+  const lv = Math.max(1, Math.min(2000, Number(workshopLevel) || 1));
+  if (lv <= 1) return 1;
+  return 1 + (lv - 1) * 0.5 + Math.pow(lv - 1, 1.4);
+}
+
+export function getScaledDailyQuest(quest, workshopLevel = 1) {
+  const lv = Math.max(1, Math.min(2000, Number(workshopLevel) || 1));
+  const mult = getDailyQuestMultiplier(lv);
+  const scaled = { ...quest };
+  if (quest.rewardCoins) scaled.rewardCoins = Math.round(quest.rewardCoins * mult);
+  if (quest.rewardRep) scaled.rewardRep = Math.round(quest.rewardRep * mult);
+  if (quest.rewardTickets) {
+    scaled.rewardTickets = quest.rewardTickets + Math.floor((lv - 1) / 30);
+  }
+  if (quest.rewardMat) {
+    const matMult = Math.max(1, 1 + (lv - 1) * 0.25);
+    scaled.rewardMat = Object.fromEntries(
+      Object.entries(quest.rewardMat).map(([k, v]) => [k, Math.round(v * matMult)]),
+    );
+  }
+  return scaled;
+}
 
 export const DAILY_QUESTS = [
   { id: 'q_checkin', name: 'Điểm danh sáng sớm', icon: '📅', description: 'Điểm danh nhận quà trong ngày', target: 1, rewardCoins: 30, rewardRep: 10 },
@@ -898,9 +926,11 @@ export async function getServerTree(client, guildId) {
     buffExpiresAt: 0,
     recentContributors: [],
   };
-  const nextThreshold = TREE_THRESHOLDS[Math.min(TREE_THRESHOLDS.length - 1, (tree.level || 0) + 1)];
+  const level = Math.max(tree.level || 0, getTreeLevelFromPoints(tree.points || 0));
+  const nextThreshold = TREE_THRESHOLDS[Math.min(TREE_THRESHOLDS.length - 1, level + 1)];
   return {
     ...tree,
+    level,
     nextThreshold,
     buffActive: (tree.buffExpiresAt || 0) > Date.now(),
   };
@@ -1136,12 +1166,14 @@ export async function buildSantaStatePayload(client, identity) {
     })),
     dailyQuestsMeta: (() => {
       const dq = ensureDailyQuests(player, today);
+      const level = player.workshopLevel || 1;
       return DAILY_QUESTS.map((q) => {
-        const prog = Math.min(q.target, dq.progress?.[q.id] || 0);
+        const scaled = getScaledDailyQuest(q, level);
+        const prog = Math.min(scaled.target, dq.progress?.[q.id] || 0);
         return {
-          ...q,
+          ...scaled,
           progress: prog,
-          completed: prog >= q.target,
+          completed: prog >= scaled.target,
           claimed: (dq.claimed || []).includes(q.id),
         };
       });
@@ -1530,6 +1562,18 @@ export async function handleSantaBuyItem(client, identity, itemId) {
 
   const weekKey = getWeekKey();
   const todayKey = getTodayKey();
+  if (item.dailyLimit) {
+    const usedToday = player.dailyPurchaseCounts?.date === todayKey
+      ? Number(player.dailyPurchaseCounts.counts?.[item.id] || 0)
+      : 0;
+    if (usedToday >= item.dailyLimit) {
+      return {
+        ok: false,
+        message: `⏳ ${item.name} chỉ được mua tối đa ${item.dailyLimit} vé mỗi ngày! Ngày mai bạn quay lại nhé.`,
+        state: await buildSantaStatePayload(client, identity),
+      };
+    }
+  }
   if (item.id === 'ticket_bundle_5' && player.dailyPurchases?.[item.id] === todayKey) {
     return {
       ok: false,
@@ -1604,6 +1648,13 @@ export async function handleSantaBuyItem(client, identity, itemId) {
     player.equippedSkin = item.id;
   } else if (item.type === 'ticket') {
     player.luckyTickets = (player.luckyTickets || 0) + (item.amount || 1);
+    if (item.dailyLimit) {
+      if (!player.dailyPurchaseCounts || player.dailyPurchaseCounts.date !== todayKey) {
+        player.dailyPurchaseCounts = { date: todayKey, counts: {} };
+      }
+      player.dailyPurchaseCounts.counts = player.dailyPurchaseCounts.counts || {};
+      player.dailyPurchaseCounts.counts[item.id] = (player.dailyPurchaseCounts.counts[item.id] || 0) + 1;
+    }
     if (item.id === 'ticket_bundle_5') {
       player.dailyPurchases = player.dailyPurchases || {};
       player.dailyPurchases[item.id] = todayKey;
@@ -1992,11 +2043,12 @@ export async function handleSantaClaimQuest(client, identity, questId) {
   dq.claimed = dq.claimed || [];
   dq.claimed.push(questId);
 
-  if (quest.rewardCoins) player.snowCoins += quest.rewardCoins;
-  if (quest.rewardRep) player.reputation += quest.rewardRep;
-  if (quest.rewardTickets) player.luckyTickets = (player.luckyTickets || 0) + quest.rewardTickets;
-  if (quest.rewardMat) {
-    for (const [m, amt] of Object.entries(quest.rewardMat)) {
+  const scaledQuest = getScaledDailyQuest(quest, player.workshopLevel || 1);
+  if (scaledQuest.rewardCoins) player.snowCoins += scaledQuest.rewardCoins;
+  if (scaledQuest.rewardRep) player.reputation += scaledQuest.rewardRep;
+  if (scaledQuest.rewardTickets) player.luckyTickets = (player.luckyTickets || 0) + scaledQuest.rewardTickets;
+  if (scaledQuest.rewardMat) {
+    for (const [m, amt] of Object.entries(scaledQuest.rewardMat)) {
       player.materials[m] = (player.materials[m] || 0) + amt;
     }
   }
@@ -2111,7 +2163,7 @@ export async function getServerBoss(client, guildId) {
 }
 
 async function distributeBossConsolation(client, guildId, boss) {
-  const consolationCoins = 45;
+  const consolationCoins = 500000;
   for (const uid of Object.keys(boss.contributors || {})) {
     const p = await getDatabaseValue(client, getPlayerKey(guildId, uid), null);
     if (!p) continue;
@@ -2121,7 +2173,7 @@ async function distributeBossConsolation(client, guildId, boss) {
       id: `boss_con_${Date.now().toString(36)}_${uid.slice(-4)}`,
       amount: consolationCoins,
       fromName: 'Ông Già Noel (An ủi Boss)',
-      note: `Hết 20h đánh ${boss.name} chưa thành công, gửi bạn chút Xu Tuyết an ủi nhé!`,
+      note: `Hết 20h đánh ${boss.name} chưa thành công, gửi bạn 500.000 ❄️ Xu Tuyết an ủi nhé!`,
       at: Date.now(),
     });
     await setDatabaseValue(client, getPlayerKey(guildId, uid), p);

@@ -1573,12 +1573,12 @@ function renderPanel() {
       ${dailyQuestsMeta
         .map((q) => {
           const rewardParts = [];
-          if (q.rewardCoins) rewardParts.push(`+${q.rewardCoins} ❄️`);
-          if (q.rewardRep) rewardParts.push(`+${q.rewardRep} ⭐`);
+          if (q.rewardCoins) rewardParts.push(`+${Number(q.rewardCoins).toLocaleString('vi-VN')} ❄️`);
+          if (q.rewardRep) rewardParts.push(`+${Number(q.rewardRep).toLocaleString('vi-VN')} ⭐`);
           if (q.rewardTickets) rewardParts.push(`+${q.rewardTickets} 🎟️`);
           if (q.rewardMat) {
             for (const [m, amt] of Object.entries(q.rewardMat)) {
-              rewardParts.push(`+${amt} ${materialsMeta[m]?.icon || ''}`);
+              rewardParts.push(`+${Number(amt).toLocaleString('vi-VN')} ${materialsMeta[m]?.icon || ''}`);
             }
           }
           let btnHtml = `<span class="tag">${q.progress}/${q.target}</span>`;
@@ -1688,17 +1688,25 @@ function renderPanel() {
             (isSkin && player.equippedSkin === item.id);
           const ownedRole = item.type === 'role' && player.hasEventRole;
           const boughtThisWeek = Boolean(item.weeklyLimit && currentWeekKey && player.weeklyPurchases?.[item.id] === currentWeekKey);
+          const dailyUsed = item.dailyLimit && player.dailyPurchaseCounts?.date === STATE.data?.today
+            ? Number(player.dailyPurchaseCounts.counts?.[item.id] || 0)
+            : 0;
+          const dailyRemain = item.dailyLimit ? Math.max(0, item.dailyLimit - dailyUsed) : null;
           const cooldownRemainMs = item.cooldownDays
             ? item.cooldownDays * 24 * 60 * 60 * 1000 - (Date.now() - (player.cooldownPurchases?.[item.id] || 0))
             : 0;
 
-          let actionHtml = `<button class="btn" data-buy="${item.id}">${item.price} ❄️</button>`;
+          let actionHtml = item.dailyLimit
+            ? `<button class="btn" data-buy="${item.id}">${item.price} ❄️ (${dailyRemain}/${item.dailyLimit})</button>`
+            : `<button class="btn" data-buy="${item.id}">${item.price} ❄️</button>`;
           if (owned) {
             actionHtml = equipped
               ? `<button class="btn btn-outline" data-equip-kind="${item.type}" data-equip-id="">Đang dùng</button>`
               : `<button class="btn btn-green" data-equip-kind="${item.type}" data-equip-id="${item.id}">Trang bị</button>`;
           } else if (ownedRole) {
             actionHtml = `<button class="btn btn-outline" disabled>Đã sở hữu</button>`;
+          } else if (dailyRemain === 0) {
+            actionHtml = `<button class="btn btn-outline" disabled>Hết lượt (0/${item.dailyLimit})</button>`;
           } else if (boughtThisWeek) {
             actionHtml = `<button class="btn btn-outline" disabled>Đã mua tuần này</button>`;
           } else if (cooldownRemainMs > 0) {

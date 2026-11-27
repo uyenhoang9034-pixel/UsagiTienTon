@@ -344,3 +344,63 @@ test('Mua & trang bị các khung avatar và trang phục yêu tinh mới trong 
   assert.equal(switchSkin.ok, true);
   assert.equal(switchSkin.state.player.equippedSkin, 'skin_nutcracker');
 });
+
+test('Giới hạn 5 Vé Quay Số/ngày, Cây Thông > Lv.20, Nhiệm vụ ngày tăng theo cấp & Boss an ủi 500.000 Xu Tuyết', async () => {
+  const client = createMemoryClient();
+  const identity = { userId: 'balance_elf', username: 'BalanceElf', guildId: 'balance_guild' };
+  await buildSantaStatePayload(client, identity);
+
+  const playerKey = 'santa:player:balance_guild:balance_elf';
+  const player = await client.db.get(playerKey);
+  player.workshopLevel = 10;
+  player.snowCoins = 100_000;
+  await client.db.set(playerKey, player);
+
+  // 1. Vé Quay Số Giáng Sinh giới hạn 5 vé/ngày
+  for (let i = 0; i < 5; i += 1) {
+    const buyTicket = await handleSantaBuyItem(client, identity, 'lucky_ticket');
+    assert.equal(buyTicket.ok, true);
+  }
+  const sixthTicket = await handleSantaBuyItem(client, identity, 'lucky_ticket');
+  assert.equal(sixthTicket.ok, false);
+
+  // 2. Cây Thông Chung Server mở cấp trên Lv.20
+  await client.db.set('santa:tree:balance_guild', {
+    points: 195860,
+    level: 20,
+    buffExpiresAt: 0,
+    recentContributors: [],
+  });
+  const treeState = await buildSantaStatePayload(client, identity);
+  assert.ok(treeState.serverTree.level > 20);
+
+  // 3. Nhiệm vụ ngày tăng theo cấp xưởng
+  await handleSantaCheckin(client, identity);
+  const beforeClaim = (await client.db.get(playerKey)).snowCoins;
+  const questMeta = treeState.dailyQuestsMeta.find((q) => q.id === 'q_checkin');
+  assert.ok(questMeta.rewardCoins > 30);
+  const claimRes = await handleSantaClaimQuest(client, identity, 'q_checkin');
+  assert.equal(claimRes.ok, true);
+  assert.equal(claimRes.state.player.snowCoins - beforeClaim, questMeta.rewardCoins);
+
+  // 4. Boss hết giờ chưa bị hạ gục -> an ủi 500.000 Xu Tuyết mỗi người
+  const coinsBeforeBossConsolation = claimRes.state.player.snowCoins;
+  const today = claimRes.state.today;
+  await client.db.set('santa:boss:balance_guild', {
+    date: today,
+    level: 1,
+    name: 'Người Tuyết Bão Tố Khổng Lồ',
+    icon: '⛄',
+    hp: 1000,
+    maxHp: 2000,
+    status: 'active',
+    closesAt: Date.now() - 1000,
+    contributors: {
+      [identity.userId]: { username: identity.username, dmg: 1000 },
+    },
+    rewardsDistributed: false,
+  });
+  const expiredBossState = await buildSantaStatePayload(client, identity);
+  assert.equal(expiredBossState.serverBoss.status, 'expired');
+  assert.equal(expiredBossState.player.snowCoins - coinsBeforeBossConsolation, 500_000);
+});
