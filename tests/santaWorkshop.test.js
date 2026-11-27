@@ -309,3 +309,38 @@ test('Giới hạn mỗi người 3 lượt tim và 3 lượt tặng quà mỗi 
   const otherFriendGift = await handleSantaVisitFriend(client, identity, { targetUserId: friend2.userId, action: 'gift' });
   assert.equal(otherFriendGift.ok, true);
 });
+
+test('Mua & trang bị các khung avatar và trang phục yêu tinh mới trong Shop Noel', async () => {
+  const client = createMemoryClient();
+  const identity = { userId: 'fashion_elf', username: 'FashionElf', guildId: 'fashion_guild' };
+  await buildSantaStatePayload(client, identity);
+
+  const playerKey = 'santa:player:fashion_guild:fashion_elf';
+  const player = await client.db.get(playerKey);
+  player.snowCoins = 20_000;
+  await client.db.set(playerKey, player);
+
+  const newFrames = ['frame_gingerbread', 'frame_fireplace', 'frame_starlight'];
+  for (const frameId of newFrames) {
+    const res = await handleSantaBuyItem(client, identity, frameId);
+    assert.equal(res.ok, true);
+    assert.equal(res.state.player.equippedFrame, frameId);
+    assert.ok(res.state.player.ownedFrames.includes(frameId));
+  }
+
+  const newSkins = ['skin_snowman_suit', 'skin_nutcracker', 'skin_starlight'];
+  for (const skinId of newSkins) {
+    const res = await handleSantaBuyItem(client, identity, skinId);
+    assert.equal(res.ok, true);
+    assert.equal(res.state.player.equippedSkin, skinId);
+    assert.ok(res.state.player.ownedSkins.includes(skinId));
+  }
+
+  const switchFrame = await handleSantaEquipCosmetic(client, identity, { kind: 'frame', itemId: 'frame_fireplace' });
+  assert.equal(switchFrame.ok, true);
+  assert.equal(switchFrame.state.player.equippedFrame, 'frame_fireplace');
+
+  const switchSkin = await handleSantaEquipCosmetic(client, identity, { kind: 'skin', itemId: 'skin_nutcracker' });
+  assert.equal(switchSkin.ok, true);
+  assert.equal(switchSkin.state.player.equippedSkin, 'skin_nutcracker');
+});

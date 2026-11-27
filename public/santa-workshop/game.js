@@ -327,10 +327,15 @@ class SantaWorkshopScene extends Phaser.Scene {
     g.fillRoundedRect(-16, 42, 12, 8, 4);
     g.fillRoundedRect(4, 42, 12, 8, 4);
 
-    // Hào quang vàng nếu đeo skin_golden
+    // Hào quang vàng nếu đeo skin_golden hoặc hào quang ngân hà nếu đeo skin_starlight
     if (skin === 'skin_golden') {
       g.fillStyle(0xffd166, 0.28);
       g.fillCircle(0, 0, 48);
+    } else if (skin === 'skin_starlight') {
+      g.fillStyle(0x7209b7, 0.28);
+      g.fillCircle(0, 0, 50);
+      g.lineStyle(2, 0x4cc9f0, 0.6);
+      g.strokeCircle(0, 0, 48);
     }
 
     // Thân áo theo skin
@@ -351,9 +356,15 @@ class SantaWorkshopScene extends Phaser.Scene {
                     ? 0x3c096c
                     : skin === 'skin_angel'
                       ? 0xf8f9fa
-                      : 0x2a9d8f;
+                      : skin === 'skin_snowman_suit'
+                        ? 0xf1f5f9
+                        : skin === 'skin_nutcracker'
+                          ? 0xc1121f
+                          : skin === 'skin_starlight'
+                            ? 0x240046
+                            : 0x2a9d8f;
     g.fillStyle(coatColor, 1);
-    g.fillRoundedRect(-22, 0, 44, 44, 10);
+    g.fillRoundedRect(-22, 0, 44, 44, skin === 'skin_snowman_suit' ? 18 : 10);
 
     if (skin === 'skin_santa') {
       g.fillStyle(0xffffff, 1);
@@ -386,6 +397,38 @@ class SantaWorkshopScene extends Phaser.Scene {
     } else if (skin === 'skin_angel') {
       g.fillStyle(0xffd166, 1);
       g.fillRect(-4, 0, 8, 44);
+    } else if (skin === 'skin_snowman_suit') {
+      // Khăn choàng đỏ sọc trắng & 3 nút than đen
+      g.fillStyle(0xe63946, 1);
+      g.fillRoundedRect(-20, 1, 40, 8, 4);
+      g.fillRoundedRect(4, 5, 10, 16, 4);
+      g.fillStyle(0xffffff, 1);
+      g.fillRect(-10, 1, 5, 8);
+      g.fillRect(6, 1, 5, 8);
+      g.fillStyle(0x2b2d42, 1);
+      g.fillCircle(0, 15, 3);
+      g.fillCircle(0, 29, 3);
+      g.fillCircle(0, 38, 3);
+    } else if (skin === 'skin_nutcracker') {
+      // Cầu vai tua vàng & hàng nút đôi hoàng gia
+      g.fillStyle(0xffd166, 1);
+      g.fillRoundedRect(-26, 0, 12, 7, 3);
+      g.fillRoundedRect(14, 0, 12, 7, 3);
+      g.fillCircle(-7, 10, 3);
+      g.fillCircle(7, 10, 3);
+      g.fillCircle(-7, 19, 3);
+      g.fillCircle(7, 19, 3);
+      g.fillCircle(-7, 32, 3);
+      g.fillCircle(7, 32, 3);
+    } else if (skin === 'skin_starlight') {
+      // Chòm sao tinh tú phát sáng trên áo choàng tím
+      g.fillStyle(0x4cc9f0, 1);
+      g.fillCircle(-9, 11, 3);
+      g.fillCircle(10, 16, 2.5);
+      g.fillCircle(-6, 33, 2.5);
+      g.fillStyle(0xffd166, 1);
+      g.fillCircle(8, 31, 3.5);
+      g.fillRoundedRect(-22, 37, 44, 6, 3);
     }
     g.fillStyle(0xffd166, 1);
     g.fillRect(-22, 22, 44, 6);
@@ -397,15 +440,19 @@ class SantaWorkshopScene extends Phaser.Scene {
     g.fillStyle(0xffd6ba, 1);
     g.fillCircle(-26, 28, 5);
     g.fillCircle(26, 28, 5);
-    if (skin === 'skin_wizard' || skin === 'skin_angel') {
+    if (skin === 'skin_wizard' || skin === 'skin_angel' || skin === 'skin_starlight') {
       g.fillStyle(0x9c6644, 1);
       g.fillRect(25, -4, 4, 34);
-      g.fillStyle(skin === 'skin_wizard' ? 0x00bbf9 : 0xffd166, 1);
+      g.fillStyle(skin === 'skin_wizard' ? 0x00bbf9 : skin === 'skin_starlight' ? 0x4cc9f0 : 0xffd166, 1);
       g.fillCircle(27, -7, 7);
+      if (skin === 'skin_starlight') {
+        g.fillStyle(0xffd166, 1);
+        g.fillCircle(27, -7, 3.5);
+      }
     } else {
       g.fillStyle(0x9c6644, 1);
       g.fillRect(25, 4, 4, 24);
-      g.fillStyle(skin === 'skin_golden' ? 0xffd166 : 0xadb5bd, 1);
+      g.fillStyle(skin === 'skin_golden' || skin === 'skin_nutcracker' ? 0xffd166 : 0xadb5bd, 1);
       g.fillRoundedRect(19, -2, 16, 9, 3);
     }
 
@@ -454,6 +501,29 @@ class SantaWorkshopScene extends Phaser.Scene {
     } else if (skin === 'skin_angel') {
       g.lineStyle(3, 0xffd166, 1);
       g.strokeEllipse(0, -46, 34, 10);
+    } else if (skin === 'skin_snowman_suit') {
+      // Nón chóp đen quý tộc có dải ruy băng đỏ
+      g.fillStyle(0x2b2d42, 1);
+      g.fillRoundedRect(-24, -30, 48, 6, 3);
+      g.fillRoundedRect(-14, -52, 28, 24, 4);
+      g.fillStyle(0xe63946, 1);
+      g.fillRect(-14, -34, 28, 5);
+    } else if (skin === 'skin_nutcracker') {
+      // Mũ lông cao lính kẹp hạt dẻ + huy hiệu vàng
+      g.fillStyle(0x1d1d1d, 1);
+      g.fillRoundedRect(-17, -60, 34, 34, 8);
+      g.fillStyle(0xffd166, 1);
+      g.fillRoundedRect(-20, -31, 40, 6, 3);
+      g.fillCircle(0, -45, 5);
+    } else if (skin === 'skin_starlight') {
+      // Vương miện sao băng tinh tú
+      g.fillStyle(0xffd166, 1);
+      g.fillTriangle(-14, -30, -8, -46, -2, -30);
+      g.fillTriangle(-4, -30, 0, -52, 4, -30);
+      g.fillTriangle(2, -30, 8, -46, 14, -30);
+      g.fillRoundedRect(-16, -33, 32, 6, 3);
+      g.fillStyle(0x4cc9f0, 1);
+      g.fillCircle(0, -41, 3.5);
     } else {
       g.fillStyle(0xe63946, 1);
       g.fillTriangle(0, -56, -22, -26, 22, -26);
@@ -496,6 +566,9 @@ class SantaWorkshopScene extends Phaser.Scene {
       skin_wizard: '🪄',
       skin_angel: '⭐',
       skin_reindeer_suit: '🔴',
+      skin_snowman_suit: '⛄',
+      skin_nutcracker: '✨',
+      skin_starlight: '🌠',
     };
     const auraChar = auraMap[skin];
     if (auraChar) {
